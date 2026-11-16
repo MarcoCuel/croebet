@@ -14,7 +14,8 @@ const formatBalance = new Intl.NumberFormat("pt-BR");
 const initialBalance = 1067;
 const accountAction = "flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-control-hover";
 
-const navLink = "rounded-xl px-4 py-2 text-muted hover:bg-control-hover hover:text-foreground aria-[current]:bg-control-hover aria-[current]:text-foreground max-[26.25rem]:px-2";
+const navControl = "min-h-10 items-center rounded-xl";
+const navLink = `${navControl} flex px-4 text-muted hover:bg-control-hover hover:text-foreground aria-[current]:bg-control-hover aria-[current]:text-foreground max-[26.25rem]:px-2`;
 
 export function Navigation() {
   const pathname = usePathname();
@@ -65,8 +66,8 @@ export function Navigation() {
         </nav>
         {username ? (
           <div className="flex items-center gap-2 max-[26.25rem]:gap-1.5">
-            <div className="flex min-h-11 items-center gap-1.5 rounded-xl bg-brand/20 px-2 font-semibold tabular-nums max-[26.25rem]:text-sm" aria-live="polite">
-              <span className="grid size-7 shrink-0 place-items-center rounded-full border-[0.125rem] border-accent/60 bg-brand text-sm font-black text-white" aria-hidden="true">C</span>
+            <div className={`${navControl} flex gap-1.5 px-2 font-semibold tabular-nums max-[26.25rem]:text-sm`} aria-live="polite">
+              <span className="grid size-6 shrink-0 place-items-center rounded-full border-[0.125rem] border-accent/60 bg-brand bg-primary-button text-sm font-black text-white inset-shadow-primary-button" aria-hidden="true">C</span>
               <span className="sr-only">Saldo fictício: </span>{formatBalance.format(balance)}<span className="sr-only"> {balance === 1 ? "Croin" : "Croins"}</span>
             </div>
             <div
@@ -83,7 +84,7 @@ export function Navigation() {
             >
               <button
                 ref={accountTriggerRef}
-                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-control-hover px-3 font-semibold max-[26.25rem]:gap-1 max-[26.25rem]:px-2 max-[26.25rem]:text-sm"
+                className={`${navControl} flex cursor-pointer gap-2 bg-control-hover px-3 font-semibold max-[26.25rem]:gap-1 max-[26.25rem]:px-2 max-[26.25rem]:text-sm`}
                 type="button"
                 aria-expanded={menuOpen}
                 aria-controls="account-actions"
@@ -107,7 +108,7 @@ export function Navigation() {
             </div>
           </div>
         ) : (
-          <button className="button min-h-11 cursor-pointer rounded-xl px-[clamp(0.5rem,3vw,1.25rem)] py-2" type="button" aria-haspopup="dialog" onClick={() => dialogRef.current?.showModal()}>
+          <button className={`${navControl} button cursor-pointer px-[clamp(0.5rem,3vw,1.25rem)]`} type="button" aria-haspopup="dialog" onClick={() => dialogRef.current?.showModal()}>
             Entrar
           </button>
         )}

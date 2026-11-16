@@ -84,11 +84,11 @@
   }
 
   .display-heading {
-    @apply text-[clamp(2.5rem,6.1vw,5.5rem)] font-[650] leading-[.99] tracking-[-.065em] text-balance;
+    @apply text-[clamp(2.5rem,6vw,5rem)] font-[650] leading-[.99] tracking-[-.04em] text-balance;
   }
 
   .section-heading {
-    @apply text-[clamp(1.5rem,3vw,2.25rem)] font-bold tracking-[-.045em];
+    @apply text-[clamp(1.5rem,3vw,2.25rem)] font-bold tracking-[-.04em];
   }
 
   .inner {

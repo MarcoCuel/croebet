@@ -13,11 +13,11 @@ const highlights = [
 export default function Home() {
   return (
     <main className="shell -mt-(--header-space)">
-      <section className="grid min-h-[clamp(27.5rem,42vw,35rem)] place-items-center rounded-b-panel bg-surface bg-[radial-gradient(ellipse_at_50%_108%,var(--color-hero-glow)_0,var(--color-hero-halo)_30%,transparent_63%)] px-5 pt-29 pb-16 text-center" aria-labelledby="hero-title">
+      <section className="grid min-h-[clamp(25rem,40vw,30rem)] place-items-center px-5 pt-38 pb-16 text-center" aria-labelledby="hero-title">
         <div data-enter>
-          <h1 className="display-heading max-w-[14ch]" id="hero-title">O cassino onde <em className="text-accent not-italic">até o saldo</em> é piada.</h1>
+          <h1 className="display-heading max-w-[40rem]" id="hero-title">A maior bet <em className="text-accent not-italic">sem vergonha</em> do Brasil</h1>
           <p className="mx-auto mt-5 text-balance text-muted">Jogos de sorte, previsões duvidosas e dinheiro de mentira.</p>
-          <Link className="button button-lg mt-6" href="/jogos">Explorar jogos <ArrowUpRightIcon className="size-5" aria-hidden="true" /></Link>
+          <Link className="button button-lg mt-6" href="/jogos">Bora jogar <ArrowUpRightIcon className="size-5" aria-hidden="true" /></Link>
         </div>
       </section>
 
