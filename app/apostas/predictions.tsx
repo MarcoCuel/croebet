@@ -44,7 +44,7 @@ export function Predictions() {
                 <button
                   key={outcome}
                   type="button"
-                  className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 rounded-xl bg-control px-3 py-2 text-left text-sm hover:bg-control-hover aria-pressed:bg-card-oracle aria-pressed:ring-1 aria-pressed:ring-accent"
+                  className="flex min-h-11 flex-wrap items-center justify-between gap-x-2 rounded-xl bg-control px-3 py-2 text-left text-sm hover:bg-control-hover aria-pressed:border-accent aria-pressed:bg-card-oracle"
                   aria-pressed={selection?.market === question && selection.outcome === outcome}
                   onClick={() => setSelection({ market: question, outcome, odds })}
                 >

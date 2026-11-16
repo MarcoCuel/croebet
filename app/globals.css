@@ -51,9 +51,21 @@
     @apply scheme-dark [scrollbar-gutter:stable] scroll-pt-[calc(var(--header-space)+0.75rem)] has-[dialog[open]]:overflow-hidden;
   }
 
-  :where(a, button, input):focus-visible {
+  :where(a):focus-visible {
     @apply outline-[0.125rem] outline-offset-[0.25rem] outline-accent;
   }
+
+  :where(button) {
+    @apply border-(length:--border-width-hairline) border-transparent;
+  }
+}
+
+:where(input):focus-visible {
+  @apply border-accent outline-hidden;
+}
+
+:where(button):focus-visible {
+  @apply border-foreground outline-hidden;
 }
 
 @utility shell {
