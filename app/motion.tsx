@@ -30,7 +30,7 @@ export function Motion() {
 
     media.add("(prefers-reduced-motion: no-preference)", () => {
       gsap.from("[data-enter]", {
-        y: 14,
+        y: "1rem",
         opacity: 0,
         duration: 0.48,
         stagger: 0.06,

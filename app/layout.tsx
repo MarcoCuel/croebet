@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Motion />
         <Navigation />
         {children}
-        <footer className="shell mt-[42px] border-t border-border pt-[18px] pb-7 text-sm text-muted">Croebet é uma paródia. Todo saldo é fictício.</footer>
+        <footer className="shell mt-11 border-t-(length:--border-width-hairline) border-border pt-4 pb-7 text-sm text-muted">Croebet é uma paródia. Todo saldo é fictício.</footer>
       </body>
     </html>
   );
