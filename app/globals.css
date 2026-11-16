@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme static {
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+
+  --color-brand: #ad158f;
+  --color-brand-hover: #bd1599;
+  --inset-shadow-primary-button: inset 0 -2px 4px rgb(255 255 255 / 32%);
+  --background-image-primary-button: linear-gradient(to bottom, rgb(255 255 255 / 0%) 40%, rgb(255 255 255 / 20%) 100%);
+  --color-accent: #f15ad3;
+  --color-background: #0f0f0f;
+  --color-surface: #1a1a1a;
+  --color-control: #303030;
+  --color-control-hover: #404040;
+  --color-foreground: #faf8fa;
+  --color-muted: #beb6be;
+  --color-card-copy: #ded3dd;
+  --color-border: #292429;
+  --color-dialog-border: #453541;
+  --color-field-border: #50444d;
+  --color-hero-glow: #631752;
+  --color-hero-halo: #36172f;
+  --color-card-oracle: #331a30;
+  --color-card-luck: #542344;
+  --color-cover-base: #211820;
+  --color-cover-krepinho: #782461;
+  --color-cover-crystal: #553464;
+  --color-cover-roulette: #552447;
+  --color-cover-slots: #6a284e;
+  --color-mark-krepinho: #f9d5f3;
+  --color-mark-crystal: #ead1ff;
+  --color-mark-roulette: #ffbcf5;
+  --color-mark-slots: #ffcee1;
+
+  --radius-panel: 24px;
+}
+
+:root {
+  --header-top: 14px;
+  --header-height: 58px;
+  --header-space: calc(var(--header-top) + var(--header-height));
+}
+
+@layer base {
+  html {
+    @apply scheme-dark [scrollbar-gutter:stable] scroll-pt-[calc(var(--header-space)+12px)] has-[dialog[open]]:overflow-hidden;
+  }
+
+  :where(a, button, input):focus-visible {
+    @apply outline-2 outline-offset-4 outline-accent;
+  }
+}
+
+@utility shell {
+  width: min(1440px, calc(100% - 2 * clamp(16px, 3vw, 52px)));
+  margin-inline: auto;
+}
+
+@layer components {
+  .button {
+    @apply inline-flex items-center justify-center gap-4 bg-brand bg-primary-button font-semibold text-white inset-shadow-primary-button hover:bg-brand-hover;
+  }
+
+  .button-lg {
+    @apply min-h-[56px] rounded-2xl px-[clamp(24px,4vw,34px)] py-3 text-lg;
+  }
+
+  .display-heading {
+    @apply text-[clamp(38px,6.1vw,88px)] font-[650] leading-[.99] tracking-[-.065em] text-balance;
+  }
+
+  .section-heading {
+    @apply text-[clamp(23px,3vw,34px)] font-bold tracking-[-.045em];
+  }
+
+  .inner {
+    @apply pt-[clamp(38px,7vw,86px)];
+  }
+
+  .game-cover {
+    @apply grid aspect-square place-items-center rounded-panel [&>svg]:size-[clamp(52px,9vw,138px)];
+    background: radial-gradient(ellipse at 50% 72%, var(--cover), transparent 72%), var(--color-cover-base);
+  }
+}
