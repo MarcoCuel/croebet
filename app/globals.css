@@ -40,6 +40,10 @@
   --header-top: 1rem;
   --header-height: 3.5rem;
   --header-space: calc(var(--header-top) + var(--header-height));
+
+  @media (width < 38rem) {
+    --header-height: 6.25rem;
+  }
 }
 
 @layer base {

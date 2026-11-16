@@ -13,7 +13,7 @@ const highlights = [
 export default function Home() {
   return (
     <main className="shell -mt-(--header-space)">
-      <section className="grid min-h-[clamp(25rem,40vw,30rem)] place-items-center px-5 pt-38 pb-16 text-center" aria-labelledby="hero-title">
+      <section className="grid min-h-[clamp(25rem,40vw,30rem)] place-items-center px-5 pt-38 pb-16 text-center max-[38rem]:pt-49" aria-labelledby="hero-title">
         <div data-enter>
           <h1 className="display-heading max-w-[40rem]" id="hero-title">A maior bet <em className="text-accent not-italic">sem vergonha</em> do Brasil</h1>
           <p className="mx-auto mt-5 text-balance text-muted">Jogos de sorte, previsões duvidosas e dinheiro de mentira.</p>
