@@ -59,10 +59,10 @@ export function Navigation() {
           <span className="brand-wordmark">Croebet</span>
         </Link>
         <nav className="flex gap-1" aria-label="Navegação principal">
-          <Link className={username ? navLink + " max-[26.25rem]:hidden" : navLink} href="/" aria-current={pathname === "/" ? "page" : undefined}>Início</Link>
           <Link className={navLink} href="/jogos" aria-current={pathname === "/jogos" ? "page" : pathname.startsWith("/jogos/") ? "location" : undefined}>
             Jogos
           </Link>
+          <Link className={navLink} href="/sobre" aria-current={pathname === "/sobre" ? "page" : undefined}>Sobre</Link>
         </nav>
         {username ? (
           <div className="flex items-center gap-2 max-[26.25rem]:gap-1.5">
@@ -90,7 +90,7 @@ export function Navigation() {
                 aria-controls="account-actions"
                 onClick={() => setMenuOpen(!menuOpen)}
               >
-                <span className="max-w-24 truncate max-[26.25rem]:max-w-12">{username}</span>
+                <span className="max-w-24 truncate max-[26.25rem]:max-w-10">{username}</span>
                 <CaretDownIcon className={menuOpen ? "size-4 shrink-0 rotate-180 text-muted" : "size-4 shrink-0 text-muted"} aria-hidden="true" />
               </button>
               <div id="account-actions" hidden={!menuOpen} className="absolute top-full right-0 mt-2 w-max rounded-xl bg-surface p-1.5 shadow-lg">
