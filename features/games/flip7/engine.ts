@@ -37,7 +37,7 @@ function shuffle(game: Game, cards: Card[]) {
   return result;
 }
 export function createGame(setup: Setup[], seed = 1): Game {
-  if (setup.length < 2 || setup.length > 6 || !setup.some(p => p.kind === "human")) throw new Error("Escolha de 2 a 6 participantes, com ao menos uma pessoa.");
+  if (setup.length < 2 || setup.length > 12 || !setup.some(p => p.kind === "human")) throw new Error("Escolha de 2 a 12 participantes, com ao menos uma pessoa.");
   const game: Game = {
     players: setup.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 24) || `Jogador ${i + 1}`, cards: [], total: 0, hasDrawn: false, status: "playing" })),
     deck: [], discard: [], turn: 0, round: 1, phase: "playing", seed: (seed >>> 0) || 1,

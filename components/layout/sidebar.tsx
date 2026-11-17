@@ -29,7 +29,9 @@ export function Sidebar({
     <>
       <aside
         id="lobby-sidebar"
-        className="@container/sidebar fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-expanded) flex-col border-r-(length:--border-width-hairline) border-border bg-chrome md:flex group-data-[sidebar=collapsed]/navigation:invisible group-data-[sidebar=collapsed]/navigation:-translate-x-full"
+        className="@container/sidebar fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-expanded) flex-col border-r-(length:--border-width-hairline) border-border bg-chrome transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none md:flex group-data-[sidebar=collapsed]/navigation:invisible group-data-[sidebar=collapsed]/navigation:-translate-x-full"
+        inert={!expanded}
+        aria-hidden={!expanded}
         aria-label="Menu lateral"
       >
         <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-5 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
@@ -74,7 +76,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="fixed top-[calc((var(--header-height)-2.25rem)/2)] left-[max(1.25rem,calc(var(--sidebar-width)-3.5rem))] z-40 hidden md:inline-flex"
+            className="fixed top-[calc((var(--header-height)-2.25rem)/2)] left-[max(1.25rem,calc(var(--sidebar-width)-3.5rem))] z-40 hidden transition-[left,background-color,color,border-color] duration-300 ease-in-out motion-reduce:transition-none md:inline-flex"
             aria-label={expanded ? "Ocultar menu lateral" : "Mostrar menu lateral"}
             aria-expanded={expanded}
             aria-controls="lobby-sidebar"

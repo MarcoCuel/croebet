@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
+import { toast } from "sonner";
 import { BookOpen, PanelRightClose, PanelRightOpen, Layers, Heart, Snowflake, Plus, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { useDemoSession } from "@/features/auth/session-context";
 import { automaticAction, cardLabel, createGame, numbers, score, targets, transition } from "./engine";
 import type { Action, Card, Game, Setup } from "./engine";
 import { GOAL } from "./engine";
+import { matchStorageKey, currentMatch, matchUrl, saveMatch, type SavedMatch } from "./match-storage";
 
 function Rules() {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
@@ -111,10 +113,10 @@ function ParticipantSlot({ index, player, onChange }: { index: number; player: S
   </div>;
 }
 
-function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
+function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[]) => void; initialError: string }) {
   const { username, openLogin } = useDemoSession();
   const [count, setCount] = useState(2);
-  const [opponents, setOpponents] = useState<(Setup | null)[]>(Array(5).fill(null));
+  const [opponents, setOpponents] = useState<(Setup | null)[]>(Array(11).fill(null));
   const selected = opponents.slice(0, count - 1);
   const ready = selected.every(player => player !== null);
   return (
@@ -123,7 +125,7 @@ function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
         <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
           Número de jogadores
           <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
-            {[2, 3, 4, 5, 6].map(value => <option key={value} value={value}>{value}</option>)}
+            {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
           </Select>
         </Field>
         <div className="mt-7 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5" aria-label="Lugares da partida">
@@ -141,14 +143,19 @@ function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
         }}>{username ? "Começar partida" : "Entrar para jogar"}</Button>
         <Rules />
       </div>
+      {initialError && <p role="alert" className="mt-4 text-sm text-destructive">{initialError}</p>}
     </div>
   );
 }
 
 export default function Flip7Game() {
-  const [game, setGame] = useState<Game | null>(null);
+  const [restored] = useState(currentMatch);
+  const [game, setGame] = useState<Game | null>(restored.match?.game ?? null);
+  const [matchCode, setMatchCode] = useState<string | null>(restored.match?.code ?? null);
+  const matchCodeRef = useRef(matchCode);
+  const saveErrorShown = useRef(false);
   const [historyVisible, setHistoryVisible] = useState(true);
-  const gameRef = useRef<Game | null>(null);
+  const gameRef = useRef<Game | null>(game);
   const boardRef = useRef<HTMLDivElement>(null);
   const deckRef = useRef<HTMLDivElement>(null);
   const revealRef = useRef<HTMLDivElement>(null);
@@ -156,6 +163,26 @@ export default function Flip7Game() {
   const locked = useRef(false);
   const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean; origin?: { left: number; top: number; width: number } } | null>(null);
   const [landed, setLanded] = useState(false);
+  useEffect(() => {
+    if (matchCode) matchUrl(matchCode);
+  }, [matchCode]);
+  const persist = useCallback((next: Game, code: string) => {
+    try {
+      saveMatch({ version: 1, code, game: next });
+      saveErrorShown.current = false;
+    } catch {
+      if (!saveErrorShown.current) toast.error("Não foi possível salvar a partida. O progresso atual pode ser perdido ao sair.");
+      saveErrorShown.current = true;
+    }
+  }, []);
+  const openMatch = (match: SavedMatch) => {
+    persist(match.game, match.code);
+    matchCodeRef.current = match.code;
+    gameRef.current = match.game;
+    matchUrl(match.code);
+    setMatchCode(match.code);
+    setGame(match.game);
+  };
   const send = useCallback((action: Action) => {
     const current = gameRef.current;
     if (!current || locked.current) return;
@@ -177,14 +204,20 @@ export default function Flip7Game() {
         setFlight({ card, target: action.target, initial: false, parked: false, origin: { left: source.left, top: source.top, width: source.width } });
       }
     }
+    if (matchCodeRef.current) persist(next, matchCodeRef.current);
     gameRef.current = next;
     setGame(next);
-  }, []);
+  }, [persist]);
   const leave = () => {
     gameRef.current = null;
     locked.current = false;
     setFlight(null);
     setGame(null);
+    setMatchCode(null);
+    matchCodeRef.current = null;
+    matchUrl(null);
+    try { window.localStorage.removeItem(matchStorageKey); }
+    catch { toast.error("Não foi possível remover a partida salva."); }
   };
 
   useLayoutEffect(() => {
@@ -225,10 +258,10 @@ export default function Flip7Game() {
     return () => clearTimeout(timer);
   }, [game, flight, send]);
 
-  if (!game) return <SetupScreen onStart={setup => {
+  if (!game) return <SetupScreen initialError={restored.error} onStart={setup => {
     const next = createGame(setup, Math.floor(Math.random() * 4294967296));
-    gameRef.current = next;
-    setGame(next);
+    const code = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
+    openMatch({ version: 1, code, game: next });
   }} />;
   const current = game.players[game.turn];
   const actor = game.pending ? game.players[game.pending.source] : current;
@@ -256,11 +289,17 @@ export default function Flip7Game() {
           </div>}
           {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
         </div>
-        <Button className="ml-auto" variant="ghost" size="icon" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>
-          {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
-        </Button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button variant="ghost" size="sm" title="Copiar código da partida" aria-label={`Copiar código da partida ${matchCode}`} onClick={async () => {
+            try { await navigator.clipboard.writeText(matchCode!); toast.success("Código copiado."); }
+            catch { toast.error("Não foi possível copiar o código."); }
+          }}><span className="font-mono text-xs">Partida {matchCode}</span></Button>
+          <Button variant="ghost" size="icon" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>
+            {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
+          </Button>
+        </div>
       </div>
-      <div className={cn("grid items-start gap-6", historyVisible && "@[60rem]:grid-cols-[minmax(0,1fr)_14rem]")}>
+      <div className={cn("grid items-start overflow-x-clip transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
         <div className="min-w-0">
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
@@ -273,8 +312,8 @@ export default function Flip7Game() {
               </div>)}
               <div ref={revealRef} data-card-reveal aria-hidden="true" className="h-32 w-20 shrink-0 sm:h-36 sm:w-24" />
             </div>
-            <div className="grid w-full min-w-0 grid-cols-2 gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1 @[44rem]:grid-cols-3" aria-label="Usuários da partida">
-              {game.players.map((player, i) => <div key={i} className="flex min-w-0 items-center gap-3">
+            <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
+              {game.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className="size-11" aria-hidden="true">
                   <AvatarFallback className={cn("text-sm", game.phase === "playing" && activeSeat === i && "bg-selected text-accent")}>
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
@@ -320,9 +359,13 @@ export default function Flip7Game() {
             })}
           </div>
         </div>
-        <aside id="flip7-history" hidden={!historyVisible} className="min-w-0 bg-surface p-4 rounded-panel" aria-label="Histórico da partida">
-          <div className="max-h-96 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
-        </aside>
+        <div className={cn("grid min-w-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+          <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:w-56", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
+            <div className="rounded-panel bg-surface p-4">
+              <div className="max-h-96 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
+            </div>
+          </aside>
+        </div>
       </div>
       {flight && <div ref={flyingRef} aria-hidden="true" data-flying-card className={cn("pointer-events-none absolute top-0 left-0 z-30", landed && "invisible")}><PlayingCard card={flight.card} /></div>}
     </Surface>

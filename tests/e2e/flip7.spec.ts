@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { automaticAction, botAction, createGame, transition } from "../../features/games/flip7/engine";
 
 test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessíveis", async ({ page }) => {
   const errors: string[] = [];
@@ -62,4 +63,31 @@ test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessí
   await page.getByRole("button", { name: "Mostrar histórico", exact: true }).click();
   await expect(history).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("Flip7 mantém uma única partida e a retoma automaticamente", async ({ page }) => {
+  const code = "ABCDEF123456";
+  let game = createGame([{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }], 42);
+  for (let step = 0; step < 30; step++) {
+    const action = automaticAction(game) ?? (game.pending ? botAction(game) : null);
+    if (!action) break;
+    game = transition(game, action);
+  }
+  await page.goto("/jogos/flip7");
+  await page.evaluate(({ code, game }) => {
+    localStorage.setItem("croebet:flip7:match", JSON.stringify({ version: 1, code, game }));
+  }, { code, game });
+  await page.reload();
+  const board = page.getByRole("region", { name: "Mesa de Flip7", exact: true });
+  await expect(board).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`partida=${code}`));
+  const before = await board.innerText();
+  await page.reload();
+  await expect(board).toHaveText(before);
+  await page.goto("/jogos");
+  await page.goto("/jogos/flip7");
+  await expect(board).toHaveText(before);
+  await expect(page).toHaveURL(new RegExp(`partida=${code}`));
+  await expect(page.getByLabel("Código da partida", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toHaveCount(0);
 });
