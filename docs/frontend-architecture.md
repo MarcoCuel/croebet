@@ -16,7 +16,7 @@ A migração preserva o catálogo, os mercados, a metadata, as imagens, os texto
 | `components/shared` | Tipografia e componentes visuais de produto |
 | `features/auth` | Sessão demo, autenticação, menu de conta e armazenamento |
 | `features/wallet` | Carteira, cálculos, bônus, saldo e modal de recarga |
-| `features/betting` | Mercados, seleção e bilhete, histórico e tipos de palpites |
+| `features/betting` | Apostas por opções ou minutos, confirmação e histórico de palpites |
 | `features/games` | Catálogo e grade de jogos |
 | `features/home` | Banners da página inicial |
 | `lib` | `cn` e utilitários sem estado |
@@ -77,6 +77,8 @@ Componentes já necessários e disponíveis: Button, Input, Field, Dialog/drawer
 `DemoSessionProvider` coordena a sessão e um reducer de carteira. A persistência começa após a leitura inicial do navegador para não substituir dados existentes pelo saldo padrão. As chaves de localStorage e o formato de carteira foram mantidos; dados corrompidos são descartados com fallback em memória. As regras puras de carteira rejeitam valores fracionários, saldo insuficiente e overflow. O bônus diário utiliza `America/Sao_Paulo`.
 
 A autenticação permanece uma demonstração local; não salva a senha e não oferece segurança de backend. A refatoração mantém o comportamento de não sincronizar carteiras ativamente entre abas.
+
+A página de apostas apresenta três formatos: Sim/Não, escolha de período e atraso em minutos inteiros (incluindo zero). A seleção abre um diálogo para confirmar o valor em Croins; o histórico fica abaixo dos cards. Novos palpites não usam odds nem exibem projeções de retorno. O campo opcional `odds` continua aceito e validado ao ler palpites antigos, preservando as carteiras existentes. Apuração e pagamento continuam fora do escopo do protótipo.
 
 O estado de navegação é independente da carteira. Os diálogos utilizam portais, bloqueio de scroll e controle de foco do Radix. A troca de rota e o breakpoint desktop fecham o menu mobile. As páginas exibem o conteúdo diretamente, sem animações de entrada. `Motion` mantém a rolagem suave com Lenis e respeita a preferência de movimento reduzido.
 

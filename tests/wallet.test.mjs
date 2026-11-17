@@ -34,6 +34,17 @@ test("a carteira rejeita saldo insuficiente e valores inválidos", () => {
   assert.equal(isPrediction({ ...prediction, market: null }), false);
 });
 
+test("palpites gerais dispensam odds e preservam carteiras antigas", () => {
+  for (const outcome of ["Sim", "À noite", "0 minutos", "23 minutos"]) {
+    const entry = { market: "Próxima live", outcome, stake: 10 };
+    assert.equal(isPrediction(entry), true);
+    const wallet = registerPrediction(initialWallet, entry);
+    assert.equal(wallet.balance, 1057);
+    assert.deepEqual(wallet.predictions[0], entry);
+  }
+  assert.equal(isPrediction(prediction), true);
+});
+
 test("bônus só pode ser resgatado uma vez por dia e libera no dia seguinte", () => {
   const first = claimReward(initialWallet, "17/11/2026");
   assert.equal(first.balance, initialWallet.balance + dailyReward);

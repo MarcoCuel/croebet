@@ -27,8 +27,8 @@ export function isPrediction(value: unknown): value is Prediction {
     typeof entry.outcome === "string" &&
     Number.isSafeInteger(entry.stake) &&
     Number(entry.stake) > 0 &&
-    Number.isSafeInteger(entry.odds) &&
-    Number(entry.odds) > 0
+    (entry.odds === undefined ||
+      (Number.isSafeInteger(entry.odds) && Number(entry.odds) > 0))
   );
 }
 

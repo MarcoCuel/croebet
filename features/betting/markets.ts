@@ -1,33 +1,32 @@
-export const markets = [
+export type Market = {
+  id: string;
+  topic: string;
+  question: string;
+} & (
+  | { type: "number"; unit: string }
+  | { type: "choice" | "binary"; options: string[] }
+);
+
+export const markets: Market[] = [
   {
-    id: "congresso",
-    topic: "Congresso",
-    question: "O projeto vai à votação nesta semana?",
-    options: [
-      { outcome: "Vai à votação", odds: 180 },
-      { outcome: "Fica pra depois", odds: 200 },
-    ],
+    id: "atraso",
+    topic: "Palpite em minutos",
+    question: "Quantos minutos a live vai atrasar?",
+    type: "number",
+    unit: "minutos",
   },
   {
-    id: "sabatina",
-    topic: "Sabatina",
-    question: "A sabatina termina antes das 18h?",
-    options: [
-      { outcome: "Sim", odds: 220 },
-      { outcome: "Não", odds: 165 },
-    ],
+    id: "proxima-live",
+    topic: "Escolha uma opção",
+    question: "Quando vai ser a próxima live?",
+    type: "choice",
+    options: ["De manhã", "À tarde", "À noite", "De madrugada"],
   },
   {
-    id: "debate",
-    topic: "Debate",
-    question: "O debate passa do horário previsto?",
-    options: [
-      { outcome: "Passa", odds: 150 },
-      { outcome: "Termina no horário", odds: 245 },
-    ],
+    id: "peruca",
+    topic: "Sim ou não",
+    question: "Ela vai começar a live de peruca?",
+    type: "binary",
+    options: ["Sim", "Não"],
   },
 ];
-
-export const formatOdds = new Intl.NumberFormat("pt-BR", {
-  minimumFractionDigits: 2,
-});

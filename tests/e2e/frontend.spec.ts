@@ -85,15 +85,15 @@ test("sessão preserva carteira, bônus diário e palpites após recarregar", as
   await dialog.getByLabel("Adicionar Croins de teste").fill("100");
   await dialog.getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(dialog).not.toBeVisible();
-  await page.getByRole("button", { name: "Vai à votação" }).click();
+  await page.getByRole("button", { name: "Sim", exact: true }).click();
   await page.getByLabel("Valor em Croins").fill("10");
-  await page.getByRole("button", { name: "Registrar palpite" }).click();
-  await expect(page.getByText("Saldo disponível: 1.157 Croins")).toBeVisible();
-  await expect(page.getByText("Palpites da sessão")).toBeVisible();
+  await page.getByRole("button", { name: "Confirmar aposta", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Minhas apostas" })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Palpites da sessão")).toBeVisible();
-  await page.getByRole("button", { name: "Vai à votação" }).click();
-  await expect(page.getByText("Saldo disponível: 1.157 Croins")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Minhas apostas" })).toBeVisible();
+  await page.getByRole("button", { name: "Sim", exact: true }).click();
+  await expect(page.getByLabel("Valor em Croins")).toHaveAttribute("max", "1157");
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
   await page.goto("/");
   await page
     .getByRole("button", { name: "Resgatar", exact: true })
@@ -212,4 +212,43 @@ test("tema persiste e System acompanha a preferência do sistema", async ({ page
   await expect(root).toHaveAttribute("data-theme", "dark");
   await page.reload();
   await expect(root).toHaveAttribute("data-theme-preference", "system");
+});
+
+test("apostas aceitam sim ou não, opções e minutos sem odds", async ({ page }) => {
+  await page.goto("/apostas");
+  await signIn(page, "Palpites");
+  const history = page.getByRole("region", { name: "Minhas apostas" });
+  const confirm = async () => {
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Valor em Croins").fill("10");
+    await dialog.getByRole("button", { name: "Confirmar aposta", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+  };
+
+  await page.getByRole("button", { name: "Não", exact: true }).click();
+  await confirm();
+  await expect(history.getByText("Não", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "À noite", exact: true }).click();
+  await confirm();
+  await expect(history.getByText("À noite", { exact: true })).toBeVisible();
+
+  const minutes = page.getByLabel("Atraso em minutos");
+  await expect(page.getByRole("button", { name: "Apostar", exact: true })).toBeDisabled();
+  await minutes.fill("1.5");
+  await expect(page.getByRole("button", { name: "Apostar", exact: true })).toBeDisabled();
+  for (const value of ["0", "23"]) {
+    await minutes.fill(value);
+    await page.getByRole("button", { name: "Apostar", exact: true }).click();
+    await confirm();
+    await expect(history.getByText(`${value} minutos`, { exact: true })).toBeVisible();
+  }
+  await page.reload();
+  await expect(history.getByRole("listitem")).toHaveCount(4);
+  await page.getByRole("button", { name: "Sim", exact: true }).click();
+  await expect(page.getByLabel("Valor em Croins")).toHaveAttribute("max", "1027");
+  await page.getByRole("dialog").getByLabel("Valor em Croins").fill("1028");
+  await expect(page.getByRole("button", { name: "Confirmar aposta", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Sim", exact: true })).toBeFocused();
 });

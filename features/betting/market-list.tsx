@@ -1,56 +1,86 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { markets, formatOdds } from "./markets";
-import type { Selection } from "./types";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { markets } from "@/features/betting/markets";
+import type { Selection } from "@/features/betting/types";
 
 export function MarketList({
-  selection,
   onSelect,
 }: {
-  selection: Selection | null;
   onSelect: (selection: Selection) => void;
 }) {
+  const [minutes, setMinutes] = useState("");
+  const value = Number(minutes);
+  const validMinutes =
+    minutes.trim() !== "" && Number.isSafeInteger(value) && value >= 0;
+
   return (
-    <section className="grid gap-3.5" aria-label="Palpites de demonstração">
-      {markets.map(({ id, topic, question, options }) => (
+    <section
+      className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3"
+      aria-label="Apostas abertas"
+    >
+      {markets.map((market) => (
         <Card
           asChild
-          className="border-(length:--border-width-hairline) border-transparent p-4 target:border-accent/50 sm:p-5"
-          key={id}
+          className="flex scroll-mt-[calc(var(--header-height)+1rem)] flex-col"
+          key={market.id}
         >
-          <article id={id}>
-            <p className="text-sm text-accent">{topic}</p>
-            <h2 className="mt-1 text-xl font-bold">{question}</h2>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {options.map(({ outcome, odds }) => (
-                <Button
-                  key={outcome}
-                  variant="secondary"
-                  className="flex-wrap justify-between gap-x-2 rounded-lg px-3 text-left font-normal aria-pressed:border-accent aria-pressed:bg-selected"
-                  aria-pressed={
-                    selection?.market === question &&
-                    selection.outcome === outcome
+          <article id={market.id}>
+            <p className="text-xs text-muted">{market.topic}</p>
+            <h2 className="mt-2 mb-6 text-lg font-semibold">{market.question}</h2>
+            {market.type === "number" ? (
+              <form
+                className="mt-auto grid gap-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (validMinutes) {
+                    onSelect({
+                      market: market.question,
+                      outcome: `${value} ${market.unit}`,
+                    });
                   }
-                  onClick={() => onSelect({ market: question, outcome, odds })}
-                >
-                  {outcome}
-                  <span className="font-semibold text-accent tabular-nums">
-                    {formatOdds.format(odds / 100)}×
-                  </span>
-                </Button>
-              ))}
-            </div>
-            {selection?.market === question && (
-              <Button
-                asChild
-                variant="link"
-                size="sm"
-                className="mt-3 min-h-9 lg:hidden"
+                }}
               >
-                <a href="#bilhete">Ver bilhete</a>
-              </Button>
+                <Field>
+                  Atraso em minutos
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    max={Number.MAX_SAFE_INTEGER}
+                    placeholder="0"
+                    required
+                    value={minutes}
+                    onChange={(event) => setMinutes(event.currentTarget.value)}
+                  />
+                </Field>
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  aria-haspopup="dialog"
+                  disabled={!validMinutes}
+                >
+                  Apostar
+                </Button>
+              </form>
+            ) : (
+              <div className="mt-auto grid grid-cols-2 gap-2">
+                {market.options.map((outcome) => (
+                  <Button
+                    key={outcome}
+                    variant="secondary"
+                    className="font-normal"
+                    aria-haspopup="dialog"
+                    onClick={() => onSelect({ market: market.question, outcome })}
+                  >
+                    {outcome}
+                  </Button>
+                ))}
+              </div>
             )}
           </article>
         </Card>

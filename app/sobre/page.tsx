@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Sobre | Croebet",
   description:
-    "Uma bet de mentira, com jogos de verdade e uma comunidade que levou a piada longe demais. Conheça a Croebet e sua moeda fictícia, a Croin.",
+    "Conheça a Croebet. Você traz os palpites, a casa cuida dos Croins. Principalmente dos que eram seus.",
 };
 
 export default function About() {
@@ -15,27 +15,26 @@ export default function About() {
       <div className="mx-auto max-w-[46rem]">
         <header>
           <Heading asChild variant="display">
-            <h1>Uma piada que virou bet.</h1>
+            <h1>Seu azar. Nosso negócio.</h1>
           </Heading>
           <p className="mt-4 max-w-[55ch] text-lg text-muted">
-            Jogos de verdade, dinheiro de mentira e uma casa sem vergonha de
-            querer todos os seus Croins. Essa é a Croebet.
+            Você traz a confiança. A gente fica com os Croins.
+            Cada um contribui com o que tem.
           </p>
         </header>
 
-        <section className="mt-10" aria-labelledby="origin-title">
-          <Heading id="origin-title">Como começou a piada</Heading>
+        <section className="mt-10" aria-labelledby="house-title">
+          <Heading id="house-title">Uma casa com princípios. E interesses.</Heading>
           <p className="mt-3 leading-relaxed text-muted">
-            A Croezinha é contra bets. A comunidade resolveu brincar que ela
-            tinha uma. Entre uma live e outra, a piada cresceu, ela entrou na
-            brincadeira e virou dona da própria casa de apostas. Faltava só
-            alguém levar a ideia longe demais. E aqui estamos.
+            A Croebet reúne jogos de cassino, palpites da comunidade e gente
+            absolutamente convencida de que descobriu um método. Gostamos
+            especialmente dessa última parte.
           </p>
           <p className="mt-3 leading-relaxed text-muted">
-            A Croebet nasceu dessa zoeira: uma plataforma feita pela comunidade
-            para jogar, dar palpites e rir dos próprios resultados. Quem chegou
-            agora também pode participar. Não precisa conhecer as piadas
-            internas para fazer uma aposta duvidosa.
+            Sob a administração da Croezinha, trabalhamos para que todo Croin
+            encontre seu lugar. De preferência, no caixa da casa. Você pode
+            discordar dessa filosofia. Inclusive, é o que torna tudo mais
+            interessante.
           </p>
         </section>
 
@@ -45,41 +44,35 @@ export default function About() {
               Seu dinheiro não nos interessa
             </Heading>
             <p className="mt-2 leading-relaxed text-muted">
-              Aqui, tudo acontece com Croins, a moeda fictícia da Croebet.
-              Elas não têm valor monetário: não há depósito de dinheiro real,
-              compra de Croins ou saque em dinheiro. A casa quer o seu saldo,
-              mas a sua conta bancária está fora dessa brincadeira.
+              Operamos exclusivamente com Croins, nossa moeda virtual sem
+              valor monetário. Sem depósitos, compra de moedas ou saques em
+              dinheiro real. Conseguimos ser gananciosos sem precisar do
+              número do seu cartão. Questão de competência.
             </p>
           </section>
         </Card>
 
-        <section className="mt-10" aria-labelledby="house-title">
-          <Heading id="house-title">A casa torce contra. Faz parte.</Heading>
+        <section className="mt-10" aria-labelledby="winners-title">
+          <Heading id="winners-title">Ganhar é possível. Não precisa exagerar.</Heading>
           <p className="mt-3 leading-relaxed text-muted">
-            A Croebet faz o papel da bet gananciosa: comemora suas derrotas,
-            lamenta suas vitórias e trata cada Croin perdido como uma bela
-            contribuição. Se você ganhar, aproveite. Nosso departamento
-            financeiro prefere não comentar.
+            Às vezes, alguém ganha. Respeitamos as regras, creditamos os Croins
+            e seguimos em frente com a discrição que esse momento desagradável
+            exige. Não espere fogos do departamento financeiro.
           </p>
           <p className="mt-3 leading-relaxed text-muted">
-            Essa falta de vergonha é personagem. As regras precisam ser claras
-            e a brincadeira é com os palpites ruins, a sorte e a confiança
-            exagerada. A ideia é rir junto, sem transformar ninguém em alvo.
+            Para quem perde, também há reconhecimento. O ranking de maiores
+            perdedores existe porque certas contribuições merecem mais do que
+            um simples obrigado.
           </p>
         </section>
 
         <section className="mt-10" aria-labelledby="purpose-title">
-          <Heading id="purpose-title">A gente leva a piada a sério</Heading>
+          <Heading id="purpose-title">O chat tem sempre um especialista</Heading>
           <p className="mt-3 leading-relaxed text-muted">
-            O projeto está em construção. Jogos, apostas em acontecimentos da
-            comunidade, rankings de quem ganha e de quem perde: a ideia é dar
-            mais motivos para a galera se encontrar, competir e ter história
-            para contar no chat.
-          </p>
-          <p className="mt-3 leading-relaxed text-muted">
-            Por trás da sátira, o ponto é simples: vício em apostas e prejuízo
-            com dinheiro real não têm graça. Aqui, a disputa fica nos Croins.
-            A Croebet leva os jogos a sério e os apostadores na brincadeira.
+            Que horas começa a live? Vai ter peruca? Quanto tempo de atraso?
+            Opinião nunca faltou. Agora ela pode vir acompanhada de Croins.
+            A convicção continua sendo sua. O resultado costuma ter outras
+            ideias.
           </p>
         </section>
       </div>
