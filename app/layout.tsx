@@ -11,13 +11,13 @@ import { Footer } from "@/components/layout/footer";
 const inter = localFont({
   src: "./fonts/InterVariable.woff2",
   variable: "--font-inter",
-  weight: "100 900",
+  weight: "300 700",
   style: "normal",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Croebet — O meu também é Bet",
+  title: "Croebet — O meu também é Betty",
   description: "Jogos de sorte, previsões duvidosas e dinheiro de mentira.",
 };
 

@@ -15,10 +15,10 @@ export default function About() {
       <div className="mx-auto max-w-[46rem]">
         <header>
           <Heading asChild variant="display">
-            <h1>Seu azar. Nosso negócio.</h1>
+            <h1>Seu azar. <br/>Nosso negócio.</h1>
           </Heading>
           <p className="mt-4 max-w-[55ch] text-lg text-muted">
-            Você traz a confiança. A gente fica com os Croins.
+            Você traz a confiança. <br/>A gente fica com os Croins. <br/>
             Cada um contribui com o que tem.
           </p>
         </header>
