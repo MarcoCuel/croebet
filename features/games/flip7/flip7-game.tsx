@@ -359,7 +359,7 @@ export default function Flip7Game() {
               const inTransit = flight?.target === i && !flight.parked && !player.cards.some(card => card.id === flight.card.id) ? [flight.card] : [];
               const cards = [...player.cards, ...(flight?.target === i && flight.consumedChance ? [flight.consumedChance] : []), ...inTransit];
               const modifiers = cards.filter(card => card.type !== "number");
-              const numeric = cards.filter(card => card.type === "number");
+              const numeric = cards.filter(card => card.type === "number").sort((a, b) => a.value - b.value);
               const flipped = player.status === "busted" && (!flight || flight.target !== i || landed);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} className={cn("min-w-0", flight?.card.id === card.id && !landed && "invisible")}><PlayingCard card={card} flipped={flipped} fluid /></div>;
               return <section key={i} aria-label={`Mesa de ${player.name}`} className={cn(
