@@ -9,7 +9,7 @@ export function PageShell({
   return (
     <main
       className={cn(
-        "mx-auto w-[calc(100%-2*var(--page-gap))]",
+        "mx-auto w-[calc(100%-2*var(--page-gap))] flex-1",
         inner && "pt-page",
         className,
       )}

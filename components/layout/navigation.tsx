@@ -113,7 +113,7 @@ export function Navigation({ children }: { children: ReactNode }) {
         }}
       />
       <div
-        className="min-h-dvh min-w-0 pl-(--sidebar-width) pt-(--header-height)"
+        className="flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pt-(--header-height)"
         id="page-content"
         tabIndex={-1}
       >
