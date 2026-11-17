@@ -56,7 +56,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
   return (
     <>
       <div className="shrink-0 border-b border-border p-3 sm:w-48 sm:border-r sm:border-b-0 sm:p-4">
-        <DialogTitle className="px-2 pt-2 pb-4 text-sm font-medium">Configurações</DialogTitle>
+        <DialogTitle className="px-3 pt-2 pb-4 text-sm font-medium">Configurações</DialogTitle>
         <nav aria-label="Seções de configurações" className="grid grid-cols-2 gap-1 sm:grid-cols-1">
           {sections.map((item) => (
             <Button
