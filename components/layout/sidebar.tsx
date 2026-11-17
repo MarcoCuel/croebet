@@ -61,12 +61,13 @@ export function Sidebar({
           <div className="-mx-3 @max-[8rem]/sidebar:hidden">
             <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-2">
               <Button
+                asChild
                 variant="ghost"
                 className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
-                aria-haspopup="dialog"
-                onClick={onOpenBalance}
               >
-                <Balance value={balance} />
+                <Link href="/historico" aria-label="Ver histórico de Croins">
+                  <Balance value={balance} />
+                </Link>
               </Button>
               <RedeemButton />
             </div>

@@ -291,3 +291,46 @@ test("navbar alterna a home e exibe títulos nas internas", async ({ page }, tes
   await header.getByRole("link", { name: "Voltar para Jogos" }).click();
   await expect(page).toHaveURL("/jogos");
 });
+
+test("saldo leva ao histórico e apenas o menu abre a recarga", async ({ page }) => {
+  await page.goto("/apostas");
+  await signIn(page, "Extrato");
+  await page.getByRole("link", { name: "Ver histórico de Croins" }).last().click();
+  await expect(page).toHaveURL("/historico");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText("Nenhuma movimentação registrada ainda.")).toBeVisible();
+  await page.getByRole("button", { name: "Conta de Extrato", exact: true }).last().click();
+  await page.getByRole("menuitem", { name: "Saldo", exact: true }).click();
+  await page.getByLabel("Adicionar Croins de teste").fill("100");
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page.goto("/apostas");
+  await page.getByRole("button", { name: "Sim", exact: true }).click();
+  await page.getByLabel("Valor em Croins").fill("10");
+  await page.getByRole("button", { name: "Confirmar aposta", exact: true }).click();
+  await page.getByRole("button", { name: "Conta de Extrato", exact: true }).last().click();
+  await page.getByRole("menuitem", { name: "Histórico", exact: true }).click();
+  const movements = page.getByRole("region", { name: "Movimentações" });
+  await expect(movements.getByRole("listitem")).toHaveCount(2);
+  await expect(movements.getByText("Saldo: 1.157", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Entradas", exact: true }).click();
+  await expect(movements.getByRole("listitem")).toHaveCount(1);
+  await expect(movements.getByText("Croins de teste", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Saídas", exact: true }).click();
+  await expect(movements.getByRole("listitem")).toHaveCount(1);
+  await expect(movements.getByText(/Aposta ·/)).toBeVisible();
+  await page.reload();
+  await expect(movements.getByRole("listitem")).toHaveCount(2);
+});
+
+test("carteira antiga preserva saldo e começa sem movimentações inventadas", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("croebet:demo-username")) {
+      localStorage.setItem("croebet:demo-username", "Legado");
+      localStorage.setItem("croebet:demo-wallet:legado", JSON.stringify({ balance: 321, lastClaim: "17/11/2026", predictions: [] }));
+    }
+  });
+  await page.goto("/historico");
+  await expect(page.getByText("Nenhuma movimentação registrada ainda.")).toBeVisible();
+  await expect(page.getByRole("main").getByText("321", { exact: false })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("croebet:demo-wallet:legado") ?? "{}").balance)).toBe(321);
+});

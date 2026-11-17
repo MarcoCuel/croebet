@@ -63,3 +63,18 @@ test("recarga de teste respeita limites e rejeita overflow", () => {
   assert.equal(addCroins(full, 1), full);
   assert.equal(claimReward(full, "17/11/2026"), full);
 });
+
+test("histórico registra entradas e saídas com saldo, data e origem sem duplicar rejeições", () => {
+  const added = addCroins(initialWallet, 100);
+  const rewarded = claimReward(added, "17/11/2026");
+  const spent = registerPrediction(rewarded, prediction);
+  assert.equal(spent.transactions.length, 3);
+  assert.deepEqual(spent.transactions.map(({ amount }) => amount), [-100, 67, 100]);
+  assert.deepEqual(spent.transactions.map(({ balance }) => balance), [1134, 1234, 1167]);
+  assert.match(spent.transactions[0].description, /Mercado.*Sim/);
+  assert.ok(spent.transactions.every(({ createdAt }) => Number.isFinite(Date.parse(createdAt))));
+  assert.equal(new Set(spent.transactions.map(({ id }) => id)).size, 3);
+  assert.equal(claimReward(spent, "17/11/2026"), spent);
+  assert.equal(addCroins(spent, -1), spent);
+  assert.equal(initialWallet.transactions.length, 0);
+});

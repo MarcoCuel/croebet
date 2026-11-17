@@ -1,6 +1,7 @@
 import {
   initialWallet,
   isPrediction,
+  isWalletTransaction,
   type Wallet,
 } from "@/features/wallet/wallet";
 
@@ -31,7 +32,14 @@ export function readWallet(name: string): Wallet {
           value.predictions.every(isPrediction) &&
           typeof value.lastClaim === "string"
         )
-          return value as Wallet;
+          return {
+            balance: Number(value.balance),
+            predictions: value.predictions,
+            lastClaim: value.lastClaim,
+            transactions: Array.isArray(value.transactions)
+              ? value.transactions.filter(isWalletTransaction)
+              : [],
+          };
       }
     }
   } catch {

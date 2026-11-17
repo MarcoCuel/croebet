@@ -37,7 +37,7 @@ export function Topbar({
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
   const pageTitle = games.find((game) => pathname === `/jogos/${game.slug}`)?.name
-    ?? ({ "/jogos": "Jogos", "/apostas": "Apostas", "/rankings": "Rankings", "/conquistas": "Conquistas", "/sobre": "Sobre" } as Record<string, string>)[pathname]
+    ?? ({ "/jogos": "Jogos", "/apostas": "Apostas", "/rankings": "Rankings", "/conquistas": "Conquistas", "/historico": "Histórico", "/sobre": "Sobre" } as Record<string, string>)[pathname]
     ?? "Página não encontrada";
   const isInternalPage = pathname !== "/";
   const backLink = pathname.startsWith("/jogos/")
@@ -116,23 +116,25 @@ export function Topbar({
         <>
           <div className="hidden items-center gap-2 rounded-panel bg-control p-1.5 md:flex">
             <Button
+              asChild
               variant="ghost"
               className="min-h-0 min-w-0 shrink px-0.5 py-0 font-normal text-foreground"
-              aria-haspopup="dialog"
-              onClick={onOpenBalance}
             >
-              <Balance value={balance} />
+              <Link href="/historico" aria-label="Ver histórico de Croins">
+                <Balance value={balance} />
+              </Link>
             </Button>
             <RedeemButton />
           </div>
           <div className="flex min-w-0 items-center justify-self-end gap-2">
             <Button
+              asChild
               variant="secondary"
               className="min-w-0 shrink px-2 font-normal md:hidden"
-              aria-haspopup="dialog"
-              onClick={onOpenBalance}
             >
-              <Balance value={balance} />
+              <Link href="/historico" aria-label="Ver histórico de Croins">
+                <Balance value={balance} />
+              </Link>
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>

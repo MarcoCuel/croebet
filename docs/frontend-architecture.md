@@ -74,11 +74,13 @@ Componentes já necessários e disponíveis: Button, Input, Field, Dialog/drawer
 
 ## Estado e compatibilidade da demonstração
 
-`DemoSessionProvider` coordena a sessão e um reducer de carteira. A persistência começa após a leitura inicial do navegador para não substituir dados existentes pelo saldo padrão. As chaves de localStorage e o formato de carteira foram mantidos; dados corrompidos são descartados com fallback em memória. As regras puras de carteira rejeitam valores fracionários, saldo insuficiente e overflow. O bônus diário utiliza `America/Sao_Paulo`.
+`DemoSessionProvider` coordena a sessão e um reducer de carteira. A persistência começa após a leitura inicial do navegador para não substituir dados existentes pelo saldo padrão. As chaves de localStorage foram mantidas; a carteira agora inclui `transactions`, uma lista de movimentações com identificador, data ISO, descrição, valor com sinal e saldo resultante. Carteiras antigas recebem uma lista vazia sem alterar saldo, bônus ou palpites. Entradas inválidas do histórico são descartadas sem apagar a carteira; dados corrompidos são descartados com fallback em memória. As regras puras de carteira rejeitam valores fracionários, saldo insuficiente e overflow. O bônus diário utiliza `America/Sao_Paulo`.
 
 A autenticação permanece uma demonstração local; não salva a senha e não oferece segurança de backend. A refatoração mantém o comportamento de não sincronizar carteiras ativamente entre abas.
 
 A página de apostas apresenta três formatos: Sim/Não, escolha de período e atraso em minutos inteiros (incluindo zero). A seleção abre um diálogo para confirmar o valor em Croins; os cards ficam em duas colunas à esquerda e o histórico ocupa um terço da largura à direita em telas grandes, com estado vazio quando não há palpites e seções empilhadas no mobile. Novos palpites não usam odds nem exibem projeções de retorno. O campo opcional `odds` continua aceito e validado ao ler palpites antigos, preservando as carteiras existentes. Apuração e pagamento continuam fora do escopo do protótipo.
+
+A rota `/historico` mostra saldo atual, totais registrados e movimentações com filtros de entradas e saídas. Recargas de teste, bônus diário e valores apostados registram a movimentação junto da alteração de saldo; apostas são saídas, sem antecipar perdas ou pagamentos de eventos ainda não apurados. Movimentações anteriores à atualização não são reconstruídas. O saldo no topo e na sidebar leva ao histórico, também acessível no menu de conta. O modal de recarga abre exclusivamente pela opção Saldo desse menu.
 
 O estado de navegação é independente da carteira. Os diálogos utilizam portais, bloqueio de scroll e controle de foco do Radix. A troca de rota e o breakpoint desktop fecham o menu mobile. As páginas exibem o conteúdo diretamente, sem animações de entrada. `Motion` mantém a rolagem suave com Lenis e respeita a preferência de movimento reduzido.
 

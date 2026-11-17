@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, Coins, Settings, Moon, LogOut } from "lucide-react";
+import { ChevronDown, History, Coins, Settings, Moon, LogOut } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -112,6 +113,12 @@ export function AccountMenu({
         >
           <Coins className="size-4" aria-hidden="true" />
           Saldo
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/historico">
+            <History className="size-4" aria-hidden="true" />
+            Histórico
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={signOut}>
           <LogOut className="size-4" aria-hidden="true" />
