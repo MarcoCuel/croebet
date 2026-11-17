@@ -20,17 +20,17 @@ export function MarketList({
 
   return (
     <section
-      className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3"
+      className="grid min-w-0 items-stretch gap-4 md:grid-cols-2"
       aria-label="Apostas abertas"
     >
       {markets.map((market) => (
         <Card
           asChild
-          className="flex scroll-mt-[calc(var(--header-height)+1rem)] flex-col"
+          className="flex min-w-0 scroll-mt-[calc(var(--header-height)+1rem)] flex-col"
           key={market.id}
         >
           <article id={market.id}>
-            <h2 className="mb-8 text-3xl font-semibold">{market.question}</h2>
+            <h2 className="mb-8 text-2xl font-semibold tracking-tight">{market.question}</h2>
             {market.type === "number" ? (
               <form
                 className="mt-auto grid gap-3"
@@ -44,8 +44,8 @@ export function MarketList({
                   }
                 }}
               >
-                <div className="flex justify-stretch items-end gap-2">
-                  <Field>
+                <div className="flex items-end gap-2">
+                  <Field className="min-w-0 flex-1">
                     Atraso em minutos
                     <Input
                       type="number"

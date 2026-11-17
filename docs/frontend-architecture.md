@@ -78,7 +78,7 @@ Componentes já necessários e disponíveis: Button, Input, Field, Dialog/drawer
 
 A autenticação permanece uma demonstração local; não salva a senha e não oferece segurança de backend. A refatoração mantém o comportamento de não sincronizar carteiras ativamente entre abas.
 
-A página de apostas apresenta três formatos: Sim/Não, escolha de período e atraso em minutos inteiros (incluindo zero). A seleção abre um diálogo para confirmar o valor em Croins; o histórico fica abaixo dos cards. Novos palpites não usam odds nem exibem projeções de retorno. O campo opcional `odds` continua aceito e validado ao ler palpites antigos, preservando as carteiras existentes. Apuração e pagamento continuam fora do escopo do protótipo.
+A página de apostas apresenta três formatos: Sim/Não, escolha de período e atraso em minutos inteiros (incluindo zero). A seleção abre um diálogo para confirmar o valor em Croins; os cards ficam em duas colunas à esquerda e o histórico ocupa um terço da largura à direita em telas grandes, com estado vazio quando não há palpites e seções empilhadas no mobile. Novos palpites não usam odds nem exibem projeções de retorno. O campo opcional `odds` continua aceito e validado ao ler palpites antigos, preservando as carteiras existentes. Apuração e pagamento continuam fora do escopo do protótipo.
 
 O estado de navegação é independente da carteira. Os diálogos utilizam portais, bloqueio de scroll e controle de foco do Radix. A troca de rota e o breakpoint desktop fecham o menu mobile. As páginas exibem o conteúdo diretamente, sem animações de entrada. `Motion` mantém a rolagem suave com Lenis e respeita a preferência de movimento reduzido.
 

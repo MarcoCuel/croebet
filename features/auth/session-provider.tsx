@@ -24,6 +24,7 @@ import type { Prediction } from "@/features/betting/types";
 type SessionState = { username: string | null; wallet: Wallet; ready: boolean };
 type Action =
   | { type: "session"; username: string | null; wallet: Wallet }
+  | { type: "clear-predictions" }
   | { type: "predict"; prediction: Prediction }
   | { type: "claim"; date: string }
   | { type: "add"; amount: number };
@@ -32,6 +33,10 @@ function sessionReducer(state: SessionState, action: Action): SessionState {
   if (action.type === "session")
     return { username: action.username, wallet: action.wallet, ready: true };
   if (!state.username) return state;
+  if (action.type === "clear-predictions")
+    return process.env.NODE_ENV === "development"
+      ? { ...state, wallet: { ...state.wallet, predictions: [] } }
+      : state;
   if (action.type === "predict")
     return {
       ...state,
@@ -116,6 +121,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
         dailyClaimed: Boolean(username && wallet.lastClaim === date),
         claimDaily,
         addBalance: (amount) => dispatch({ type: "add", amount }),
+        clearPredictions: () => dispatch({ type: "clear-predictions" }),
         placePrediction: (prediction) =>
           dispatch({ type: "predict", prediction }),
       }}

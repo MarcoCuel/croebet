@@ -12,6 +12,7 @@ export type DemoSessionValue = Wallet & {
   dailyClaimed: boolean;
   claimDaily: () => void;
   addBalance: (amount: number) => void;
+  clearPredictions: () => void;
   placePrediction: (prediction: Prediction) => void;
 };
 
