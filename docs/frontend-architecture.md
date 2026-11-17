@@ -78,7 +78,7 @@ Componentes já necessários e disponíveis: Button, Input, Field, Dialog/drawer
 
 A autenticação permanece uma demonstração local; não salva a senha e não oferece segurança de backend. A refatoração mantém o comportamento de não sincronizar carteiras ativamente entre abas.
 
-O estado de navegação é independente da carteira. Os diálogos utilizam portais, bloqueio de scroll e controle de foco do Radix. A troca de rota e o breakpoint desktop fecham o menu mobile. As animações continuam em `Motion` e respeitam a preferência de movimento reduzido.
+O estado de navegação é independente da carteira. Os diálogos utilizam portais, bloqueio de scroll e controle de foco do Radix. A troca de rota e o breakpoint desktop fecham o menu mobile. As páginas exibem o conteúdo diretamente, sem animações de entrada. `Motion` mantém a rolagem suave com Lenis e respeita a preferência de movimento reduzido.
 
 ## 3D sob demanda
 

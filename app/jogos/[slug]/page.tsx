@@ -28,7 +28,7 @@ export default async function Game({ params }: Props) {
 
   return (
     <PageShell>
-      <header className="mb-6" data-enter>
+      <header className="mb-6">
         <Heading asChild variant="display">
           <h1>{game.name}</h1>
         </Heading>

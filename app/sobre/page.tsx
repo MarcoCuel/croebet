@@ -13,7 +13,7 @@ export default function About() {
   return (
     <PageShell>
       <div className="mx-auto max-w-[46rem]">
-        <header data-enter>
+        <header>
           <Heading asChild variant="display">
             <h1>Uma piada que virou bet.</h1>
           </Heading>
@@ -23,7 +23,7 @@ export default function About() {
           </p>
         </header>
 
-        <section className="mt-10" aria-labelledby="origin-title" data-enter>
+        <section className="mt-10" aria-labelledby="origin-title">
           <Heading id="origin-title">Como começou a piada</Heading>
           <p className="mt-3 leading-relaxed text-muted">
             A Croezinha é contra bets. A comunidade resolveu brincar que ela
@@ -40,7 +40,7 @@ export default function About() {
         </section>
 
         <Card asChild className="mt-7 p-5 sm:p-8">
-          <section aria-labelledby="croins-title" data-enter>
+          <section aria-labelledby="croins-title">
             <Heading className="text-xl" id="croins-title">
               Seu dinheiro não nos interessa
             </Heading>
@@ -53,7 +53,7 @@ export default function About() {
           </section>
         </Card>
 
-        <section className="mt-10" aria-labelledby="house-title" data-enter>
+        <section className="mt-10" aria-labelledby="house-title">
           <Heading id="house-title">A casa torce contra. Faz parte.</Heading>
           <p className="mt-3 leading-relaxed text-muted">
             A Croebet faz o papel da bet gananciosa: comemora suas derrotas,
@@ -68,7 +68,7 @@ export default function About() {
           </p>
         </section>
 
-        <section className="mt-10" aria-labelledby="purpose-title" data-enter>
+        <section className="mt-10" aria-labelledby="purpose-title">
           <Heading id="purpose-title">A gente leva a piada a sério</Heading>
           <p className="mt-3 leading-relaxed text-muted">
             O projeto está em construção. Jogos, apostas em acontecimentos da

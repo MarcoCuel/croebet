@@ -47,7 +47,7 @@ export function Topbar({
   } = useDemoSession();
   return (
     <header className="fixed top-0 right-0 left-(--sidebar-width) z-20 flex h-(--header-height) items-center justify-between gap-2 bg-chrome px-(--page-gap) md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="flex min-w-0 items-center gap-2">
         <Button
           variant="secondary"
           size="icon"
@@ -117,7 +117,7 @@ export function Topbar({
             </Button>
             <RedeemButton />
           </div>
-          <div className="flex min-w-0 items-center justify-self-end gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 items-center justify-self-end gap-2">
             <Button
               variant="secondary"
               className="min-w-0 shrink px-2 font-normal md:hidden"

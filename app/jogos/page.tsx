@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Jogos | Croebet" };
 export default function Games() {
   return (
     <PageShell>
-      <header className="mb-6" data-enter>
+      <header className="mb-6">
         <Heading asChild variant="display">
           <h1>Jogos</h1>
         </Heading>

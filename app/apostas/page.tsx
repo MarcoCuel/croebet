@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function BettingPage() {
   return (
     <PageShell>
-      <header data-enter>
+      <header>
         <Heading asChild variant="display">
           <h1>Apostas</h1>
         </Heading>
