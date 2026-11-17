@@ -7,7 +7,7 @@ import { Motion } from "./motion";
 import { Navigation } from "./navigation";
 
 export const metadata: Metadata = {
-  title: "Croebet — Cassino de paródia",
+  title: "Croebet — O meu também é Bet",
   description: "Jogos de sorte, previsões duvidosas e dinheiro de mentira.",
 };
 

@@ -86,7 +86,7 @@ export function Navigation({ children }: { children: ReactNode }) {
 
   return (
     <DemoSession.Provider value={{ username, ...wallet, openLogin, placePrediction }}>
-      <header className="fixed top-(--header-top) left-1/2 z-10 flex min-h-(--header-height) w-max -translate-x-1/2 items-center gap-x-[clamp(0.5rem,2.5vw,1.75rem)] gap-y-1 rounded-2xl bg-control py-2 pr-2 pl-4 max-[38rem]:w-[calc(100%-2rem)] max-[38rem]:flex-wrap max-[38rem]:justify-between max-[38rem]:px-2.5">
+      <header className="fixed top-4 left-1/2 z-10 flex min-h-(--header-height) w-max -translate-x-1/2 items-center gap-x-4 gap-y-1 rounded-2xl bg-control py-2 pr-2 pl-4 max-[38rem]:w-[calc(100%-2rem)] max-[38rem]:flex-wrap max-[38rem]:justify-between max-[38rem]:px-2.5">
         <Link className="text-[1.5rem] leading-[.86] font-semibold tracking-[-.07em] text-brand max-[26.25rem]:text-[1.25rem]" href="/" aria-label="Croebet, início">
           <span className="brand-wordmark">Croebet</span>
         </Link>
