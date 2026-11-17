@@ -3,7 +3,7 @@ export const games = [
     slug: "flip7",
     cover: "[--cover:var(--color-cover-crystal)]",
     name: "Flip7",
-    coverTitle: ["Flip", "7"],
+    coverTitle: ["Flip 7"],
     type: "Cartas · Local",
     description: "Compre cartas, evite números repetidos e tente chegar aos 200 pontos. Jogue com amigos no mesmo dispositivo ou contra bots.",
   },
@@ -11,7 +11,7 @@ export const games = [
     slug: "krepinho",
     cover: "[--cover:var(--color-cover-krepinho)]",
     name: "Jogo do Krepinho",
-    coverTitle: ["Jogo do", "Krepinho"],
+    coverTitle: ["Jogo do Krepinho"],
     type: "Caça-níqueis",
     description:
       "Três rolos, nenhuma estratégia e a eterna sensação de que agora vai.",

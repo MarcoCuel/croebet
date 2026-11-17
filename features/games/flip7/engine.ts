@@ -2,7 +2,7 @@
 export type PlayerKind = "human" | "easy" | "normal" | "hard";
 export type Setup = { name: string; kind: PlayerKind };
 export type Card = { id: number; type: "number" | "bonus" | "double" | "chance" | "freeze" | "three"; value: number };
-export type Player = Setup & { cards: Card[]; total: number; status: "playing" | "stayed" | "busted" };
+export type Player = Setup & { cards: Card[]; total: number; hasDrawn: boolean; status: "playing" | "stayed" | "busted" };
 type Pending = { source: number; card: Card; give?: boolean };
 export type LogEntry = { message: string; player?: number; card?: Card };
 export type Game = {
@@ -39,7 +39,7 @@ function shuffle(game: Game, cards: Card[]) {
 export function createGame(setup: Setup[], seed = 1): Game {
   if (setup.length < 2 || setup.length > 6 || !setup.some(p => p.kind === "human")) throw new Error("Escolha de 2 a 6 participantes, com ao menos uma pessoa.");
   const game: Game = {
-    players: setup.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 24) || `Jogador ${i + 1}`, cards: [], total: 0, status: "playing" })),
+    players: setup.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 24) || `Jogador ${i + 1}`, cards: [], total: 0, hasDrawn: false, status: "playing" })),
     deck: [], discard: [], turn: 0, round: 1, phase: "playing", seed: (seed >>> 0) || 1,
     pending: null, queue: [], forced: null, lastDraw: null, history: [], log: [{ message: "Partida iniciada." }], flip7: null,
   };
@@ -90,6 +90,7 @@ function draw(game: Game, index: number, forced: boolean) {
   if (!game.deck.length) { game.deck = shuffle(game, game.discard); game.discard = []; }
   const card = game.deck.pop();
   if (!card) { finish(game); return; }
+  game.players[index].hasDrawn = true;
   game.lastDraw = card;
   const player = game.players[index];
   log(game, `${player.name} comprou`, index, card);
@@ -127,7 +128,7 @@ export function transition(current: Game, action: Action): Game {
   if (action.type === "next") {
     if (current.phase !== "summary") return current;
     const game = structuredClone(current);
-    game.players.forEach(p => { game.discard.push(...p.cards); p.cards = []; p.status = "playing"; });
+    game.players.forEach(p => { game.discard.push(...p.cards); p.cards = []; p.hasDrawn = false; p.status = "playing"; });
     game.round++; game.turn = (game.round - 1) % game.players.length; game.phase = "playing"; game.flip7 = null; game.lastDraw = null;
     log(game, `Rodada ${game.round}. ${game.players[game.turn].name} começa.`, game.turn);
     return game;
@@ -189,4 +190,14 @@ export function botAction(game: Game): Action {
   const risk = unseen.filter(c => c.type === "number" && hand.some(h => h.value === c.value)).length / Math.max(unseen.length, 1);
   const threshold = player.kind === "easy" ? 20 : player.kind === "hard" ? 36 : 28;
   return { type: score(player) >= threshold || risk > (player.kind === "hard" ? 0.42 : 0.33) ? "stay" : "draw" };
+}
+
+/** Initial deals are automatic; human target selections always pause the loop. */
+export function automaticAction(game: Game): Action | null {
+  if (game.phase !== "playing") return null;
+  if (game.pending) return game.players[game.pending.source].kind === "human" ? null : botAction(game);
+  if (game.forced) return { type: "step" };
+  const player = game.players[game.turn];
+  if (!player.hasDrawn) return { type: "draw" };
+  return player.kind === "human" ? null : botAction(game);
 }

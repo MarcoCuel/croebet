@@ -47,7 +47,7 @@ Validação desta implementação: lint, TypeScript, 17 testes e build de produ�
 
 ## Interface mínima
 
-Configuração compacta com quantidade de jogadores e nomes sem edição. O primeiro participante é sempre a conta conectada, como pessoa, sem seletor; os seletores de tipo aparecem do segundo participante em diante. Sem sessão, o botão principal abre o login existente antes de permitir iniciar a partida. A sessão é lida somente na configuração; o motor continua independente dela. O topo reúne baralho, última carta comprada e Comprar/Parar. As mãos ficam em colunas abaixo, com modificadores antes dos números; o histórico de jogadas e totais aparece na lateral em containers largos e abaixo no mobile. Cartas escuras têm número colorido, marca superior e nome; especiais usam cores próprias. O turno é indicado pela borda do participante. Regras e placar detalhado continuam em diálogos por ícone. As regras do motor e a economia não mudam.
+Configuração compacta com quantidade de jogadores e nomes sem edição. O primeiro participante é sempre a conta conectada, como pessoa, sem seletor; os seletores de tipo aparecem do segundo participante em diante. Sem sessão, o botão principal abre o login existente antes de permitir iniciar a partida. A sessão é lida somente na configuração; o motor continua independente dela. O topo reúne baralho, última carta comprada e Comprar/Parar. As mãos ficam em colunas abaixo, com modificadores antes dos números; o histórico de jogadas e totais aparece na lateral em containers largos e abaixo no mobile. Cartas escuras têm número colorido, marca superior e nome; especiais usam cores próprias. O turno é indicado pela borda do participante. Regras ficam apenas na configuração inicial. A partida tem um único controle auxiliar para esconder/mostrar o histórico; ao esconder, o espaço lateral é liberado para as mãos. As regras do motor e a economia não mudam.
 
 ## Animações de compra e estouro
 
@@ -58,3 +58,11 @@ Após a chegada de uma carta que causa estouro, todas as cartas da mão giram em
 ## Faixa de status
 
 A mesa usa fundo transparente. Status contextual e ações ficam na faixa superior; Comprar/Parar aparecem somente no turno de uma pessoa, sem compra em andamento ou ação especial pendente. O resumo de usuários e totais ocupa a faixa junto ao baralho. A lateral contém apenas o histórico. Durante o movimento da carta, o status informa o destinatário antes de anunciar o próximo turno.
+
+A primeira compra de cada participante em cada rodada é automática, mantendo a animação e aguardando escolhas humanas de cartas especiais. O motor marca a compra realizada mesmo quando a carta de ação não permanece na mão, evitando compras automáticas repetidas. O marcador é reiniciado na próxima rodada.
+
+Ritmo de compra: saída de 0,12s, revelação de 0,02s na primeira compra ou 0,65s nas seguintes, deslocamento até a mão de 0,2s. Não há espera após a chegada; a próxima jogada é liberada enquanto uma eventual virada por estouro acontece. A distribuição inicial começa após 60ms e as automações seguintes usam intervalos curtos.
+
+As cartas de ação pendentes e enfileiradas ficam visíveis ao lado do baralho, com área adicional reservada para a próxima revelação. A animação de uma ação termina nesse local, sem passar pela mão. Ações encontradas em Compre 3 permanecem no topo durante as compras seguintes; só somem ao resolver o alvo ou ao serem descartadas por estouro/fim da rodada.
+
+As mãos usam uma grade de linha única para números e outra para modificadores. Ambas compartilham a mesma largura proporcional de carta, limitada pelo tamanho original. Unidades de container escalam texto, ícones, cantos e verso junto das cartas. A animação de entrega também reduz a carta até a largura final da mão.

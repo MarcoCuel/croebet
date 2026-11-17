@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { botAction, createDeck, createGame, numbers, score, targets, transition } from "../features/games/flip7/engine.ts";
+import { automaticAction, botAction, createDeck, createGame, numbers, score, targets, transition } from "../features/games/flip7/engine.ts";
 const setup = [{ name: "Marco", kind: "human" }, { name: "Bot", kind: "normal" }];
 const game = () => createGame(setup, 42);
 const card = (type, value = 0) => ({ id: 999 + value, type, value });
@@ -48,14 +48,22 @@ test("Congelar aceita alvo ativo, rejeita alvo inválido e encerra quando todos 
   assert.equal(g.phase, "summary"); assert.equal(g.history.length, 1);
 });
 test("Compre 3 enfileira ação, completa compras e só então escolhe alvo", () => {
-  let g = stack(game(), [card("three"), card("number", 1), card("freeze"), card("number", 2)]);
+  let g = stack(game(), [card("three"), card("number", 1), card("freeze"), card("number", 2)].map((c, i) => ({ ...c, id: 2000 + i })));
   g = transition(g, { type: "draw" }); g = transition(g, { type: "target", target: 1 });
   assert.equal(transition(g, { type: "draw" }), g);
   g = transition(g, { type: "step" }); g = transition(g, { type: "step" });
   assert.equal(g.pending, null); assert.equal(g.queue.length, 1);
+  const waitingCard = g.queue[0].card;
+  assert.equal(waitingCard.type, "freeze");
+  assert.ok(!g.discard.some(c => c.id === waitingCard.id));
   g = transition(g, { type: "step" });
   assert.equal(g.pending.card.type, "freeze"); assert.equal(g.forced, null);
   assert.equal(score(g.players[1]), 3);
+  assert.equal(g.pending.card.id, waitingCard.id);
+  assert.ok(!g.discard.some(c => c.id === waitingCard.id));
+  g = transition(g, { type: "target", target: 0 });
+  assert.equal(g.pending, null);
+  assert.ok(g.discard.some(c => c.id === waitingCard.id));
 });
 test("estouro no Compre 3 cancela compras e descarta ações pendentes", () => {
   let g = stack(game(), [card("three"), card("freeze"), card("number", 1), card("number", 1)]);
@@ -101,4 +109,21 @@ test("partidas completas mantêm as 94 cartas e terminam sem travar em múltipla
     }
     assert.equal(g.phase, "over", `não terminou, seed ${seed}`);
   }
+});
+
+test("primeira compra é automática e cartas de escolha pausam a distribuição", () => {
+  let g = stack(createGame([{ name: "A", kind: "human" }, { name: "B", kind: "human" }], 1), [card("freeze"), card("number", 4)]);
+  assert.deepEqual(automaticAction(g), { type: "draw" });
+  g = transition(g, automaticAction(g));
+  assert.equal(g.players[0].hasDrawn, true);
+  assert.equal(automaticAction(g), null);
+  g = transition(g, { type: "target", target: 1 });
+  assert.equal(g.turn, 0);
+  assert.equal(automaticAction(g), null); // empty hand after an action must not trigger a second automatic deal
+  g = stack(g, [card("number", 5)]);
+  g = transition(g, { type: "draw" });
+  g = transition(g, { type: "stay" });
+  g = transition(g, { type: "next" });
+  assert.ok(g.players.every(p => !p.hasDrawn));
+  assert.deepEqual(automaticAction(g), { type: "draw" });
 });

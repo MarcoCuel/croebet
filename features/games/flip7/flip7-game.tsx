@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
-import { BookOpen, ChartNoAxesColumn, Layers, Heart, Snowflake, X } from "lucide-react";
+import { BookOpen, PanelRightClose, PanelRightOpen, Layers, Heart, Snowflake } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card as Surface } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDemoSession } from "@/features/auth/session-context";
-import { botAction, cardLabel, createGame, numbers, score, targets, transition } from "./engine";
+import { automaticAction, cardLabel, createGame, numbers, score, targets, transition } from "./engine";
 import type { Action, Card, Game, PlayerKind, Setup } from "./engine";
 import { GOAL } from "./engine";
 
@@ -19,12 +19,12 @@ const kinds: { value: PlayerKind; label: string }[] = [
   { value: "human", label: "Pessoa" }, { value: "easy", label: "Bot fácil" },
   { value: "normal", label: "Bot médio" }, { value: "hard", label: "Bot difícil" },
 ];
-function Rules({ compact = false }: { compact?: boolean }) {
-  return <Dialog><DialogTrigger asChild><Button variant={compact ? "ghost" : "secondary"} size={compact ? "icon" : "default"} className={compact ? undefined : "w-full"} aria-label="Regras" title="Regras"><BookOpen className="size-4" aria-hidden="true" />{!compact && "Regras"}</Button></DialogTrigger>
+function Rules() {
+  return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
     <DialogContent aria-describedby={undefined} className="w-[min(34rem,calc(100%-2rem))]">
       <DialogTitle>Como jogar Flip7</DialogTitle>
       <ol className="mt-5 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-muted">
-        <li>Em cada turno, compre uma carta ou pare para garantir seus pontos. É preciso ter pelo menos uma carta numérica para parar.</li>
+        <li>A primeira carta de cada jogador na rodada é automática. Nos próximos turnos, compre uma carta ou pare para garantir seus pontos. É preciso ter pelo menos uma carta numérica para parar.</li>
         <li>Repetiu um número? Você estoura e perde os pontos daquela rodada. Existem doze cartas 12, onze cartas 11 e assim por diante, além de um único 0.</li>
         <li>Sete números diferentes fazem um <strong className="text-foreground">Flip7</strong>: você ganha 15 pontos extras e a rodada acaba imediatamente para todos.</li>
         <li>Os bônus somam +2, +4, +6, +8 ou +10. O ×2 dobra apenas a soma dos números, antes dos bônus.</li>
@@ -39,7 +39,7 @@ function Rules({ compact = false }: { compact?: boolean }) {
 }
 const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove", "Dez", "Onze", "Doze"];
 const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "amber", "lime", "orange", "red", "blue", "slate"];
-function PlayingCard({ card, flipped = false, compact = false }: { card: Card; flipped?: boolean; compact?: boolean }) {
+function PlayingCard({ card, flipped = false, compact = false, fluid = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean }) {
   const special = card.type === "freeze" || card.type === "chance" || card.type === "three";
   const Icon = card.type === "freeze" ? Snowflake : card.type === "chance" ? Heart : Layers;
   const color = card.type === "number" ? numberColors[card.value] : card.type === "freeze" ? "cyan" : card.type === "three" ? "amber" : "orange";
@@ -47,21 +47,20 @@ function PlayingCard({ card, flipped = false, compact = false }: { card: Card; f
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
       data-card-back={flipped || undefined}
-      className={cn("shrink-0 [perspective:50rem]", compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
+      className={cn("shrink-0 [perspective:50rem]", fluid ? "@container aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": `var(--color-flip-${color})` } as CSSProperties}
           className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-field-border/30 bg-control-hover shadow-sm [backface-visibility:hidden]",
             card.type === "number" ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink",
             card.type === "chance" && "bg-brand text-white",
             compact && "rounded-md border",
+            fluid && "rounded-[12cqi] border-[2cqi]",
           )}>
-          {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
-          {special ? <Icon className={compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium tabular-nums", compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
-          {!compact && <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground")}>{label}</span>}
+          {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", fluid ? "h-[4cqi] w-[42cqi]" : compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
+          {special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium tabular-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
+          {!compact && <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground", fluid && "inset-x-[4cqi] bottom-[12cqi] text-[12.5cqi]")}>{label}</span>}
         </div>
-        <div aria-hidden="true" className="absolute inset-0 grid place-items-center rounded-xl border-2 border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          <span className="grid h-16 w-10 place-items-center rounded-lg border border-brand/40 text-xl font-black text-brand">7</span>
-        </div>
+        <div aria-hidden="true" className={cn("absolute inset-0 rounded-xl border-2 border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", fluid && "rounded-[12cqi] border-[2cqi]")} />
       </div>
     </div>
   );
@@ -119,58 +118,16 @@ function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
   );
 }
 
-function LeaveGame({ onLeave }: { onLeave: () => void }) {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Nova partida" title="Nova partida"><X className="size-4" aria-hidden="true" /></Button>
-      </DialogTrigger>
-      <DialogContent aria-describedby={undefined}>
-        <DialogTitle>Encerrar esta partida?</DialogTitle>
-        <p className="mt-4 text-sm text-muted">O placar atual será perdido.</p>
-        <div className="mt-6 flex justify-end gap-2">
-          <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
-          <DialogClose asChild><Button onClick={onLeave}>Encerrar</Button></DialogClose>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function Scoreboard({ game }: { game: Game }) {
-  return (
-    <Dialog>
-      <DialogTrigger asChild><Button variant="ghost" size="icon" aria-label="Placar" title="Placar"><ChartNoAxesColumn className="size-4" aria-hidden="true" /></Button></DialogTrigger>
-      <DialogContent aria-describedby={undefined} className="w-[min(40rem,calc(100%-2rem))]">
-        <DialogTitle>Placar</DialogTitle>
-        <div className="mt-5 overflow-x-auto" data-lenis-prevent>
-          <table className="w-full text-left text-sm">
-            <caption className="sr-only">Pontuação de cada rodada e total</caption>
-            <thead><tr><th className="pb-3 pr-4 font-medium text-muted">Rodada</th>{game.players.map((player, i) => <th key={i} className="max-w-32 truncate px-2 pb-3 font-medium">{player.name}</th>)}</tr></thead>
-            <tbody>
-              {game.history.map((row, i) => <tr key={i} className="border-t border-border"><th className="py-2 font-normal text-muted">{i + 1}</th>{row.map((points, j) => <td key={j} className="px-2 py-2 tabular-nums">+{points}</td>)}</tr>)}
-              <tr className="border-t border-border"><th className="py-3">Total</th>{game.players.map((player, i) => <td key={i} className="px-2 py-3 font-bold tabular-nums">{player.total}</td>)}</tr>
-            </tbody>
-          </table>
-        </div>
-        <details className="mt-5 text-sm text-muted">
-          <summary className="cursor-pointer">Últimas jogadas</summary>
-          <div className="mt-3"><GameLog game={game} /></div>
-        </details>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 export default function Flip7Game() {
   const [game, setGame] = useState<Game | null>(null);
+  const [historyVisible, setHistoryVisible] = useState(true);
   const gameRef = useRef<Game | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const deckRef = useRef<HTMLDivElement>(null);
   const revealRef = useRef<HTMLDivElement>(null);
   const flyingRef = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
-  const [flight, setFlight] = useState<{ card: Card; target: number } | null>(null);
+  const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean } | null>(null);
   const [landed, setLanded] = useState(false);
   const send = useCallback((action: Action) => {
     const current = gameRef.current;
@@ -180,7 +137,9 @@ export default function Flip7Game() {
     if ((action.type === "draw" || action.type === "step") && next.lastDraw) {
       locked.current = true;
       setLanded(false);
-      setFlight({ card: next.lastDraw, target: action.type === "step" ? current.forced!.target : current.turn });
+      const target = action.type === "step" ? current.forced!.target : current.turn;
+      const parked = [next.pending, ...next.queue].some(action => action?.card.id === next.lastDraw!.id);
+      setFlight({ card: next.lastDraw, target, initial: !current.players[target].hasDrawn, parked });
     }
     gameRef.current = next;
     setGame(next);
@@ -203,29 +162,26 @@ export default function Flip7Game() {
     const origin = deck.getBoundingClientRect();
     const bounds = board.getBoundingClientRect();
     const target = destination.getBoundingClientRect();
-    const staging = reveal.getBoundingClientRect();
+    const staging = flight.parked ? target : reveal.getBoundingClientRect();
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const timeline = gsap.timeline({ onComplete: () => {
       locked.current = false;
       setFlight(null);
     } });
-    gsap.set(ghost, { x: origin.left - bounds.left, y: origin.top - bounds.top, rotation: -6, scale: 0.94, zIndex: 0 });
-    timeline.to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, rotation: 0, scale: 1, duration: reduced ? 0 : 0.24, ease: "power2.out" })
+    gsap.set(ghost, { x: origin.left - bounds.left, y: origin.top - bounds.top, rotation: -6, scale: 0.94, zIndex: 0, transformOrigin: "top left" });
+    timeline.to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, rotation: 0, scale: 1, duration: reduced ? 0 : 0.12, ease: "power2.out" })
       .set(ghost, { zIndex: 30 })
-      .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, duration: reduced ? 0 : 0.65, ease: "power2.inOut" }, reduced ? ">" : ">0.1")
-      .call(() => setLanded(true))
-      .to({}, { duration: reduced ? 0 : 0.75 });
+      .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, reduced ? ">" : flight.initial ? ">0.02" : ">0.65")
+      .call(() => setLanded(true));
     return () => { timeline.kill(); };
   }, [flight]);
 
   useEffect(() => {
     if (!game || flight || game.phase !== "playing") return;
-    const actor = game.pending ? game.players[game.pending.source] : game.players[game.turn];
-    if (!game.forced && actor.kind === "human") return;
-    const timer = setTimeout(() => {
-      const action: Action = game.forced ? { type: "step" } : botAction(game);
-      send(action);
-    }, 900);
+    const action = automaticAction(game);
+    if (!action) return;
+    const initial = action.type === "draw" && !game.players[game.turn].hasDrawn;
+    const timer = setTimeout(() => send(action), initial ? 60 : game.forced ? 100 : 220);
     return () => clearTimeout(timer);
   }, [game, flight, send]);
 
@@ -237,7 +193,7 @@ export default function Flip7Game() {
   const current = game.players[game.turn];
   const actor = game.pending ? game.players[game.pending.source] : current;
   const human = actor.kind === "human";
-  const playable = !flight && game.phase === "playing" && !game.pending && !game.forced && human;
+  const playable = !flight && game.phase === "playing" && !game.pending && !game.forced && human && current.hasDrawn;
   const validTargets = targets(game);
   const maxScore = Math.max(...game.players.map(player => player.total));
   const winners = game.players.filter(player => player.total === maxScore);
@@ -245,7 +201,8 @@ export default function Flip7Game() {
   const status = game.phase === "over" ? `${winners.map(player => player.name).join(" e ")} ${winners.length > 1 ? "venceram" : "venceu"}!`
     : game.phase === "summary" ? (game.flip7 !== null ? `${game.players[game.flip7].name} fez Flip7!` : "Rodada encerrada")
     : game.forced ? `${game.players[game.forced.target].name}: mais ${game.forced.remaining} carta(s)`
-    : game.pending ? `${actor.name} · ${actionLabel}: escolha alguém` : `Vez de ${current.name}${human ? " · Faça uma ação" : ""}`;
+    : game.pending ? `${actor.name} · ${actionLabel}: escolha alguém` : `Vez de ${current.name}${!current.hasDrawn ? " · Distribuindo a primeira carta" : human ? " · Faça uma ação" : ""}`;
+  const waitingActions = [game.pending, ...game.queue].filter(action => action !== null);
   const activeSeat = game.forced?.target ?? game.pending?.source ?? game.turn;
 
   return (
@@ -259,16 +216,21 @@ export default function Flip7Game() {
           </div>}
           {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
         </div>
-        <div className="ml-auto flex items-center gap-1"><Scoreboard game={game} /><Rules compact /><LeaveGame onLeave={leave} /></div>
+        <Button className="ml-auto" variant="ghost" size="icon" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>
+          {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
+        </Button>
       </div>
-      <div className="grid items-start gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]">
+      <div className={cn("grid items-start gap-6", historyVisible && "@[60rem]:grid-cols-[minmax(0,1fr)_14rem]")}>
         <div className="min-w-0">
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
-            <div className="flex shrink-0 gap-2" aria-label="Baralho e última carta">
+            <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
               <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col items-center justify-center rounded-xl border-2 border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
                 <span className="text-4xl font-medium tabular-nums sm:text-5xl">{game.deck.length}</span>
                 <span className="absolute bottom-3 text-xs">Cartas</span>
               </div>
+              {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${game.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
+                <PlayingCard card={action.card} />
+              </div>)}
               <div ref={revealRef} data-card-reveal aria-hidden="true" className="h-32 w-20 shrink-0 sm:h-36 sm:w-24" />
             </div>
             <div className="grid w-full min-w-0 grid-cols-2 gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1 @[44rem]:grid-cols-3" aria-label="Usuários da partida">
@@ -281,7 +243,8 @@ export default function Flip7Game() {
                 <div className="min-w-0 space-y-1">
                   <p className={cn("truncate text-sm font-medium", game.phase === "playing" && activeSeat === i && "text-accent")}>{player.name}</p>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
-                    <span className="tabular-nums"><span className="font-medium text-foreground">{player.total}</span> pts</span>
+                    <span className="tabular-nums" title="Pontos garantidos"><span className="font-medium text-foreground">{player.total}</span> garantidos</span>
+                    <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-accent">{player.total + (game.phase === "playing" ? score(player) : 0)}</span> ao vivo</span>
                     <span>{player.status === "busted" ? "Estourou" : player.status === "stayed" ? "Parou" : "Ativo"}</span>
                   </p>
                 </div>
@@ -290,12 +253,12 @@ export default function Flip7Game() {
           </div>
           <div className={cn("grid items-start gap-4", game.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-3")}>
             {game.players.map((player, i) => {
-              const inTransit = flight?.target === i && !player.cards.some(card => card.id === flight.card.id) ? [flight.card] : [];
+              const inTransit = flight?.target === i && !flight.parked && !player.cards.some(card => card.id === flight.card.id) ? [flight.card] : [];
               const cards = [...player.cards, ...inTransit];
               const modifiers = cards.filter(card => card.type !== "number");
               const numeric = cards.filter(card => card.type === "number");
               const flipped = player.status === "busted" && (!flight || flight.target !== i || landed);
-              const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} className={flight?.card.id === card.id && !landed ? "invisible" : undefined}><PlayingCard card={card} flipped={flipped} /></div>;
+              const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} className={cn("min-w-0", flight?.card.id === card.id && !landed && "invisible")}><PlayingCard card={card} flipped={flipped} fluid /></div>;
               return <section key={i} aria-label={`Mesa de ${player.name}`} className={cn(
                 "relative min-h-48 min-w-0 rounded-panel border border-field-border/60 p-3",
                 game.phase === "playing" && activeSeat === i && "border-brand",
@@ -306,16 +269,17 @@ export default function Flip7Game() {
                   {player.status !== "playing" && <span className="text-xs text-muted">{player.status === "busted" ? "Estourou" : "Parou"}</span>}
                   <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-xs text-white" title="Pontos nesta rodada">{score(player)} pts</span>
                 </div>
-                {modifiers.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{modifiers.map(renderCard)}</div>}
-                <div className="flex flex-wrap gap-2">{numeric.map(renderCard)}</div>
+                <div style={{ "--hand-columns": Math.max(numeric.length, modifiers.length, 1) } as CSSProperties} className="space-y-2 [--hand-max:5rem] sm:[--hand-max:6rem]">
+                  {modifiers.length > 0 && <div className="grid max-w-[calc(var(--hand-columns)*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))] gap-2">{modifiers.map(renderCard)}</div>}
+                  <div className="grid max-w-[calc(var(--hand-columns)*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))] gap-2">{numeric.map(renderCard)}</div>
+                </div>
                 {!flight && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={`Escolher ${player.name}`} title={`Escolher ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "target", target: i })}><span className="sr-only">Escolher {player.name}</span></Button>}
               </section>;
             })}
           </div>
         </div>
-        <aside className="min-w-0 border-t border-border pt-4 @[60rem]:border-t-0 @[60rem]:border-l @[60rem]:pl-5 @[60rem]:pt-0" aria-label="Histórico da partida">
-          <h3 className="text-xs font-medium text-muted">Histórico</h3>
-          <div className="mt-3 max-h-96 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
+        <aside id="flip7-history" hidden={!historyVisible} className="min-w-0 bg-surface p-4 rounded-panel" aria-label="Histórico da partida">
+          <div className="max-h-96 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
         </aside>
       </div>
       {flight && <div ref={flyingRef} aria-hidden="true" data-flying-card className={cn("pointer-events-none absolute top-0 left-0 z-30", landed && "invisible")}><PlayingCard card={flight.card} /></div>}
