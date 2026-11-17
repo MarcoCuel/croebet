@@ -41,7 +41,7 @@ export function AvatarFallback({
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "grid size-full place-items-center bg-control-hover text-xs font-semibold inset-shadow-primary-button",
+        "grid size-full place-items-center rounded-[inherit] bg-control-hover text-xs font-semibold inset-shadow-primary-button",
         className,
       )}
       {...props}

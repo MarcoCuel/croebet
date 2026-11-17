@@ -39,7 +39,7 @@ function Rules({ compact = false }: { compact?: boolean }) {
 }
 const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove", "Dez", "Onze", "Doze"];
 const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "amber", "lime", "orange", "red", "blue", "slate"];
-function PlayingCard({ card, flipped = false }: { card: Card; flipped?: boolean }) {
+function PlayingCard({ card, flipped = false, compact = false }: { card: Card; flipped?: boolean; compact?: boolean }) {
   const special = card.type === "freeze" || card.type === "chance" || card.type === "three";
   const Icon = card.type === "freeze" ? Snowflake : card.type === "chance" ? Heart : Layers;
   const color = card.type === "number" ? numberColors[card.value] : card.type === "freeze" ? "cyan" : card.type === "three" ? "amber" : "orange";
@@ -47,16 +47,17 @@ function PlayingCard({ card, flipped = false }: { card: Card; flipped?: boolean 
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
       data-card-back={flipped || undefined}
-      className="h-32 w-20 shrink-0 [perspective:50rem] sm:h-36 sm:w-24">
+      className={cn("shrink-0 [perspective:50rem]", compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": `var(--color-flip-${color})` } as CSSProperties}
           className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-field-border/30 bg-control-hover shadow-sm [backface-visibility:hidden]",
             card.type === "number" ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink",
             card.type === "chance" && "bg-brand text-white",
+            compact && "rounded-md border",
           )}>
-          {card.type === "number" && <span className="absolute top-0 h-1 w-10 rounded-b-full bg-(--card-color)" aria-hidden="true" />}
-          {special ? <Icon className="size-7" fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className="text-4xl font-medium tabular-nums sm:text-5xl">{cardLabel(card)}</span>}
-          <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground")}>{label}</span>
+          {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
+          {special ? <Icon className={compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium tabular-nums", compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
+          {!compact && <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground")}>{label}</span>}
         </div>
         <div aria-hidden="true" className="absolute inset-0 grid place-items-center rounded-xl border-2 border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]">
           <span className="grid h-16 w-10 place-items-center rounded-lg border border-brand/40 text-xl font-black text-brand">7</span>
@@ -64,6 +65,17 @@ function PlayingCard({ card, flipped = false }: { card: Card; flipped?: boolean 
       </div>
     </div>
   );
+}
+
+function GameLog({ game }: { game: Game }) {
+  return <ol className="space-y-3">{game.log.map((entry, i) => {
+    const player = entry.player !== undefined ? game.players[entry.player] : null;
+    return <li key={i} className="flex items-center gap-2 border-b border-border pb-3 last:border-0">
+      {player && <Avatar className="size-7" aria-hidden="true"><AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
+      <span className="min-w-0 flex-1 break-words">{entry.message}</span>
+      {entry.card && <PlayingCard card={entry.card} compact />}
+    </li>;
+  })}</ol>;
 }
 
 function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
@@ -80,7 +92,7 @@ function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
 
   return (
     <div className="mx-auto flex min-h-96 w-full max-w-sm flex-col justify-center py-6 sm:py-12">
-      <Surface className="space-y-3 bg-transparent">
+      <Surface className="space-y-3">
         <h2 className="mb-5 text-center text-base font-semibold">Configuração</h2>
         <Field className="grid-cols-[1fr_auto] items-center gap-4">
           Jogadores
@@ -143,7 +155,7 @@ function Scoreboard({ game }: { game: Game }) {
         </div>
         <details className="mt-5 text-sm text-muted">
           <summary className="cursor-pointer">Últimas jogadas</summary>
-          <ol className="mt-3 space-y-2">{game.log.map((line, i) => <li key={i}>{line}</li>)}</ol>
+          <div className="mt-3"><GameLog game={game} /></div>
         </details>
       </DialogContent>
     </Dialog>
@@ -155,6 +167,7 @@ export default function Flip7Game() {
   const gameRef = useRef<Game | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const deckRef = useRef<HTMLDivElement>(null);
+  const revealRef = useRef<HTMLDivElement>(null);
   const flyingRef = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
   const [flight, setFlight] = useState<{ card: Card; target: number } | null>(null);
@@ -184,18 +197,20 @@ export default function Flip7Game() {
     const ghost = flyingRef.current;
     const board = boardRef.current;
     const deck = deckRef.current;
+    const reveal = revealRef.current;
     const destination = board?.querySelector<HTMLElement>(`[data-flight-card="${flight.card.id}"]`);
-    if (!ghost || !board || !deck || !destination) return;
+    if (!ghost || !board || !deck || !reveal || !destination) return;
     const origin = deck.getBoundingClientRect();
     const bounds = board.getBoundingClientRect();
     const target = destination.getBoundingClientRect();
+    const staging = reveal.getBoundingClientRect();
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const timeline = gsap.timeline({ onComplete: () => {
       locked.current = false;
       setFlight(null);
     } });
     gsap.set(ghost, { x: origin.left - bounds.left, y: origin.top - bounds.top, rotation: -6, scale: 0.94, zIndex: 0 });
-    timeline.to(ghost, { x: origin.left - bounds.left + origin.width + 12, rotation: 0, scale: 1, duration: reduced ? 0 : 0.24, ease: "power2.out" })
+    timeline.to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, rotation: 0, scale: 1, duration: reduced ? 0 : 0.24, ease: "power2.out" })
       .set(ghost, { zIndex: 30 })
       .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, duration: reduced ? 0 : 0.65, ease: "power2.inOut" }, reduced ? ">" : ">0.1")
       .call(() => setLanded(true))
@@ -254,9 +269,9 @@ export default function Flip7Game() {
                 <span className="text-4xl font-medium tabular-nums sm:text-5xl">{game.deck.length}</span>
                 <span className="absolute bottom-3 text-xs">Cartas</span>
               </div>
-
+              <div ref={revealRef} data-card-reveal aria-hidden="true" className="h-32 w-20 shrink-0 sm:h-36 sm:w-24" />
             </div>
-            <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-4 @[44rem]:grid-cols-3" aria-label="Usuários da partida">
+            <div className="grid w-full min-w-0 grid-cols-2 gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1 @[44rem]:grid-cols-3" aria-label="Usuários da partida">
               {game.players.map((player, i) => <div key={i} className="flex min-w-0 items-center gap-3">
                 <Avatar className="size-11" aria-hidden="true">
                   <AvatarFallback className={cn("text-sm", game.phase === "playing" && activeSeat === i && "bg-selected text-accent")}>
@@ -300,7 +315,7 @@ export default function Flip7Game() {
         </div>
         <aside className="min-w-0 border-t border-border pt-4 @[60rem]:border-t-0 @[60rem]:border-l @[60rem]:pl-5 @[60rem]:pt-0" aria-label="Histórico da partida">
           <h3 className="text-xs font-medium text-muted">Histórico</h3>
-          <ol className="mt-3 max-h-96 space-y-3 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent>{game.log.map((line, i) => <li key={i} className="border-b border-border pb-3 last:border-0">{line}</li>)}</ol>
+          <div className="mt-3 max-h-96 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
         </aside>
       </div>
       {flight && <div ref={flyingRef} aria-hidden="true" data-flying-card className={cn("pointer-events-none absolute top-0 left-0 z-30", landed && "invisible")}><PlayingCard card={flight.card} /></div>}

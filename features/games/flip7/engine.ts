@@ -4,11 +4,12 @@ export type Setup = { name: string; kind: PlayerKind };
 export type Card = { id: number; type: "number" | "bonus" | "double" | "chance" | "freeze" | "three"; value: number };
 export type Player = Setup & { cards: Card[]; total: number; status: "playing" | "stayed" | "busted" };
 type Pending = { source: number; card: Card; give?: boolean };
+export type LogEntry = { message: string; player?: number; card?: Card };
 export type Game = {
   players: Player[]; deck: Card[]; discard: Card[]; turn: number; round: number;
   phase: "playing" | "summary" | "over"; seed: number;
   pending: Pending | null; queue: Pending[]; forced: { target: number; remaining: number } | null;
-  history: number[][]; log: string[]; flip7: number | null; lastDraw: Card | null;
+  history: number[][]; log: LogEntry[]; flip7: number | null; lastDraw: Card | null;
 };
 export type Action = { type: "draw" | "stay" | "step" | "next" } | { type: "target"; target: number };
 export const GOAL = 200;
@@ -40,7 +41,7 @@ export function createGame(setup: Setup[], seed = 1): Game {
   const game: Game = {
     players: setup.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 24) || `Jogador ${i + 1}`, cards: [], total: 0, status: "playing" })),
     deck: [], discard: [], turn: 0, round: 1, phase: "playing", seed: (seed >>> 0) || 1,
-    pending: null, queue: [], forced: null, lastDraw: null, history: [], log: ["Partida iniciada. Cada pessoa compra uma carta por turno."], flip7: null,
+    pending: null, queue: [], forced: null, lastDraw: null, history: [], log: [{ message: "Partida iniciada." }], flip7: null,
   };
   game.deck = shuffle(game, createDeck());
   return game;
@@ -59,7 +60,7 @@ export function targets(game: Game): number[] {
   const { source, give } = game.pending;
   return game.players.flatMap((p, i) => p.status === "playing" && (!give || (i !== source && !p.cards.some(c => c.type === "chance"))) ? [i] : []);
 }
-function log(game: Game, message: string) { game.log = [message, ...game.log].slice(0, 6); }
+function log(game: Game, message: string, player?: number, card?: Card) { game.log = [{ message, player, card }, ...game.log].slice(0, 6); }
 function finish(game: Game) {
   const scores = game.players.map(score);
   game.history.push(scores);
@@ -91,22 +92,22 @@ function draw(game: Game, index: number, forced: boolean) {
   if (!card) { finish(game); return; }
   game.lastDraw = card;
   const player = game.players[index];
-  log(game, `${player.name} comprou ${cardLabel(card)}.`);
+  log(game, `${player.name} comprou`, index, card);
   if (card.type === "number") {
     const duplicate = numbers(player).some(c => c.value === card.value);
     const chance = player.cards.findIndex(c => c.type === "chance");
     if (duplicate && chance >= 0) {
       game.discard.push(card, ...player.cards.splice(chance, 1));
-      log(game, `${player.name} usou a segunda chance e descartou o ${card.value} repetido.`);
+      log(game, `${player.name} usou a segunda chance.`, index, card);
     } else {
       player.cards.push(card);
       if (duplicate) {
         player.status = "busted";
-        log(game, `${player.name} estourou com ${card.value} repetido. Zero pontos nesta rodada.`);
+        log(game, `${player.name} estourou.`, index, card);
         if (game.forced?.target === index) game.forced = null;
       } else if (numbers(player).length === 7) {
         game.flip7 = index;
-        log(game, `${player.name} fez Flip7! +15 pontos e fim da rodada.`);
+        log(game, `${player.name} fez Flip7! +15 pontos.`, index);
         finish(game);
       }
     }
@@ -128,7 +129,7 @@ export function transition(current: Game, action: Action): Game {
     const game = structuredClone(current);
     game.players.forEach(p => { game.discard.push(...p.cards); p.cards = []; p.status = "playing"; });
     game.round++; game.turn = (game.round - 1) % game.players.length; game.phase = "playing"; game.flip7 = null; game.lastDraw = null;
-    log(game, `Rodada ${game.round}. ${game.players[game.turn].name} começa.`);
+    log(game, `Rodada ${game.round}. ${game.players[game.turn].name} começa.`, game.turn);
     return game;
   }
   if (current.phase !== "playing") return current;
@@ -145,10 +146,10 @@ export function transition(current: Game, action: Action): Game {
       game.discard.push(pending.card);
       if (pending.card.type === "freeze") {
         player.status = "stayed";
-        log(game, `${player.name} foi congelado e garantiu ${score(player)} pontos.`);
+        log(game, `${player.name} foi congelado e garantiu ${score(player)} pontos.`, action.target, pending.card);
       } else {
         game.forced = { target: action.target, remaining: 3 };
-        log(game, `${player.name} deve comprar três cartas.`);
+        log(game, `${player.name} deve comprar três cartas.`, action.target, pending.card);
       }
     }
     game.pending = null;
@@ -159,7 +160,7 @@ export function transition(current: Game, action: Action): Game {
     draw(game, job.target, true);
   } else if (action.type === "stay") {
     game.players[game.turn].status = "stayed";
-    log(game, `${game.players[game.turn].name} parou com ${score(game.players[game.turn])} pontos.`);
+    log(game, `${game.players[game.turn].name} parou com ${score(game.players[game.turn])} pontos.`, game.turn);
   } else draw(game, game.turn, false);
   settle(game);
   return game;
