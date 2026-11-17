@@ -29,13 +29,10 @@ export default async function Game({ params }: Props) {
         <Flip7Loader />
       ) : (
         <section
-          className={`relative isolate grid min-h-64 place-items-end overflow-hidden rounded-panel bg-(--cover) p-5 sm:aspect-video sm:p-7 ${game.cover}`}
+          className={`relative isolate grid min-h-64 place-items-center border overflow-hidden rounded-panel bg-(--cover) p-5`}
           aria-labelledby="game-state"
         >
-          <div
-            className="absolute inset-0 -z-10 bg-linear-to-t from-image-shade via-image-shade/15 to-transparent"
-            aria-hidden="true"
-          />
+          <h3>Em breve</h3>
         </section>
       )}
     </PageShell>

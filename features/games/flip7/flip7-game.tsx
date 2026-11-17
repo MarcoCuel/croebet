@@ -58,8 +58,8 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
             fluid && "rounded-[12cqi]",
           )}>
           {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", fluid ? "h-[4cqi] w-[42cqi]" : compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
-          {special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium normal-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
-          {!compact && <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground", fluid && "inset-x-[4cqi] bottom-[12cqi] text-[12.5cqi]")}>{label}</span>}
+          <span className={cn("flex min-h-0 w-full flex-1 items-center justify-center", !compact && (fluid ? "pb-[8cqi]" : "pb-2"))}>{special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium normal-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}</span>
+          {!compact && <span className={cn("absolute inset-x-1 bottom-2 text-center text-xs leading-tight", card.type === "number" && "text-foreground", fluid && "inset-x-[4cqi] bottom-[12cqi] text-[12.5cqi]")}>{label}</span>}
         </div>
         <div aria-hidden="true" className={cn("absolute inset-0 rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", fluid && "rounded-[12cqi]")} />
       </div>
@@ -301,10 +301,6 @@ export default function Flip7Game() {
           {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" title="Copiar código da partida" aria-label={`Copiar código da partida ${matchCode}`} onClick={async () => {
-            try { await navigator.clipboard.writeText(matchCode!); toast.success("Código copiado."); }
-            catch { toast.error("Não foi possível copiar o código."); }
-          }}><span className="font-mono text-xs">Partida {matchCode}</span></Button>
           <Button variant="ghost" size="icon" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>
             {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
           </Button>
@@ -315,7 +311,7 @@ export default function Flip7Game() {
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
               <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col font-sans items-center justify-center rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
-                <span className="text-4xl font-medium normal-nums sm:text-5xl">{game.deck.length}</span>
+                <span className="pb-2 text-4xl font-medium normal-nums sm:text-5xl">{game.deck.length}</span>
                 <span className="absolute bottom-3 text-xs">Cartas</span>
               </div>
               {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${game.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
@@ -325,7 +321,7 @@ export default function Flip7Game() {
             </div>
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {game.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
-                <Avatar className="size-11" aria-hidden="true">
+                <Avatar className="size-14" aria-hidden="true">
                   <AvatarFallback className={cn("text-sm", game.phase === "playing" && activeSeat === i && "bg-selected text-accent")}>
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
                   </AvatarFallback>
@@ -373,7 +369,7 @@ export default function Flip7Game() {
         <div className={cn("grid min-w-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
           <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:w-56", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
             <div className="rounded-panel bg-surface p-4">
-              <div className="max-h-96 overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
+              <div className="max-h-[max(12rem,calc(100dvh-var(--header-height)-10rem))] overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={game} /></div>
             </div>
           </aside>
         </div>
