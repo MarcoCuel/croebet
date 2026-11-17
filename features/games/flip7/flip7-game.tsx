@@ -48,20 +48,31 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
       data-card-back={flipped || undefined}
-      className={cn("shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? "@container aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
+      className={cn("@container shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? "aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
-        <div aria-hidden={flipped} style={{ "--card-color": `var(--color-flip-${color})` } as CSSProperties}
-          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover shadow-sm [backface-visibility:hidden]",
-            card.type === "number" ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink",
-            card.type === "chance" && "bg-brand text-white",
-            compact && "rounded-md",
-            fluid && "rounded-[12cqi]",
+        <div aria-hidden={flipped} style={{ "--card-color": !compact && card.type === "chance" ? "var(--color-brand)" : `var(--color-flip-${color})` } as CSSProperties}
+          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-control-hover shadow-sm [backface-visibility:hidden]",
+            compact ? "rounded-md border-[0.125rem] border-field-border/30" : "rounded-[18cqi] text-(--card-color) inset-shadow-flip-card inset-shadow-field-border/30",
+            !compact && card.type !== "number" && "inset-shadow-white/10 bg-(--card-color) text-white",
+            compact && (card.type === "number" ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink"),
+            compact && card.type === "chance" && "bg-brand text-white",
           )}>
-          {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", fluid ? "h-[4cqi] w-[42cqi]" : compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
-          <span className={cn("flex min-h-0 w-full flex-1 items-center justify-center", !compact && (fluid ? "pb-[8cqi]" : "pb-2"))}>{special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium normal-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}</span>
-          {!compact && <span className={cn("absolute inset-x-1 bottom-2 text-center text-xs leading-tight", card.type === "number" && "text-foreground", fluid && "inset-x-[4cqi] bottom-[12cqi] text-[12.5cqi]")}>{label}</span>}
+          {compact ? <>
+            {card.type === "number" && <span className="absolute top-0 h-0.5 w-4 rounded-b-full bg-(--card-color)" aria-hidden="true" />}
+            {special ? <Icon className="size-4" fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className="text-lg font-medium normal-nums">{cardLabel(card)}</span>}
+          </> : <>
+            <div className={cn("absolute inset-x-[12cqi] top-[12cqi] z-10 flex items-start justify-between gap-[6cqi]", special && "justify-center")}>
+              <span className={cn("min-w-0 text-[16cqi] leading-none font-normal", card.type === "number" && "text-foreground", special && "text-center", (card.type === "bonus" || card.type === "double") && "text-[32cqi]")}>
+                {card.type === "bonus" ? <Plus className="block size-[24cqi]" aria-hidden="true" /> : card.type === "double" ? "×" : card.type === "chance" ? <>Segunda<br />Chance</> : label}
+              </span>
+              {card.type === "number" && <span className="size-[11cqi] shrink-0 rounded-full bg-(--card-color)" aria-hidden="true" />}
+            </div>
+            {special ? <Icon className={cn("absolute -bottom-[28cqi] left-[8cqi] size-[112cqi]", card.type === "chance" && "-rotate-15")} strokeWidth={1.5} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <svg className="absolute inset-0 size-full overflow-visible font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+              <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={126} letterSpacing="-0.05em">{card.type === "double" ? 2 : card.value}</text>
+            </svg>}
+          </>}
         </div>
-        <div aria-hidden="true" className={cn("absolute inset-0 rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", fluid && "rounded-[12cqi]")} />
+        <div aria-hidden="true" className={cn("absolute inset-0 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", compact ? "rounded-xl border-[0.125rem] border-field-border/30" : "rounded-[18cqi] inset-shadow-flip-card inset-shadow-field-border/30")} />
       </div>
     </div>
   );
@@ -285,36 +296,38 @@ export default function Flip7Game() {
   const status = game.phase === "over" ? `${winners.map(player => player.name).join(" e ")} ${winners.length > 1 ? "venceram" : "venceu"}!`
     : game.phase === "summary" ? (game.flip7 !== null ? `${game.players[game.flip7].name} fez Flip7!` : "Rodada encerrada")
     : game.forced ? `${game.players[game.forced.target].name}: mais ${game.forced.remaining} carta(s)`
-    : game.pending ? `${actor.name} · ${actionLabel}: escolha alguém` : `Vez de ${current.name}${!current.hasDrawn ? " · Distribuindo a primeira carta" : human ? " · Faça uma ação" : ""}`;
+    : game.pending ? `${actor.name} · ${actionLabel}: escolha alguém` : !current.hasDrawn ? `Vez de ${current.name} · Distribuindo a primeira carta` : human ? "Sua vez" : `Vez de ${current.name}`;
   const waitingActions = [game.pending, ...game.queue].filter(action => action !== null);
   const activeSeat = game.forced?.target ?? game.pending?.source ?? game.turn;
 
   return (
     <Surface ref={boardRef} className="relative @container min-h-[34rem] bg-transparent p-0 pb-32 sm:p-0 sm:pb-24" role="region" aria-label="Mesa de Flip7">
-      <div className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-3">
-        <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
-          <div className="pointer-events-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-3 rounded-panel border border-border bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
-            <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : status}</h2>
-            {playable && <div className="flex gap-2">
-              <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
-              <Button className="min-w-24" variant="secondary" disabled={!numbers(current).length} onClick={() => send({ type: "stay" })}>Parar</Button>
-            </div>}
-            {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
-          </div>
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
+        <div className="pointer-events-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-3 rounded-panel border border-border bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
+          <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : status}</h2>
+          {playable && <div className="flex gap-2">
+            <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
+            <Button className="min-w-24" variant="secondary" disabled={!numbers(current).length} onClick={() => send({ type: "stay" })}>Parar</Button>
+          </div>}
+          {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>
-            {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
-          </Button>
-        </div>
+      </div>
+      <div className="absolute -top-3 -right-3 z-20">
+        <Button variant="secondary" size="icon" className="rounded-full border border-border shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>
+          {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
+        </Button>
       </div>
       <div className={cn("grid items-start overflow-x-clip transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
         <div className="min-w-0">
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
-              <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col font-sans items-center justify-center rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
-                <span className="pb-2 text-4xl font-medium normal-nums sm:text-5xl">{game.deck.length}</span>
-                <span className="absolute bottom-3 text-xs">Cartas</span>
+              <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-control-hover font-sans inset-shadow-flip-card inset-shadow-field-border/30 sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
+                <div className="absolute inset-x-[12cqi] top-[12cqi] flex items-start justify-between gap-[6cqi]">
+                  <span className="text-[16cqi] leading-tight font-medium">Cartas</span>
+                </div>
+                <svg className="absolute inset-0 size-full font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+                  <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deck.length > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deck.length}</text>
+                </svg>
               </div>
               {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${game.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
                 <PlayingCard card={action.card} />

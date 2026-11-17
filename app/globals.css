@@ -37,6 +37,7 @@
   --color-cover-slots: #3c2319;
   --color-image-shade: #100a15;
 
+  --inset-shadow-flip-card: inset 0 0 0 0.125rem var(--color-field-border);
   --inset-shadow-primary-button: inset 0 -0.125rem 0.25rem
     rgb(255 255 255 / 26%);
   --background-image-primary-button: linear-gradient(
