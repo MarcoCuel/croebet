@@ -58,7 +58,7 @@ export function HomeBanners() {
           </Button>
         </div>
       </Banner>
-      <Banner className="bg-surface">
+      <Banner className="bg-surface text-foreground">
         <Heading variant="banner">
           Participe
           <br />

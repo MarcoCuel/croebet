@@ -1,11 +1,13 @@
 "use client";
 
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { useTheme } from "@/features/theme/theme-provider";
 
 export function Toaster(props: ToasterProps) {
+  const { resolvedTheme } = useTheme();
   return (
     <Sonner
-      theme="dark"
+      theme={resolvedTheme}
       position="bottom-right"
       closeButton
       toastOptions={{

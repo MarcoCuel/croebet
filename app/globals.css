@@ -36,7 +36,7 @@
   --color-destructive: #b52c3b;
   --color-destructive-hover: #cb3546;
   --color-primary: var(--color-brand);
-  --color-primary-foreground: var(--color-foreground);
+  --color-primary-foreground: #fff;
   --color-secondary: var(--color-control);
   --color-secondary-foreground: var(--color-foreground);
   --color-card: var(--color-surface);
@@ -72,6 +72,7 @@
 }
 
 :root {
+  color-scheme: dark;
   --border-width-hairline: 0.0625rem;
   --header-height: 4.375rem;
   --page-gap: 0.8125rem;
@@ -79,9 +80,25 @@
   --sidebar-collapsed: 4.5rem;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-accent: #94127b;
+  --color-background: #f7f7f7;
+  --color-chrome: #fff;
+  --color-surface: #fff;
+  --color-control: #ededed;
+  --color-control-hover: #e3e3e3;
+  --color-foreground: #171717;
+  --color-muted: #616161;
+  --color-border: #dedede;
+  --color-field-border: #858585;
+  --color-selected: #f5e1f1;
+  --shadow-lg: 0 0.75rem 1.75rem rgb(0 0 0 / 12%);
+}
+
 @layer base {
   html {
-    @apply scheme-dark antialiased scroll-pt-[calc(var(--header-height)+1rem)];
+    @apply antialiased scroll-pt-[calc(var(--header-height)+1rem)];
     text-rendering: geometricPrecision;
   }
 
