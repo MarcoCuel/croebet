@@ -46,8 +46,8 @@
 
 ## Acessibilidade e ícones
 
-- Use Phosphor Icons (`@phosphor-icons/react`). Importe cada ícone por `/dist/ssr` em Server Components e `/dist/csr` em Client Components.
-- Peso regular nos controles e `fill` nas ilustrações; tamanho e cor via Tailwind. Marque ícones decorativos com `aria-hidden` e dê nome acessível aos botões de ícone.
+- Use Lucide (`lucide-react`). Importe apenas os ícones utilizados com imports nomeados, tanto em Server Components quanto em Client Components.
+- Preserve o estilo de contorno padrão do Lucide; tamanho e cor via Tailwind. Marque ícones decorativos com `aria-hidden` e dê nome acessível aos botões de ícone.
 - Mantenha labels, títulos e descrições de diálogos, foco inicial, fechamento por Escape, retorno do foco e navegação por teclado. Prefira os mecanismos do Radix a implementações manuais.
 - Use `data-lenis-prevent` em portais com rolagem própria. Não duplique controle global de scroll ou focus traps.
 

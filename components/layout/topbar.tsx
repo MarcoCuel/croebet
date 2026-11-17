@@ -1,8 +1,6 @@
 "use client";
 
-import { BellIcon } from "@phosphor-icons/react/dist/csr/Bell";
-import { GiftIcon } from "@phosphor-icons/react/dist/csr/Gift";
-import { ListIcon } from "@phosphor-icons/react/dist/csr/List";
+import { Bell, Gift, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDemoSession } from "@/features/auth/session-context";
@@ -54,7 +52,7 @@ export function Topbar({
           aria-expanded={mobileMenuOpen}
           onClick={onOpenMenu}
         >
-          <ListIcon className="size-5" aria-hidden="true" />
+          <Menu className="size-4" aria-hidden="true" />
         </Button>
         <Link
           className={cn(brandLinkClass, "text-xl md:hidden")}
@@ -121,7 +119,7 @@ export function Topbar({
                   onClick={claimDaily}
                   disabled={dailyClaimed}
                 >
-                  <GiftIcon className="size-5" aria-hidden="true" />
+                  <Gift className="size-4" aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -138,7 +136,7 @@ export function Topbar({
                     size="icon"
                     aria-label="Notificações"
                   >
-                    <BellIcon className="size-5" aria-hidden="true" />
+                    <Bell className="size-4" aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52 p-2">

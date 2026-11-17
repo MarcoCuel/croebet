@@ -1,8 +1,8 @@
+import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageShell } from "@/components/layout/page-shell";
 import { Heading } from "@/components/shared/heading";
 import { Card } from "@/components/ui/card";
-import { ArrowUpRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowUpRight";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -52,7 +52,7 @@ export default function About() {
         <Button asChild className="mt-7">
           <Link href="/jogos">
             Ver os jogos{" "}
-            <ArrowUpRightIcon className="size-5" aria-hidden="true" />
+            <ArrowUpRight className="size-4" aria-hidden="true" />
           </Link>
         </Button>
       </div>

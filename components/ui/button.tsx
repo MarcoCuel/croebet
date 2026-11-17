@@ -1,7 +1,7 @@
+import { LoaderCircle } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { CircleNotchIcon } from "@phosphor-icons/react/dist/ssr/CircleNotch";
 import { cn } from "@/lib/utils";
 
 export const buttonVariants = cva(
@@ -65,7 +65,7 @@ export function Button({
       ) : (
         <>
           {loading && (
-            <CircleNotchIcon
+            <LoaderCircle
               className="size-4 motion-safe:animate-spin"
               aria-hidden="true"
             />

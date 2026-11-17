@@ -1,7 +1,7 @@
+import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Heading } from "@/components/shared/heading";
 import { Card } from "@/components/ui/card";
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr/ArrowLeft";
 import Image from "next/image";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -32,7 +32,7 @@ export default async function Game({ params }: Props) {
         className="mb-5 inline-flex items-center gap-2 text-sm text-muted hover:text-foreground"
         href="/jogos"
       >
-        <ArrowLeftIcon className="size-4" aria-hidden="true" />
+        <ArrowLeft className="size-4" aria-hidden="true" />
         Todos os jogos
       </Link>
       <header className="mb-6" data-enter>

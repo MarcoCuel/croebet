@@ -6,22 +6,6 @@ export default defineConfig([
   ...nextVitals,
   ...nextTypeScript,
   {
-    files: ["**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "@phosphor-icons/react",
-              message: "Importe cada ícone por /dist/ssr ou /dist/csr.",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
     files: [
       "app/**/*.tsx",
       "components/layout/**/*.tsx",

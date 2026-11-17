@@ -1,5 +1,4 @@
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowRight";
-import { TicketIcon } from "@phosphor-icons/react/dist/ssr/Ticket";
+import { ArrowRight, Ticket } from "lucide-react";
 import Link from "next/link";
 import { GameGrid } from "@/features/games/game-grid";
 import { HomeBanners } from "@/features/home/home-banners";
@@ -24,9 +23,8 @@ export default function Home() {
       <section className="mt-8" aria-labelledby="bets-title">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <Heading className="flex items-center gap-2.5" id="bets-title">
-            <TicketIcon
-              className="size-5 text-accent"
-              weight="fill"
+            <Ticket
+              className="size-4 text-accent"
               aria-hidden="true"
             />
             Apostas em destaque
@@ -39,7 +37,7 @@ export default function Home() {
           >
             <Link href="/apostas">
               Ver apostas
-              <ArrowRightIcon className="size-4" aria-hidden="true" />
+              <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>
         </div>

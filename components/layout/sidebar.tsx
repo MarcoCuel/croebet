@@ -1,7 +1,7 @@
 "use client";
 
+import { PanelLeft } from "lucide-react";
 import Link from "next/link";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/dist/csr/SidebarSimple";
 import { useDemoSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
 import { Balance } from "@/features/wallet/balance";
@@ -42,7 +42,7 @@ export function Sidebar({
               aria-controls="lobby-sidebar"
               onClick={onToggle}
             >
-              <SidebarSimpleIcon className="size-5" aria-hidden="true" />
+              <PanelLeft className="size-4" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">

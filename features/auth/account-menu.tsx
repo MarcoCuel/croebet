@@ -1,10 +1,6 @@
 "use client";
 
-import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
-import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
-import { GearIcon } from "@phosphor-icons/react/dist/csr/Gear";
-import { MoonIcon } from "@phosphor-icons/react/dist/csr/Moon";
-import { SignOutIcon } from "@phosphor-icons/react/dist/csr/SignOut";
+import { ChevronDown, Coins, Settings, Moon, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -13,10 +9,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { useRef } from "react";
 import { useDemoSession } from "./session-context";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/features/theme/theme-provider";
 
 export function AccountMenu({
   name,
@@ -28,6 +30,7 @@ export function AccountMenu({
   onOpenBalance: () => void;
 }) {
   const { signOut } = useDemoSession();
+  const { theme, setTheme } = useTheme();
   const trigger = useRef<HTMLButtonElement>(null);
   const openingBalance = useRef(false);
   return (
@@ -56,7 +59,7 @@ export function AccountMenu({
           >
             {name}
           </span>
-          <CaretDownIcon
+          <ChevronDown
             className="hidden size-4 text-muted sm:inline"
             aria-hidden="true"
           />
@@ -76,15 +79,28 @@ export function AccountMenu({
         <DropdownMenuItem
           onSelect={() => toast.info("Configurações ainda não disponíveis.")}
         >
-          <GearIcon className="size-4" aria-hidden="true" />
+          <Settings className="size-4" aria-hidden="true" />
           Configurações
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => toast.info("O tema escuro é o único disponível por enquanto.")}
-        >
-          <MoonIcon className="size-4" aria-hidden="true" />
-          Tema
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Moon className="size-4" aria-hidden="true" />
+            Tema
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuRadioGroup
+              value={theme}
+              onValueChange={(value) => {
+                if (value === "light" || value === "dark" || value === "system")
+                  setTheme(value);
+              }}
+            >
+              <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuItem
           onSelect={() => {
             openingBalance.current = true;
@@ -92,11 +108,11 @@ export function AccountMenu({
             onOpenBalance();
           }}
         >
-          <CoinsIcon className="size-4" aria-hidden="true" />
+          <Coins className="size-4" aria-hidden="true" />
           Saldo
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={signOut}>
-          <SignOutIcon className="size-4" aria-hidden="true" />
+          <LogOut className="size-4" aria-hidden="true" />
           Sair
         </DropdownMenuItem>
       </DropdownMenuContent>

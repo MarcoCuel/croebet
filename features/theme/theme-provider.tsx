@@ -10,7 +10,8 @@ const mediaQuery = "(prefers-color-scheme: dark)";
 function readTheme(): Theme {
   try {
     const value = localStorage.getItem(storageKey);
-    if (value === "light" || value === "dark") return value;
+    if (value === "light" || value === "dark" || value === "system") return value;
+    return "system";
   } catch {
     // Keep the current preference usable when browser storage is unavailable.
   }
@@ -62,7 +63,7 @@ const ThemeContext = createContext<{
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useSyncExternalStore(subscribe, readTheme, () => "system" as Theme);
-  const resolvedTheme = useSyncExternalStore(
+  const resolvedTheme = useSyncExternalStore<"light" | "dark">(
     subscribe,
     () => document.documentElement.dataset.theme === "light" ? "light" : "dark",
     () => "dark",

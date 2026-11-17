@@ -2,7 +2,7 @@
 
 ## Diagnóstico inicial
 
-A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Phosphor, GSAP e Lenis. Não havia configuração de lint nem componentes base compartilhados. `navigation.tsx` concentrava 401 linhas com sessão, carteira, bônus, armazenamento, sidebar, dropdowns e três modais. Rotas importavam sessão e dados de outras rotas. O CSS global, com 228 linhas, definia controles e componentes inteiros por classes próprias. Inputs de autenticação e carteira tinham medidas diferentes; links e botões repetiam estilos de ação.
+A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Lucide, GSAP e Lenis. Não havia configuração de lint nem componentes base compartilhados. `navigation.tsx` concentrava 401 linhas com sessão, carteira, bônus, armazenamento, sidebar, dropdowns e três modais. Rotas importavam sessão e dados de outras rotas. O CSS global, com 228 linhas, definia controles e componentes inteiros por classes próprias. Inputs de autenticação e carteira tinham medidas diferentes; links e botões repetiam estilos de ação.
 
 A migração preserva o catálogo, os mercados, a metadata, as imagens, os textos, as rotas, o GSAP e o Lenis. Os jogos individuais continuam exibindo a mensagem de adaptação. Não foi implementado um backend ou substituído um jogo.
 
@@ -25,7 +25,7 @@ A migração preserva o catálogo, os mercados, a metadata, as imagens, os texto
 
 As dependências apontam das rotas para features e componentes; componentes UI não conhecem features. Tipos permanecem junto ao domínio, sem um diretório global de tipos sem necessidade. Não há barrels que importem todo o design system ou renderer 3D. Os providers permanecem clientes, enquanto páginas e conteúdo estático continuam no servidor.
 
-`components.json` registra a instalação manual shadcn/ui, o CSS do Tailwind 4, aliases e Phosphor. Os componentes pertencem ao projeto e podem ser editados. Radix fornece os comportamentos acessíveis; não foi adicionada uma biblioteca de componentes fechada. Não há dependência de runtime do CLI shadcn nem de Lucide.
+`components.json` registra a instalação manual shadcn/ui, o CSS do Tailwind 4, aliases e Lucide. Os componentes pertencem ao projeto e podem ser editados. Radix fornece os comportamentos acessíveis; não foi adicionada uma biblioteca de componentes fechada. Os ícones utilizam imports nomeados de `lucide-react` em componentes de servidor e cliente, preservando o estilo de contorno padrão. Não há dependência de runtime do CLI shadcn.
 
 ## Tokens e estilos
 
@@ -96,7 +96,7 @@ Materiais leem `--color-brand` uma vez ao montar e invalidam o frame. OrbitContr
 
 ## Validação
 
-- `pnpm lint`: ESLint com regras Next/React/TypeScript, imports individuais de Phosphor e restrição a controles HTML fora do design system.
+- `pnpm lint`: ESLint com regras Next/React/TypeScript e restrição a controles HTML fora do design system.
 - `pnpm typecheck`: tipos de toda a aplicação, incluindo a infraestrutura 3D.
 - `pnpm test`: invariantes de saldo, palpites, bônus diário, recarga e overflow.
 - `pnpm build`: compilação, prerender e metadata das rotas existentes.

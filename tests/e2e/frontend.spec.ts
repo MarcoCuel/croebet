@@ -183,3 +183,33 @@ test("navegação lateral se adapta ao dispositivo e responde ao teclado", async
     ).toBeVisible();
   }
 });
+
+test("tema persiste e System acompanha a preferência do sistema", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await signIn(page);
+  const root = page.locator("html");
+  const openTheme = async () => {
+    await page.getByRole("button", { name: "Conta de Arquitetura", exact: true }).last().click();
+    await page.getByRole("menuitem", { name: "Tema", exact: true }).click();
+  };
+  await openTheme();
+  await expect(page.getByRole("menuitemradio")).toHaveCount(3);
+  await page.getByRole("menuitemradio", { name: "Light", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await openTheme();
+  await expect(page.getByRole("menuitemradio", { name: "Light", exact: true })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("menuitemradio", { name: "Dark", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await openTheme();
+  await page.getByRole("menuitemradio", { name: "System", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme-preference", "system");
+});

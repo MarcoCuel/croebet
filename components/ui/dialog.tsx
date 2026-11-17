@@ -1,7 +1,7 @@
 "use client";
 
+import { X } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import type { ComponentProps } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,7 @@ export function DialogContent({
               className="absolute top-3 right-3"
               aria-label="Fechar"
             >
-              <XIcon className="size-5" aria-hidden="true" />
+              <X className="size-4" aria-hidden="true" />
             </Button>
           </DialogPrimitive.Close>
         )}

@@ -1,20 +1,16 @@
 "use client";
 
-import { GameControllerIcon } from "@phosphor-icons/react/dist/csr/GameController";
-import { HouseIcon } from "@phosphor-icons/react/dist/csr/House";
-import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
-import { TicketIcon } from "@phosphor-icons/react/dist/csr/Ticket";
-import { TrophyIcon } from "@phosphor-icons/react/dist/csr/Trophy";
+import { Gamepad2, House, Info, Ticket, Trophy } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/", label: "Início", Icon: HouseIcon },
-  { href: "/jogos", label: "Jogos", Icon: GameControllerIcon },
-  { href: "/apostas", label: "Apostas", Icon: TicketIcon },
-  { href: "/rankings", label: "Rankings", Icon: TrophyIcon },
-  { href: "/sobre", label: "Sobre", Icon: InfoIcon },
+  { href: "/", label: "Início", Icon: House },
+  { href: "/jogos", label: "Jogos", Icon: Gamepad2 },
+  { href: "/apostas", label: "Apostas", Icon: Ticket },
+  { href: "/rankings", label: "Rankings", Icon: Trophy },
+  { href: "/sobre", label: "Sobre", Icon: Info },
 ];
 
 export function MenuLinks({
@@ -47,13 +43,7 @@ export function MenuLinks({
           }
           onClick={onNavigate}
         >
-          <Icon
-            className={cn(
-              "size-5 shrink-0",
-              sidebar && "@min-[8rem]/sidebar:hidden",
-            )}
-            aria-hidden="true"
-          />
+          <Icon className="size-4 shrink-0" aria-hidden="true" />
           <span className={cn(sidebar && "@max-[8rem]/sidebar:hidden")}>
             {label}
           </span>
