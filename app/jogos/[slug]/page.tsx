@@ -1,5 +1,5 @@
+import { Flip7Loader } from "@/features/games/flip7/flip7-loader";
 import { PageShell } from "@/components/layout/page-shell";
-import { Heading } from "@/components/shared/heading";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { games } from "@/features/games/catalog";
@@ -24,21 +24,20 @@ export default async function Game({ params }: Props) {
 
   return (
     <PageShell>
-      <header className="mb-6">
-        <Heading asChild variant="display">
-          <h1>{game.name}</h1>
-        </Heading>
-      </header>
-
-      <section
-        className={`relative isolate grid min-h-64 place-items-end overflow-hidden rounded-panel bg-(--cover) p-5 sm:aspect-video sm:p-7 ${game.cover}`}
-        aria-labelledby="game-state"
-      >
-        <div
-          className="absolute inset-0 -z-10 bg-linear-to-t from-image-shade via-image-shade/15 to-transparent"
-          aria-hidden="true"
-        />
-      </section>
+      <h1 className="sr-only">{game.name}</h1>
+      {slug === "flip7" ? (
+        <Flip7Loader />
+      ) : (
+        <section
+          className={`relative isolate grid min-h-64 place-items-end overflow-hidden rounded-panel bg-(--cover) p-5 sm:aspect-video sm:p-7 ${game.cover}`}
+          aria-labelledby="game-state"
+        >
+          <div
+            className="absolute inset-0 -z-10 bg-linear-to-t from-image-shade via-image-shade/15 to-transparent"
+            aria-hidden="true"
+          />
+        </section>
+      )}
     </PageShell>
   );
 }

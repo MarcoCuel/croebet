@@ -117,3 +117,7 @@ Os testes de navegador usam o Chrome instalado. Instale-o ou adapte o projeto Pl
 - Lint sem avisos, TypeScript e quatro testes de carteira aprovados.
 - Build de produção com Turbopack aprovado usando Node 22.22.0; todas as rotas foram pré-renderizadas. O modo workerThreads existente foi preservado. O Node 24.18 desativa esse modo por uma proteção do próprio Next e utiliza processos com comunicação por portas locais.
 - Testes Playwright implementados, mas a execução interativa permanece pendente: o ambiente recusou a abertura de `127.0.0.1:3100` com `EPERM`. Não houve validação visual em navegador nesta sessão.
+
+## Jogos independentes — Flip7
+
+O primeiro jogo funcional foi integrado em `/jogos/flip7`. Seu módulo em `features/games/flip7` separa motor de regras puro, interface e carregamento dinâmico; a plataforma compõe a página e continua responsável pela navegação. O motor não importa sessão ou carteira. Partidas locais compartilham o dispositivo com bots opcionais, sem movimentar Croins. Detalhes da referência, regras, limites e testes estão em `docs/flip7.md`.

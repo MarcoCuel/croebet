@@ -14,7 +14,7 @@ export function GameGrid() {
           >
             <Image
               className="absolute inset-0 -z-20 size-full object-cover motion-safe:transition-transform motion-safe:duration-300 motion-safe:group-hover:scale-105"
-              src={`/art/${slug}.webp`}
+              src={slug === "flip7" ? "/art/flip7.svg" : `/art/${slug}.webp`}
               alt=""
               width={600}
               height={600}

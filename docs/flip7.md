@@ -1,0 +1,60 @@
+# Flip7 local
+
+## Referência analisada
+
+URL: https://flip-7-618523404455.us-west1.run.app/ — analisada em 17/11/2026.
+
+O HTML público contém um import map com módulos JavaScript embutidos em data URLs. Foram lidos o baralho, regras, ações, gerenciador de partidas, tela de configuração e estratégias dos bots. A referência credita o jogo a Eric Olsen e a implementação a Dirk Aporius e Google AI Studio; módulos consultados contêm cabeçalho SPDX Apache-2.0.
+
+As regras e os bots são executados no navegador. As dependências React e fontes da referência são carregadas de CDNs, e o documento registra um service worker. Não foi confirmado o funcionamento offline desse service worker. O proxy de API presente no HTML não é necessário para a lógica local de partidas analisada.
+
+## Implementação na Croebet
+
+A adaptação reimplementa o jogo em TypeScript e React com os primitives existentes, textos em português e integração ao catálogo. Nenhum script remoto, proxy ou service worker da referência é executado ou incorporado. A arte do catálogo é um SVG local criado para esta integração.
+
+- `features/games/flip7/engine.ts`: estado e transições independentes de React, DOM, autenticação ou carteira.
+- `features/games/flip7/flip7-game.tsx`: configuração, mesa, cartas, regras, histórico de rodadas e timer cancelável dos bots/compras forçadas.
+- `features/games/flip7/flip7-loader.tsx`: fronteira cliente com carregamento dinâmico exclusivo da página do jogo.
+- `app/jogos/[slug]/page.tsx`: composição da plataforma; mantém o comportamento dos demais jogos.
+
+O jogo recebe ações e devolve um novo estado sem alterar o anterior. O embaralhamento usa uma semente aleatória criada no navegador ao iniciar, com transições determinísticas para testes e compatibilidade com verificações do React. Não é um gerador adequado a apostas controladas por servidor.
+
+## Modalidade e regras
+
+De 2 a 6 participantes, com pelo menos uma pessoa e bots opcionais em três níveis. A referência permite de 2 a 4; seis é uma extensão da adaptação. Pessoas compartilham o dispositivo; não existem salas ou multiplayer online.
+
+Baralho de 94 cartas: um 0; N cópias de cada número N entre 1 e 12; bônus +2/+4/+6/+8/+10; um ×2; três cartas de cada ação (Congelar, Compre 3 e Segunda chance).
+
+Cada turno permite uma compra ou parar após obter uma carta numérica. Repetir um número estoura. Segunda chance descarta automaticamente a proteção e a carta repetida, preservando a primeira. Sete números diferentes encerram imediatamente a rodada e somam 15 pontos extras. ×2 dobra apenas os números. O maior total vence na rodada em que alguém chega a 200; empate mantém todos os vencedores.
+
+Ações de Congelar/Compre 3 permitem escolher qualquer participante ativo, inclusive quem comprou a carta. Ações compradas durante Compre 3 ficam em fila até concluir a sequência; estourar descarta as ações dessa pessoa. Uma segunda chance adicional fora de uma sequência pode ser doada a outra pessoa ativa sem proteção; durante uma sequência ela é descartada, seguindo a referência.
+
+Cartas consumidas por ações ou segunda chance vão ao descarte. Isso corrige um problema identificado no original, que removia algumas dessas cartas sem devolvê-las ao descarte. Cartas são conservadas entre rodadas, e descartes só são embaralhados ao esgotar o baralho. Bots usam informações públicas, sem consultar a ordem escondida do baralho; estratégias foram reimplementadas.
+
+## Limites atuais
+
+Estado da partida em memória, sem persistência após recarregar ou sair da página. A ausência de persistência é documentada aqui; a mesa mostra somente os controles essenciais. A aplicação precisa carregar seus arquivos inicialmente; esta integração não adiciona suporte PWA/offline ao site. Depois de carregado, o motor não depende de requisições para jogar.
+
+Pontos do Flip7 não debitam nem creditam Croins e não atualizam rankings/conquistas globais. A economia dessa modalidade ainda precisa ser definida. Para um futuro modo online com economia compartilhada, regras, aleatoriedade, turnos e resultados deverão ser validados no backend.
+
+## Validação
+
+`tests/flip7.test.mjs` cobre baralho, pontuação, estouros, proteção, ações em fila, alvos, término e rotação de rodadas. Simulações com 80 sementes conferem conservação/identidade das 94 cartas e término das partidas.
+
+`tests/e2e/flip7.spec.ts` cobre entrada pelo catálogo, configuração, regras e foco, turnos locais, confirmação de nova partida e overflow em desktop/mobile. A execução depende de Chrome e permissão para abrir a porta local do servidor Playwright.
+
+Validação desta implementação: lint, TypeScript, 17 testes e build de produção aprovados (build com Node 22.22.0). A tentativa de executar a suíte E2E foi bloqueada antes de abrir o navegador: `listen EPERM 127.0.0.1:3100`. Não houve validação visual automatizada nesta sessão.
+
+## Interface mínima
+
+Configuração compacta com quantidade de jogadores e nomes sem edição. O primeiro participante é sempre a conta conectada, como pessoa, sem seletor; os seletores de tipo aparecem do segundo participante em diante. Sem sessão, o botão principal abre o login existente antes de permitir iniciar a partida. A sessão é lida somente na configuração; o motor continua independente dela. O topo reúne baralho, última carta comprada e Comprar/Parar. As mãos ficam em colunas abaixo, com modificadores antes dos números; o histórico de jogadas e totais aparece na lateral em containers largos e abaixo no mobile. Cartas escuras têm número colorido, marca superior e nome; especiais usam cores próprias. O turno é indicado pela borda do participante. Regras e placar detalhado continuam em diálogos por ícone. As regras do motor e a economia não mudam.
+
+## Animações de compra e estouro
+
+A carta em trânsito sai de trás do baralho, é revelada ao lado dele e percorre a mesa até o espaço reservado na mão do destinatário. A interface usa uma timeline GSAP cancelável, coordenadas medidas após o layout e um bloqueio síncrono de ações para impedir compras sobrepostas. Bots e Compre 3 aguardam o movimento terminar. Cartas de ação e segunda chance consumida usam um espaço temporário na mão durante a animação. A última carta não fica duplicada ao lado do baralho.
+
+Após a chegada de uma carta que causa estouro, todas as cartas da mão giram em 3D para o verso, sem valores no nome acessível ou tooltip. O verso permanece até a próxima rodada. Preferência por movimento reduzido remove os deslocamentos e a rotação. A timeline é cancelada ao sair da partida ou desmontar o jogo.
+
+## Faixa de status
+
+A mesa usa fundo transparente. Status contextual e ações ficam na faixa superior; Comprar/Parar aparecem somente no turno de uma pessoa, sem compra em andamento ou ação especial pendente. O resumo de usuários e totais ocupa a faixa junto ao baralho. A lateral contém apenas o histórico. Durante o movimento da carta, o status informa o destinatário antes de anunciar o próximo turno.
