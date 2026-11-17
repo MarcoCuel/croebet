@@ -18,7 +18,7 @@ const filters = [
   { value: "expense", label: "Saídas" },
 ] as const;
 
-export function WalletHistory() {
+export function WalletHistory({ compact = false }: { compact?: boolean }) {
   const { username, balance, transactions, openLogin } = useDemoSession();
   const [filter, setFilter] = useState<(typeof filters)[number]["value"]>("all");
 
@@ -35,16 +35,16 @@ export function WalletHistory() {
 
   return (
     <div className="mt-6 grid gap-6">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Card className="grid gap-3">
+      <div className={cn("grid gap-3", compact ? "lg:grid-cols-3" : "sm:grid-cols-3")}>
+        <Card className={cn("grid gap-3", compact && "bg-control-hover")}>
           <h2 className="text-sm text-muted">Saldo atual</h2>
           <div className="text-2xl font-semibold"><Balance value={balance} /></div>
         </Card>
-        <Card className="grid gap-3">
+        <Card className={cn("grid gap-3", compact && "bg-control-hover")}>
           <h2 className="text-sm text-muted">Entradas</h2>
           <p className="text-2xl font-semibold tabular-nums text-accent">+{formatBalance.format(income)} <span className="text-xs font-normal text-muted">Croins</span></p>
         </Card>
-        <Card className="grid gap-3">
+        <Card className={cn("grid gap-3", compact && "bg-control-hover")}>
           <h2 className="text-sm text-muted">Saídas</h2>
           <p className="text-2xl font-semibold tabular-nums">−{formatBalance.format(expense)} <span className="text-xs font-normal text-muted">Croins</span></p>
         </Card>
@@ -57,7 +57,7 @@ export function WalletHistory() {
             ))}
           </div>
         </div>
-        <Card className="overflow-hidden p-0 sm:p-0">
+        <Card className={cn("overflow-hidden p-0 sm:p-0", compact && "bg-control-hover")}>
           {entries.length ? (
             <ul className="divide-y divide-border">
               {entries.map((entry) => {
@@ -65,7 +65,7 @@ export function WalletHistory() {
                 const Icon = incoming ? ArrowDownLeft : ArrowUpRight;
                 return (
                   <li key={entry.id} className="flex items-center gap-3 p-4 sm:gap-4 sm:px-6">
-                    <span className="hidden size-10 shrink-0 place-items-center rounded-panel bg-control sm:grid"><Icon className={cn("size-4", incoming && "text-accent")} aria-hidden="true" /></span>
+                    <span className={cn("hidden size-10 shrink-0 place-items-center rounded-panel bg-control sm:grid", compact && "bg-surface")}><Icon className={cn("size-4", incoming && "text-accent")} aria-hidden="true" /></span>
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm font-medium">{entry.description}</p>
                       <time dateTime={entry.createdAt} className="mt-1 block text-xs text-muted">{dateFormat.format(new Date(entry.createdAt))}</time>

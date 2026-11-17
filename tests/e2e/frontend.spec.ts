@@ -334,3 +334,35 @@ test("carteira antiga preserva saldo e começa sem movimentações inventadas", 
   await expect(page.getByRole("main").getByText("321", { exact: false })).toBeVisible();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("croebet:demo-wallet:legado") ?? "{}").balance)).toBe(321);
 });
+
+test("configurações alternam seções, aplicam tema e devolvem foco ao fechar", async ({ page }) => {
+  await page.goto("/");
+  await signIn(page, "Preferencias");
+  const account = page.getByRole("button", { name: "Conta de Preferencias", exact: true }).last();
+  const openSettings = async () => {
+    await account.click();
+    await page.getByRole("menuitem", { name: "Configurações", exact: true }).click();
+  };
+  await openSettings();
+  const dialog = page.getByRole("dialog", { name: "Configurações", exact: true });
+  const nav = dialog.getByRole("navigation", { name: "Seções de configurações" });
+  await expect(nav.getByRole("button", { name: "Geral", exact: true })).toBeFocused();
+  await expect(dialog.getByRole("region", { name: "Geral", exact: true })).toContainText("Preferencias");
+  await nav.getByRole("button", { name: "Aparência", exact: true }).click();
+  await dialog.getByRole("button", { name: "Claro", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(dialog.getByRole("button", { name: "Claro", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await nav.getByRole("button", { name: "Histórico", exact: true }).click();
+  await expect(dialog.getByText("Nenhuma movimentação registrada ainda.")).toBeVisible();
+  expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await nav.getByRole("button", { name: "Conta", exact: true }).click();
+  await expect(dialog.getByLabel("Nome de usuário")).toHaveValue("Preferencias");
+  await page.keyboard.press("Escape");
+  await expect(dialog).not.toBeVisible();
+  await expect(account).toBeFocused();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await openSettings();
+  await dialog.getByRole("button", { name: "Fechar configurações", exact: true }).click();
+  await expect(account).toBeFocused();
+});

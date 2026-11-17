@@ -82,6 +82,8 @@ A página de apostas apresenta três formatos: Sim/Não, escolha de período e a
 
 A rota `/historico` mostra saldo atual, totais registrados e movimentações com filtros de entradas e saídas. Recargas de teste, bônus diário e valores apostados registram a movimentação junto da alteração de saldo; apostas são saídas, sem antecipar perdas ou pagamentos de eventos ainda não apurados. Movimentações anteriores à atualização não são reconstruídas. O saldo no topo e na sidebar leva ao histórico, também acessível no menu de conta. O modal de recarga abre exclusivamente pela opção Saldo desse menu.
 
+O menu da conta abre um modal de configurações em `features/settings`, com navegação lateral no desktop e navegação superior no mobile. Geral resume usuário, saldo e bônus; Aparência reutiliza o provider de tema; Conta permite consultar o usuário e sair; Histórico reutiliza as movimentações e filtros da carteira. O modal mantém rolagem interna, fechamento por Escape e retorno do foco ao menu da conta.
+
 O estado de navegação é independente da carteira. Os diálogos utilizam portais, bloqueio de scroll e controle de foco do Radix. A troca de rota e o breakpoint desktop fecham o menu mobile. As páginas exibem o conteúdo diretamente, sem animações de entrada. `Motion` mantém a rolagem suave com Lenis e respeita a preferência de movimento reduzido.
 
 ## 3D sob demanda
