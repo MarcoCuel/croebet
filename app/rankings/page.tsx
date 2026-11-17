@@ -90,7 +90,7 @@ export default function Rankings() {
                     <span className="w-5 shrink-0 text-center text-sm font-semibold text-muted tabular-nums" aria-hidden="true">
                       {position + 4}
                     </span>
-                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-control text-xs font-semibold text-muted" aria-hidden="true">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-control text-xs font-semibold text-muted inset-shadow-primary-button" aria-hidden="true">
                       {name.slice(0, 2).toUpperCase()}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium" title={name}>
