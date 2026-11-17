@@ -68,7 +68,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     // Hydrate the browser date after SSR; storage must load before persistence runs.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDate(today());
-    const timer = window.setInterval(() => setDate(today()), 30_000);
+    const timer = window.setInterval(() => setDate(today()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 

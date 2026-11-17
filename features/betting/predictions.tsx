@@ -8,14 +8,15 @@ import { Card } from "@/components/ui/card";
 import { MarketList } from "@/features/betting/market-list";
 import { PredictionTicket } from "@/features/betting/prediction-ticket";
 import type { Selection } from "@/features/betting/types";
+import { cn } from "@/lib/utils";
 
-export function Predictions() {
+export function Predictions({ className }: { className?: string }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const selectionTrigger = useRef<HTMLElement | null>(null);
   const { username, openLogin, predictions, clearPredictions } = useDemoSession();
 
   return (
-    <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+    <div className={cn("mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]", className)}>
       <MarketList
         onSelect={(next) => {
           if (!username) {

@@ -98,7 +98,7 @@ export function Topbar({
               aria-pressed={!isBets}
               onClick={() => setSection("casino")}
             >
-              Cassino
+              Jogos
             </Button>
             <Button
               variant={isBets ? "default" : "ghost"}

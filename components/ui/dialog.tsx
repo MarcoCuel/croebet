@@ -38,7 +38,7 @@ export function DialogContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
         data-slot="dialog-overlay"
-        className="fixed inset-0 z-40 bg-black/70"
+        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
         data-lenis-prevent
       />
       <DialogPrimitive.Content

@@ -259,14 +259,25 @@ test("navbar alterna a home e exibe títulos nas internas", async ({ page }, tes
   const header = page.locator("header").first();
   if (testInfo.project.name === "desktop") {
     const sections = header.getByRole("navigation", { name: "Seções da Croebet" });
+    const banners = page.getByRole("region", { name: "Destaques da Croebet" });
+    await expect(banners).toBeVisible();
+    await expect(page.getByLabel("Atraso em minutos")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Apostas em destaque" })).toHaveCount(0);
     await sections.getByRole("button", { name: "Apostas", exact: true }).click();
     await expect(page).toHaveURL("/");
     await expect(sections.getByRole("button", { name: "Apostas", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByLabel("Atraso em minutos")).toBeVisible();
+    await expect(banners).toBeVisible();
+    await expect(banners.getByRole("heading")).toHaveCount(3);
+    await expect(page.locator("#bets-title")).toHaveText("Apostas");
+    await expect(page.locator("#bets-title")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Minhas apostas" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Jogos", exact: true })).toHaveCount(0);
     await sections.getByRole("button", { name: "Cassino", exact: true }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("heading", { name: "Jogos", exact: true })).toBeVisible();
+    await expect(banners).toBeVisible();
+    await expect(page.getByLabel("Atraso em minutos")).toHaveCount(0);
   }
   for (const [path, title] of [
     ["/jogos", "Jogos"], ["/apostas", "Apostas"], ["/rankings", "Rankings"],

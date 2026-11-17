@@ -32,7 +32,7 @@ export function MenuLinks({
           className={cn(
             "flex min-h-10 items-center gap-3 rounded-panel border-(length:--border-width-hairline) border-transparent px-3 text-left text-sm text-muted outline-none hover:bg-control-hover hover:text-foreground focus-visible:border-foreground aria-[current]:bg-control aria-[current]:text-foreground",
             sidebar &&
-              "@max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:px-0 @min-[8rem]/sidebar:relative @min-[8rem]/sidebar:pl-7 @min-[8rem]/sidebar:aria-[current]:before:absolute @min-[8rem]/sidebar:aria-[current]:before:left-3 @min-[8rem]/sidebar:aria-[current]:before:size-1.5 @min-[8rem]/sidebar:aria-[current]:before:rounded-full @min-[8rem]/sidebar:aria-[current]:before:bg-brand",
+              "@max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:px-0",
           )}
           aria-current={
             pathname === href

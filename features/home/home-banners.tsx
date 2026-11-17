@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { useDemoSession } from "@/features/auth/session-context";
 import { dailyReward } from "@/features/wallet/wallet";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,27 @@ function Banner({ className, ...props }: ComponentProps<"div">) {
 
 export function HomeBanners() {
   const { username, openRegister, dailyClaimed, claimDaily } = useDemoSession();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!dailyClaimed) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [dailyClaimed]);
+
+  const time = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(now)).split(":").map(Number);
+  const seconds = 86400 - (time[0] * 3600 + time[1] * 60 + time[2]);
+  const countdown = [
+    Math.floor(seconds / 3600),
+    Math.floor((seconds % 3600) / 60),
+    seconds % 60,
+  ].map((value) => String(value).padStart(2, "0")).join(":");
   return (
     <section
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
@@ -37,9 +58,14 @@ export function HomeBanners() {
           </h1>
         </Heading>
         {username ? (
-          <Button asChild>
-            <Link href="/jogos">Ver jogos</Link>
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild>
+              <Link href="/jogos">Ver jogos</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/apostas">Ver apostas</Link>
+            </Button>
+          </div>
         ) : (
           <Button aria-haspopup="dialog" onClick={openRegister}>
             Criar conta
@@ -47,7 +73,9 @@ export function HomeBanners() {
         )}
       </Banner>
       <Banner className="bg-linear-to-b from-reward-start to-reward-end">
-        <Badge role="status">{dailyClaimed ? "Resgatado" : "Disponível"}</Badge>
+        <Badge className="tabular-nums">
+          {dailyClaimed ? `Próximo resgate em ${countdown}` : "Disponível"}
+        </Badge>
         <div>
           <Heading variant="banner">Resgate diário</Heading>
           <p className="mt-3 text-sm sm:text-base">
