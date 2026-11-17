@@ -4,115 +4,88 @@
   --font-sans: "Geist", "Inter", system-ui, sans-serif;
 
   --color-brand: #ad158f;
-  --color-brand-hover: #bd1599;
-  --inset-shadow-primary-button: inset 0 -0.125rem 0.25rem rgb(255 255 255 / 32%);
-  --background-image-primary-button: linear-gradient(to bottom, rgb(255 255 255 / 0%) 40%, rgb(255 255 255 / 20%) 100%);
-  --color-accent: #f15ad3;
-  --color-background: #0f0f0f;
-  --color-surface: #1a1a1a;
-  --color-control: #303030;
-  --color-control-hover: #404040;
-  --color-foreground: #faf8fa;
-  --color-muted: #beb6be;
-  --color-card-copy: #ded3dd;
-  --color-border: #292429;
-  --color-field-border: #50444d;
-  --color-hero-glow: #631752;
-  --color-hero-halo: #36172f;
-  --color-card-oracle: #331a30;
-  --color-card-luck: #542344;
-  --color-cover-base: #211820;
-  --color-cover-krepinho: #782461;
-  --color-cover-crystal: #553464;
-  --color-cover-roulette: #552447;
-  --color-cover-slots: #6a284e;
-  --color-mark-krepinho: #f9d5f3;
-  --color-mark-crystal: #ead1ff;
-  --color-mark-roulette: #ffbcf5;
-  --color-mark-slots: #ffcee1;
+  --color-brand-hover: #c01a9f;
+  --color-accent: #f68add;
+  --color-background: #101010;
+  --color-chrome: #101010;
+  --color-surface: #1b1b1b;
+  --color-control: #1e1e1e;
+  --color-control-hover: #2c2c2c;
+  --color-foreground: #fafafa;
+  --color-muted: #aaa;
+  --color-border: #242424;
+  --color-field-border: #595959;
+  --color-selected: #391c34;
 
-  --shadow-lg: 0 0.625rem 1rem -0.25rem rgb(0 0 0 / 10%), 0 0.25rem 0.375rem -0.25rem rgb(0 0 0 / 10%);
-  --radius-panel: 1.5rem;
+  --color-reward-start: #1b1019;
+  --color-reward-end: #80136c;
+  --color-cover-krepinho: #411031;
+  --color-cover-crystal: #231242;
+  --color-cover-roulette: #092e33;
+  --color-cover-slots: #3c2319;
+  --color-image-shade: #100a15;
+
+  --inset-shadow-primary-button: inset 0 -0.125rem 0.25rem
+    rgb(255 255 255 / 26%);
+  --background-image-primary-button: linear-gradient(
+    to bottom,
+    transparent 40%,
+    rgb(255 255 255 / 13%) 100%
+  );
+  --shadow-lg: 0 0.75rem 1.75rem rgb(0 0 0 / 30%);
+  --color-destructive: #b52c3b;
+  --color-destructive-hover: #cb3546;
+  --color-primary: var(--color-brand);
+  --color-primary-foreground: var(--color-foreground);
+  --color-secondary: var(--color-control);
+  --color-secondary-foreground: var(--color-foreground);
+  --color-card: var(--color-surface);
+  --color-card-foreground: var(--color-foreground);
+  --color-popover: var(--color-surface);
+  --color-popover-foreground: var(--color-foreground);
+  --color-muted-foreground: var(--color-muted);
+  --color-accent-foreground: var(--color-background);
+  --color-input: var(--color-field-border);
+  --color-ring: var(--color-accent);
+
+  --text-display: clamp(2rem, 4vw, 3.5rem);
+  --text-section: clamp(1.25rem, 2vw, 1.75rem);
+  --text-banner: clamp(1.625rem, 9.7cqi, 3.25rem);
+  --text-cover: clamp(1.125rem, 12cqi, 3.25rem);
+  --text-wordmark: clamp(1.625rem, 1.7vw, 2rem);
+  --text-auth-title: 1.75rem;
+  --tracking-display: -0.045em;
+  --tracking-banner: -0.065em;
+  --tracking-wordmark: -0.075em;
+  --leading-banner: 0.92;
+  --spacing-page: clamp(1.5rem, 3vw, 2.5rem);
+  --spacing-banner: clamp(1rem, 1.25vw, 1.625rem);
+  --spacing-banner-height: clamp(14rem, 15.625vw, 22rem);
+  --background-image-wordmark: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgb(255 255 255 / 35%)
+  );
+  --text-shadow-cover: 0 0.125rem 0.5rem var(--cover);
+
+  --radius-panel: 0.875rem;
 }
 
 :root {
-  --border-width-hairline: calc(1rem / 16);
-  --header-top: 1rem;
-  --header-height: 3.5rem;
-  --header-space: calc(var(--header-top) + var(--header-height));
-
-  @media (width < 38rem) {
-    --header-height: 6.25rem;
-  }
+  --border-width-hairline: 0.0625rem;
+  --header-height: 4.375rem;
+  --page-gap: 0.8125rem;
+  --sidebar-expanded: clamp(12.5rem, 13.55vw, 17.25rem);
+  --sidebar-collapsed: 4.5rem;
 }
 
 @layer base {
   html {
-    @apply scheme-dark [scrollbar-gutter:stable] scroll-pt-[calc(var(--header-space)+0.75rem)] has-[dialog[open]]:overflow-hidden;
+    @apply scheme-dark scroll-pt-[calc(var(--header-height)+1rem)];
   }
 
-  :where(a):focus-visible {
-    @apply outline-[0.125rem] outline-offset-[0.25rem] outline-accent;
-  }
-
-  :where(button) {
-    @apply border-(length:--border-width-hairline) border-transparent;
-  }
-}
-
-:where(input):focus-visible {
-  @apply border-accent outline-hidden;
-}
-
-:where(button):focus-visible {
-  @apply border-foreground outline-hidden;
-}
-
-@utility shell {
-  width: min(90rem, calc(100% - 2 * clamp(1rem, 3vw, 3.25rem)));
-  margin-inline: auto;
-}
-
-@layer components {
-  .brand-wordmark {
-    @apply inline-block bg-brand bg-clip-text;
-    background-image: linear-gradient(
-      to bottom,
-      transparent 60%,
-      rgb(255 255 255 / 16%) 92%,
-      rgb(255 255 255 / 35%)
-    );
-    color: transparent;
-  }
-
-  @media (forced-colors: active) {
-    .brand-wordmark {
-      color: LinkText;
-    }
-  }
-
-  .button {
-    @apply inline-flex items-center justify-center gap-4 bg-brand bg-primary-button font-semibold text-white inset-shadow-primary-button hover:bg-brand-hover;
-  }
-
-  .button-lg {
-    @apply min-h-14 rounded-2xl px-6 py-3;
-  }
-
-  .display-heading {
-    @apply text-[clamp(2.5rem,6vw,5rem)] font-[650] leading-[.99] tracking-[-.04em] text-balance;
-  }
-
-  .section-heading {
-    @apply text-[clamp(1.5rem,3vw,2.25rem)] font-bold tracking-[-.04em];
-  }
-
-  .inner {
-    @apply pt-[clamp(2.5rem,7vw,5.5rem)];
-  }
-
-  .game-cover {
-    @apply grid aspect-square place-items-center rounded-panel [&>svg]:size-[clamp(3.25rem,9vw,8.5rem)];
-    background: radial-gradient(ellipse at 50% 72%, var(--cover), transparent 72%), var(--color-cover-base);
+  /* Text links retain a keyboard focus indicator without a ring. */
+  :where(a:not([data-slot="button"])):focus-visible {
+    @apply outline-none underline decoration-accent underline-offset-4;
   }
 }

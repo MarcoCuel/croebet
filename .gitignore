@@ -6,3 +6,7 @@
 
 !pnpm-lock.yaml
 .DS_Store
+
+.pnpm-store/
+/playwright-report/
+/test-results/

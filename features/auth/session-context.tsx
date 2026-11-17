@@ -1,0 +1,24 @@
+"use client";
+
+import { createContext, useContext } from "react";
+import type { Prediction } from "@/features/betting/types";
+import type { Wallet } from "@/features/wallet/wallet";
+
+export type DemoSessionValue = Wallet & {
+  username: string | null;
+  openLogin: () => void;
+  openRegister: () => void;
+  signOut: () => void;
+  dailyClaimed: boolean;
+  claimDaily: () => void;
+  addBalance: (amount: number) => void;
+  placePrediction: (prediction: Prediction) => void;
+};
+
+export const DemoSession = createContext<DemoSessionValue | null>(null);
+
+export function useDemoSession() {
+  const session = useContext(DemoSession);
+  if (!session) throw new Error("useDemoSession requires DemoSessionProvider");
+  return session;
+}

@@ -1,8 +1,8 @@
 # Croebet — Conceito, identidade e direção do projeto
 
 > Documento de referência para produto, design e conteúdo.
-> Atualizado em 16 de novembro de 2026.
-> Este arquivo complementa o `AGENTS.md`: descreve **o que é a Croebet e como ela deve se comunicar**, não as instruções técnicas do repositório.
+> Atualizado em 17 de novembro de 2026.
+> Referência central para **o que é a Croebet, sua identidade, linguagem, moeda e direção de produto**. As convenções de desenvolvimento ficam no `AGENTS.md`; os detalhes da implementação atual, em `docs/frontend-architecture.md`.
 
 ## 1. Resumo do projeto
 
@@ -30,6 +30,8 @@ A crítica não é necessariamente aos jogos de azar em si: o ponto principal é
 - A plataforma tem identidade própria; não precisa colocar o rosto, o nome ou as falas da streamer em todo lugar. O nome **Croebet** já faz a conexão.
 
 ## 4. Funcionamento da plataforma
+
+Esta seção descreve a direção do produto. Recursos e valores usados no protótipo de demonstração não confirmam regras finais de economia nem significam que as funcionalidades previstas já estejam disponíveis.
 
 ### 4.1. Jogos
 
@@ -116,6 +118,7 @@ Porém, o misticismo é **uma referência secundária**. A piada principal sempr
 
 ## 6. Identidade visual e experiência
 
+- A cor principal da marca é **`#AD158F`**. A implementação técnica utiliza os tokens do design system, conforme o `AGENTS.md`.
 - O site deve parecer uma plataforma de jogos e apostas legítima em sua **organização e funcionamento**.
 - A aparência deve ser **simples, clara e bem resolvida**; não é necessário copiar a complexidade de grandes casas de apostas.
 - Humor aparece de forma pontual e bem posicionada, sem transformar cada botão ou texto em uma piada.
