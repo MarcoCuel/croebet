@@ -10,7 +10,7 @@ export function PageShell({
     <main
       className={cn(
         "mx-auto w-[calc(100%-2*var(--page-gap))] flex-1",
-        inner && "pt-page",
+        inner && "pt-4",
         className,
       )}
       {...props}

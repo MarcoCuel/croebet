@@ -51,17 +51,17 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
       className={cn("shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? "@container aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": `var(--color-flip-${color})` } as CSSProperties}
-          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-field-border/30 bg-control-hover shadow-sm [backface-visibility:hidden]",
+          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover shadow-sm [backface-visibility:hidden]",
             card.type === "number" ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink",
             card.type === "chance" && "bg-brand text-white",
-            compact && "rounded-md border",
-            fluid && "rounded-[12cqi] border-[2cqi]",
+            compact && "rounded-md",
+            fluid && "rounded-[12cqi]",
           )}>
           {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", fluid ? "h-[4cqi] w-[42cqi]" : compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
           {special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium normal-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
           {!compact && <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground", fluid && "inset-x-[4cqi] bottom-[12cqi] text-[12.5cqi]")}>{label}</span>}
         </div>
-        <div aria-hidden="true" className={cn("absolute inset-0 rounded-xl border-2 border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", fluid && "rounded-[12cqi] border-[2cqi]")} />
+        <div aria-hidden="true" className={cn("absolute inset-0 rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", fluid && "rounded-[12cqi]")} />
       </div>
     </div>
   );
@@ -161,7 +161,7 @@ export default function Flip7Game() {
   const revealRef = useRef<HTMLDivElement>(null);
   const flyingRef = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
-  const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean; origin?: { left: number; top: number; width: number } } | null>(null);
+  const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean; consumedChance?: Card; origin?: { left: number; top: number; width: number } } | null>(null);
   const [landed, setLanded] = useState(false);
   useEffect(() => {
     if (matchCode) matchUrl(matchCode);
@@ -193,7 +193,8 @@ export default function Flip7Game() {
       setLanded(false);
       const target = action.type === "step" ? current.forced!.target : current.turn;
       const parked = [next.pending, ...next.queue].some(action => action?.card.id === next.lastDraw!.id);
-      setFlight({ card: next.lastDraw, target, initial: !current.players[target].hasDrawn, parked });
+      const consumedChance = current.players[target].cards.find(card => card.type === "chance" && next.discard.some(discarded => discarded.id === card.id));
+      setFlight({ card: next.lastDraw, target, initial: !current.players[target].hasDrawn, parked, consumedChance });
     }
     if (action.type === "target" && current.pending) {
       const card = current.pending.card;
@@ -246,6 +247,16 @@ export default function Flip7Game() {
         .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, reduced ? ">" : flight.initial ? ">0.02" : ">0.65");
     }
     timeline.call(() => setLanded(true));
+    if (flight.consumedChance) {
+      const protection = board.querySelector<HTMLElement>(`[data-flight-card="${flight.consumedChance.id}"]`);
+      if (protection) {
+        const discarded = [destination, protection];
+        timeline.set(ghost, { autoAlpha: 0 })
+          .set(destination, { visibility: "visible" })
+          .to(discarded, { y: reduced ? 0 : -12, duration: reduced ? 0 : 0.16, ease: "power2.out" }, reduced ? ">" : ">0.2")
+          .to(discarded, { y: reduced ? 0 : 64, x: reduced ? 0 : 24, rotation: reduced ? 0 : 12, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.32, ease: "power2.in" });
+      }
+    }
     return () => { timeline.kill(); };
   }, [flight]);
 
@@ -303,7 +314,7 @@ export default function Flip7Game() {
         <div className="min-w-0">
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
-              <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col font-sans items-center justify-center rounded-xl border-2 border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
+              <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col font-sans items-center justify-center rounded-xl border-[0.125rem] border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
                 <span className="text-4xl font-medium normal-nums sm:text-5xl">{game.deck.length}</span>
                 <span className="absolute bottom-3 text-xs">Cartas</span>
               </div>
@@ -335,7 +346,7 @@ export default function Flip7Game() {
           <div className={cn("grid items-start gap-4", game.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-3")}>
             {game.players.map((player, i) => {
               const inTransit = flight?.target === i && !flight.parked && !player.cards.some(card => card.id === flight.card.id) ? [flight.card] : [];
-              const cards = [...player.cards, ...inTransit];
+              const cards = [...player.cards, ...(flight?.target === i && flight.consumedChance ? [flight.consumedChance] : []), ...inTransit];
               const modifiers = cards.filter(card => card.type !== "number");
               const numeric = cards.filter(card => card.type === "number");
               const flipped = player.status === "busted" && (!flight || flight.target !== i || landed);

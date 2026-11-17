@@ -1,16 +1,17 @@
 import type { Card, Game } from "./engine";
+import { createDeck, targets } from "./engine.ts";
 
 export type SavedMatch = { version: 1; code: string; game: Game };
 export const matchStorageKey = "croebet:flip7:match";
 const validCode = (code: string) => /^[A-F0-9]{12}$/.test(code);
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const integer = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+const deck = createDeck();
 
 function isCard(value: unknown): value is Card {
   if (!object(value) || !integer(value.id) || value.id >= 94 || !integer(value.value)) return false;
-  return value.type === "number" ? value.value <= 12
-    : value.type === "bonus" ? [2, 4, 6, 8, 10].includes(value.value)
-    : ["double", "chance", "freeze", "three"].includes(String(value.type)) && value.value === 0;
+  const original = deck[value.id];
+  return value.type === original.type && value.value === original.value;
 }
 const cards = (value: unknown): value is Card[] => Array.isArray(value) && value.every(isCard);
 
@@ -30,7 +31,7 @@ export function decodeMatch(raw: string, code: string): SavedMatch | null {
     if (!game.players.some(player => player.kind === "human")) return null;
     const pending = (value: unknown) => object(value) && seat(value.source) && isCard(value.card)
       && ["freeze", "three", "chance"].includes(value.card.type)
-      && (value.give === undefined || typeof value.give === "boolean");
+      && (value.card.type === "chance" ? value.give === true : value.give === undefined || value.give === false);
     if (!cards(game.deck) || !cards(game.discard) || !seat(game.turn)
       || !integer(game.round) || game.round < 1 || !integer(game.seed) || game.seed > 4294967295
       || !["playing", "summary", "over"].includes(String(game.phase))
@@ -43,6 +44,14 @@ export function decodeMatch(raw: string, code: string): SavedMatch | null {
     const result = saved as SavedMatch;
     const allCards = [...result.game.deck, ...result.game.discard, ...result.game.players.flatMap(player => player.cards), ...result.game.queue.map(action => action.card), ...(result.game.pending ? [result.game.pending.card] : [])];
     if (allCards.length !== 94 || new Set(allCards.map(card => card.id)).size !== 94) return null;
+    const state = result.game;
+    if (state.phase !== "playing") {
+      if (state.pending || state.forced || state.queue.length) return null;
+    } else {
+      if (state.pending && !targets(state).length) return null;
+      if (state.forced && state.players[state.forced.target].status !== "playing") return null;
+      if (!state.pending && !state.forced && (state.queue.length || state.players[state.turn].status !== "playing")) return null;
+    }
     return result;
   } catch {
     return null;

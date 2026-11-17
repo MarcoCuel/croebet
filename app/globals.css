@@ -70,7 +70,6 @@
   --tracking-banner: -0.04em;
   --tracking-wordmark: -0.04em;
   --leading-banner: 0.92;
-  --spacing-page: clamp(1.5rem, 3vw, 2.5rem);
   --spacing-banner: clamp(1rem, 1.25vw, 1.625rem);
   --spacing-banner-height: clamp(14rem, 15.625vw, 22rem);
   --background-image-wordmark: linear-gradient(

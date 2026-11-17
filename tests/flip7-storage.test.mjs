@@ -69,3 +69,30 @@ test("falha ao gravar não substitui a referência da partida salva", () => {
   }));
   assert.deepEqual(writes, [matchStorageKey]);
 });
+
+test("rejeita cartas adulteradas e estados que travariam a retomada", () => {
+  const mutations = [
+    game => { game.deck[0].value = game.deck[0].value === 12 ? 11 : 12; },
+    game => { game.players[0].status = "frozen"; },
+    game => { game.forced = { target: 1, remaining: 3 }; game.players[1].status = "busted"; },
+    game => {
+      const index = game.deck.findIndex(card => card.type === "chance");
+      game.pending = { source: 0, card: game.deck.splice(index, 1)[0] };
+    },
+    game => {
+      const index = game.deck.findIndex(card => card.type === "freeze");
+      game.pending = { source: 0, card: game.deck.splice(index, 1)[0], give: true };
+    },
+    game => {
+      const index = game.deck.findIndex(card => card.type === "freeze");
+      game.pending = { source: 0, card: game.deck.splice(index, 1)[0] };
+      game.players.forEach(player => { player.status = "stayed"; });
+    },
+    game => { game.phase = "summary"; game.forced = { target: 1, remaining: 3 }; },
+  ];
+  for (const mutate of mutations) {
+    const saved = snapshot(createGame(setup, 42));
+    mutate(saved.game);
+    assert.equal(decodeMatch(JSON.stringify(saved), code), null, mutate.toString());
+  }
+});
