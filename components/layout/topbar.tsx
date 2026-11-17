@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Gift, Menu } from "lucide-react";
+import { Bell, ChevronLeft, Gift, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDemoSession } from "@/features/auth/session-context";
@@ -31,7 +31,12 @@ export function Topbar({
   onOpenMenu: () => void;
   onOpenBalance: () => void;
 }) {
-  const isBets = usePathname() === "/apostas";
+  const pathname = usePathname();
+  const isBets = pathname === "/apostas";
+  const isInternalPage = pathname !== "/";
+  const backLink = pathname.startsWith("/jogos/")
+    ? { href: "/jogos", label: "Voltar para Jogos" }
+    : { href: "/", label: "Voltar para o início" };
   const {
     username,
     balance,
@@ -61,6 +66,18 @@ export function Topbar({
         >
           <Wordmark />
         </Link>
+        {isInternalPage && (
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+          >
+            <Link href={backLink.href} aria-label={backLink.label}>
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        )}
         <nav
           className="hidden items-center gap-1 rounded-panel bg-control p-1.5 md:flex"
           aria-label="Seções da Croebet"
