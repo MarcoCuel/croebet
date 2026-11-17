@@ -252,3 +252,30 @@ test("apostas aceitam sim ou não, opções e minutos sem odds", async ({ page }
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Sim", exact: true })).toBeFocused();
 });
+
+
+test("navbar alterna a home e exibe títulos nas internas", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const header = page.locator("header").first();
+  if (testInfo.project.name === "desktop") {
+    const sections = header.getByRole("navigation", { name: "Seções da Croebet" });
+    await sections.getByRole("button", { name: "Apostas", exact: true }).click();
+    await expect(page).toHaveURL("/");
+    await expect(sections.getByRole("button", { name: "Apostas", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel("Atraso em minutos")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Jogos", exact: true })).toHaveCount(0);
+    await sections.getByRole("button", { name: "Cassino", exact: true }).click();
+    await expect(page).toHaveURL("/");
+    await expect(page.getByRole("heading", { name: "Jogos", exact: true })).toBeVisible();
+  }
+  for (const [path, title] of [
+    ["/jogos", "Jogos"], ["/apostas", "Apostas"], ["/rankings", "Rankings"],
+    ["/sobre", "Sobre"], ["/jogos/roleta", "Roleta Rola Rola"],
+  ]) {
+    await page.goto(path);
+    await expect(header.getByRole("navigation", { name: "Seções da Croebet" })).toHaveCount(0);
+    await expect(header.getByText(title, { exact: true })).toBeVisible();
+  }
+  await header.getByRole("link", { name: "Voltar para Jogos" }).click();
+  await expect(page).toHaveURL("/jogos");
+});

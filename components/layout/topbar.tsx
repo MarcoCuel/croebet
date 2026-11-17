@@ -20,6 +20,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { brandLinkClass, Wordmark } from "./brand";
+import { games } from "@/features/games/catalog";
+import { useHomeSection } from "@/features/home/home-section";
 import { cn } from "@/lib/utils";
 
 export function Topbar({
@@ -32,7 +34,11 @@ export function Topbar({
   onOpenBalance: () => void;
 }) {
   const pathname = usePathname();
-  const isBets = pathname === "/apostas";
+  const { section, setSection } = useHomeSection();
+  const isBets = section === "bets";
+  const pageTitle = games.find((game) => pathname === `/jogos/${game.slug}`)?.name
+    ?? ({ "/jogos": "Jogos", "/apostas": "Apostas", "/rankings": "Rankings", "/sobre": "Sobre" } as Record<string, string>)[pathname]
+    ?? "Página não encontrada";
   const isInternalPage = pathname !== "/";
   const backLink = pathname.startsWith("/jogos/")
     ? { href: "/jogos", label: "Voltar para Jogos" }
@@ -60,7 +66,7 @@ export function Topbar({
           <Menu className="size-4" aria-hidden="true" />
         </Button>
         <Link
-          className={cn(brandLinkClass, "text-xl md:hidden")}
+          className={cn(brandLinkClass, isInternalPage ? "hidden" : "text-xl md:hidden")}
           href="/"
           aria-label="Croebet, início"
         >
@@ -78,31 +84,33 @@ export function Topbar({
             </Link>
           </Button>
         )}
-        <nav
-          className="hidden items-center gap-1 rounded-panel bg-control p-1.5 md:flex"
-          aria-label="Seções da Croebet"
-        >
-          <Button
-            asChild
-            variant={isBets ? "ghost" : "default"}
-            size="sm"
-            className={cn("text-sm", isBets && "font-normal")}
+        {isInternalPage ? (
+          <span className="truncate text-sm font-medium md:text-base">{pageTitle}</span>
+        ) : (
+          <nav
+            className="hidden items-center gap-1 rounded-panel bg-control p-1.5 md:flex"
+            aria-label="Seções da Croebet"
           >
-            <Link aria-current={isBets ? undefined : "location"} href="/">
+            <Button
+              variant={isBets ? "ghost" : "default"}
+              size="sm"
+              className={cn("text-sm", isBets && "font-normal")}
+              aria-pressed={!isBets}
+              onClick={() => setSection("casino")}
+            >
               Cassino
-            </Link>
-          </Button>
-          <Button
-            asChild
-            variant={isBets ? "default" : "ghost"}
-            size="sm"
-            className={cn("text-sm", !isBets && "font-normal")}
-          >
-            <Link aria-current={isBets ? "page" : undefined} href="/apostas">
+            </Button>
+            <Button
+              variant={isBets ? "default" : "ghost"}
+              size="sm"
+              className={cn("text-sm", !isBets && "font-normal")}
+              aria-pressed={isBets}
+              onClick={() => setSection("bets")}
+            >
               Apostas
-            </Link>
-          </Button>
-        </nav>
+            </Button>
+          </nav>
+        )}
       </div>
       {username ? (
         <>

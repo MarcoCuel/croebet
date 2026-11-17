@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { HomeSectionProvider } from "@/features/home/home-section";
 import { BalanceDialog } from "@/features/wallet/balance-dialog";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
@@ -56,69 +57,71 @@ export function Navigation({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div
-      className="[--sidebar-width:0rem] md:[--sidebar-width:var(--sidebar-collapsed)] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)] lg:not-data-[sidebar=collapsed]:[--sidebar-width:var(--sidebar-expanded)]"
-      data-sidebar={sidebar}
-    >
-      <a
-        href="#page-content"
-        className="sr-only z-50 rounded-lg bg-surface p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+    <HomeSectionProvider>
+      <div
+        className="[--sidebar-width:0rem] md:[--sidebar-width:var(--sidebar-collapsed)] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)] lg:not-data-[sidebar=collapsed]:[--sidebar-width:var(--sidebar-expanded)]"
+        data-sidebar={sidebar}
       >
-        Pular para o conteúdo
-      </a>
-      <Sidebar onToggle={toggleSidebar} onOpenBalance={openBalance} />
-      <Topbar
-        key={pathname}
-        mobileMenuOpen={mobileMenuOpen}
-        onOpenMenu={() => {
-          menuTrigger.current =
-            document.activeElement instanceof HTMLElement
-              ? document.activeElement
-              : null;
-          setMobileMenuOpen(true);
-        }}
-        onOpenBalance={openBalance}
-      />
-      <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <DialogContent
-          variant="drawer"
+        <a
+          href="#page-content"
+          className="sr-only z-50 rounded-lg bg-surface p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+        >
+          Pular para o conteúdo
+        </a>
+        <Sidebar onToggle={toggleSidebar} onOpenBalance={openBalance} />
+        <Topbar
+          key={pathname}
+          mobileMenuOpen={mobileMenuOpen}
+          onOpenMenu={() => {
+            menuTrigger.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+            setMobileMenuOpen(true);
+          }}
+          onOpenBalance={openBalance}
+        />
+        <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <DialogContent
+            variant="drawer"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              menuTrigger.current?.focus();
+            }}
+          >
+            <DialogTitle className="sr-only">Menu da Croebet</DialogTitle>
+            <DialogDescription className="sr-only">
+              Navegue pelas seções da Croebet.
+            </DialogDescription>
+            <div className="flex min-h-full flex-col gap-5">
+              <Link
+                className={brandLinkClass}
+                href="/"
+                aria-label="Croebet, início"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Wordmark />
+              </Link>
+              <MenuLinks onNavigate={() => setMobileMenuOpen(false)} />
+            </div>
+          </DialogContent>
+        </Dialog>
+        <BalanceDialog
+          open={balanceOpen}
+          onOpenChange={setBalanceOpen}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            menuTrigger.current?.focus();
+            balanceTrigger.current?.focus();
           }}
+        />
+        <div
+          className="flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pt-(--header-height)"
+          id="page-content"
+          tabIndex={-1}
         >
-          <DialogTitle className="sr-only">Menu da Croebet</DialogTitle>
-          <DialogDescription className="sr-only">
-            Navegue pelas seções da Croebet.
-          </DialogDescription>
-          <div className="flex min-h-full flex-col gap-5">
-            <Link
-              className={brandLinkClass}
-              href="/"
-              aria-label="Croebet, início"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <Wordmark />
-            </Link>
-            <MenuLinks onNavigate={() => setMobileMenuOpen(false)} />
-          </div>
-        </DialogContent>
-      </Dialog>
-      <BalanceDialog
-        open={balanceOpen}
-        onOpenChange={setBalanceOpen}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          balanceTrigger.current?.focus();
-        }}
-      />
-      <div
-        className="flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pt-(--header-height)"
-        id="page-content"
-        tabIndex={-1}
-      >
-        {children}
+          {children}
+        </div>
       </div>
-    </div>
+    </HomeSectionProvider>
   );
 }

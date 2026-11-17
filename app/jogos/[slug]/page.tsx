@@ -1,10 +1,6 @@
-import { ArrowLeft } from "lucide-react";
 import { PageShell } from "@/components/layout/page-shell";
 import { Heading } from "@/components/shared/heading";
-import { Card } from "@/components/ui/card";
-import Image from "next/image";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { games } from "@/features/games/catalog";
 
