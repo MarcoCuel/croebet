@@ -79,7 +79,7 @@ test("sessão preserva carteira, bônus diário e palpites após recarregar", as
     .getByRole("button", { name: "Conta de Arquitetura", exact: true })
     .last();
   await account.click();
-  await page.getByRole("menuitem", { name: "Saldo de Croins" }).click();
+  await page.getByRole("menuitem", { name: "Saldo", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading")).toHaveText("Saldo de Croins");
   await dialog.getByLabel("Adicionar Croins de teste").fill("100");
@@ -110,7 +110,7 @@ test("sessão preserva carteira, bônus diário e palpites após recarregar", as
     .getByRole("button", { name: "Conta de Arquitetura", exact: true })
     .last()
     .click();
-  await page.getByRole("menuitem", { name: "Sair da conta" }).click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Entrar", exact: true }),
   ).toBeVisible();
@@ -118,6 +118,33 @@ test("sessão preserva carteira, bônus diário e palpites após recarregar", as
   await expect(
     page.getByRole("button", { name: "Resgatado hoje", exact: true }),
   ).toBeDisabled();
+});
+
+test("resgate de cupom abre modal sem consumir o bônus diário ou alterar o saldo", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "O botão ao lado do saldo é exclusivo do topo desktop.");
+  await page.goto("/");
+  await signIn(page);
+  const readWallet = () => page.evaluate(() => localStorage.getItem("croebet:demo-wallet:Arquitetura"));
+  await expect.poll(readWallet).not.toBeNull();
+  const wallet = await readWallet();
+  const trigger = page.getByRole("button", { name: "Resgatar cupom", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog");
+  const input = dialog.getByLabel("Código do cupom");
+  await expect(input).toBeFocused();
+  await input.fill("CUPOM-TESTE");
+  await dialog.getByRole("button", { name: "Resgatar cupom", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  expect(await readWallet()).toBe(wallet);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(input).toHaveValue("");
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Resgatar bônus diário", exact: true })).toBeEnabled();
 });
 
 test("navegação lateral se adapta ao dispositivo e responde ao teclado", async ({

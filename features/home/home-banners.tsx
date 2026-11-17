@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import { useDemoSession } from "@/features/auth/session-context";
@@ -48,14 +47,6 @@ export function HomeBanners() {
         )}
       </Banner>
       <Banner className="bg-linear-to-b from-reward-start to-reward-end">
-        <Image
-          className="pointer-events-none absolute -top-1/5 -right-[12%] -z-10 h-[140%] w-[68%] object-contain object-right opacity-85"
-          src="/art/croins.webp"
-          alt=""
-          width={560}
-          height={560}
-          sizes="(min-width: 64rem) 23vw, 50vw"
-        />
         <Badge role="status">{dailyClaimed ? "Resgatado" : "Disponível"}</Badge>
         <div>
           <Heading variant="banner">Resgate diário</Heading>
@@ -68,14 +59,6 @@ export function HomeBanners() {
         </div>
       </Banner>
       <Banner className="bg-surface">
-        <Image
-          className="pointer-events-none absolute -right-[8%] bottom-[8%] -z-10 h-[82%] w-[54%] object-contain object-right-bottom"
-          src="/art/trofeu.webp"
-          alt=""
-          width={560}
-          height={560}
-          sizes="(min-width: 64rem) 18vw, 45vw"
-        />
         <Heading variant="banner">
           Participe
           <br />

@@ -1,13 +1,18 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useDemoSession } from "@/features/auth/session-context";
+import { CouponDialog } from "@/features/wallet/coupon-dialog";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 
 export function RedeemButton() {
-  const { claimDaily, dailyClaimed } = useDemoSession();
   return (
-    <Button size="sm" onClick={claimDaily} disabled={dailyClaimed}>
-      {dailyClaimed ? "Resgatado" : "Resgatar"}
-    </Button>
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" aria-label="Resgatar cupom">
+          Resgatar
+        </Button>
+      </DialogTrigger>
+      <CouponDialog />
+    </Dialog>
   );
 }

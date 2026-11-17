@@ -6,7 +6,6 @@ import { Field } from "@/components/ui/field";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 
@@ -27,15 +26,15 @@ export function AuthDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-5 sm:p-8" onCloseAutoFocus={onCloseAutoFocus}>
-        <DialogTitle className="text-auth-title font-bold tracking-tight">
+      <DialogContent
+        aria-describedby={undefined}
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
+        <DialogTitle>
           {isRegistering ? "Criar conta" : "Entrar na Croebet"}
         </DialogTitle>
-        <DialogDescription>
-          Sessão de demonstração. Use uma senha de teste.
-        </DialogDescription>
         <form
-          className="mt-5 grid gap-3.5"
+          className="mt-5 grid gap-4"
           key={String(isRegistering)}
           onSubmit={(event) => {
             event.preventDefault();
@@ -68,17 +67,13 @@ export function AuthDialog({
             {isRegistering ? "Criar conta" : "Entrar"}
           </Button>
         </form>
-        <p className="mt-4 text-sm text-muted">
-          {isRegistering ? "Já tem conta?" : "Ainda não tem conta?"}{" "}
-          <Button
-            variant="link"
-            size="sm"
-            className="min-h-0 p-0 font-normal text-sm underline"
-            onClick={() => setIsRegistering(!isRegistering)}
-          >
-            {isRegistering ? "Entrar" : "Cadastre-se"}
-          </Button>
-        </p>
+        <Button
+          variant="secondary"
+          className="mt-3 w-full"
+          onClick={() => setIsRegistering(!isRegistering)}
+        >
+          {isRegistering ? "Entrar" : "Cadastre-se"}
+        </Button>
       </DialogContent>
     </Dialog>
   );

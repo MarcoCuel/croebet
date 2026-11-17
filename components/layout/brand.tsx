@@ -15,4 +15,4 @@ export function Wordmark({ compact = false }: { compact?: boolean }) {
 }
 
 export const brandLinkClass =
-  "text-wordmark leading-none font-extrabold tracking-wordmark text-foreground";
+  "text-wordmark leading-none font-bold tracking-wordmark text-foreground";

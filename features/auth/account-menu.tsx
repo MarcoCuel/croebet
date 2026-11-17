@@ -2,7 +2,10 @@
 
 import { CaretDownIcon } from "@phosphor-icons/react/dist/csr/CaretDown";
 import { CoinsIcon } from "@phosphor-icons/react/dist/csr/Coins";
+import { GearIcon } from "@phosphor-icons/react/dist/csr/Gear";
+import { MoonIcon } from "@phosphor-icons/react/dist/csr/Moon";
 import { SignOutIcon } from "@phosphor-icons/react/dist/csr/SignOut";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -61,7 +64,8 @@ export function AccountMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side={sidebar ? "top" : "bottom"}
-        align="end"
+        align={sidebar ? "start" : "end"}
+        className="[&_[data-slot=dropdown-menu-item]]:gap-2 [&_[data-slot=dropdown-menu-item]]:text-xs"
         onCloseAutoFocus={(event) => {
           if (openingBalance.current) {
             event.preventDefault();
@@ -70,6 +74,18 @@ export function AccountMenu({
         }}
       >
         <DropdownMenuItem
+          onSelect={() => toast.info("Configurações ainda não disponíveis.")}
+        >
+          <GearIcon className="size-4" aria-hidden="true" />
+          Configurações
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => toast.info("O tema escuro é o único disponível por enquanto.")}
+        >
+          <MoonIcon className="size-4" aria-hidden="true" />
+          Tema
+        </DropdownMenuItem>
+        <DropdownMenuItem
           onSelect={() => {
             openingBalance.current = true;
             trigger.current?.focus();
@@ -77,11 +93,11 @@ export function AccountMenu({
           }}
         >
           <CoinsIcon className="size-4" aria-hidden="true" />
-          Saldo de Croins
+          Saldo
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={signOut}>
           <SignOutIcon className="size-4" aria-hidden="true" />
-          Sair da conta
+          Sair
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

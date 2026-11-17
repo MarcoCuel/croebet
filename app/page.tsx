@@ -12,16 +12,16 @@ export default function Home() {
   return (
     <PageShell inner={false}>
       <HomeBanners />
-      <section className="mt-8 lg:mt-9" aria-labelledby="games-title">
+      <section className="mt-8" aria-labelledby="games-title">
         <h2
-          className="mb-5 text-2xl font-medium tracking-tight lg:mb-6"
+          className="mb-4 text-2xl font-medium tracking-tight"
           id="games-title"
         >
           Jogos
         </h2>
         <GameGrid />
       </section>
-      <section className="mt-8 lg:mt-9" aria-labelledby="bets-title">
+      <section className="mt-8" aria-labelledby="bets-title">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <Heading className="flex items-center gap-2.5" id="bets-title">
             <TicketIcon

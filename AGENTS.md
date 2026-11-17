@@ -31,6 +31,7 @@
 - `Button`: variantes `default`, `secondary`, `outline`, `ghost`, `destructive`, `link`; tamanhos `default`, `sm`, `lg`, `icon`, `icon-sm`. Use `loading` e `disabled` nos botões de ação.
 - Campos e botões padrão têm altura mínima de 2.75rem. Altura mínima permite quebra de linha e ampliação de fonte.
 - Estados de teclado alteram apenas a borda dos controles. Sem focus rings ou bordas coloridas decorativas em modais e dropdowns.
+- Modais de formulário devem conter apenas título, campos com labels e botões. Não adicione descrições, ícones decorativos ou textos auxiliares permanentes; apresente feedback de validação quando necessário. Sem descrição, use `aria-describedby={undefined}` no `DialogContent`.
 - Preserve o gradiente e a sombra interna dos controles primários e da Croin. Respeite `prefers-reduced-motion`.
 - Preserve o layout, imagens, textos, animações e comportamento existentes; uma refatoração não autoriza redesign.
 
