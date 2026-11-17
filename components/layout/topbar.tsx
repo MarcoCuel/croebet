@@ -37,7 +37,7 @@ export function Topbar({
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
   const pageTitle = games.find((game) => pathname === `/jogos/${game.slug}`)?.name
-    ?? ({ "/jogos": "Jogos", "/apostas": "Apostas", "/rankings": "Rankings", "/sobre": "Sobre" } as Record<string, string>)[pathname]
+    ?? ({ "/jogos": "Jogos", "/apostas": "Apostas", "/rankings": "Rankings", "/conquistas": "Conquistas", "/sobre": "Sobre" } as Record<string, string>)[pathname]
     ?? "Página não encontrada";
   const isInternalPage = pathname !== "/";
   const backLink = pathname.startsWith("/jogos/")

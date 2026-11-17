@@ -1,6 +1,6 @@
 "use client";
 
-import { PlayingCards, House, Info, Tickets, Trophy } from "lucide-react";
+import { Award, PlayingCards, House, Info, Tickets, Trophy } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const links = [
   { href: "/jogos", label: "Jogos", Icon: PlayingCards },
   { href: "/apostas", label: "Apostas", Icon: Tickets },
   { href: "/rankings", label: "Rankings", Icon: Trophy },
+  { href: "/conquistas", label: "Conquistas", Icon: Award },
   { href: "/sobre", label: "Sobre", Icon: Info },
 ];
 

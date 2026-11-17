@@ -13,6 +13,9 @@ export function Footer() {
         <Link className="hover:text-foreground" href="/rankings">
           Rankings
         </Link>
+        <Link className="hover:text-foreground" href="/conquistas">
+          Conquistas
+        </Link>
         <Link className="hover:text-foreground" href="/sobre">
           Sobre
         </Link>
