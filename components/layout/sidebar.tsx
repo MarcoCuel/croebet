@@ -16,71 +16,77 @@ import { brandLinkClass, Wordmark } from "./brand";
 import { MenuLinks } from "./navigation-links";
 
 export function Sidebar({
+  expanded,
   onToggle,
   onOpenBalance,
 }: {
+  expanded: boolean;
   onToggle: () => void;
   onOpenBalance: () => void;
 }) {
   const { username, balance } = useDemoSession();
   return (
-    <aside
-      id="lobby-sidebar"
-      className="@container/sidebar fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-width) flex-col border-r-(length:--border-width-hairline) border-border bg-chrome md:flex"
-      aria-label="Menu lateral"
-    >
-      <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-5 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
-        <Link className={brandLinkClass} href="/" aria-label="Croebet, início">
-          <Wordmark compact />
-        </Link>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Alternar largura do menu lateral"
-              aria-controls="lobby-sidebar"
-              onClick={onToggle}
-            >
-              <PanelLeft className="size-4" aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            Alternar largura do menu lateral
-          </TooltipContent>
-        </Tooltip>
-      </div>
-      <div
-        className="flex min-h-0 flex-1 flex-col justify-between gap-5 px-3 pb-3"
-        data-lenis-prevent
+    <>
+      <aside
+        id="lobby-sidebar"
+        className="@container/sidebar fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-expanded) flex-col border-r-(length:--border-width-hairline) border-border bg-chrome md:flex group-data-[sidebar=collapsed]/navigation:invisible group-data-[sidebar=collapsed]/navigation:-translate-x-full"
+        aria-label="Menu lateral"
       >
-        <div className="min-h-0 overflow-y-auto">
-          <MenuLinks sidebar />
+        <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-5 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
+          <Link className={brandLinkClass} href="/" aria-label="Croebet, início">
+            <Wordmark compact />
+          </Link>
         </div>
-        {username && (
-          <div className="-mx-3 @max-[8rem]/sidebar:hidden">
-            <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-2">
-              <Button
-                asChild
-                variant="ghost"
-                className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
-              >
-                <Link href="/historico" aria-label="Ver histórico de Croins">
-                  <Balance value={balance} />
-                </Link>
-              </Button>
-              <RedeemButton />
-            </div>
-            <div className="border-t-(length:--border-width-hairline) border-border px-3 pt-3">
-              <AccountMenu
-                name={username}
-                sidebar
-                onOpenBalance={onOpenBalance}
-              />
-            </div>
+        <div
+          className="flex min-h-0 flex-1 flex-col justify-between gap-5 px-3 pb-3"
+          data-lenis-prevent
+        >
+          <div className="min-h-0 overflow-y-auto">
+            <MenuLinks sidebar />
           </div>
-        )}
-      </div>
-    </aside>
+          {username && (
+            <div className="-mx-3 @max-[8rem]/sidebar:hidden">
+              <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-2">
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
+                >
+                  <Link href="/historico" aria-label="Ver histórico de Croins">
+                    <Balance value={balance} />
+                  </Link>
+                </Button>
+                <RedeemButton />
+              </div>
+              <div className="border-t-(length:--border-width-hairline) border-border px-3 pt-3">
+                <AccountMenu
+                  name={username}
+                  sidebar
+                  onOpenBalance={onOpenBalance}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="fixed top-[calc((var(--header-height)-2.25rem)/2)] left-[max(1.25rem,calc(var(--sidebar-width)-3.5rem))] z-40 hidden md:inline-flex"
+            aria-label={expanded ? "Ocultar menu lateral" : "Mostrar menu lateral"}
+            aria-expanded={expanded}
+            aria-controls="lobby-sidebar"
+            onClick={onToggle}
+          >
+            <PanelLeft className="size-4" aria-hidden="true" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          {expanded ? "Ocultar menu lateral" : "Mostrar menu lateral"}
+        </TooltipContent>
+      </Tooltip>
+    </>
   );
 }

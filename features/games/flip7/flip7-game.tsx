@@ -2,23 +2,21 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
-import { BookOpen, PanelRightClose, PanelRightOpen, Layers, Heart, Snowflake } from "lucide-react";
+import { BookOpen, PanelRightClose, PanelRightOpen, Layers, Heart, Snowflake, Plus, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card as Surface } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDemoSession } from "@/features/auth/session-context";
 import { automaticAction, cardLabel, createGame, numbers, score, targets, transition } from "./engine";
-import type { Action, Card, Game, PlayerKind, Setup } from "./engine";
+import type { Action, Card, Game, Setup } from "./engine";
 import { GOAL } from "./engine";
 
-const kinds: { value: PlayerKind; label: string }[] = [
-  { value: "human", label: "Pessoa" }, { value: "easy", label: "Bot fácil" },
-  { value: "normal", label: "Bot médio" }, { value: "hard", label: "Bot difícil" },
-];
 function Rules() {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
     <DialogContent aria-describedby={undefined} className="w-[min(34rem,calc(100%-2rem))]">
@@ -37,6 +35,7 @@ function Rules() {
     </DialogContent>
   </Dialog>;
 }
+const playerStatus = { playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" } as const;
 const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove", "Dez", "Onze", "Doze"];
 const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "amber", "lime", "orange", "red", "blue", "slate"];
 function PlayingCard({ card, flipped = false, compact = false, fluid = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean }) {
@@ -47,7 +46,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
       data-card-back={flipped || undefined}
-      className={cn("shrink-0 [perspective:50rem]", fluid ? "@container aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
+      className={cn("shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? "@container aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": `var(--color-flip-${color})` } as CSSProperties}
           className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-field-border/30 bg-control-hover shadow-sm [backface-visibility:hidden]",
@@ -57,7 +56,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
             fluid && "rounded-[12cqi] border-[2cqi]",
           )}>
           {card.type === "number" && <span className={cn("absolute top-0 rounded-b-full bg-(--card-color)", fluid ? "h-[4cqi] w-[42cqi]" : compact ? "h-0.5 w-4" : "h-1 w-10")} aria-hidden="true" />}
-          {special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium tabular-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
+          {special ? <Icon className={fluid ? "size-[29cqi]" : compact ? "size-4" : "size-7"} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className={cn("font-medium normal-nums", fluid ? "text-[50cqi]" : compact ? "text-lg" : "text-4xl sm:text-5xl")}>{cardLabel(card)}</span>}
           {!compact && <span className={cn("absolute inset-x-1 bottom-3 text-center text-xs leading-tight", card.type === "number" && "text-foreground", fluid && "inset-x-[4cqi] bottom-[12cqi] text-[12.5cqi]")}>{label}</span>}
         </div>
         <div aria-hidden="true" className={cn("absolute inset-0 rounded-xl border-2 border-field-border/30 bg-control-hover [backface-visibility:hidden] [transform:rotateY(180deg)]", fluid && "rounded-[12cqi] border-[2cqi]")} />
@@ -77,41 +76,69 @@ function GameLog({ game }: { game: Game }) {
   })}</ol>;
 }
 
+function ParticipantForm({ player, onSave, onRemove }: { player: Setup | null; onSave: (player: Setup) => void; onRemove: () => void }) {
+  const [name, setName] = useState(player?.name ?? "");
+  const [kind, setKind] = useState<"human" | "normal">(player?.kind === "human" || !player ? "human" : "normal");
+  return <form className="mt-5 space-y-4" onSubmit={event => {
+    event.preventDefault();
+    if (name.trim()) onSave({ name: name.trim(), kind });
+  }}>
+    <Field>Nome<Input value={name} onChange={event => setName(event.target.value)} maxLength={24} required autoComplete="off" /></Field>
+    <Field>Tipo<Select value={kind} onChange={event => setKind(event.target.value as "human" | "normal")}><option value="human">Pessoa</option><option value="normal">Bot</option></Select></Field>
+    <div className="flex flex-wrap justify-end gap-2 pt-2">
+      {player && <Button variant="ghost" className="mr-auto" onClick={onRemove}>Remover</Button>}
+      <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
+      <Button type="submit" disabled={!name.trim()}>{player ? "Salvar" : "Adicionar"}</Button>
+    </div>
+  </form>;
+}
+
+function ParticipantSlot({ index, player, onChange }: { index: number; player: Setup | null; onChange: (player: Setup | null) => void }) {
+  const [open, setOpen] = useState(false);
+  return <div className="flex min-w-0 flex-col items-center gap-2">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className={cn("size-16 aspect-square overflow-hidden rounded-full! border border-dashed border-field-border p-0", player && "border-solid")} aria-label={player ? `Editar ${player.name}` : `Adicionar jogador ${index + 1}`}>
+          {player ? <Avatar className="size-full" aria-hidden="true"><AvatarFallback className="text-lg">{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar> : <Plus className="size-6" aria-hidden="true" />}
+        </Button>
+      </DialogTrigger>
+      <DialogContent aria-describedby={undefined}>
+        <DialogTitle>{player ? "Editar jogador" : "Adicionar jogador"}</DialogTitle>
+        <ParticipantForm player={player} onSave={value => { onChange(value); setOpen(false); }} onRemove={() => { onChange(null); setOpen(false); }} />
+      </DialogContent>
+    </Dialog>
+    <span className={cn("w-full truncate text-center text-xs font-medium", !player && "text-muted")} title={player?.name}>{player?.name ?? "Disponível"}</span>
+  </div>;
+}
+
 function SetupScreen({ onStart }: { onStart: (setup: Setup[]) => void }) {
   const { username, openLogin } = useDemoSession();
-  const [opponents, setOpponents] = useState<Setup[]>([{ name: "Jogador 2", kind: "easy" }]);
-  const players: Setup[] = [{ name: username ?? "Sua conta", kind: "human" }, ...opponents];
-  const updateKind = (index: number, kind: PlayerKind) => setOpponents(previous =>
-    previous.map((player, i) => i === index ? { ...player, kind } : player),
-  );
-  const changeCount = (count: number) => setOpponents(previous => Array.from(
-    { length: count - 1 },
-    (_, i) => previous[i] ?? { name: `Jogador ${i + 2}`, kind: "human" },
-  ));
-
+  const [count, setCount] = useState(2);
+  const [opponents, setOpponents] = useState<(Setup | null)[]>(Array(5).fill(null));
+  const selected = opponents.slice(0, count - 1);
+  const ready = selected.every(player => player !== null);
   return (
-    <div className="mx-auto flex min-h-96 w-full max-w-sm flex-col justify-center py-6 sm:py-12">
-      <Surface className="space-y-3">
-        <h2 className="mb-5 text-center text-base font-semibold">Configuração</h2>
-        <Field className="grid-cols-[1fr_auto] items-center gap-4">
-          Jogadores
-          <Select aria-label="Número de jogadores" value={players.length} onChange={event => changeCount(Number(event.target.value))}>
-            {[2, 3, 4, 5, 6].map(count => <option key={count} value={count}>{count}</option>)}
+    <div className="mx-auto flex min-h-96 w-full max-w-xl flex-col justify-center py-6 sm:py-12">
+      <Surface>
+        <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
+          Número de jogadores
+          <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
+            {[2, 3, 4, 5, 6].map(value => <option key={value} value={value}>{value}</option>)}
           </Select>
         </Field>
-        {players.map((player, i) => (
-          <div key={i} className="grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-3">
-            <span className="truncate text-sm font-medium" title={player.name}>{player.name}</span>
-            {i > 0 && (
-              <Select aria-label={`Tipo do participante ${i + 1}`} value={player.kind} onChange={event => updateKind(i - 1, event.target.value as PlayerKind)}>
-                {kinds.map(kind => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
-              </Select>
-            )}
+        <div className="mt-7 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5" aria-label="Lugares da partida">
+          <div className="flex min-w-0 flex-col items-center gap-2">
+            <Avatar className="size-16 border border-brand" aria-hidden="true"><AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
+            <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
           </div>
-        ))}
+          {selected.map((player, i) => <ParticipantSlot key={i} index={i + 1} player={player} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
+        </div>
       </Surface>
       <div className="mt-5 grid gap-2">
-        <Button onClick={() => username ? onStart(players) : openLogin()}>{username ? "Começar partida" : "Entrar para jogar"}</Button>
+        <Button disabled={!!username && !ready} onClick={() => {
+          if (!username) openLogin();
+          else if (ready) onStart([{ name: username, kind: "human" }, ...selected.filter((player): player is Setup => player !== null)]);
+        }}>{username ? "Começar partida" : "Entrar para jogar"}</Button>
         <Rules />
       </div>
     </div>
@@ -127,7 +154,7 @@ export default function Flip7Game() {
   const revealRef = useRef<HTMLDivElement>(null);
   const flyingRef = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
-  const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean } | null>(null);
+  const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean; origin?: { left: number; top: number; width: number } } | null>(null);
   const [landed, setLanded] = useState(false);
   const send = useCallback((action: Action) => {
     const current = gameRef.current;
@@ -140,6 +167,15 @@ export default function Flip7Game() {
       const target = action.type === "step" ? current.forced!.target : current.turn;
       const parked = [next.pending, ...next.queue].some(action => action?.card.id === next.lastDraw!.id);
       setFlight({ card: next.lastDraw, target, initial: !current.players[target].hasDrawn, parked });
+    }
+    if (action.type === "target" && current.pending) {
+      const card = current.pending.card;
+      const source = boardRef.current?.querySelector<HTMLElement>(`[data-flight-card="${card.id}"]`)?.getBoundingClientRect();
+      if (source) {
+        locked.current = true;
+        setLanded(false);
+        setFlight({ card, target: action.target, initial: false, parked: false, origin: { left: source.left, top: source.top, width: source.width } });
+      }
     }
     gameRef.current = next;
     setGame(next);
@@ -159,7 +195,7 @@ export default function Flip7Game() {
     const reveal = revealRef.current;
     const destination = board?.querySelector<HTMLElement>(`[data-flight-card="${flight.card.id}"]`);
     if (!ghost || !board || !deck || !reveal || !destination) return;
-    const origin = deck.getBoundingClientRect();
+    const origin = flight.origin ?? deck.getBoundingClientRect();
     const bounds = board.getBoundingClientRect();
     const target = destination.getBoundingClientRect();
     const staging = flight.parked ? target : reveal.getBoundingClientRect();
@@ -168,11 +204,15 @@ export default function Flip7Game() {
       locked.current = false;
       setFlight(null);
     } });
-    gsap.set(ghost, { x: origin.left - bounds.left, y: origin.top - bounds.top, rotation: -6, scale: 0.94, zIndex: 0, transformOrigin: "top left" });
-    timeline.to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, rotation: 0, scale: 1, duration: reduced ? 0 : 0.12, ease: "power2.out" })
-      .set(ghost, { zIndex: 30 })
-      .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, reduced ? ">" : flight.initial ? ">0.02" : ">0.65")
-      .call(() => setLanded(true));
+    gsap.set(ghost, { x: origin.left - bounds.left, y: origin.top - bounds.top, rotation: flight.origin ? 0 : -6, scale: flight.origin ? origin.width / ghost.offsetWidth : 0.94, zIndex: flight.origin ? 30 : 0, transformOrigin: "top left" });
+    if (flight.origin) {
+      timeline.to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced ? 0 : 0.28, ease: "power2.inOut" });
+    } else {
+      timeline.to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, rotation: 0, scale: 1, duration: reduced ? 0 : 0.12, ease: "power2.out" })
+        .set(ghost, { zIndex: 30 })
+        .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, reduced ? ">" : flight.initial ? ">0.02" : ">0.65");
+    }
+    timeline.call(() => setLanded(true));
     return () => { timeline.kill(); };
   }, [flight]);
 
@@ -224,8 +264,8 @@ export default function Flip7Game() {
         <div className="min-w-0">
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
-              <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col items-center justify-center rounded-xl border-2 border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
-                <span className="text-4xl font-medium tabular-nums sm:text-5xl">{game.deck.length}</span>
+              <div ref={deckRef} className="relative z-10 flex h-32 w-20 flex-col font-sans items-center justify-center rounded-xl border-2 border-field-border/30 bg-control-hover sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
+                <span className="text-4xl font-medium normal-nums sm:text-5xl">{game.deck.length}</span>
                 <span className="absolute bottom-3 text-xs">Cartas</span>
               </div>
               {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${game.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
@@ -241,11 +281,13 @@ export default function Flip7Game() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 space-y-1">
-                  <p className={cn("truncate text-sm font-medium", game.phase === "playing" && activeSeat === i && "text-accent")}>{player.name}</p>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <p className={cn("truncate text-sm font-medium", game.phase === "playing" && activeSeat === i && "text-accent")}>{player.name}</p>
+                    <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
+                  </div>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
-                    <span className="tabular-nums" title="Pontos garantidos"><span className="font-medium text-foreground">{player.total}</span> garantidos</span>
+                    <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
                     <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-accent">{player.total + (game.phase === "playing" ? score(player) : 0)}</span> ao vivo</span>
-                    <span>{player.status === "busted" ? "Estourou" : player.status === "stayed" ? "Parou" : "Ativo"}</span>
                   </p>
                 </div>
               </div>)}
@@ -266,8 +308,8 @@ export default function Flip7Game() {
               )}>
                 <div className="mb-3 flex items-center justify-between gap-2 text-sm">
                   <h3 className="min-w-0 truncate font-medium">{player.name}</h3>
-                  {player.status !== "playing" && <span className="text-xs text-muted">{player.status === "busted" ? "Estourou" : "Parou"}</span>}
-                  <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-xs text-white" title="Pontos nesta rodada">{score(player)} pts</span>
+                  {player.status !== "playing" && <span className="text-xs text-muted">{playerStatus[player.status]}</span>}
+                  <span className="shrink-0 text-sm font-semibold text-foreground tabular-nums" title="Pontos nesta rodada">{score(player)} pts</span>
                 </div>
                 <div style={{ "--hand-columns": Math.max(numeric.length, modifiers.length, 1) } as CSSProperties} className="space-y-2 [--hand-max:5rem] sm:[--hand-max:6rem]">
                   {modifiers.length > 0 && <div className="grid max-w-[calc(var(--hand-columns)*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))] gap-2">{modifiers.map(renderCard)}</div>}

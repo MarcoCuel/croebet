@@ -2,7 +2,7 @@
 export type PlayerKind = "human" | "easy" | "normal" | "hard";
 export type Setup = { name: string; kind: PlayerKind };
 export type Card = { id: number; type: "number" | "bonus" | "double" | "chance" | "freeze" | "three"; value: number };
-export type Player = Setup & { cards: Card[]; total: number; hasDrawn: boolean; status: "playing" | "stayed" | "busted" };
+export type Player = Setup & { cards: Card[]; total: number; hasDrawn: boolean; status: "playing" | "stayed" | "frozen" | "busted" };
 type Pending = { source: number; card: Card; give?: boolean };
 export type LogEntry = { message: string; player?: number; card?: Card };
 export type Game = {
@@ -66,6 +66,8 @@ function finish(game: Game) {
   game.history.push(scores);
   game.players.forEach((p, i) => { p.total += scores[i]; });
   game.phase = game.players.some(p => p.total >= GOAL) ? "over" : "summary";
+  if (game.pending) game.discard.push(game.pending.card);
+  game.discard.push(...game.queue.map(action => action.card));
   game.pending = null; game.queue = []; game.forced = null;
 }
 function advance(game: Game) {
@@ -144,9 +146,9 @@ export function transition(current: Game, action: Action): Game {
     const player = game.players[action.target];
     if (pending.give) player.cards.push(pending.card);
     else {
-      game.discard.push(pending.card);
+      player.cards.push(pending.card);
       if (pending.card.type === "freeze") {
-        player.status = "stayed";
+        player.status = "frozen";
         log(game, `${player.name} foi congelado e garantiu ${score(player)} pontos.`, action.target, pending.card);
       } else {
         game.forced = { target: action.target, remaining: 3 };

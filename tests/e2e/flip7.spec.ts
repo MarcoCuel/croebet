@@ -19,9 +19,15 @@ test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessí
   await expect(page.getByRole("combobox", { name: "Tipo do participante 1" })).toHaveCount(0);
   await expect(page.locator('[data-slot="input"]')).toHaveCount(0);
   await page.getByRole("combobox", { name: "Número de jogadores" }).selectOption("4");
-  await expect(page.getByRole("combobox")).toHaveCount(4);
+  await expect(page.getByRole("button", { name: /^Adicionar jogador / })).toHaveCount(3);
   await page.getByRole("combobox", { name: "Número de jogadores" }).selectOption("2");
-  await page.getByRole("combobox", { name: "Tipo do participante 2" }).selectOption("human");
+  await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Adicionar jogador 2", exact: true }).click();
+  const participant = page.getByRole("dialog");
+  await participant.getByLabel("Nome", { exact: true }).fill("Jogador 2");
+  await participant.getByLabel("Tipo", { exact: true }).selectOption("human");
+  await participant.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await expect(participant).not.toBeVisible();
   await page.getByRole("button", { name: "Começar partida" }).click();
   await expect(page.getByRole("heading", { name: /^Vez de Marco/ })).toContainText("Distribuindo a primeira carta");
   await expect(page.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);

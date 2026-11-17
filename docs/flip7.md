@@ -29,7 +29,7 @@ Cada turno permite uma compra ou parar após obter uma carta numérica. Repetir 
 
 Ações de Congelar/Compre 3 permitem escolher qualquer participante ativo, inclusive quem comprou a carta. Ações compradas durante Compre 3 ficam em fila até concluir a sequência; estourar descarta as ações dessa pessoa. Uma segunda chance adicional fora de uma sequência pode ser doada a outra pessoa ativa sem proteção; durante uma sequência ela é descartada, seguindo a referência.
 
-Cartas consumidas por ações ou segunda chance vão ao descarte. Isso corrige um problema identificado no original, que removia algumas dessas cartas sem devolvê-las ao descarte. Cartas são conservadas entre rodadas, e descartes só são embaralhados ao esgotar o baralho. Bots usam informações públicas, sem consultar a ordem escondida do baralho; estratégias foram reimplementadas.
+Congelar e Compre 3 resolvidos ficam na mão do destinatário, sem somar pontos, e vão ao descarte somente ao preparar a próxima rodada. Cartas consumidas por segunda chance ou ações canceladas vão ao descarte. Isso corrige um problema identificado no original, que removia algumas dessas cartas sem devolvê-las ao descarte. Cartas são conservadas entre rodadas, e descartes só são embaralhados ao esgotar o baralho. Bots usam informações públicas, sem consultar a ordem escondida do baralho; estratégias foram reimplementadas.
 
 ## Limites atuais
 
@@ -66,3 +66,7 @@ Ritmo de compra: saída de 0,12s, revelação de 0,02s na primeira compra ou 0,6
 As cartas de ação pendentes e enfileiradas ficam visíveis ao lado do baralho, com área adicional reservada para a próxima revelação. A animação de uma ação termina nesse local, sem passar pela mão. Ações encontradas em Compre 3 permanecem no topo durante as compras seguintes; só somem ao resolver o alvo ou ao serem descartadas por estouro/fim da rodada.
 
 As mãos usam uma grade de linha única para números e outra para modificadores. Ambas compartilham a mesma largura proporcional de carta, limitada pelo tamanho original. Unidades de container escalam texto, ícones, cantos e verso junto das cartas. A animação de entrega também reduz a carta até a largura final da mão.
+
+## Configuração por vagas
+
+O seletor define de 2 a 6 lugares. A conta conectada ocupa o primeiro lugar fixo. Os demais aparecem como Disponível; o botão + abre um diálogo com Nome e Tipo (Pessoa ou Bot). Bots adicionados usam a estratégia média. Lugares preenchidos permitem editar ou remover o participante pelo mesmo diálogo. É preciso preencher todos os lugares selecionados antes de começar. Diminuir e aumentar a quantidade preserva as configurações dos lugares temporariamente ocultos.

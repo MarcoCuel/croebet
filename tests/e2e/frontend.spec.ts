@@ -165,20 +165,16 @@ test("navegação lateral se adapta ao dispositivo e responde ao teclado", async
     ).toBeFocused();
   } else {
     const sidebar = page.getByRole("complementary", { name: "Menu lateral" });
-    const initialWidth = await sidebar.evaluate(
-      (element) => element.getBoundingClientRect().width,
-    );
-    await page
-      .getByRole("button", { name: "Alternar largura do menu lateral" })
-      .click();
-    expect(
-      await sidebar.evaluate(
-        (element) => element.getBoundingClientRect().width,
-      ),
-    ).toBeLessThan(initialWidth);
-    await page
-      .getByRole("button", { name: "Alternar largura do menu lateral" })
-      .click();
+    const toggle = page.getByRole("button", { name: "Ocultar menu lateral" });
+    await toggle.click();
+    await expect(sidebar).not.toBeVisible();
+    await expect(page.locator("#page-content")).toHaveCSS("padding-left", "0px");
+    const showMenu = page.getByRole("button", { name: "Mostrar menu lateral" });
+    await expect(showMenu).toHaveAttribute("aria-expanded", "false");
+    await expect(showMenu).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(sidebar).toBeVisible();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(
       sidebar.getByRole("link", { name: "Sobre", exact: true }),
     ).toBeVisible();

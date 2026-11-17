@@ -63,7 +63,8 @@ test("Compre 3 enfileira ação, completa compras e só então escolhe alvo", ()
   assert.ok(!g.discard.some(c => c.id === waitingCard.id));
   g = transition(g, { type: "target", target: 0 });
   assert.equal(g.pending, null);
-  assert.ok(g.discard.some(c => c.id === waitingCard.id));
+  assert.ok(g.players[0].cards.some(c => c.id === waitingCard.id));
+  assert.ok(!g.discard.some(c => c.id === waitingCard.id));
 });
 test("estouro no Compre 3 cancela compras e descarta ações pendentes", () => {
   let g = stack(game(), [card("three"), card("freeze"), card("number", 1), card("number", 1)]);
@@ -126,4 +127,37 @@ test("primeira compra é automática e cartas de escolha pausam a distribuição
   g = transition(g, { type: "next" });
   assert.ok(g.players.every(p => !p.hasDrawn));
   assert.deepEqual(automaticAction(g), { type: "draw" });
+});
+
+test("Congelar e Compre 3 permanecem com o alvo e só são descartados na próxima rodada", () => {
+  for (const type of ["freeze", "three"]) {
+    let g = stack(game(), [{ id: 5000, type, value: 0 }]);
+    g = transition(g, { type: "draw" });
+    g = transition(g, { type: "target", target: 1 });
+    assert.equal(g.players[1].cards[0].type, type);
+    assert.equal(score(g.players[1]), 0);
+    assert.ok(!g.discard.some(c => c.id === 5000));
+    g.phase = "summary";
+    g = transition(g, { type: "next" });
+    assert.equal(g.players[1].cards.length, 0);
+    assert.ok(g.discard.some(c => c.id === 5000));
+  }
+});
+
+test("Congelado é diferente de Parou, preserva pontos e sai da ordem de turnos", () => {
+  let g = stack(game(), [{ id: 6000, type: "freeze", value: 0 }]);
+  g.players[1].cards = [{ id: 6001, type: "number", value: 8 }];
+  g = transition(g, { type: "draw" });
+  g = transition(g, { type: "target", target: 1 });
+  assert.equal(g.players[1].status, "frozen");
+  assert.equal(score(g.players[1]), 8);
+  assert.equal(g.turn, 0);
+  g.players[0].cards.push({ id: 6002, type: "number", value: 4 });
+  g = transition(g, { type: "stay" });
+  assert.equal(g.players[0].status, "stayed");
+  assert.equal(g.players[1].status, "frozen");
+  assert.equal(g.phase, "summary");
+  assert.equal(g.players[1].total, 8);
+  g = transition(g, { type: "next" });
+  assert.ok(g.players.every(p => p.status === "playing"));
 });

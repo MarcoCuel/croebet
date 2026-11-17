@@ -89,7 +89,6 @@
   --header-height: 4.375rem;
   --page-gap: 2rem;
   --sidebar-expanded: clamp(14rem, 14vw, 17rem);
-  --sidebar-collapsed: 4.5rem;
 }
 
 :root[data-theme="light"] {

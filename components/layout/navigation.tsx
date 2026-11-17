@@ -18,7 +18,7 @@ import { brandLinkClass, Wordmark } from "./brand";
 
 export function Navigation({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [sidebar, setSidebar] = useState<"expanded" | "collapsed">();
+  const [sidebar, setSidebar] = useState<"expanded" | "collapsed">("expanded");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [balanceOpen, setBalanceOpen] = useState(false);
   const balanceTrigger = useRef<HTMLElement | null>(null);
@@ -41,12 +41,7 @@ export function Navigation({ children }: { children: ReactNode }) {
   }, []);
 
   function toggleSidebar() {
-    const expanded =
-      (sidebar ??
-        (window.matchMedia("(min-width: 64rem)").matches
-          ? "expanded"
-          : "collapsed")) === "expanded";
-    setSidebar(expanded ? "collapsed" : "expanded");
+    setSidebar((current) => current === "expanded" ? "collapsed" : "expanded");
   }
   function openBalance() {
     balanceTrigger.current =
@@ -59,7 +54,7 @@ export function Navigation({ children }: { children: ReactNode }) {
   return (
     <HomeSectionProvider>
       <div
-        className="[--sidebar-width:0rem] md:[--sidebar-width:var(--sidebar-collapsed)] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)] lg:not-data-[sidebar=collapsed]:[--sidebar-width:var(--sidebar-expanded)]"
+        className="group/navigation [--sidebar-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)]"
         data-sidebar={sidebar}
       >
         <a
@@ -68,7 +63,7 @@ export function Navigation({ children }: { children: ReactNode }) {
         >
           Pular para o conteúdo
         </a>
-        <Sidebar onToggle={toggleSidebar} onOpenBalance={openBalance} />
+        <Sidebar expanded={sidebar === "expanded"} onToggle={toggleSidebar} onOpenBalance={openBalance} />
         <Topbar
           key={pathname}
           mobileMenuOpen={mobileMenuOpen}
