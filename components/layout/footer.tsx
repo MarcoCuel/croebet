@@ -2,8 +2,7 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="mx-auto mt-11 flex w-[calc(100%-2*var(--page-gap))] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-(length:--border-width-hairline) border-border pt-4 pb-7 text-sm text-muted">
-      <p>Croebet é uma paródia. Todo saldo é fictício.</p>
+    <footer className="mx-auto mt-12 flex w-[calc(100%-2*var(--page-gap))] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-(length:--border-width-hairline) border-border py-6 px-2 text-sm text-muted">
       <nav className="flex flex-wrap gap-4" aria-label="Navegação do rodapé">
         <Link className="hover:text-foreground" href="/jogos">
           Jogos
@@ -18,6 +17,7 @@ export function Footer() {
           Sobre
         </Link>
       </nav>
+      <p>Croebet · 2026</p>
     </footer>
   );
 }

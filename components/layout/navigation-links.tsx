@@ -1,14 +1,14 @@
 "use client";
 
-import { Gamepad2, House, Info, Ticket, Trophy } from "lucide-react";
+import { PlayingCards, House, Info, Tickets, Trophy } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Início", Icon: House },
-  { href: "/jogos", label: "Jogos", Icon: Gamepad2 },
-  { href: "/apostas", label: "Apostas", Icon: Ticket },
+  { href: "/jogos", label: "Jogos", Icon: PlayingCards },
+  { href: "/apostas", label: "Apostas", Icon: Tickets },
   { href: "/rankings", label: "Rankings", Icon: Trophy },
   { href: "/sobre", label: "Sobre", Icon: Info },
 ];
