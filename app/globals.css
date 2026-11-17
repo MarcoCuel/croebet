@@ -52,11 +52,11 @@
   --text-section: clamp(1.25rem, 2vw, 1.75rem);
   --text-banner: clamp(1.625rem, 9.7cqi, 3.25rem);
   --text-cover: clamp(1.125rem, 12cqi, 3.25rem);
-  --text-wordmark: clamp(1.625rem, 1.7vw, 2rem);
+  --text-wordmark: 1.75rem;
   --text-auth-title: 1.75rem;
-  --tracking-display: -0.045em;
-  --tracking-banner: -0.065em;
-  --tracking-wordmark: -0.075em;
+  --tracking-display: -0.04em;
+  --tracking-banner: -0.04em;
+  --tracking-wordmark: -0.04em;
   --leading-banner: 0.92;
   --spacing-page: clamp(1.5rem, 3vw, 2.5rem);
   --spacing-banner: clamp(1rem, 1.25vw, 1.625rem);
@@ -75,7 +75,7 @@
   color-scheme: dark;
   --border-width-hairline: 0.0625rem;
   --header-height: 4.375rem;
-  --page-gap: 0.8125rem;
+  --page-gap: 2rem;
   --sidebar-expanded: clamp(14rem, 14vw, 17rem);
   --sidebar-collapsed: 4.5rem;
 }

@@ -59,7 +59,7 @@ export function Sidebar({
         </div>
         {username && (
           <div className="-mx-3 @max-[8rem]/sidebar:hidden">
-            <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-3">
+            <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-2">
               <Button
                 variant="ghost"
                 className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"

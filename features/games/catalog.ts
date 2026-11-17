@@ -35,12 +35,3 @@ export const games = [
     description: "O tarô embaralhou as cartas e esqueceu de avisar os rolos.",
   },
 ];
-
-export const upcoming = [
-  "Baralho Cigano da Financeirização",
-  "Runas do Endividamento",
-  "Astrologia do CLT",
-  "Sessão Espírita da Previdência",
-  "Ritual de Fogo do Salário Mínimo",
-  "Poção da Carteira Assinada",
-];
