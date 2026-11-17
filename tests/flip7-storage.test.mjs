@@ -96,3 +96,22 @@ test("rejeita cartas adulteradas e estados que travariam a retomada", () => {
     assert.equal(decodeMatch(JSON.stringify(saved), code), null, mutate.toString());
   }
 });
+
+test("histórico conserva todas as jogadas entre rodadas e ao retomar a partida", () => {
+  let game = createGame(setup, 42);
+  let steps = 0;
+  while (game.phase !== "over" && steps++ < 2000) {
+    const previous = game.log;
+    const action = game.phase === "summary" ? { type: "next" } : automaticAction(game) ?? botAction(game);
+    game = transition(game, action);
+    assert.ok(game.log.length >= previous.length);
+    assert.deepEqual(game.log.slice(game.log.length - previous.length), previous);
+  }
+  assert.equal(game.phase, "over");
+  assert.ok(game.round > 1);
+  assert.ok(game.log.length > 6);
+  assert.equal(game.log.at(-1).message, "Partida iniciada.");
+  const storage = memoryStorage();
+  saveMatch(snapshot(game), storage);
+  assert.deepEqual(readMatch(storage).game.log, JSON.parse(JSON.stringify(game.log)));
+});

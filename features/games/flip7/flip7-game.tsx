@@ -290,15 +290,17 @@ export default function Flip7Game() {
   const activeSeat = game.forced?.target ?? game.pending?.source ?? game.turn;
 
   return (
-    <Surface ref={boardRef} className="relative @container min-h-[34rem] bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
+    <Surface ref={boardRef} className="relative @container min-h-[34rem] bg-transparent p-0 pb-32 sm:p-0 sm:pb-24" role="region" aria-label="Mesa de Flip7">
       <div className="mb-6 flex min-h-11 flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-4">
-          <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : status}</h2>
-          {playable && <div className="flex gap-2">
-            <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
-            <Button className="min-w-24" variant="secondary" disabled={!numbers(current).length} onClick={() => send({ type: "stay" })}>Parar</Button>
-          </div>}
-          {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
+        <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
+          <div className="pointer-events-auto flex w-fit max-w-full flex-wrap items-center justify-center gap-3 rounded-panel border border-border bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
+            <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : status}</h2>
+            {playable && <div className="flex gap-2">
+              <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
+              <Button className="min-w-24" variant="secondary" disabled={!numbers(current).length} onClick={() => send({ type: "stay" })}>Parar</Button>
+            </div>}
+            {game.phase !== "playing" && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
+          </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="icon" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight} onClick={() => setHistoryVisible(visible => !visible)}>

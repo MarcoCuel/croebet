@@ -228,3 +228,17 @@ test("Segunda chance recebe a duplicada e anima o descarte das duas cartas", asy
   expect(saved.discard.map((card: Card) => card.id)).toEqual(expect.arrayContaining([chance.id, duplicate.id]));
   expect(saved.players[0].status).toBe("playing");
 });
+
+test("controles do Flip7 ficam fixos no centro inferior da tela", async ({ page }) => {
+  await restore(page, scenario([["number", 2]]));
+  const controls = page.locator("[data-flip7-controls]");
+  await expect(controls).toHaveCSS("position", "fixed");
+  await expect(controls.getByRole("button", { name: "Comprar", exact: true })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Parar", exact: true })).toBeVisible();
+  const box = (await controls.boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(Math.abs(box.x + box.width / 2 - viewport.width / 2)).toBeLessThan(1);
+  expect(viewport.height - box.y - box.height).toBeLessThanOrEqual(32);
+  expect(box.y + box.height).toBeLessThan(viewport.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

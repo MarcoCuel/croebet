@@ -60,7 +60,7 @@ export function targets(game: Game): number[] {
   const { source, give } = game.pending;
   return game.players.flatMap((p, i) => p.status === "playing" && (!give || (i !== source && !p.cards.some(c => c.type === "chance"))) ? [i] : []);
 }
-function log(game: Game, message: string, player?: number, card?: Card) { game.log = [{ message, player, card }, ...game.log].slice(0, 6); }
+function log(game: Game, message: string, player?: number, card?: Card) { game.log.unshift({ message, player, card }); }
 function finish(game: Game) {
   const scores = game.players.map(score);
   game.history.push(scores);
