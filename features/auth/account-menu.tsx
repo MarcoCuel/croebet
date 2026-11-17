@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRef } from "react";
 import { useDemoSession } from "./session-context";
+import { cn } from "@/lib/utils";
 
 export function AccountMenu({
   name,
@@ -32,7 +33,10 @@ export function AccountMenu({
         <Button
           ref={trigger}
           variant="secondary"
-          className="h-11 w-full px-2 font-normal"
+          className={cn(
+            "h-11 px-2 py-0 font-normal",
+            sidebar ? "w-full justify-start" : "w-auto",
+          )}
           aria-label={"Conta de " + name}
         >
           <Avatar aria-hidden="true">

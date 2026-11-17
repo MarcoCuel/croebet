@@ -118,6 +118,7 @@ Porém, o misticismo é **uma referência secundária**. A piada principal sempr
 
 ## 6. Identidade visual e experiência
 
+- A fonte padrão da plataforma é **Inter**.
 - A cor principal da marca é **`#AD158F`**. A implementação técnica utiliza os tokens do design system, conforme o `AGENTS.md`.
 - O site deve parecer uma plataforma de jogos e apostas legítima em sua **organização e funcionamento**.
 - A aparência deve ser **simples, clara e bem resolvida**; não é necessário copiar a complexidade de grandes casas de apostas.

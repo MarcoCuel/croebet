@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme static {
-  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
 
   --color-brand: #ad158f;
   --color-brand-hover: #c01a9f;
@@ -81,7 +81,8 @@
 
 @layer base {
   html {
-    @apply scheme-dark scroll-pt-[calc(var(--header-height)+1rem)];
+    @apply scheme-dark antialiased scroll-pt-[calc(var(--header-height)+1rem)];
+    text-rendering: geometricPrecision;
   }
 
   /* Text links retain a keyboard focus indicator without a ring. */
