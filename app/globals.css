@@ -76,7 +76,7 @@
   --border-width-hairline: 0.0625rem;
   --header-height: 4.375rem;
   --page-gap: 0.8125rem;
-  --sidebar-expanded: clamp(12.5rem, 13.55vw, 17.25rem);
+  --sidebar-expanded: clamp(14rem, 14vw, 17rem);
   --sidebar-collapsed: 4.5rem;
 }
 

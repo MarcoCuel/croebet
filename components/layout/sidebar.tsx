@@ -58,8 +58,8 @@ export function Sidebar({
           <MenuLinks sidebar />
         </div>
         {username && (
-          <div className="@max-[8rem]/sidebar:hidden">
-            <div className="mb-3 flex items-center justify-between gap-2 px-2">
+          <div className="-mx-3 @max-[8rem]/sidebar:hidden">
+            <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-3">
               <Button
                 variant="ghost"
                 className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
@@ -70,11 +70,13 @@ export function Sidebar({
               </Button>
               <RedeemButton />
             </div>
-            <AccountMenu
-              name={username}
-              sidebar
-              onOpenBalance={onOpenBalance}
-            />
+            <div className="border-t-(length:--border-width-hairline) border-border px-3 pt-3">
+              <AccountMenu
+                name={username}
+                sidebar
+                onOpenBalance={onOpenBalance}
+              />
+            </div>
           </div>
         )}
       </div>
