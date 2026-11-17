@@ -30,8 +30,7 @@ export function MarketList({
           key={market.id}
         >
           <article id={market.id}>
-            <p className="text-xs text-muted">{market.topic}</p>
-            <h2 className="mt-2 mb-6 text-lg font-semibold">{market.question}</h2>
+            <h2 className="mb-8 text-3xl font-semibold">{market.question}</h2>
             {market.type === "number" ? (
               <form
                 className="mt-auto grid gap-3"
@@ -45,27 +44,28 @@ export function MarketList({
                   }
                 }}
               >
-                <Field>
-                  Atraso em minutos
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    max={Number.MAX_SAFE_INTEGER}
-                    placeholder="0"
-                    required
-                    value={minutes}
-                    onChange={(event) => setMinutes(event.currentTarget.value)}
-                  />
-                </Field>
-                <Button
-                  type="submit"
-                  variant="secondary"
-                  aria-haspopup="dialog"
-                  disabled={!validMinutes}
-                >
-                  Apostar
-                </Button>
+                <div className="flex justify-stretch items-end gap-2">
+                  <Field>
+                    Atraso em minutos
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      max={Number.MAX_SAFE_INTEGER}
+                      placeholder="0"
+                      required
+                      value={minutes}
+                      onChange={(event) => setMinutes(event.currentTarget.value)}
+                    />
+                  </Field>
+                  <Button
+                    type="submit"
+                    aria-haspopup="dialog"
+                    disabled={!validMinutes}
+                  >
+                    Apostar
+                  </Button>
+                </div>
               </form>
             ) : (
               <div className="mt-auto grid grid-cols-2 gap-2">
