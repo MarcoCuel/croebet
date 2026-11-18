@@ -43,6 +43,8 @@
   --color-flip-silver: #b8bdc6;
   --color-flip-yellow: #e5d744;
   --color-flip-ink: #171717;
+  --color-flip-card: var(--color-control-hover);
+  --color-flip-card-back: var(--color-control);
   --color-cover-krepinho: #411031;
   --color-cover-crystal: #231242;
   --color-cover-roulette: #092e33;
@@ -148,7 +150,10 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --color-accent: #94127b;
+  --color-flip-card: #fff;
+  --color-flip-card-back: #fff;
+  --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(0 0 0 / 10%);
+  --color-accent: #FF2C67;
   --color-background: #fff;
   --color-chrome: #fff;
   --color-surface: #f7f7f7;

@@ -83,8 +83,8 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
       <div className={cn("relative @container w-full aspect-[5/8] transition-transform duration-300 ease-in-out motion-reduce:transition-none sm:aspect-[2/3]", compact && "h-full aspect-auto sm:aspect-auto", sideways && "absolute top-1/2 left-1/2 w-[62.5%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:w-2/3")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": !compact && card.type === "chance" ? "var(--color-brand)" : `var(--color-flip-${color})` } as CSSProperties}
-          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-control-hover shadow-sm [backface-visibility:hidden]",
-            compact ? "rounded-md border-[0.125rem] border-field-border/30" : "rounded-[18cqi] text-(--card-color) after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:inset-shadow-flip-card",
+          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-flip-card shadow-md [backface-visibility:hidden]",
+            compact ? "rounded-md border-[0.125rem] border-field-border/30" : "rounded-[18cqi] text-(--card-color) after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)]",
             !compact && !numeric && "bg-(--card-color) text-white",
             compact && (numeric ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink"),
             compact && card.type === "chance" && "bg-brand text-white",
@@ -111,8 +111,8 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
             </svg>}
           </>}
         </div>
-        <div aria-hidden="true" className={cn("absolute inset-0 overflow-hidden bg-control inset-shadow-flip-card [backface-visibility:hidden] [transform:rotateY(180deg)]", compact ? "rounded-md" : "rounded-[18cqi]")}>
-          <span className={cn("absolute bg-control-hover", compact ? "inset-1 rounded-sm" : "inset-[14cqi] rounded-[12cqi]")} />
+        <div aria-hidden="true" className={cn("absolute inset-0 overflow-hidden bg-flip-card-back [box-shadow:var(--inset-shadow-flip-card)] [backface-visibility:hidden] [transform:rotateY(180deg)]", compact ? "rounded-md" : "rounded-[18cqi]")}>
+          <span className={cn("absolute bg-flip-card", compact ? "inset-1 rounded-sm" : "inset-[14cqi] rounded-[12cqi]")} />
         </div>
       </div>
       </div>
@@ -622,7 +622,7 @@ export default function Flip7Game() {
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
-              <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-control-hover font-sans after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:inset-shadow-flip-card sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
+              <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
                 <div className="absolute inset-x-[12cqi] top-[12cqi] flex items-start justify-between gap-[6cqi]">
                   <span className="text-[16cqi] leading-tight font-medium">Cartas</span>
                 </div>
@@ -683,7 +683,7 @@ export default function Flip7Game() {
                 }}><span className="sr-only">Selecionar {cardLabel(card)} de {player.name}</span></Button>}
               </div>;
               return <section key={i} aria-label={`Mesa de ${player.name}`} className={cn(
-                "relative min-h-48 min-w-0 rounded-panel border border-field-border/60 p-3",
+                "relative min-h-48 min-w-0 rounded-panel border border-field-border/30 p-3",
                 visibleGame.phase === "playing" && activeSeat === i && "border-brand",
                 visiblePlayer.status !== "playing" && "opacity-50",
               )}>
