@@ -594,7 +594,7 @@ export default function Flip7Game() {
   const activeSeat = visibleGame.bonusChoice ?? visibleGame.forced?.target ?? visibleGame.pending?.source ?? visibleGame.turn;
 
   return (
-    <Surface ref={boardRef} className="relative @container min-h-[34rem] bg-transparent p-0 pb-32 sm:p-0 sm:pb-24" role="region" aria-label="Mesa de Flip7">
+    <Surface ref={boardRef} className="relative @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
         <div className="pointer-events-auto flex w-fit max-w-[calc(100vw-8rem)] flex-wrap items-center justify-center gap-3 rounded-panel border border-border bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
           <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : movingCards ? "Movendo cartas" : status}</h2>
@@ -615,8 +615,8 @@ export default function Flip7Game() {
           {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
         </Button>
       </div>
-      <div className={cn("grid items-start overflow-x-clip transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
-        <div className="min-w-0">
+      <div className={cn("grid items-start transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
+        <div className="min-w-0 pb-32 sm:pb-24">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-accent tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
@@ -704,10 +704,11 @@ export default function Flip7Game() {
             })}
           </div>
         </div>
-        <div className={cn("grid min-w-0 overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-          <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:w-56", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
+        <div className={cn("grid min-w-0 overflow-clip transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:self-stretch", historyVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+          <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:sticky @[60rem]:top-[calc(var(--header-height)+1rem)] @[60rem]:w-56 @[60rem]:self-start", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
             <div className="rounded-panel bg-surface p-4">
-              <div className="max-h-[max(12rem,calc(100dvh-var(--header-height)-10rem))] overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={visibleGame} /></div>
+              {/* Reserve page top (1rem), panel padding (2rem), and footer (7.25rem + border). */}
+              <div className="max-h-[max(12rem,calc(100dvh-var(--header-height)-10.25rem-var(--border-width-hairline)))] overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={visibleGame} /></div>
             </div>
           </aside>
         </div>
