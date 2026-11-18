@@ -4,6 +4,7 @@ import { PanelLeft } from "lucide-react";
 import Link from "next/link";
 import { useDemoSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
+import { SignupBanner } from "@/features/auth/signup-banner";
 import { Balance } from "@/features/wallet/balance";
 import { RedeemButton } from "@/features/wallet/redeem-button";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ export function Sidebar({
           <div className="min-h-0 overflow-y-auto">
             <MenuLinks sidebar />
           </div>
-          {username && (
+          {username ? (
             <div className="-mx-3 @max-[8rem]/sidebar:hidden">
               <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-2">
                 <Button
@@ -66,6 +67,8 @@ export function Sidebar({
                 <AccountMenu name={username} sidebar />
               </div>
             </div>
+          ) : (
+            <SignupBanner />
           )}
         </div>
       </aside>

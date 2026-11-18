@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Component, useEffect, useRef, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 const Scene = dynamic(() => import("./croin-banner-scene"), { ssr: false });
 
@@ -15,7 +16,7 @@ class CoinBoundary extends Component<{ children: ReactNode }, { failed: boolean 
   }
 }
 
-export function CroinBanner() {
+export function CroinBanner({ className }: { className?: string }) {
   const container = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [pageVisible, setPageVisible] = useState(true);
@@ -39,7 +40,7 @@ export function CroinBanner() {
   }, []);
 
   return (
-    <div ref={container} aria-hidden="true" className="pointer-events-none absolute -top-5 -right-9 -z-10 aspect-square w-48 @min-[24rem]:top-0 @min-[24rem]:w-60">
+    <div ref={container} aria-hidden="true" className={cn("pointer-events-none absolute -top-5 -right-9 -z-10 aspect-square w-48 @min-[24rem]:top-0 @min-[24rem]:w-60", className)}>
       <CoinBoundary>
         {visible && <Scene animate={pageVisible && !reducedMotion} />}
       </CoinBoundary>
