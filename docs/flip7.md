@@ -114,3 +114,5 @@ O Zero automatiza a compra na vez do seu portador, preservando a ordem de turnos
 A passagem de rodada é automática: após concluir entregas e transferências, o resumo fica visível por 1,6 segundo e a interface envia `next`. O timer é cancelado ao desmontar, ao abrir a confirmação de saída ou ao mudar o estado. Retomar um resumo após reload também inicia a próxima rodada automaticamente. Partidas encerradas mantêm Jogar novamente e não avançam.
 
 Trocar também vai diretamente à seleção de cartas, sem etapa de escolher participante. Quem compra a ação controla a prévia e a confirmação; snapshots antigos de Trocar são normalizados para esse fluxo, inclusive ações enfileiradas.
+
+O fim da partida abre um diálogo após as animações, com vencedores (incluindo empates) e classificação completa por pontuação decrescente. Pontos negativos são exibidos normalmente. Fechar/Escape permite consultar a mesa; Ver resultado reabre o diálogo. Jogar novamente limpa o snapshot e volta à configuração. Retomar uma partida encerrada reabre o resultado.

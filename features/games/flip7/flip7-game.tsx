@@ -73,8 +73,8 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
       data-card-back={flipped || undefined}
       data-card-sideways={sideways || undefined}
       data-holographic={holographic || undefined}
-      className={cn("@container shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? "aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
-      <div className={cn("relative size-full transition-transform duration-300 ease-in-out motion-reduce:transition-none", sideways && "rotate-90 scale-[0.625] sm:scale-[0.666667]")}>
+      className={cn("relative @container shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? sideways ? "aspect-[8/5] w-full sm:aspect-[3/2]" : "aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
+      <div className={cn("relative @container w-full aspect-[5/8] transition-transform duration-300 ease-in-out motion-reduce:transition-none sm:aspect-[2/3]", compact && "h-full aspect-auto sm:aspect-auto", sideways && "absolute top-1/2 left-1/2 w-[62.5%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:w-2/3")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": !compact && card.type === "chance" ? "var(--color-brand)" : `var(--color-flip-${color})` } as CSSProperties}
           className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-control-hover shadow-sm [backface-visibility:hidden]",
@@ -215,6 +215,8 @@ export default function Flip7Game() {
   const { registerBackHandler } = usePageBack();
   const [exitHref, setExitHref] = useState<string | null>(null);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
+  const [resultDismissed, setResultDismissed] = useState(false);
+  const resultTriggerRef = useRef<HTMLButtonElement>(null);
   const [restored] = useState(currentMatch);
   const [game, setGame] = useState<Game | null>(restored.match?.game ?? null);
   const [matchCode, setMatchCode] = useState<string | null>(restored.match?.code ?? null);
@@ -318,6 +320,7 @@ export default function Flip7Game() {
     setSwapPreview(null);
     setSelectedCards([]);
     setGame(null);
+    setResultDismissed(false);
     setMatchCode(null);
     matchCodeRef.current = null;
     matchUrl(null);
@@ -438,6 +441,7 @@ export default function Flip7Game() {
   const validTargets = targets(game);
   const maxScore = Math.max(...game.players.map(player => player.total));
   const winners = game.players.filter(player => player.total === maxScore);
+  const standings = [...game.players].sort((a, b) => b.total - a.total);
   const actionLabel = game.pending ? cardLabel(game.pending.card) : "";
   const choices = cardChoices(game);
   const selectingCards = !flight && !movingCards && human && game.pending?.resolving && game.pending.card.type === "swap";
@@ -485,7 +489,7 @@ export default function Flip7Game() {
             <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
-          {game.phase === "over" && !flight && !movingCards && <Button onClick={leave}>Jogar novamente</Button>}
+          {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => setResultDismissed(false)}>Ver resultado</Button>}
         </div>
       </div>
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
@@ -538,10 +542,16 @@ export default function Flip7Game() {
               const cards = [...player.cards, ...(flight?.target === i ? flight.discardedCards ?? [] : []), ...(flight?.target === i && flight.consumedChance ? [flight.consumedChance] : []), ...inTransit];
               const modifiers = cards.filter(card => !isNumber(card));
               const numeric = cards.filter(isNumber).sort((a, b) => a.value - b.value);
+              const sideways = game.mode === "vengeance" && visiblePlayer.status === "stayed";
+              const columns = Math.max(numeric.length, modifiers.length, 1);
+              const rowClass = cn("grid items-center max-w-[calc((var(--hand-columns)+var(--hand-extra))*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] gap-2",
+                columns === 1 ? "grid-cols-1" : sideways
+                  ? "grid-cols-[minmax(0,var(--hand-first))_repeat(var(--hand-remaining),minmax(0,1fr))]"
+                  : "grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))]");
               const flipped = visiblePlayer.status === "busted" && !movingCards?.some(m => m.target === i) && (!flight || flight.target !== i || landed);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id}
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
-                <PlayingCard card={card} flipped={flipped && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={game.mode === "vengeance" && visiblePlayer.status === "stayed" && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
+                <PlayingCard card={card} flipped={flipped && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={sideways && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
                 {!flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-accent hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
                   if (game.pending?.card.type === "swap") {
                     if (swapPreview) animateSwapPreview(swapPreview, true);
@@ -561,9 +571,9 @@ export default function Flip7Game() {
                   {visiblePlayer.status !== "playing" && <span className="text-xs text-muted">{playerStatus[visiblePlayer.status]}</span>}
                   <span className="shrink-0 text-sm font-semibold text-foreground tabular-nums" title="Pontos nesta rodada">{score(visiblePlayer, visibleGame)} pts</span>
                 </div>
-                <div data-player-hand={i} style={{ "--hand-columns": Math.max(numeric.length, modifiers.length, 1) } as CSSProperties} className="space-y-2 [--hand-max:5rem] sm:[--hand-max:6rem]">
-                  {modifiers.length > 0 && <div className="grid max-w-[calc(var(--hand-columns)*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))] gap-2">{modifiers.map(renderCard)}</div>}
-                  <div className="grid max-w-[calc(var(--hand-columns)*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))] gap-2">{numeric.map(renderCard)}</div>
+                <div data-player-hand={i} style={{ "--hand-columns": columns, "--hand-remaining": columns - 1 } as CSSProperties} className={cn("space-y-2 [--hand-max:5rem] sm:[--hand-max:6rem]", sideways ? "[--hand-extra:0.6] [--hand-first:1.6fr] sm:[--hand-extra:0.5] sm:[--hand-first:1.5fr]" : "[--hand-extra:0]")}>
+                  {modifiers.length > 0 && <div className={rowClass}>{modifiers.map(renderCard)}</div>}
+                  <div className={rowClass}>{numeric.map(renderCard)}</div>
                 </div>
                 {!flight && !movingCards && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={game.pending.card.type === "steal" ? `${player.name} vai roubar` : game.pending.card.type === "remove" ? `${player.name} escolhe a carta para descartar` : `Escolher ${player.name}`} title={game.pending.card.type === "steal" ? `${player.name} receberá a carta roubada` : game.pending.card.type === "remove" ? `${player.name} poderá escolher uma carta de qualquer mão` : `Escolher ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "target", target: i })}>{game.pending.card.type === "steal" ? <span>{player.name} vai roubar</span> : game.pending.card.type === "remove" ? <span>{player.name} escolhe o descarte</span> : <span className="sr-only">Escolher {player.name}</span>}</Button>}
                 {!flight && !movingCards && game.bonusChoice != null && human && <Button variant="ghost" aria-label={game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "bonus", target: game.bonusChoice === i ? null : i })}><span className="sr-only">{game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`}</span></Button>}
@@ -579,6 +589,25 @@ export default function Flip7Game() {
           </aside>
         </div>
       </div>
+      <Dialog open={game.phase === "over" && !flight && !movingCards && !exitHref && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
+          <DialogTitle>Resultado da partida</DialogTitle>
+          <DialogDescription className="mt-3 text-lg font-semibold text-accent">
+            {winners.map(player => player.name).join(" e ")} {winners.length > 1 ? "venceram" : "venceu"}!
+          </DialogDescription>
+          <ol aria-label="Classificação final" className="mt-5 max-h-[50dvh] space-y-2 overflow-y-auto" data-lenis-prevent>
+            {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-control p-3 text-sm", player.total === maxScore && "bg-selected")}>
+              <span className="w-6 shrink-0 text-muted tabular-nums">{standings.findIndex(p => p.total === player.total) + 1}º</span>
+              <span className="min-w-0 flex-1 break-words font-medium">{player.name}</span>
+              <span className="shrink-0 font-semibold tabular-nums">{player.total} pts</span>
+            </li>)}
+          </ol>
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
+            <DialogClose asChild><Button variant="secondary">Fechar</Button></DialogClose>
+            <Button onClick={leave}>Jogar novamente</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={exitHref !== null} onOpenChange={open => { if (!open) setExitHref(null); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>

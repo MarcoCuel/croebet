@@ -182,7 +182,16 @@ test("fim de partida restaura vencedores empatados e Jogar novamente limpa o sal
   game.players.forEach(p => { p.total = 200; p.status = "stayed"; });
   game.history = [[200, 200]]; game.phase = "over";
   await restore(page, game);
-  await expect(page.getByRole("heading", { name: "Marco e Pessoa venceram!", exact: true })).toBeVisible();
+  const result = page.getByRole("dialog", { name: "Resultado da partida", exact: true });
+  await expect(result).toBeVisible();
+  await expect(result).toContainText("Marco e Pessoa venceram!");
+  await expect(result.getByRole("list", { name: "Classificação final" }).getByRole("listitem")).toHaveCount(2);
+  await expect(result.getByText("200 pts", { exact: true })).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(result).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Ver resultado", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Ver resultado", exact: true }).click();
+  await expect(result).toBeVisible();
   await expect(page.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Jogar novamente", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Número de jogadores" })).toBeVisible();
@@ -451,6 +460,12 @@ test("Vingança deita a primeira carta de cada linha ao passar e mantém o efeit
   await expect(hand.locator("[data-card-sideways]")).toHaveCount(2);
   await expect(hand.getByRole("img", { name: "10", exact: true })).not.toHaveAttribute("data-card-sideways");
   await expect(hand.getByRole("img", { name: "Carta de costas", exact: true })).toHaveCount(0);
+  const horizontal = await hand.getByRole("img", { name: "8", exact: true }).boundingBox();
+  const vertical = await hand.getByRole("img", { name: "10", exact: true }).boundingBox();
+  expect(horizontal).not.toBeNull(); expect(vertical).not.toBeNull();
+  expect(Math.abs(horizontal!.width - vertical!.height)).toBeLessThan(2);
+  expect(Math.abs(horizontal!.height - vertical!.width)).toBeLessThan(2);
+  expect(Math.abs(horizontal!.y + horizontal!.height / 2 - vertical!.y - vertical!.height / 2)).toBeLessThan(2);
   expect((await savedGame(page)).players[0].status).toBe("stayed");
   await page.reload();
   await expect(hand.locator("[data-card-sideways]")).toHaveCount(2);
@@ -471,4 +486,19 @@ test("Flip7 Brutal permite clicar em si mesmo para receber o bônus de 15", asyn
   expect(saved.history).toEqual([[44, 9]]);
   expect(saved.bonusTarget).toBeNull();
   await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
+});
+
+test("resultado final ordena todos os jogadores e preserva pontos negativos no Brutal", async ({ page }) => {
+  const game = scenario([], { mode: "vengeance", brutal: true });
+  game.players[0].total = -5; game.players[1].total = 220;
+  game.players.forEach(p => { p.status = "stayed"; });
+  game.history = [[-5, 220]]; game.phase = "over";
+  await restore(page, game);
+  const result = page.getByRole("dialog", { name: "Resultado da partida", exact: true });
+  await expect(result).toContainText("Pessoa venceu!");
+  const rows = result.getByRole("listitem");
+  await expect(rows.nth(0)).toContainText("Pessoa");
+  await expect(rows.nth(0)).toContainText("220 pts");
+  await expect(rows.nth(1)).toContainText("Marco");
+  await expect(rows.nth(1)).toContainText("-5 pts");
 });
