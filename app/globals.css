@@ -45,6 +45,7 @@
   --color-flip-ink: #171717;
   --color-flip-card: var(--color-control-hover);
   --color-flip-card-back: var(--color-control);
+  --color-flip-card-inset: var(--color-control-hover);
   --color-cover-krepinho: #411031;
   --color-cover-crystal: #231242;
   --color-cover-roulette: #092e33;
@@ -152,6 +153,7 @@
   color-scheme: light;
   --color-flip-card: #fff;
   --color-flip-card-back: #fff;
+  --color-flip-card-inset: #ededed;
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(0 0 0 / 10%);
   --color-accent: #FF2C67;
   --color-background: #fff;
