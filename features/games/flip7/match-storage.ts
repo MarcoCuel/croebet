@@ -1,8 +1,9 @@
 import { cardChoices } from "./vengeance.ts";
 import type { Card, Game } from "./engine";
 import { createDeck, numbers, targets } from "./engine.ts";
+import { validWager, type Wager } from "./wager.ts";
 
-export type SavedMatch = { version: 1; code: string; game: Game };
+export type SavedMatch = { version: 1; code: string; game: Game; wager?: Wager };
 export const matchStorageKey = "croebet:flip7:match";
 const validCode = (code: string) => /^[A-F0-9]{12}$/.test(code);
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -57,6 +58,7 @@ export function decodeMatch(raw: string, code: string): SavedMatch | null {
     if (!(game.bonusChoice == null || (game.mode === "vengeance" && game.brutal && seat(game.bonusChoice)))
       || !(game.bonusTarget == null || (game.mode === "vengeance" && game.brutal && seat(game.bonusTarget)))) return null;
     const result = saved as SavedMatch;
+    if (saved.wager !== undefined && !validWager(saved.wager, result.game)) return null;
     const allCards = [...result.game.deck, ...result.game.discard, ...result.game.players.flatMap(player => player.cards), ...result.game.queue.map(action => action.card), ...(result.game.pending ? [result.game.pending.card] : [])];
     if (allCards.length !== deck.length || new Set(allCards.map(card => card.id)).size !== deck.length) return null;
     const state = result.game;

@@ -40,7 +40,7 @@ Recarregar ou voltar à página recupera a única partida automaticamente e atua
 
 Os códigos identificam partidas salvas somente neste navegador e origem; não são credenciais ou salas online. Limpar os dados do site remove as partidas; outro dispositivo não consegue recuperá-las. A aplicação precisa carregar seus arquivos inicialmente; esta integração não adiciona suporte PWA/offline ao site. Depois de carregado, o motor não depende de requisições para jogar.
 
-Pontos do Flip7 não debitam nem creditam Croins e não atualizam rankings/conquistas globais. A economia dessa modalidade ainda precisa ser definida. Para um futuro modo online com economia compartilhada, regras, aleatoriedade, turnos e resultados deverão ser validados no backend.
+Pontos do Flip7 não são convertidos em Croins e não atualizam rankings/conquistas globais. O modo opcional com entrada em Croins usa o resultado final para distribuir o pote, conforme a seção abaixo. Para um futuro modo online com economia compartilhada, regras, aleatoriedade, turnos e resultados deverão ser validados no backend.
 
 ## Validação
 
@@ -118,3 +118,15 @@ Trocar também vai diretamente à seleção de cartas, sem etapa de escolher par
 O fim da partida abre um diálogo após as animações, com vencedores (incluindo empates) e classificação completa por pontuação decrescente. Pontos negativos são exibidos normalmente. Fechar/Escape permite consultar a mesa; Ver resultado reabre o diálogo. Jogar novamente limpa o snapshot e volta à configuração. Retomar uma partida encerrada reabre o resultado.
 
 A configuração mantém modo, opção Brutal e quantidade de lugares na chave independente `croebet:flip7:setup`. Mudanças são salvas na própria tela, permanecendo após navegação, reload, abandono e Jogar novamente. Partidas existentes fornecem a configuração inicial ao migrar. Dados inválidos ou armazenamento indisponível usam Clássico, dois lugares e Brutal desativado. Nomes e tipos dos participantes não são persistidos nessa preferência.
+
+## Entrada em Croins e pote contra bots
+
+A configuração oferece Jogar com Croins, desativado por padrão. Ao ativar, os demais lugares são preenchidos automaticamente por bots médios; seus nomes continuam editáveis e a quantidade segue de 2 a 12. O modo livre mantém participantes locais e bots. A entrada deve ser um inteiro positivo e caber no saldo. O botão informa o débito antes de começar; saldo e pote (entrada × participantes) aparecem na configuração. Clássico, Vingança e Brutal usam o mesmo modelo.
+
+Somente a pessoa conectada paga da carteira; a contribuição dos bots é simulada. O vencedor recebe todo o pote, incluindo a própria entrada. Empates dividem o pote igualmente entre todos os líderes, inclusive bots; sobras inteiras vão aos vencedores em ordem de lugar. Bots não possuem carteira. A mesa mostra o pote; o resultado mostra entrada, pote, prêmio, resultado líquido e a parcela de cada vencedor. Sem vitória da pessoa, não há crédito nem transação de valor zero. O histórico da carteira registra Entrada e Prêmio com o código da partida.
+
+`wager.ts` mantém validação e rateio puros. `SavedMatch.wager` é opcional e vincula titular e entrada ao código; salvamentos antigos continuam livres. `wager-storage.ts` usa o bloqueio global da demonstração e relê sessão, partida e carteira. O snapshot inicial é salvo antes de debitar; se a gravação da carteira falhar, permanece uma intenção recuperável. A retomada confirma a entrada uma única vez antes de liberar jogadas. Cada jogada com Croins precisa ser salva antes de aparecer; falhas pausam a interação para tentar novamente ou recarregar. Uma aba antiga não pode sobrescrever uma jogada já salva em outra.
+
+Débito e prêmio usam IDs determinísticos no próprio histórico da carteira. O crédito e seu recibo são uma única gravação; reload, reabertura do resultado, chamadas concorrentes e falha ao remover o snapshot não repetem pagamento. Pagamentos com falha podem ser tentados novamente; Jogar novamente fica bloqueado até concluir o resultado, e abandonar uma partida encerrada também tenta concluir o prêmio antes de remover o salvamento. Abandonar em andamento perde a entrada; navegar ou recarregar preserva a partida. Trocar de conta pausa a partida com Croins até o titular retornar.
+
+`tests/flip7-wager.test.mjs` cobre entrada, retomada, todos os modos, vitória de bot, empate, sobras, saldo, titular, conservação da carteira, abandono, concorrência e falhas de gravação no débito e no prêmio. `tests/e2e/flip7-wager.spec.ts` cobre configuração, bots, saldo insuficiente, retomada, decisão final com vitória/empate/derrota, reabertura/reload do resultado e histórico em desktop/mobile.

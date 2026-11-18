@@ -18,12 +18,15 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, Dia
 import { cn } from "@/lib/utils";
 import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
 import { useDemoSession } from "@/features/auth/session-context";
+import { formatBalance } from "@/features/wallet/wallet";
 import { automaticAction, canStay, cardLabel, createGame, isNumber, modeLabel, score, targets, transition } from "./engine";
 import type { Action, Card, Game, GameOptions, Setup } from "./engine";
 import { cardChoices } from "./vengeance";
 import { GOAL } from "./engine";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
-import { matchStorageKey, currentMatch, matchUrl, saveMatch, type SavedMatch } from "./match-storage";
+import { matchStorageKey, currentMatch, matchUrl, readMatch, saveMatch, type SavedMatch } from "./match-storage";
+import { leaveLocalMatch, prepareWagerMatch, saveWagerProgress, startLocalMatch } from "./wager-storage";
+import { wagerPayouts, type Wager } from "./wager";
 
 function Rules({ options }: { options: GameOptions }) {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
@@ -41,7 +44,8 @@ function Rules({ options }: { options: GameOptions }) {
         <li>Ao acabar o baralho, os descartes são embaralhados. Vence quem tiver mais pontos ao fim da rodada em que alguém atingir {GOAL}. Empates dividem a vitória.</li>
       </ol>
       </>}
-      <p className="mt-5 text-xs text-muted">Jogo de Eric Olsen{options.mode === "vengeance" ? " e Alyssa Swatek" : ""}. Modo local: compartilhe o dispositivo. Os pontos desta partida são independentes dos Croins.</p>
+      <p className="mt-5 text-xs text-muted">Com Croins, cada participante coloca a mesma entrada e os vencedores dividem o pote. A entrada dos bots é automática. Abandonar perde a entrada; recarregar mantém a partida. No modo livre, compartilhe o dispositivo.</p>
+      <p className="mt-3 text-xs text-muted">Jogo de Eric Olsen{options.mode === "vengeance" ? " e Alyssa Swatek" : ""}.</p>
     </DialogContent>
   </Dialog>;
 }
@@ -128,24 +132,24 @@ function GameLog({ game }: { game: Game }) {
   })}</ol>;
 }
 
-function ParticipantForm({ player, onSave, onRemove }: { player: Setup | null; onSave: (player: Setup) => void; onRemove: () => void }) {
+function ParticipantForm({ player, botsOnly, onSave, onRemove }: { player: Setup | null; botsOnly: boolean; onSave: (player: Setup) => void; onRemove: () => void }) {
   const [name, setName] = useState(player?.name ?? "");
-  const [kind, setKind] = useState<"human" | "normal">(player?.kind === "human" || !player ? "human" : "normal");
+  const [kind, setKind] = useState<"human" | "normal">(botsOnly ? "normal" : player?.kind === "human" || !player ? "human" : "normal");
   return <form className="mt-5 space-y-4" onSubmit={event => {
     event.preventDefault();
     if (name.trim()) onSave({ name: name.trim(), kind });
   }}>
     <Field>Nome<Input value={name} onChange={event => setName(event.target.value)} maxLength={24} required autoComplete="off" /></Field>
-    <Field>Tipo<Select value={kind} onChange={event => setKind(event.target.value as "human" | "normal")}><option value="human">Pessoa</option><option value="normal">Bot</option></Select></Field>
+    {!botsOnly && <Field>Tipo<Select value={kind} onChange={event => setKind(event.target.value as "human" | "normal")}><option value="human">Pessoa</option><option value="normal">Bot</option></Select></Field>}
     <div className="flex flex-wrap justify-end gap-2 pt-2">
-      {player && <Button variant="ghost" className="mr-auto" onClick={onRemove}>Remover</Button>}
+      {player && !botsOnly && <Button variant="ghost" className="mr-auto" onClick={onRemove}>Remover</Button>}
       <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
       <Button type="submit" disabled={!name.trim()}>{player ? "Salvar" : "Adicionar"}</Button>
     </div>
   </form>;
 }
 
-function ParticipantSlot({ index, player, onChange }: { index: number; player: Setup | null; onChange: (player: Setup | null) => void }) {
+function ParticipantSlot({ index, player, botsOnly, onChange }: { index: number; player: Setup | null; botsOnly: boolean; onChange: (player: Setup | null) => void }) {
   const [open, setOpen] = useState(false);
   return <div className="flex min-w-0 flex-col items-center gap-2">
     <Dialog open={open} onOpenChange={setOpen}>
@@ -156,15 +160,20 @@ function ParticipantSlot({ index, player, onChange }: { index: number; player: S
       </DialogTrigger>
       <DialogContent aria-describedby={undefined}>
         <DialogTitle>{player ? "Editar jogador" : "Adicionar jogador"}</DialogTitle>
-        <ParticipantForm player={player} onSave={value => { onChange(value); setOpen(false); }} onRemove={() => { onChange(null); setOpen(false); }} />
+        <ParticipantForm player={player} botsOnly={botsOnly} onSave={value => { onChange(value); setOpen(false); }} onRemove={() => { onChange(null); setOpen(false); }} />
       </DialogContent>
     </Dialog>
     <span className={cn("w-full truncate text-center text-xs font-medium", !player && "text-muted")} title={player?.name}>{player?.name ?? "Disponível"}</span>
   </div>;
 }
 
-function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], options: GameOptions) => void; initialError: string }) {
-  const { username, openLogin } = useDemoSession();
+function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], options: GameOptions, stake: number) => Promise<void>; initialError: string }) {
+  const { username, balance, openLogin } = useDemoSession();
+  const [withCroins, setWithCroins] = useState(false);
+  const [stake, setStake] = useState("50");
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
+  const amount = Number(stake);
   const [preferences] = useState(readSetupPreferences);
   const [count, setCount] = useState(preferences.count);
   const [options, setOptions] = useState<GameOptions>({ mode: preferences.mode, brutal: preferences.brutal });
@@ -173,11 +182,13 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
     catch { toast.error("Não foi possível salvar as configurações do Flip7.", { id: "flip7-setup-storage" }); }
   }, [count, options]);
   const [opponents, setOpponents] = useState<(Setup | null)[]>(Array(11).fill(null));
-  const selected = opponents.slice(0, count - 1);
+  const selected = opponents.slice(0, count - 1).map((player, i) => withCroins ? { name: player?.name ?? `Bot ${i + 1}`, kind: "normal" as const } : player);
   const ready = selected.every(player => player !== null);
+  const validStake = !withCroins || (Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(amount * count));
+  const insufficient = withCroins && validStake && !!username && amount > balance;
   return (
     <div className="mx-auto flex min-h-96 w-full max-w-xl flex-col justify-center py-6 sm:py-12">
-      <Surface>
+      <Surface><fieldset disabled={starting} className="min-w-0">
         <Field className="mb-4 min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
           Versão
           <Select aria-label="Versão do Flip7" value={options.mode} onChange={event => setOptions(previous => ({ ...previous, mode: event.target.value as GameOptions["mode"] }))}>
@@ -194,19 +205,36 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
             {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
           </Select>
         </Field>
+        <Field className="mt-4 grid-cols-[1fr_auto] items-center gap-4 text-base">
+          Jogar com Croins
+          <Switch checked={withCroins} onCheckedChange={setWithCroins} />
+        </Field>
+        {withCroins && <div className="mt-4 space-y-3">
+          <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
+          <dl className="flex flex-wrap justify-between gap-3 text-sm">
+            <div><dt className="text-muted">Seu saldo</dt><dd className="font-medium tabular-nums">{formatBalance.format(balance)} Croins</dd></div>
+            <div className="text-right"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-accent tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
+          </dl>
+          {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
+        </div>}
         <div className="mt-7 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5" aria-label="Lugares da partida">
           <div className="flex min-w-0 flex-col items-center gap-2">
             <Avatar className="size-16 border border-brand" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
             <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
           </div>
-          {selected.map((player, i) => <ParticipantSlot key={i} index={i + 1} player={player} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
+          {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
         </div>
-      </Surface>
+      </fieldset></Surface>
       <div className="mt-5 grid gap-2">
-        <Button disabled={!!username && !ready} onClick={() => {
+        <Button loading={starting} disabled={starting || (!!username && (!ready || !validStake || insufficient))} onClick={async () => {
           if (!username) openLogin();
-          else if (ready) onStart([{ name: username, kind: "human" }, ...selected.filter((player): player is Setup => player !== null)], options);
-        }}>{username ? "Começar partida" : "Entrar para jogar"}</Button>
+          else if (ready && validStake && !insufficient && !startingRef.current) {
+            startingRef.current = true;
+            setStarting(true);
+            try { await onStart([{ name: username, kind: "human" }, ...selected.filter((player): player is Setup => player !== null)], options, withCroins ? amount : 0); }
+            finally { startingRef.current = false; setStarting(false); }
+          }
+        }}>{username ? withCroins && validStake ? `Pagar ${formatBalance.format(amount)} Croins e jogar` : "Começar partida" : "Entrar para jogar"}</Button>
         <Rules options={options} />
       </div>
       {initialError && <p role="alert" className="mt-4 text-sm text-destructive">{initialError}</p>}
@@ -218,6 +246,7 @@ type CardMovement = { card: Card; target: number | null; origin: { left: number;
 
 export default function Flip7Game() {
   const router = useRouter();
+  const { username, sessionReady, openLogin } = useDemoSession();
   const { registerBackHandler } = usePageBack();
   const [exitHref, setExitHref] = useState<string | null>(null);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
@@ -227,6 +256,15 @@ export default function Flip7Game() {
   const [restored] = useState(currentMatch);
   const [game, setGame] = useState<Game | null>(restored.match?.game ?? null);
   const [matchCode, setMatchCode] = useState<string | null>(restored.match?.code ?? null);
+  const [wager, setWager] = useState<Wager | undefined>(restored.match?.wager);
+  const [payment, setPayment] = useState<{ code: string; phase: Game["phase"] } | null>(null);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentAttempt, setPaymentAttempt] = useState(0);
+  const [externalChange, setExternalChange] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
+  const ownsWager = !wager || wager.username.toLowerCase() === username?.toLowerCase();
+  const wagerReady = !wager || (ownsWager && payment?.code === matchCode && (game?.phase !== "over" || payment.phase === "over") && !paymentError && !externalChange);
   const matchCodeRef = useRef(matchCode);
   const hasMatch = game !== null;
   useEffect(() => {
@@ -251,6 +289,26 @@ export default function Flip7Game() {
   const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
   useEffect(() => {
+    if (!wager) return;
+    const changed = (event: StorageEvent) => {
+      if (event.key === matchStorageKey || event.key === null) setExternalChange(true);
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [wager]);
+  useEffect(() => {
+    if (!wager || !matchCode || !sessionReady || !ownsWager) return;
+    let cancelled = false;
+    const phase = game?.phase;
+    if (!phase) return;
+    prepareWagerMatch(matchCode).then(() => {
+      if (!cancelled) { setPayment({ code: matchCode, phase }); setPaymentError(""); }
+    }).catch(error => {
+      if (!cancelled) setPaymentError(error instanceof Error ? error.message : "Não foi possível confirmar a aposta.");
+    });
+    return () => { cancelled = true; };
+  }, [wager, matchCode, game?.phase, sessionReady, ownsWager, paymentAttempt]);
+  useEffect(() => {
     if (game?.phase !== "over" || flight || movingCards) return;
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
     return () => window.clearTimeout(timeout);
@@ -266,6 +324,8 @@ export default function Flip7Game() {
   }, [restored]);
   const persist = useCallback((next: Game, code: string) => {
     try {
+      const saved = readMatch();
+      if (saved?.code !== code || saved.wager) throw new Error("A partida mudou em outra aba.");
       saveMatch({ version: 1, code, game: next });
       saveErrorShown.current = false;
     } catch {
@@ -274,18 +334,31 @@ export default function Flip7Game() {
     }
   }, []);
   const openMatch = (match: SavedMatch) => {
-    persist(match.game, match.code);
     matchCodeRef.current = match.code;
     gameRef.current = match.game;
     matchUrl(match.code);
     setMatchCode(match.code);
+    setWager(match.wager);
+    setPayment(null);
+    setPaymentError("");
+    setExternalChange(false);
     setGame(match.game);
   };
-  const send = useCallback((action: Action) => {
+  const send = useCallback(async (action: Action) => {
     const current = gameRef.current;
-    if (!current || locked.current) return;
+    if (!current || locked.current || !wagerReady || leavingRef.current) return;
     const next = transition(current, action);
     if (next === current) return;
+    if (wager && matchCodeRef.current) {
+      locked.current = true;
+      try { await saveWagerProgress(matchCodeRef.current, current, next); }
+      catch (error) {
+        const message = error instanceof Error ? error.message : "Não foi possível salvar a jogada. Tente novamente.";
+        toast.error(message);
+        setPaymentError(message);
+        return;
+      } finally { locked.current = false; }
+    }
     setSelectedCards([]);
     setPresentationBefore(current);
     const captureHand = (target: number) => {
@@ -324,13 +397,17 @@ export default function Flip7Game() {
       if (movements.length) { locked.current = true; setMovingCards(movements); }
     }
     setSwapPreview(null);
-    if (matchCodeRef.current) persist(next, matchCodeRef.current);
+    if (!wager && matchCodeRef.current) persist(next, matchCodeRef.current);
     gameRef.current = next;
     setGame(next);
-  }, [persist, swapPreview]);
-  const leave = () => {
-    try { window.localStorage.removeItem(matchStorageKey); }
-    catch { toast.error("Não foi possível abandonar a partida. Tente novamente."); return false; }
+  }, [persist, swapPreview, wager, wagerReady]);
+  const leave = async () => {
+    if (!matchCodeRef.current || leavingRef.current || locked.current) return false;
+    leavingRef.current = true;
+    setLeaving(true);
+    try { await leaveLocalMatch(matchCodeRef.current); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível abandonar a partida. Tente novamente."); return false; }
+    finally { leavingRef.current = false; setLeaving(false); }
     gameRef.current = null;
     locked.current = false;
     setFlight(null);
@@ -341,6 +418,10 @@ export default function Flip7Game() {
     setResultDismissed(false);
     setResultReady(false);
     setMatchCode(null);
+    setWager(undefined);
+    setPayment(null);
+    setPaymentError("");
+    setExternalChange(false);
     matchCodeRef.current = null;
     matchUrl(null);
     return true;
@@ -438,19 +519,33 @@ export default function Flip7Game() {
   }, [movingCards]);
 
   useEffect(() => {
-    if (!game || flight || movingCards || exitHref || game.phase === "over") return;
+    if (!game || flight || movingCards || exitHref || game.phase === "over" || !wagerReady || leaving) return;
     const action: Action | null = game.phase === "summary" ? { type: "next" } : automaticAction(game);
     if (!action) return;
     const initial = action.type === "draw" && !game.players[game.turn].hasDrawn;
     const timer = setTimeout(() => send(action), game.phase === "summary" ? 1600 : initial ? 60 : game.forced ? 100 : 220);
     return () => clearTimeout(timer);
-  }, [game, flight, movingCards, exitHref, send]);
+  }, [game, flight, movingCards, exitHref, send, wagerReady, leaving]);
 
-  if (!game) return <SetupScreen initialError={restored.error} onStart={(setup, options) => {
+  if (!game) return <SetupScreen initialError={restored.error} onStart={async (setup, options, stake) => {
     const next = createGame(setup, Math.floor(Math.random() * 4294967296), options);
     const code = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
-    openMatch({ version: 1, code, game: next });
+    const match: SavedMatch = { version: 1, code, game: next, ...(stake ? { wager: { username: setup[0].name, stake } } : {}) };
+    try { openMatch(await startLocalMatch(match)); }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a partida.");
+      // A failed wallet write leaves the saved intent available for retry, without a second entry.
+      try { const saved = readMatch(); if (saved?.code === code) openMatch(saved); } catch { /* The setup remains available. */ }
+    }
   }} />;
+  if (wager && externalChange) return <Surface className="mx-auto max-w-xl space-y-4"><h2 className="font-semibold">Partida atualizada em outra aba</h2><p className="text-sm text-muted">Recarregue para continuar do último estado salvo.</p><Button onClick={() => window.location.reload()}>Recarregar partida</Button></Surface>;
+  if (wager && (!ownsWager || !wagerReady) && game.phase !== "over") return <Surface className="mx-auto max-w-xl space-y-4">
+    <h2 className="font-semibold">Partida com Croins</h2>
+    <p role={paymentError ? "alert" : "status"} className="text-sm text-muted">{!ownsWager ? `Entre como ${wager.username} para retomar esta partida.` : paymentError || "Confirmando sua entrada…"}</p>
+    {!username && <Button onClick={openLogin}>Entrar para continuar</Button>}
+    {ownsWager && paymentError && <div className="flex flex-wrap gap-2"><Button onClick={() => setPaymentAttempt(value => value + 1)}>Tentar novamente</Button><Button variant="secondary" onClick={() => window.location.reload()}>Recarregar partida</Button><Button variant="secondary" loading={leaving} onClick={() => setExitHref("/jogos")}>Abandonar partida</Button></div>}
+    <Dialog open={exitHref !== null} onOpenChange={open => { if (!open) setExitHref(null); }}><DialogContent><DialogTitle>Abandonar partida?</DialogTitle><DialogDescription>A entrada de {formatBalance.format(wager.stake)} Croins não será devolvida se já tiver sido paga.</DialogDescription><div className="mt-6 flex justify-end gap-2"><DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose><Button variant="destructive" loading={leaving} onClick={async () => { const href = exitHref; if (await leave()) { setExitHref(null); if (href) router.push(href); } }}>Abandonar partida</Button></div></DialogContent></Dialog>
+  </Surface>;
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
@@ -461,6 +556,7 @@ export default function Flip7Game() {
   const maxScore = Math.max(...game.players.map(player => player.total));
   const winners = game.players.filter(player => player.total === maxScore);
   const standings = [...game.players].sort((a, b) => b.total - a.total);
+  const payouts = wager && game.phase === "over" ? wagerPayouts(game, wager.stake) : null;
   const actionLabel = game.pending ? cardLabel(game.pending.card) : "";
   const choices = cardChoices(game);
   const selectingCards = !flight && !movingCards && human && game.pending?.resolving && game.pending.card.type === "swap";
@@ -518,7 +614,11 @@ export default function Flip7Game() {
       </div>
       <div className={cn("grid items-start overflow-x-clip transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
         <div className="min-w-0">
-          <Badge variant="secondary" className="mb-4">{modeLabel(game)}</Badge>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <Badge variant="secondary">{modeLabel(game)}</Badge>
+            {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-accent tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
+            {wager && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitHref("/jogos"); }}>Abandonar</Button>}
+          </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
               <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-control-hover font-sans after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:inset-shadow-flip-card sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
@@ -615,27 +715,40 @@ export default function Flip7Game() {
           <DialogDescription className="mt-3 text-lg font-semibold text-accent">
             {winners.map(player => player.name).join(" e ")} {winners.length > 1 ? "venceram" : "venceu"}!
           </DialogDescription>
+          {wager && payouts && <div className="mt-4 space-y-3 rounded-lg bg-control p-4 text-sm" aria-label="Resultado em Croins">
+            <dl className="grid grid-cols-2 gap-3">
+              <div><dt className="text-muted">Sua entrada</dt><dd className="font-medium tabular-nums">{formatBalance.format(wager.stake)} Croins</dd></div>
+              <div><dt className="text-muted">Pote total</dt><dd className="font-medium tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</dd></div>
+              <div><dt className="text-muted">Seu prêmio</dt><dd className="font-medium tabular-nums">{formatBalance.format(payouts[0])} Croins</dd></div>
+              <div><dt className="text-muted">Seu resultado</dt><dd className={cn("font-semibold tabular-nums", payouts[0] > wager.stake ? "text-accent" : "text-muted")}>{payouts[0] > wager.stake ? "+" : ""}{formatBalance.format(payouts[0] - wager.stake)} Croins</dd></div>
+            </dl>
+            {!wagerReady && <p role={paymentError ? "alert" : "status"} className="text-muted">{!ownsWager ? `Entre como ${wager.username} para concluir a partida.` : paymentError || "Confirmando o resultado em Croins…"}</p>}
+            {!username && <Button size="sm" onClick={openLogin}>Entrar para continuar</Button>}
+            {ownsWager && paymentError && <Button size="sm" onClick={() => setPaymentAttempt(value => value + 1)}>Tentar pagamento novamente</Button>}
+            {wagerReady && payouts[0] > 0 && <p role="status" className="text-muted">Prêmio creditado no seu saldo.</p>}
+          </div>}
           <ol aria-label="Classificação final" className="mt-5 max-h-[50dvh] space-y-2 overflow-y-auto" data-lenis-prevent>
             {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-control p-3 text-sm", player.total === maxScore && "bg-selected")}>
               <span className="w-6 shrink-0 text-muted tabular-nums">{standings.findIndex(p => p.total === player.total) + 1}º</span>
               <span className="min-w-0 flex-1 break-words font-medium">{player.name}</span>
+              {payouts && payouts[game.players.indexOf(player)] > 0 && <span className="text-xs font-medium text-accent tabular-nums">{formatBalance.format(payouts[game.players.indexOf(player)])} Croins</span>}
               <span className="shrink-0 font-semibold tabular-nums">{player.total} pts</span>
             </li>)}
           </ol>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Fechar</Button></DialogClose>
-            <Button onClick={leave}>Jogar novamente</Button>
+            <Button loading={leaving} disabled={!wagerReady || leaving} onClick={leave}>Jogar novamente</Button>
           </div>
         </DialogContent>
       </Dialog>
       <Dialog open={exitHref !== null} onOpenChange={open => { if (!open) setExitHref(null); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">A partida será encerrada e o progresso será perdido.</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">{wager && game.phase !== "over" ? `A partida será encerrada e sua entrada de ${formatBalance.format(wager.stake)} Croins não será devolvida.` : "A partida será encerrada e o progresso será perdido."}</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
-            <Button variant="destructive" onClick={() => {
-              if (exitHref && leave()) {
+            <Button variant="destructive" loading={leaving} disabled={leaving || !ownsWager} onClick={async () => {
+              if (exitHref && await leave()) {
                 const href = exitHref;
                 setExitHref(null);
                 router.push(href);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronLeft, Gift, Menu } from "lucide-react";
+import { ChevronLeft, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useDemoSession } from "@/features/auth/session-context";
@@ -8,17 +8,7 @@ import { AccountMenu } from "@/features/auth/account-menu";
 import { Balance } from "@/features/wallet/balance";
 import { RedeemButton } from "@/features/wallet/redeem-button";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
 import { useSiteConfig } from "@/features/admin/site-config";
@@ -99,8 +89,6 @@ export function Topbar({
   const {
     username,
     balance,
-    claimDaily,
-    dailyClaimed,
     openLogin,
     openRegister,
   } = useDemoSession();
@@ -129,7 +117,7 @@ export function Topbar({
           <Wordmark />
         </Link>
         {isInternalPage && (
-          <Button asChild variant="ghost" size="icon" className="shrink-0">
+          <Button asChild variant="ghost" size="icon" className="hidden shrink-0 md:inline-flex">
             <Link
               href={backLink.href}
               aria-label={backLink.label}
@@ -210,42 +198,8 @@ export function Topbar({
                 <Balance value={balance} />
               </Link>
             </Button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="hidden bg-linear-to-t from-brand/30 to-background md:inline-flex"
-                  aria-label="Resgatar bônus diário"
-                  onClick={claimDaily}
-                  disabled={dailyClaimed}
-                >
-                  <Gift className="size-4" aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {dailyClaimed
-                  ? "Bônus diário resgatado"
-                  : "Resgatar bônus diário"}
-              </TooltipContent>
-            </Tooltip>
             <div className="hidden md:block">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    aria-label="Notificações"
-                  >
-                    <Bell className="size-4" aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 p-2">
-                  <DropdownMenuLabel>
-                    Nenhuma notificação por enquanto.
-                  </DropdownMenuLabel>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <NotificationsMenu />
             </div>
             <AccountMenu name={username} />
           </div>

@@ -124,7 +124,7 @@ Os testes de navegador usam o Chrome instalado. Instale-o ou adapte o projeto Pl
 
 ## Jogos independentes — Flip7
 
-O primeiro jogo funcional foi integrado em `/jogos/flip7`. Seu módulo em `features/games/flip7` separa motor de regras puro, interface e carregamento dinâmico; a plataforma compõe a página e continua responsável pela navegação. O motor não importa sessão ou carteira. Partidas locais compartilham o dispositivo com bots opcionais, sem movimentar Croins. Detalhes da referência, regras, limites e testes estão em `docs/flip7.md`.
+O primeiro jogo funcional foi integrado em `/jogos/flip7`. Seu módulo em `features/games/flip7` separa motor de regras puro, interface e carregamento dinâmico; a plataforma compõe a página e continua responsável pela navegação. O motor não importa sessão ou carteira. Partidas livres compartilham o dispositivo com bots opcionais; o modo com Croins aceita somente a conta conectada contra bots, com entrada fixa, contribuições simuladas dos bots e rateio do pote entre os vencedores. A integração de carteira fica em `wager-storage.ts`, fora do motor, com recibos determinísticos de entrada/prêmio e retomada sem cobrança ou crédito duplicado. Detalhes da referência, regras, limites e testes estão em `docs/flip7.md`.
 
 ## Administração local
 

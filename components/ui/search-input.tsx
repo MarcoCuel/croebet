@@ -21,7 +21,7 @@ export function SearchInput({
         type="search"
         aria-label={label}
         className={cn(
-          "rounded-panel border-transparent bg-control pl-10",
+          "rounded-panel pl-10",
           className,
         )}
       />

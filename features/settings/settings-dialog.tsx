@@ -204,7 +204,7 @@ function AccountIdentity() {
           value={username ?? ""}
           readOnly
           autoComplete="username"
-          className="border-transparent bg-control text-sm"
+          className="text-sm"
         />
       </Field>
       <Button
