@@ -86,7 +86,9 @@
 
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(255 255 255 / 10%);
   --inset-shadow-primary-button: inset 0 -0.125rem 0.25rem
-    rgb(255 255 255 / 26%);
+    rgb(255 255 255 / 30%);
+  --inset-shadow-primary-coin: inset 0 -0.125rem 0.25rem
+    rgb(255 255 255 / 30%), inset 0 0 0 0.125rem rgb(255 255 255 / 30%);
   --background-image-primary-button: linear-gradient(
     to bottom,
     transparent 40%,
