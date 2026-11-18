@@ -416,11 +416,11 @@ export default function Flip7Game() {
   }, [movingCards]);
 
   useEffect(() => {
-    if (!game || flight || movingCards || exitHref || game.phase !== "playing") return;
-    const action = automaticAction(game);
+    if (!game || flight || movingCards || exitHref || game.phase === "over") return;
+    const action: Action | null = game.phase === "summary" ? { type: "next" } : automaticAction(game);
     if (!action) return;
     const initial = action.type === "draw" && !game.players[game.turn].hasDrawn;
-    const timer = setTimeout(() => send(action), initial ? 60 : game.forced ? 100 : 220);
+    const timer = setTimeout(() => send(action), game.phase === "summary" ? 1600 : initial ? 60 : game.forced ? 100 : 220);
     return () => clearTimeout(timer);
   }, [game, flight, movingCards, exitHref, send]);
 
@@ -485,7 +485,7 @@ export default function Flip7Game() {
             <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
-          {game.phase !== "playing" && !flight && !movingCards && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight || !!movingCards}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
+          {game.phase === "over" && !flight && !movingCards && <Button onClick={leave}>Jogar novamente</Button>}
         </div>
       </div>
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
@@ -566,7 +566,7 @@ export default function Flip7Game() {
                   <div className="grid max-w-[calc(var(--hand-columns)*var(--hand-max)+(var(--hand-columns)-1)*0.5rem)] grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))] gap-2">{numeric.map(renderCard)}</div>
                 </div>
                 {!flight && !movingCards && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={game.pending.card.type === "steal" ? `${player.name} vai roubar` : game.pending.card.type === "remove" ? `${player.name} escolhe a carta para descartar` : `Escolher ${player.name}`} title={game.pending.card.type === "steal" ? `${player.name} receberá a carta roubada` : game.pending.card.type === "remove" ? `${player.name} poderá escolher uma carta de qualquer mão` : `Escolher ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "target", target: i })}>{game.pending.card.type === "steal" ? <span>{player.name} vai roubar</span> : game.pending.card.type === "remove" ? <span>{player.name} escolhe o descarte</span> : <span className="sr-only">Escolher {player.name}</span>}</Button>}
-                {!flight && !movingCards && game.bonusChoice != null && human && game.bonusChoice !== i && <Button variant="ghost" aria-label={`Tirar 15 pontos de ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "bonus", target: i })}><span className="sr-only">Tirar 15 pontos de {player.name}</span></Button>}
+                {!flight && !movingCards && game.bonusChoice != null && human && <Button variant="ghost" aria-label={game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "bonus", target: game.bonusChoice === i ? null : i })}><span className="sr-only">{game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`}</span></Button>}
               </section>;
             })}
           </div>

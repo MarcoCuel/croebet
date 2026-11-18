@@ -110,3 +110,5 @@ Por decisão de interação da Croebet, quem compra Roubar ou Descartar resolve 
 No Vingança, passar deita com rotação de 90 graus a primeira carta numérica e o primeiro modificador de cada mão. A transformação cabe na área da carta e respeita movimento reduzido. A indicação deriva do status salvo, permanece após reload e não impede roubo, troca ou descarte. Cartas estouradas continuam usando o verso.
 
 O Zero automatiza a compra na vez do seu portador, preservando a ordem de turnos. A interface aguarda a chegada de cada carta e pausa para escolhas de ação; Comprar/Parar ficam ocultos enquanto o Zero torna a compra obrigatória. Remover o Zero restaura a escolha normal. Reload retoma a automação sem repetir compras já salvas.
+
+A passagem de rodada é automática: após concluir entregas e transferências, o resumo fica visível por 1,6 segundo e a interface envia `next`. O timer é cancelado ao desmontar, ao abrir a confirmação de saída ou ao mudar o estado. Retomar um resumo após reload também inicia a próxima rodada automaticamente. Partidas encerradas mantêm Jogar novamente e não avançam.

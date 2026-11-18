@@ -172,7 +172,7 @@ test("estouro vira a mão, encerra a rodada e próxima rodada preserva o placar"
   expect(summary.players.map(p => p.total)).toEqual([0, 9]);
   await page.reload();
   expect(await savedGame(page)).toEqual(summary);
-  await page.getByRole("button", { name: "Próxima rodada", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
   await expect.poll(async () => (await savedGame(page)).round).toBe(2);
   expect((await savedGame(page)).players.map(p => p.total)).toEqual([0, 9]);
 });
@@ -390,7 +390,7 @@ test("Flip7 Brutal retoma a escolha e permite tirar 15 de quem já estourou", as
   await expect(page.getByRole("button", { name: "Ganhar 15 pontos", exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Tirar 15 pontos de Pessoa", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
   const saved = await savedGame(page);
   expect(saved.history).toEqual([[29, -15]]);
   await page.reload();
@@ -454,4 +454,20 @@ test("Vingança deita a primeira carta de cada linha ao passar e mantém o efeit
   await page.reload();
   await expect(hand.locator("[data-card-sideways]")).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("Flip7 Brutal permite clicar em si mesmo para receber o bônus de 15", async ({ page }) => {
+  let game = scenario([], { mode: "vengeance", brutal: true });
+  for (const value of [1, 2, 3, 4, 5, 6]) {
+    const index = game.deck.findIndex(c => c.type === "number" && c.value === value);
+    game.players[0].cards.push(game.deck.splice(index, 1)[0]);
+  }
+  game.deck.push(game.players[0].cards.pop()!);
+  game = transition(game, { type: "draw" });
+  await restore(page, game);
+  await page.getByRole("button", { name: "Ganhar 15 pontos para Marco", exact: true }).click();
+  const saved = await savedGame(page);
+  expect(saved.history).toEqual([[44, 9]]);
+  expect(saved.bonusTarget).toBeNull();
+  await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
 });
