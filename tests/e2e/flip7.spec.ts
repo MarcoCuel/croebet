@@ -612,3 +612,25 @@ test("configuração do Flip7 preserva modo, Brutal e lugares ao sair e recarreg
   await expect(page.getByRole("switch", { name: "Modo Brutal" })).not.toBeChecked();
 
 });
+
+
+for (const type of ["four", "one"] as const) {
+  test(`${type === "four" ? "Compre 4" : "Só mais uma"} permanece na mão até concluir o efeito`, async ({ page }) => {
+    const game = scenario([[type], ["number", 1], ["number", 2], ["number", 3], ["number", 4]], { mode: "vengeance", brutal: false });
+    await restore(page, game);
+    await page.getByRole("button", { name: "Comprar", exact: true }).click();
+    await page.getByRole("button", { name: "Escolher Pessoa", exact: true }).click();
+    const held = page.locator('[data-player-hand="1"] [data-resolving-action="true"]');
+    await expect(held).toBeVisible();
+    if (type === "four") {
+      await expect.poll(async () => (await savedGame(page)).forced?.remaining ?? 0).toBeLessThanOrEqual(2);
+      await expect(held).toBeVisible();
+    }
+    await expect.poll(async () => (await savedGame(page)).forced).toBeNull();
+    await expect(held).toBeVisible();
+    await expect(held).toHaveCount(0);
+    const saved = await savedGame(page);
+    expect(saved.players[1].cards.filter(card => card.type === "number")).toHaveLength(type === "four" ? 5 : 2);
+    if (type === "one") expect(saved.players[1].status).toBe("stayed");
+  });
+}

@@ -130,3 +130,8 @@ Somente a pessoa conectada paga da carteira; a contribuição dos bots é simula
 Débito e prêmio usam IDs determinísticos no próprio histórico da carteira. O crédito e seu recibo são uma única gravação; reload, reabertura do resultado, chamadas concorrentes e falha ao remover o snapshot não repetem pagamento. Pagamentos com falha podem ser tentados novamente; Jogar novamente fica bloqueado até concluir o resultado, e abandonar uma partida encerrada também tenta concluir o prêmio antes de remover o salvamento. Abandonar em andamento perde a entrada; navegar ou recarregar preserva a partida. Trocar de conta pausa a partida com Croins até o titular retornar.
 
 `tests/flip7-wager.test.mjs` cobre entrada, retomada, todos os modos, vitória de bot, empate, sobras, saldo, titular, conservação da carteira, abandono, concorrência e falhas de gravação no débito e no prêmio. `tests/e2e/flip7-wager.spec.ts` cobre configuração, bots, saldo insuficiente, retomada, decisão final com vitória/empate/derrota, reabertura/reload do resultado e histórico em desktop/mobile.
+
+
+### Apresentação das compras forçadas
+
+Em Vingança, Compre 4 e Só mais uma permanecem visíveis na mão do destinatário durante todo o efeito. Após a última entrega (incluindo a parada ou o estouro), há uma pausa de 0,5 segundo antes da animação de descarte. A próxima ação e o resultado aguardam essa saída; movimento reduzido elimina a pausa e a animação. Essa retenção pertence apenas à apresentação, sem alterar pontuação, baralho ou snapshot do motor. Ao retomar uma compra forçada após reload, a carta visual é recuperada pelo histórico validado da partida. Congelar e Compre 3 do Clássico continuam seguindo suas regras de permanência na mão.
