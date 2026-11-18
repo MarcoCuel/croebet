@@ -9,7 +9,7 @@ async function signIn(page: Page, username = "Arquitetura") {
   await expect(dialog).not.toBeVisible();
 }
 
-test("rotas mantêm conteúdo, imagens, responsividade e Canvas da home", async ({
+test("rotas mantêm conteúdo, imagens, responsividade e conteúdo principal sem Canvas", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -30,7 +30,7 @@ test("rotas mantêm conteúdo, imagens, responsividade e Canvas da home", async 
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
-    await expect(page.getByRole("main").locator("canvas")).toHaveCount(path === "/" ? 1 : 0);
+    await expect(page.getByRole("main").locator("canvas")).toHaveCount(0);
     await expect
       .poll(() =>
         page

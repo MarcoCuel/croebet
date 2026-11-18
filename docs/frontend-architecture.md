@@ -92,7 +92,7 @@ O estado de navegação é independente da carteira. Os diálogos utilizam porta
 
 ## 3D sob demanda
 
-A home utiliza `CroinBanner` no card de resgate diário: uma moeda procedural com aro e emblema C nas duas faces, carregada por `next/dynamic` com SSR desativado somente quando visível. A decoração não captura eventos ou foco e falhas de WebGL não afetam o resgate. `CroinPreview` continua disponível para visualização interativa e pode ser importado por uma página servidor, pois ele mesmo estabelece a fronteira cliente:
+O convite de cadastro na sidebar utiliza `CroinBanner`: uma moeda procedural com aro e emblema C nas duas faces, carregada por `next/dynamic` com SSR desativado somente quando visível. A decoração não captura eventos ou foco e falhas de WebGL não afetam o cadastro. O card de resgate diário não utiliza o modelo 3D. `CroinPreview` continua disponível para visualização interativa e pode ser importado por uma página servidor, pois ele mesmo estabelece a fronteira cliente:
 
 ```tsx
 import { CroinPreview } from "@/three/scenes/croin-preview";

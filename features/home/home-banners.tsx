@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
-import { CroinBanner } from "@/three/scenes/croin-banner";
 
 function Banner({ className, ...props }: ComponentProps<"div">) {
   return (
@@ -74,7 +73,6 @@ export function HomeBanners() {
         )}
       </Banner>
       <Banner className="bg-linear-to-b from-reward-start to-reward-end">
-        <CroinBanner />
         <Badge className="tabular-nums">
           {dailyClaimed ? `Próximo resgate em ${countdown}` : "Disponível"}
         </Badge>
