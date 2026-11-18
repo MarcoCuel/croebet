@@ -17,7 +17,7 @@ const contentVariants = cva(
     variants: {
       variant: {
         default:
-          "top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-panel p-5 sm:p-6",
+          "top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-panel p-8",
         drawer:
           "inset-y-0 left-0 h-dvh w-[min(19rem,calc(100%-2rem))] bg-chrome p-4",
       },

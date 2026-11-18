@@ -3,7 +3,7 @@
 import { ChevronDown, History, Coins, Settings, Moon, LogOut } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +31,7 @@ export function AccountMenu({
   sidebar?: boolean;
   onOpenBalance: () => void;
 }) {
-  const { signOut } = useDemoSession();
+  const { signOut, avatar } = useDemoSession();
   const { theme, setTheme } = useTheme();
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
@@ -52,6 +52,7 @@ export function AccountMenu({
             aria-label={"Conta de " + name}
           >
             <Avatar aria-hidden="true">
+              {avatar && <AvatarImage src={avatar} alt="" />}
               <AvatarFallback>
                 {Array.from(name)[0]?.toLocaleUpperCase("pt-BR")}
               </AvatarFallback>

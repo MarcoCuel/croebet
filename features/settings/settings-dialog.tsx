@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { AvatarSettings } from "@/features/settings/avatar-settings";
 import { useDemoSession } from "@/features/auth/session-context";
 import { useTheme } from "@/features/theme/theme-provider";
 import { WalletHistory } from "@/features/wallet/wallet-history";
@@ -107,6 +108,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
         )}
         {section === "Conta" && (
           <div className="grid gap-6">
+            <AvatarSettings />
             <Field className="font-normal text-muted">Nome de usuário<Input value={username ?? ""} readOnly autoComplete="username" className="border-transparent bg-control text-sm" /></Field>
             <div className="border-t border-border pt-6">
               <Button variant="secondary" onClick={() => { onClose(); signOut(); }}>Sair da conta</Button>

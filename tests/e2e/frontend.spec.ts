@@ -226,9 +226,9 @@ test("apostas aceitam sim ou não, opções e minutos sem odds", async ({ page }
   await confirm();
   await expect(history.getByText("Não", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "À noite", exact: true }).click();
+  await page.getByRole("button", { name: "Até 1 hora", exact: true }).click();
   await confirm();
-  await expect(history.getByText("À noite", { exact: true })).toBeVisible();
+  await expect(history.getByText("Até 1 hora", { exact: true })).toBeVisible();
 
   const minutes = page.getByLabel("Atraso em minutos");
   await expect(page.getByRole("button", { name: "Apostar", exact: true })).toBeDisabled();
@@ -361,4 +361,41 @@ test("configurações alternam seções, aplicam tema e devolvem foco ao fechar"
   await openSettings();
   await dialog.getByRole("button", { name: "Fechar configurações", exact: true }).click();
   await expect(account).toBeFocused();
+});
+
+test("foto de perfil persiste por conta e pode ser removida", async ({ page }) => {
+  await page.goto("/");
+  await signIn(page, "Avatar");
+  const account = page.getByRole("button", { name: "Conta de Avatar", exact: true }).last();
+  const settings = page.getByRole("dialog", { name: "Configurações", exact: true });
+  async function openAccount() {
+    await account.click();
+    await page.getByRole("menuitem", { name: "Configurações", exact: true }).click();
+    await settings.getByRole("button", { name: "Conta", exact: true }).click();
+  }
+  await openAccount();
+  const picker = settings.getByLabel("Escolher foto de perfil");
+  await picker.setInputFiles({ name: "invalid.txt", mimeType: "text/plain", buffer: Buffer.from("invalid") });
+  await expect(page.getByText("Escolha uma imagem JPG, PNG ou WebP.")).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Adicionar foto", exact: true })).toBeEnabled();
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=", "base64");
+  await picker.setInputFiles({ name: "avatar.png", mimeType: "image/png", buffer: png });
+  await expect(settings.getByRole("img", { name: "Sua foto de perfil" })).toBeVisible();
+  await expect(account.locator("img")).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
+  await page.reload();
+  await expect(account.locator("img")).toBeVisible();
+  await account.click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await signIn(page, "OutroAvatar");
+  await expect(page.getByRole("button", { name: "Conta de OutroAvatar", exact: true }).last().locator("img")).toHaveCount(0);
+  await page.getByRole("button", { name: "Conta de OutroAvatar", exact: true }).last().click();
+  await page.getByRole("menuitem", { name: "Sair", exact: true }).click();
+  await signIn(page, "Avatar");
+  await expect(account.locator("img")).toBeVisible();
+  await openAccount();
+  await settings.getByRole("button", { name: "Remover foto", exact: true }).click();
+  await expect(account.locator("img")).toHaveCount(0);
+  await page.reload();
+  await expect(account).toBeVisible();
+  await expect(account.locator("img")).toHaveCount(0);
 });

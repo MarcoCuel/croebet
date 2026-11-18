@@ -2,6 +2,7 @@
 
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { readAvatar, persistAvatar } from "@/features/auth/avatar-storage";
 import { DemoSession } from "./session-context";
 import { AuthDialog } from "./auth-dialog";
 import {
@@ -21,9 +22,10 @@ import {
 } from "@/features/wallet/wallet";
 import type { Prediction } from "@/features/betting/types";
 
-type SessionState = { username: string | null; wallet: Wallet; ready: boolean };
+type SessionState = { username: string | null; wallet: Wallet; avatar: string | null; ready: boolean };
 type Action =
-  | { type: "session"; username: string | null; wallet: Wallet }
+  | { type: "session"; username: string | null; wallet: Wallet; avatar: string | null }
+  | { type: "avatar"; avatar: string | null }
   | { type: "clear-predictions" }
   | { type: "predict"; prediction: Prediction }
   | { type: "claim"; date: string }
@@ -31,8 +33,9 @@ type Action =
 
 function sessionReducer(state: SessionState, action: Action): SessionState {
   if (action.type === "session")
-    return { username: action.username, wallet: action.wallet, ready: true };
+    return { username: action.username, wallet: action.wallet, avatar: action.avatar, ready: true };
   if (!state.username) return state;
+  if (action.type === "avatar") return { ...state, avatar: action.avatar };
   if (action.type === "clear-predictions")
     return process.env.NODE_ENV === "development"
       ? { ...state, wallet: { ...state.wallet, predictions: [] } }
@@ -50,6 +53,7 @@ function sessionReducer(state: SessionState, action: Action): SessionState {
 export function DemoSessionProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionReducer, {
     username: null,
+    avatar: null,
     wallet: initialWallet,
     ready: false,
   });
@@ -63,6 +67,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     dispatch({
       type: "session",
       username: name,
+      avatar: name ? readAvatar(name) : null,
       wallet: name ? readWallet(name) : initialWallet,
     });
     // Hydrate the browser date after SSR; storage must load before persistence runs.
@@ -89,6 +94,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     dispatch({
       type: "session",
       username: name,
+      avatar: name ? readAvatar(name) : null,
       wallet: name ? readWallet(name) : initialWallet,
     });
     setAuthMode(null);
@@ -114,6 +120,12 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     <DemoSession.Provider
       value={{
         username,
+        avatar: state.avatar,
+        updateAvatar: (avatar) => {
+          if (!username) return;
+          persistAvatar(username, avatar);
+          dispatch({ type: "avatar", avatar });
+        },
         ...wallet,
         openLogin: () => openAuth("login"),
         openRegister: () => openAuth("register"),

@@ -16,6 +16,8 @@
   --color-border: #242424;
   --color-field-border: #595959;
   --color-selected: #391c34;
+  --color-prediction-yes: #4dc48b;
+  --color-prediction-no: #f15b66;
 
   --color-reward-start: #FF477B20;
   --color-reward-end: #FF477B;
@@ -125,6 +127,8 @@
   --color-border: #dedede;
   --color-field-border: #858585;
   --color-selected: #f5e1f1;
+  --color-prediction-yes: #167546;
+  --color-prediction-no: #b52c3b;
   --shadow-lg: 0 0.75rem 1.75rem rgb(0 0 0 / 12%);
 }
 

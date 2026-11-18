@@ -67,6 +67,13 @@ export function PredictionTicket({
               onChange={(event) => setAmount(event.currentTarget.value)}
             />
           </Field>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Valores rápidos">
+            {[10, 25, 50, 100].map((value) => (
+              <Button key={value} variant={stake === value ? "outline" : "secondary"} size="sm" disabled={value > balance} aria-pressed={stake === value} onClick={() => setAmount(String(value))}>
+                {value} Croins
+              </Button>
+            ))}
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={onClose}>
               Cancelar

@@ -1,90 +1,108 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ArrowUpRight, ChevronRight, Clock3, Search, Timer, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { markets } from "@/features/betting/markets";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { markets, type Market } from "@/features/betting/markets";
 import type { Selection } from "@/features/betting/types";
+import { cn } from "@/lib/utils";
 
-export function MarketList({
-  onSelect,
-}: {
-  onSelect: (selection: Selection) => void;
-}) {
+const filters = ["Todas", "Sim ou não", "Opções", "Número"] as const;
+const marketIcons = { atraso: Clock3, peruca: Video, "duracao-live": Timer };
+
+export function MarketList({ onSelect }: { onSelect: (selection: Selection) => void }) {
   const [minutes, setMinutes] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<(typeof filters)[number]>("Todas");
+  const [details, setDetails] = useState<Market | null>(null);
+  const detailsTrigger = useRef<HTMLButtonElement | null>(null);
   const value = Number(minutes);
-  const validMinutes =
-    minutes.trim() !== "" && Number.isSafeInteger(value) && value >= 0;
+  const validMinutes = minutes.trim() !== "" && Number.isSafeInteger(value) && value >= 0;
+  const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const visibleMarkets = markets.filter((market) => {
+    const matchesType = filter === "Todas" || (filter === "Sim ou não" && market.type === "binary") || (filter === "Opções" && market.type === "choice") || (filter === "Número" && market.type === "number");
+    return matchesType && normalize(`${market.question} ${market.category}`).includes(normalize(search.trim()));
+  });
 
   return (
-    <section
-      className="grid min-w-0 items-stretch gap-4 md:grid-cols-2"
-      aria-label="Apostas abertas"
-    >
-      {markets.map((market) => (
-        <Card
-          asChild
-          className="flex min-w-0 scroll-mt-[calc(var(--header-height)+1rem)] flex-col"
-          key={market.id}
-        >
-          <article id={market.id}>
-            <h2 className="mb-8 text-2xl font-semibold tracking-tight">{market.question}</h2>
-            {market.type === "number" ? (
-              <form
-                className="mt-auto grid gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (validMinutes) {
-                    onSelect({
-                      market: market.question,
-                      outcome: `${value} ${market.unit}`,
-                    });
-                  }
-                }}
-              >
-                <div className="flex items-end gap-2">
-                  <Field className="min-w-0 flex-1">
-                    Atraso em minutos
-                    <Input
-                      type="number"
-                      min="0"
-                      step="1"
-                      max={Number.MAX_SAFE_INTEGER}
-                      placeholder="0"
-                      required
-                      value={minutes}
-                      onChange={(event) => setMinutes(event.currentTarget.value)}
-                    />
-                  </Field>
-                  <Button
-                    type="submit"
-                    aria-haspopup="dialog"
-                    disabled={!validMinutes}
-                  >
-                    Apostar
-                  </Button>
+    <section className="min-w-0" aria-label="Apostas abertas">
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+        <Input type="search" aria-label="Buscar apostas" placeholder="Buscar apostas" className="rounded-panel border-transparent bg-control pl-10" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
+      </div>
+      <div className="mb-5 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar apostas">
+        {filters.map((item) => (
+          <Button key={item} size="sm" variant={filter === item ? "secondary" : "ghost"} aria-pressed={filter === item} onClick={() => setFilter(item)} className={cn("text-sm font-medium", filter === item && "bg-control-hover text-foreground")}>
+            {item}
+          </Button>
+        ))}
+        <span className="ml-auto text-xs text-muted" role="status">{visibleMarkets.length} {visibleMarkets.length === 1 ? "aposta" : "apostas"}</span>
+      </div>
+      <div className="grid min-w-0 items-stretch gap-4 md:grid-cols-2">
+        {visibleMarkets.map((market) => {
+          const Icon = marketIcons[market.id as keyof typeof marketIcons] ?? Video;
+          return (
+            <Card asChild className="flex min-w-0 scroll-mt-[calc(var(--header-height)+1rem)] flex-col p-4 sm:p-4" key={market.id}>
+              <article id={market.id}>
+                <div className="mb-5 flex items-start gap-3">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-panel bg-brand/10 text-accent"><Icon className="size-5" aria-hidden="true" /></span>
+                  <div className="min-w-0">
+                    <p className="mb-1 text-xs text-muted">{market.category}</p>
+                    <h2 className="text-base leading-snug font-semibold tracking-tight">{market.question}</h2>
+                  </div>
                 </div>
-              </form>
-            ) : (
-              <div className="mt-auto grid grid-cols-2 gap-2">
-                {market.options.map((outcome) => (
-                  <Button
-                    key={outcome}
-                    variant="secondary"
-                    className="font-normal"
-                    aria-haspopup="dialog"
-                    onClick={() => onSelect({ market: market.question, outcome })}
-                  >
-                    {outcome}
-                  </Button>
-                ))}
-              </div>
-            )}
-          </article>
+                {market.type === "number" ? (
+                  <form className="mt-auto" onSubmit={(event) => {
+                    event.preventDefault();
+                    if (validMinutes) onSelect({ market: market.question, outcome: `${value} ${market.unit}` });
+                  }}>
+                    <div className="flex items-end gap-2">
+                      <Field className="min-w-0 flex-1 text-xs">
+                        Atraso em minutos
+                        <Input type="number" min="0" step="1" max={Number.MAX_SAFE_INTEGER} placeholder="0" required value={minutes} onChange={(event) => setMinutes(event.currentTarget.value)} />
+                      </Field>
+                      <Button type="submit" aria-haspopup="dialog" disabled={!validMinutes}>Apostar<ArrowUpRight className="size-4" aria-hidden="true" /></Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className={cn("mt-auto grid gap-2", market.type === "binary" && "grid-cols-2")}>
+                    {market.options.map((outcome) => (
+                      <Button key={outcome} variant="secondary" className={cn("justify-between px-3 font-medium", market.type === "binary" && (outcome === "Sim" ? "bg-prediction-yes/10 text-prediction-yes hover:bg-prediction-yes/20" : "bg-prediction-no/10 text-prediction-no hover:bg-prediction-no/20"))} aria-haspopup="dialog" onClick={() => onSelect({ market: market.question, outcome })}>
+                        {outcome}<ChevronRight className="size-4 opacity-60" aria-hidden="true" />
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
+                  <span className="text-xs text-muted">Croins fictícios</span>
+                  <Button variant="ghost" size="sm" className="min-h-0 p-0 font-normal" aria-label={`Regras: ${market.question}`} aria-haspopup="dialog" onClick={(event) => { detailsTrigger.current = event.currentTarget; setDetails(market); }}>Regras<ArrowUpRight className="size-3" aria-hidden="true" /></Button>
+                </div>
+              </article>
+            </Card>
+          );
+        })}
+      </div>
+      {visibleMarkets.length === 0 && (
+        <Card className="grid justify-items-center gap-3 py-10 text-center sm:py-10">
+          <p className="font-medium">Nenhuma aposta encontrada.</p>
+          <p className="text-sm text-muted">Tente outra busca ou escolha outro filtro.</p>
+          <Button variant="secondary" size="sm" onClick={() => { setSearch(""); setFilter("Todas"); }}>Limpar filtros</Button>
         </Card>
-      ))}
+      )}
+      <Dialog open={details !== null} onOpenChange={(open) => { if (!open) setDetails(null); }}>
+        <DialogContent aria-describedby={undefined} onCloseAutoFocus={(event) => { event.preventDefault(); detailsTrigger.current?.focus(); }}>
+          <DialogTitle className="mb-5">{details?.question}</DialogTitle>
+          <dl className="grid gap-4 text-sm">
+            <div><dt className="mb-1 font-semibold">Critério do palpite</dt><dd className="leading-relaxed text-muted">{details?.criterion}</dd></div>
+            <div><dt className="mb-1 font-semibold">Encerramento</dt><dd className="text-muted">Prazo ainda não definido.</dd></div>
+            <div><dt className="mb-1 font-semibold">Apuração e retorno</dt><dd className="leading-relaxed text-muted">Os palpites ficam registrados. A apuração e o pagamento ainda não estão disponíveis; não há retorno definido para esta aposta.</dd></div>
+          </dl>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

@@ -6,6 +6,8 @@ import type { Wallet } from "@/features/wallet/wallet";
 
 export type DemoSessionValue = Wallet & {
   username: string | null;
+  avatar: string | null;
+  updateAvatar: (avatar: string | null) => void;
   openLogin: () => void;
   openRegister: () => void;
   signOut: () => void;

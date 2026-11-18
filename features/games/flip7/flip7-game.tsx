@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
 import { useDemoSession } from "@/features/auth/session-context";
 import { automaticAction, canStay, cardLabel, createGame, isNumber, modeLabel, score, targets, transition } from "./engine";
 import type { Action, Card, Game, GameOptions, Setup } from "./engine";
@@ -120,7 +121,7 @@ function GameLog({ game }: { game: Game }) {
   return <ol className="space-y-3">{game.log.map((entry, i) => {
     const player = entry.player !== undefined ? game.players[entry.player] : null;
     return <li key={i} className="flex items-center gap-2 border-b border-border pb-3 last:border-0">
-      {player && <Avatar className="size-7" aria-hidden="true"><AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
+      {player && <Avatar className="size-7" aria-hidden="true">{player.kind === "human" && <AccountAvatarImage name={player.name} />}<AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
       <span className="min-w-0 flex-1 break-words">{entry.message}</span>
       {entry.card && <PlayingCard card={entry.card} compact />}
     </li>;
@@ -150,7 +151,7 @@ function ParticipantSlot({ index, player, onChange }: { index: number; player: S
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className={cn("size-16 aspect-square overflow-hidden rounded-full! border border-dashed border-field-border p-0", player && "border-solid")} aria-label={player ? `Editar ${player.name}` : `Adicionar jogador ${index + 1}`}>
-          {player ? <Avatar className="size-full" aria-hidden="true"><AvatarFallback className="text-lg">{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar> : <Plus className="size-6" aria-hidden="true" />}
+          {player ? <Avatar className="size-full" aria-hidden="true">{player.kind === "human" && <AccountAvatarImage name={player.name} />}<AvatarFallback className="text-lg">{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar> : <Plus className="size-6" aria-hidden="true" />}
         </Button>
       </DialogTrigger>
       <DialogContent aria-describedby={undefined}>
@@ -195,7 +196,7 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
         </Field>
         <div className="mt-7 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5" aria-label="Lugares da partida">
           <div className="flex min-w-0 flex-col items-center gap-2">
-            <Avatar className="size-16 border border-brand" aria-hidden="true"><AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
+            <Avatar className="size-16 border border-brand" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
             <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
           </div>
           {selected.map((player, i) => <ParticipantSlot key={i} index={i + 1} player={player} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
@@ -529,6 +530,7 @@ export default function Flip7Game() {
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {visibleGame.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className="size-14" aria-hidden="true">
+                  {player.kind === "human" && <AccountAvatarImage name={player.name} />}
                   <AvatarFallback className={cn("text-sm", visibleGame.phase === "playing" && activeSeat === i && "bg-selected text-accent")}>
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
                   </AvatarFallback>
