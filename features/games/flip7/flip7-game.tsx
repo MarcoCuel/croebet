@@ -222,6 +222,7 @@ export default function Flip7Game() {
   const [exitHref, setExitHref] = useState<string | null>(null);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
+  const [resultReady, setResultReady] = useState(false);
   const resultTriggerRef = useRef<HTMLButtonElement>(null);
   const [restored] = useState(currentMatch);
   const [game, setGame] = useState<Game | null>(restored.match?.game ?? null);
@@ -249,6 +250,11 @@ export default function Flip7Game() {
   const [selectedCards, setSelectedCards] = useState<number[]>([]);
   const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
+  useEffect(() => {
+    if (game?.phase !== "over" || flight || movingCards) return;
+    const timeout = window.setTimeout(() => setResultReady(true), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [game?.phase, flight, movingCards]);
   useEffect(() => {
     if (matchCode) matchUrl(matchCode);
   }, [matchCode]);
@@ -333,6 +339,7 @@ export default function Flip7Game() {
     setSelectedCards([]);
     setGame(null);
     setResultDismissed(false);
+    setResultReady(false);
     setMatchCode(null);
     matchCodeRef.current = null;
     matchUrl(null);
@@ -501,7 +508,7 @@ export default function Flip7Game() {
             <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
-          {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => setResultDismissed(false)}>Ver resultado</Button>}
+          {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
         </div>
       </div>
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
@@ -602,7 +609,7 @@ export default function Flip7Game() {
           </aside>
         </div>
       </div>
-      <Dialog open={game.phase === "over" && !flight && !movingCards && !exitHref && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
+      <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitHref && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
           <DialogTitle>Resultado da partida</DialogTitle>
           <DialogDescription className="mt-3 text-lg font-semibold text-accent">

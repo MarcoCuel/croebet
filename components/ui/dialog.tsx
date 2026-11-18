@@ -17,7 +17,7 @@ const contentVariants = cva(
     variants: {
       variant: {
         default:
-          "top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-panel p-8",
+          "top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-panel p-8 motion-safe:data-[state=open]:animate-dialog-in",
         drawer:
           "inset-y-0 left-0 h-dvh w-[min(19rem,calc(100%-2rem))] bg-chrome p-4",
       },
@@ -38,7 +38,7 @@ export function DialogContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
         data-slot="dialog-overlay"
-        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm motion-safe:data-[state=open]:animate-dialog-overlay-in"
         data-lenis-prevent
       />
       <DialogPrimitive.Content
