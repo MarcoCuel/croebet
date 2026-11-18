@@ -340,8 +340,9 @@ test("Vingança permite roubar de quem parou, anima a transferência e retoma a 
 });
 
 test("Trocar anima uma prévia local reversível e só efetiva ao confirmar", async ({ page }) => {
-  const game = transition(transition(scenario([["swap"]], { mode: "vengeance", brutal: false }), { type: "draw" }), { type: "target", target: 0 });
+  const game = transition(scenario([["swap"]], { mode: "vengeance", brutal: false }), { type: "draw" });
   await restore(page, game);
+  await expect(page.getByRole("button", { name: /^Escolher / })).toHaveCount(0);
   const confirm = page.getByRole("button", { name: "Confirmar", exact: true });
   await expect(confirm).toBeDisabled();
   const before = await savedGame(page);

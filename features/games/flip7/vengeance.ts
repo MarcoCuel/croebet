@@ -81,7 +81,7 @@ function draw(game: Game, target: number, deferred: boolean) {
   log(game, `${game.players[target].name} comprou`, target, card);
   if (isNumber(card)) receive(game, target, card);
   else {
-    const pending: Pending = { source: target, card, ...(["steal", "remove"].includes(card.type) ? { resolving: true } : {}) };
+    const pending: Pending = { source: target, card, ...(["steal", "remove", "swap"].includes(card.type) ? { resolving: true } : {}) };
     if (deferred) game.queue.push(pending);
     else if (pending.resolving ? cardChoices({ ...game, pending }).length : vengeanceTargets({ ...game, pending }).length) game.pending = pending;
     else { game.discard.push(card); log(game, `${cardLabel(card)} sem alvo disponível.`, target); }

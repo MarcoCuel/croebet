@@ -79,7 +79,10 @@ test("parados recebem modificadores; só Brutal inclui estourados e cobra novos 
 test("Trocar permite duas vítimas, causa dois estouros e conserva cartas", () => {
   const f = fixture(); const [a] = f.hand(0, ["number", 10], ["number", 11]); const [, b] = f.hand(1, ["number", 10], ["number", 11]);
   f.stack(["swap"]); let g = transition(f.game, { type: "draw" });
-  g = transition(g, { type: "target", target: 2 }); roundTrip(g);
+  assert.deepEqual(targets(g), []);
+  assert.equal(g.pending.resolving, true);
+  assert.equal(g.pending.source, 0);
+  roundTrip(g);
   assert.ok(cardChoices(g).some(ids => ids.includes(a.id) && ids.includes(b.id)));
   g = transition(g, { type: "cards", cards: [a.id, b.id] });
   assert.equal(g.players[0].status, "busted"); assert.equal(g.players[1].status, "busted"); roundTrip(g);
