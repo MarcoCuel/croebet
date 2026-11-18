@@ -20,7 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { brandLinkClass, Wordmark } from "./brand";
-import { games } from "@/features/games/catalog";
+import { useSiteConfig } from "@/features/admin/site-config";
 import { useHomeSection } from "@/features/home/home-section";
 import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
@@ -28,19 +28,31 @@ import { cn } from "@/lib/utils";
 export function Topbar({
   mobileMenuOpen,
   onOpenMenu,
-  onOpenBalance,
 }: {
   mobileMenuOpen: boolean;
   onOpenMenu: () => void;
-  onOpenBalance: () => void;
 }) {
   const pathname = usePathname();
+  const {
+    config: { games },
+  } = useSiteConfig();
   const { requestBack } = usePageBack();
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
-  const pageTitle = games.find((game) => pathname === `/jogos/${game.slug}`)?.name
-    ?? ({ "/jogos": "Jogos", "/apostas": "Apostas", "/rankings": "Rankings", "/conquistas": "Conquistas", "/historico": "Histórico", "/sobre": "Sobre" } as Record<string, string>)[pathname]
-    ?? "Página não encontrada";
+  const pageTitle =
+    games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
+    (
+      {
+        "/admin": "Admin",
+        "/jogos": "Jogos",
+        "/apostas": "Apostas",
+        "/rankings": "Rankings",
+        "/conquistas": "Conquistas",
+        "/historico": "Histórico",
+        "/sobre": "Sobre",
+      } as Record<string, string>
+    )[pathname] ??
+    "Página não encontrada";
   const isInternalPage = pathname !== "/";
   const backLink = pathname.startsWith("/jogos/")
     ? { href: "/jogos", label: "Voltar para Jogos" }
@@ -68,28 +80,40 @@ export function Topbar({
           <Menu className="size-4" aria-hidden="true" />
         </Button>
         <Link
-          className={cn(brandLinkClass, isInternalPage ? "hidden" : "text-xl md:hidden")}
+          className={cn(
+            brandLinkClass,
+            isInternalPage ? "hidden" : "text-xl md:hidden",
+          )}
           href="/"
           aria-label="Croebet, início"
         >
           <Wordmark />
         </Link>
         {isInternalPage && (
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-          >
-            <Link href={backLink.href} aria-label={backLink.label} onClick={event => {
-              if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0 && requestBack(backLink.href)) event.preventDefault();
-            }}>
+          <Button asChild variant="ghost" size="icon" className="shrink-0">
+            <Link
+              href={backLink.href}
+              aria-label={backLink.label}
+              onClick={(event) => {
+                if (
+                  !event.metaKey &&
+                  !event.ctrlKey &&
+                  !event.shiftKey &&
+                  !event.altKey &&
+                  event.button === 0 &&
+                  requestBack(backLink.href)
+                )
+                  event.preventDefault();
+              }}
+            >
               <ChevronLeft className="size-4" aria-hidden="true" />
             </Link>
           </Button>
         )}
         {isInternalPage ? (
-          <span className="truncate text-sm font-medium md:text-base">{pageTitle}</span>
+          <span className="truncate text-sm font-medium md:text-base">
+            {pageTitle}
+          </span>
         ) : (
           <nav
             className="hidden items-center gap-1 rounded-panel bg-control p-1.5 md:flex"
@@ -177,7 +201,7 @@ export function Topbar({
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <AccountMenu name={username} onOpenBalance={onOpenBalance} />
+            <AccountMenu name={username} />
           </div>
         </>
       ) : (

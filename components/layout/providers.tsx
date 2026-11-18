@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SiteConfigProvider } from "@/features/admin/site-config";
 import { DemoSessionProvider } from "@/features/auth/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,7 +20,7 @@ function AppProviders({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delayDuration={300}>
       <DemoSessionProvider>
-        {children}
+        <SiteConfigProvider>{children}</SiteConfigProvider>
         <Toaster theme={resolvedTheme} />
       </DemoSessionProvider>
     </TooltipProvider>

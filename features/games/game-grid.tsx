@@ -1,9 +1,13 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { Heading } from "@/components/shared/heading";
-import { games } from "./catalog";
+import { useSiteConfig } from "@/features/admin/site-config";
 
 export function GameGrid() {
+  const { config } = useSiteConfig();
+  const games = config.games.filter((game) => game.enabled);
   return (
     <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {games.map(({ slug, coverTitle, cover }) => (
@@ -30,9 +34,11 @@ export function GameGrid() {
               className="absolute inset-x-0 bottom-0 p-3.5 sm:p-4 xl:p-6"
             >
               <span>
-                {coverTitle[0]}
-                <br />
-                {coverTitle[1]}
+                {coverTitle.map((line, index) => (
+                  <span key={index} className="block">
+                    {line}
+                  </span>
+                ))}
               </span>
             </Heading>
           </Link>

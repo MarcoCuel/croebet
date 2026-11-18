@@ -18,11 +18,9 @@ import { MenuLinks } from "./navigation-links";
 export function Sidebar({
   expanded,
   onToggle,
-  onOpenBalance,
 }: {
   expanded: boolean;
   onToggle: () => void;
-  onOpenBalance: () => void;
 }) {
   const { username, balance } = useDemoSession();
   return (
@@ -35,7 +33,11 @@ export function Sidebar({
         aria-label="Menu lateral"
       >
         <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-5 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
-          <Link className={brandLinkClass} href="/" aria-label="Croebet, início">
+          <Link
+            className={brandLinkClass}
+            href="/"
+            aria-label="Croebet, início"
+          >
             <Wordmark compact />
           </Link>
         </div>
@@ -61,11 +63,7 @@ export function Sidebar({
                 <RedeemButton />
               </div>
               <div className="border-t-(length:--border-width-hairline) border-border px-3 pt-3">
-                <AccountMenu
-                  name={username}
-                  sidebar
-                  onOpenBalance={onOpenBalance}
-                />
+                <AccountMenu name={username} sidebar />
               </div>
             </div>
           )}
@@ -77,7 +75,9 @@ export function Sidebar({
             variant="ghost"
             size="icon-sm"
             className="fixed top-[calc((var(--header-height)-2.25rem)/2)] left-[max(1.25rem,calc(var(--sidebar-width)-3.5rem))] z-40 hidden transition-[left,background-color,color,border-color] duration-300 ease-in-out motion-reduce:transition-none md:inline-flex"
-            aria-label={expanded ? "Ocultar menu lateral" : "Mostrar menu lateral"}
+            aria-label={
+              expanded ? "Ocultar menu lateral" : "Mostrar menu lateral"
+            }
             aria-expanded={expanded}
             aria-controls="lobby-sidebar"
             onClick={onToggle}

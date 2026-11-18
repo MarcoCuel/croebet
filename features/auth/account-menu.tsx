@@ -1,6 +1,13 @@
 "use client";
 
-import { ChevronDown, History, Coins, Settings, Moon, LogOut } from "lucide-react";
+import {
+  ChevronDown,
+  History,
+  Shield,
+  Settings,
+  Moon,
+  LogOut,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,11 +32,9 @@ import { useTheme } from "@/features/theme/theme-provider";
 export function AccountMenu({
   name,
   sidebar = false,
-  onOpenBalance,
 }: {
   name: string;
   sidebar?: boolean;
-  onOpenBalance: () => void;
 }) {
   const { signOut, avatar } = useDemoSession();
   const { theme, setTheme } = useTheme();
@@ -101,26 +106,30 @@ export function AccountMenu({
               <DropdownMenuRadioGroup
                 value={theme}
                 onValueChange={(value) => {
-                  if (value === "light" || value === "dark" || value === "system")
+                  if (
+                    value === "light" ||
+                    value === "dark" ||
+                    value === "system"
+                  )
                     setTheme(value);
                 }}
               >
-                <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  Light
+                </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="system">
+                  System
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => {
-              openingDialog.current = true;
-              trigger.current?.focus();
-              onOpenBalance();
-            }}
-          >
-            <Coins className="size-4" aria-hidden="true" />
-            Saldo
+          <DropdownMenuItem asChild>
+            <Link href="/admin">
+              <Shield className="size-4" aria-hidden="true" />
+              Admin
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/historico">

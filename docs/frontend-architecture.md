@@ -8,20 +8,20 @@ A migração preserva o catálogo, os mercados, a metadata, as imagens, os texto
 
 ## Organização e dependências
 
-| Diretório | Responsabilidade |
-| --- | --- |
-| `app` | Rotas e composição de Server Components |
-| `components/ui` | Primitives adaptados do padrão shadcn/ui, CVA e Radix |
-| `components/layout` | PageShell, navegação, sidebar, topbar, rodapé, providers e Motion |
-| `components/shared` | Tipografia e componentes visuais de produto |
-| `features/auth` | Sessão demo, autenticação, menu de conta e armazenamento |
-| `features/wallet` | Carteira, cálculos, bônus, saldo e modal de recarga |
-| `features/betting` | Apostas por opções ou minutos, confirmação e histórico de palpites |
-| `features/games` | Catálogo e grade de jogos |
-| `features/home` | Banners da página inicial |
-| `lib` | `cn` e utilitários sem estado |
-| `three` | Canvas, cenas, modelos, materiais, luzes e controles |
-| `tests` | Regras de carteira e interações em navegador |
+| Diretório           | Responsabilidade                                                   |
+| ------------------- | ------------------------------------------------------------------ |
+| `app`               | Rotas e composição de Server Components                            |
+| `components/ui`     | Primitives adaptados do padrão shadcn/ui, CVA e Radix              |
+| `components/layout` | PageShell, navegação, sidebar, topbar, rodapé, providers e Motion  |
+| `components/shared` | Tipografia e componentes visuais de produto                        |
+| `features/auth`     | Sessão demo, autenticação, menu de conta e armazenamento           |
+| `features/wallet`   | Carteira, cálculos, bônus, saldo e histórico                       |
+| `features/betting`  | Apostas por opções ou minutos, confirmação e histórico de palpites |
+| `features/games`    | Catálogo e grade de jogos                                          |
+| `features/home`     | Banners da página inicial                                          |
+| `lib`               | `cn` e utilitários sem estado                                      |
+| `three`             | Canvas, cenas, modelos, materiais, luzes e controles               |
+| `tests`             | Regras de carteira e interações em navegador                       |
 
 As dependências apontam das rotas para features e componentes; componentes UI não conhecem features. Tipos permanecem junto ao domínio, sem um diretório global de tipos sem necessidade. Não há barrels que importem todo o design system ou renderer 3D. Os providers permanecem clientes, enquanto páginas e conteúdo estático continuam no servidor.
 
@@ -59,11 +59,15 @@ Use estados `disabled` e `loading` em ações nativas; links representam destino
 
 ```tsx
 <Dialog open={open} onOpenChange={setOpen}>
-  <DialogTrigger asChild><Button>Detalhes</Button></DialogTrigger>
+  <DialogTrigger asChild>
+    <Button>Detalhes</Button>
+  </DialogTrigger>
   <DialogContent>
     <DialogTitle>Detalhes</DialogTitle>
     <DialogDescription>Informações sobre a operação.</DialogDescription>
-    <DialogClose asChild><Button variant="secondary">Fechar</Button></DialogClose>
+    <DialogClose asChild>
+      <Button variant="secondary">Fechar</Button>
+    </DialogClose>
   </DialogContent>
 </Dialog>
 ```
@@ -80,7 +84,7 @@ A autenticação permanece uma demonstração local; não salva a senha e não o
 
 A página de apostas apresenta três formatos: Sim/Não, escolha de duração e atraso em minutos inteiros (incluindo zero). O catálogo usa cards compactos, busca por pergunta/categoria sem distinção de acentos e filtros combináveis por formato. Sim/Não têm cores semânticas próprias para os dois temas; demais opções aparecem em linhas. Cada card abre um diálogo de regras com o critério do palpite e informa a ausência de prazo e retorno definidos. A seleção abre um diálogo para confirmar o valor em Croins, com atalhos de valores que respeitam o saldo; os cards ficam em duas colunas à esquerda e o histórico ocupa um terço da largura à direita em telas grandes, com resumo de valores registrados, estado vazio e seções empilhadas no mobile. Novos palpites não usam odds nem exibem projeções de retorno ou probabilidades. O campo opcional `odds` continua aceito e validado ao ler palpites antigos, preservando as carteiras existentes. Apuração e pagamento continuam fora do escopo do protótipo.
 
-A rota `/historico` mostra saldo atual, totais registrados e movimentações com filtros de entradas e saídas. Recargas de teste, bônus diário e valores apostados registram a movimentação junto da alteração de saldo; apostas são saídas, sem antecipar perdas ou pagamentos de eventos ainda não apurados. Movimentações anteriores à atualização não são reconstruídas. O saldo no topo e na sidebar leva ao histórico, também acessível no menu de conta. O modal de recarga abre exclusivamente pela opção Saldo desse menu.
+A rota `/historico` mostra saldo atual, totais registrados e movimentações com filtros de entradas e saídas. Recargas de teste, bônus diário e valores apostados registram a movimentação junto da alteração de saldo; apostas são saídas, sem antecipar perdas ou pagamentos de eventos ainda não apurados. Movimentações anteriores à atualização não são reconstruídas. O saldo no topo e na sidebar leva ao histórico, também acessível no menu de conta. A recarga saiu do menu de conta e é acessível em `/admin`, na seção Saldo. O menu de conta inclui um link Admin.
 
 O menu da conta abre um modal de configurações em `features/settings`, com navegação lateral no desktop e navegação superior no mobile. Geral resume usuário, saldo e bônus; Aparência reutiliza o provider de tema; Conta permite consultar o usuário, adicionar/trocar/remover a foto de perfil e sair; Histórico reutiliza as movimentações e filtros da carteira. A foto é recortada ao centro e reduzida a 256 × 256, salva como JPEG por usuário na chave `croebet:demo-avatar:<nome>` e compartilhada pela navegação e pelo jogador correspondente no Flip7. Aceita JPG, PNG e WebP de até 10 MB; falhas de leitura ou armazenamento exibem feedback sem substituir a foto anterior. O modal mantém rolagem interna, fechamento por Escape e retorno do foco ao menu da conta.
 
@@ -93,7 +97,7 @@ A base não está montada em nenhuma página atual. `CroinPreview` é um exemplo
 ```tsx
 import { CroinPreview } from "@/three/scenes/croin-preview";
 
-<CroinPreview className="mx-auto max-w-80" />
+<CroinPreview className="mx-auto max-w-80" />;
 ```
 
 O módulo carregado contém `SceneCanvas`, `StudioLighting`, `CroinModel`, `BrandMaterial` e `PreviewControls`. Não há render loop ou Canvas no layout. O renderer utiliza `frameloop="demand"`, DPR entre 1 e 1.5 e Suspense; o wrapper apresenta Skeleton e fallback em caso de erro ou indisponibilidade de WebGL. A moeda procedural é apenas exemplo técnico, sem alterar os assets atuais.
@@ -121,3 +125,13 @@ Os testes de navegador usam o Chrome instalado. Instale-o ou adapte o projeto Pl
 ## Jogos independentes — Flip7
 
 O primeiro jogo funcional foi integrado em `/jogos/flip7`. Seu módulo em `features/games/flip7` separa motor de regras puro, interface e carregamento dinâmico; a plataforma compõe a página e continua responsável pela navegação. O motor não importa sessão ou carteira. Partidas locais compartilham o dispositivo com bots opcionais, sem movimentar Croins. Detalhes da referência, regras, limites e testes estão em `docs/flip7.md`.
+
+## Administração local
+
+`/admin` reúne visão geral, edição e pausa dos jogos existentes, criação/edição/pausa/exclusão de apostas, edição dos textos do Sobre e crédito de Croins para contas presentes neste navegador. Jogos pausados saem do catálogo e a rota direta não monta o jogo. Apostas pausadas ou excluídas saem do catálogo sem alterar os palpites já registrados. Novos jogos executáveis exigem implementação; o painel edita somente os jogos integrados. Apuração e pagamento de apostas continuam fora do escopo.
+
+`SiteConfigProvider` valida e persiste o catálogo e conteúdo em `croebet:demo-site-config:v1`; falhas de escrita preservam o estado anterior e exibem erro. O Sobre usa conteúdo inicial preservado, renderizado sem HTML fornecido pelo usuário. A recarga reutiliza as regras de carteira, limites e histórico. O painel exige sessão local, mas não implementa permissões reais de administrador: todos os usuários da demonstração podem acessá-lo, e as alterações não são publicadas nem compartilhadas entre dispositivos. Controle de acesso e publicação dependem de backend.
+
+### Editor visual do Sobre
+
+A seção Sobre do admin usa um único editor WYSIWYG com títulos, subtítulos, negrito, itálico, listas e desfazer/refazer. A edição nativa preserva seleção e histórico de desfazer; os comandos ficam no primitive `RichTextEditor`. O texto colado entra sem formatação externa. O conteúdo é salvo como árvore de texto e tags permitidas (`about.document`), validada antes da persistência e renderizada com React sem HTML arbitrário. Conteúdo antigo continua válido e é convertido ao abrir o editor; o layout anterior permanece até a primeira gravação visual. A dependência de bibliotecas de editor não pôde ser instalada neste ambiente; a implementação utiliza as capacidades nativas do navegador.
