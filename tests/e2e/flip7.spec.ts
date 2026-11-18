@@ -98,7 +98,7 @@ test("Flip7 lista a partida salva e mantém a retomada após recarregar", async 
   await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toHaveCount(0);
 });
 
-test("configuração permanece disponível ao lado de três partidas e ignora as finalizadas", async ({ page, isMobile }) => {
+test("configuração divide opções e jogadores, com partidas em andamento abaixo", async ({ page, isMobile }) => {
   await page.goto("/jogos/flip7");
   const active = ["ABCDEF123456", "123456ABCDEF", "AABBCCDDEEFF"].map(code => ({ version: 1, code, game: scenario([]) }));
   const finished = structuredClone(active[0]);
@@ -116,11 +116,18 @@ test("configuração permanece disponível ao lado de três partidas e ignora as
   const count = page.getByRole("combobox", { name: "Número de jogadores", exact: true });
   await expect(count).toBeVisible();
   await expect(page.getByText("Partida finalizada", { exact: true })).toHaveCount(0);
-  if (!isMobile) {
-    const listBox = await list.boundingBox();
-    const formBox = await count.boundingBox();
-    expect(listBox!.x).toBeGreaterThan(formBox!.x + formBox!.width);
-  }
+  const optionsCard = page.getByRole("region", { name: "Opções da partida", exact: true });
+  const playersCard = page.getByRole("region", { name: "Jogadores da partida", exact: true });
+  await expect(optionsCard.getByRole("combobox", { name: "Versão do Flip7" })).toBeVisible();
+  await expect(optionsCard.getByRole("button", { name: "Regras", exact: true })).toBeVisible();
+  await expect(playersCard.getByRole("combobox", { name: "Número de jogadores", exact: true })).toBeVisible();
+  await expect(playersCard.getByRole("button", { name: "Começar partida", exact: true })).toBeVisible();
+  const optionsBox = await optionsCard.boundingBox();
+  const playersBox = await playersCard.boundingBox();
+  const listBox = await list.boundingBox();
+  expect(listBox!.y).toBeGreaterThanOrEqual(Math.max(optionsBox!.y + optionsBox!.height, playersBox!.y + playersBox!.height));
+  if (isMobile) expect(playersBox!.y).toBeGreaterThan(optionsBox!.y);
+  else expect(playersBox!.x).toBeGreaterThan(optionsBox!.x);
   await page.getByRole("switch", { name: "Jogar com Croins", exact: true }).check();
   await page.getByRole("button", { name: "Pagar 50 Croins e jogar", exact: true }).click();
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();

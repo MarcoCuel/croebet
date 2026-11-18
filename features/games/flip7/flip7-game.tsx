@@ -202,77 +202,93 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
   const validStake = !withCroins || (Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(amount * count));
   const insufficient = withCroins && validStake && !!username && amount > balance;
   return (
-    <div className={cn("mx-auto grid w-full items-start gap-6 py-6 sm:py-12", pendingMatches.length ? "max-w-5xl lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]" : "max-w-xl")}>
-      <div className="min-w-0">
-      <Surface><fieldset disabled={starting} className="min-w-0">
-        <Field className="mb-4 min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
-          Versão
-          <Select aria-label="Versão do Flip7" value={options.mode} onChange={event => setOptions(previous => ({ ...previous, mode: event.target.value as GameOptions["mode"] }))}>
-            <option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option>
-          </Select>
-        </Field>
-        <div className="grid grid-cols-2 items-center gap-4">
-          {options.mode === "vengeance" && <Field className="min-w-0 justify-items-start gap-2 text-sm sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
-            Modo Brutal
-            <Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal => setOptions(previous => ({ ...previous, brutal }))} />
-          </Field>}
-          <Field className="col-start-2 min-w-0 justify-items-end gap-2 text-right text-sm sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
-            Número de jogadores
-            <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
-              {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
-            </Select>
-          </Field>
-        </div>
-        <Surface className="mt-4 bg-background p-2">
-          <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
-            Jogar com Croins
-            <Switch checked={withCroins} onCheckedChange={setWithCroins} />
-          </Field>
-          {withCroins && <div className="mt-4 space-y-3">
-            <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
-            <dl className="text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-accent tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
-            </dl>
-            {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
-          </div>}
-        </Surface>
-        <div className="mt-7 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5" aria-label="Lugares da partida">
-          <div className="flex min-w-0 flex-col items-center gap-2">
-            <Avatar className="size-16" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
-            <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
-          </div>
-          {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
-        </div>
-      </fieldset></Surface>
-      <div className="mt-5 grid gap-2">
-        <Button loading={starting} disabled={starting || (!!username && (!ready || !validStake || insufficient))} onClick={async () => {
-          if (!username) openLogin();
-          else if (ready && validStake && !insufficient && !startingRef.current) {
-            startingRef.current = true;
-            setStarting(true);
-            try { await onStart([{ name: username, kind: "human" }, ...selected.filter((player): player is Setup => player !== null)], options, withCroins ? amount : 0); }
-            finally { startingRef.current = false; setStarting(false); }
-          }
-        }}>{username ? withCroins && validStake ? `Pagar ${formatBalance.format(amount)} Croins e jogar` : "Começar partida" : "Entrar para jogar"}</Button>
-        <Rules options={options} />
-      </div>
-      {initialError && <p role="alert" className="mt-4 text-sm text-destructive">{initialError}</p>}
-      </div>
-      {pendingMatches.length > 0 && <Surface asChild>
-        <aside aria-label="Partidas em andamento">
-          <Heading variant="section">Partidas em andamento</Heading>
-          <ul className="mt-5 space-y-4">
-            {pendingMatches.map(match => <li key={match.code} className="space-y-3 border-b border-border pb-4 last:border-0 last:pb-0">
-              <div>
-                <h3 className="text-sm font-semibold">{modeLabel(match.game)}</h3>
-                <p className="mt-1 text-xs text-muted">{match.game.players.length} jogadores · Rodada {match.game.round}</p>
-                <p className="mt-1 truncate text-xs text-muted" title={match.game.players.map(player => player.name).join(", ")}>{match.game.players.map(player => player.name).join(", ")}</p>
+    <div className="mx-auto grid w-full max-w-5xl items-start gap-6 py-6 sm:py-12 lg:grid-cols-2">
+      <Surface asChild>
+        <section aria-label="Opções da partida">
+          <fieldset disabled={starting} className="min-w-0 space-y-4">
+            <Field className="min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
+              Versão
+              <Select aria-label="Versão do Flip7" value={options.mode} onChange={event => setOptions(previous => ({ ...previous, mode: event.target.value as GameOptions["mode"] }))}>
+                <option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option>
+              </Select>
+            </Field>
+            {options.mode === "vengeance" && <Field className="min-w-0 grid-cols-[1fr_auto] items-center gap-4 text-sm">
+              Modo Brutal
+              <Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal => setOptions(previous => ({ ...previous, brutal }))} />
+            </Field>}
+            <Surface className="bg-background p-4 sm:p-4">
+              <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
+                Jogar com Croins
+                <Switch checked={withCroins} onCheckedChange={setWithCroins} />
+              </Field>
+              {withCroins && <div className="mt-4 space-y-3">
+                <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
+                <dl className="text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-accent tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
+                </dl>
+                {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
+              </div>}
+            </Surface>
+            <Rules options={options} />
+          </fieldset>
+        </section>
+      </Surface>
+      <Surface asChild>
+        <section aria-label="Jogadores da partida">
+          <fieldset disabled={starting} className="flex min-w-0 flex-col gap-6">
+            <Field className="min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
+              Número de jogadores
+              <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
+                {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
+              </Select>
+            </Field>
+            <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5" aria-label="Lugares da partida">
+              <div className="flex min-w-0 flex-col items-center gap-2">
+                <Avatar className="size-16" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
+                <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
               </div>
-              <Button variant="secondary" size="sm" className="w-full" onClick={() => matchUrl(match.code)}>Continuar partida</Button>
-            </li>)}
-          </ul>
-        </aside>
-      </Surface>}
+              {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
+            </div>
+            <Button className="mt-auto w-full" loading={starting} disabled={starting || (!!username && (!ready || !validStake || insufficient))} onClick={async () => {
+              if (!username) openLogin();
+              else if (ready && validStake && !insufficient && !startingRef.current) {
+                startingRef.current = true;
+                setStarting(true);
+                try { await onStart([{ name: username, kind: "human" }, ...selected.filter((player): player is Setup => player !== null)], options, withCroins ? amount : 0); }
+                finally { startingRef.current = false; setStarting(false); }
+              }
+            }}>{username ? withCroins && validStake ? `Pagar ${formatBalance.format(amount)} Croins e jogar` : "Começar partida" : "Entrar para jogar"}</Button>
+          </fieldset>
+        </section>
+      </Surface>
+      {initialError && <p role="alert" className="text-sm text-destructive lg:col-span-2">{initialError}</p>}
+      {pendingMatches.length > 0 && <aside className="min-w-0 lg:col-span-2" aria-label="Partidas em andamento">
+        <Heading variant="section">Partidas em andamento</Heading>
+        <ul className="mt-5 grid gap-4 xl:grid-cols-2">
+          {pendingMatches.map(match => <Surface asChild key={match.code} className="flex min-w-0 flex-col gap-5 p-4 sm:p-5">
+            <li>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="min-w-0 text-sm font-semibold">{modeLabel(match.game)}</h3>
+                <Badge variant="secondary" className="shrink-0 font-medium">Rodada {match.game.round}</Badge>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center -space-x-2" aria-label="Participantes">
+                  {match.game.players.slice(0, 5).map((player, index) => <Avatar key={index} className="size-10 shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={player.name} title={player.name}>
+                    {player.kind === "human" && <AccountAvatarImage name={player.name} />}
+                    <AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
+                  </Avatar>)}
+                  {match.game.players.length > 5 && <Avatar className="size-10 shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={match.game.players.slice(5).map(player => player.name).join(", ")} title={match.game.players.slice(5).map(player => player.name).join(", ")}>
+                    <AvatarFallback>+{match.game.players.length - 5}</AvatarFallback>
+                  </Avatar>}
+                </div>
+                <span className="text-xs text-muted">{match.game.players.length} jogadores</span>
+              </div>
+              <Button variant="secondary" size="sm" className="mt-auto w-full" onClick={() => matchUrl(match.code)}>Continuar partida</Button>
+            </li>
+          </Surface>)}
+        </ul>
+      </aside>}
+
     </div>
   );
 }

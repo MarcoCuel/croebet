@@ -125,5 +125,8 @@ export function matchUrl(code: string | null) {
   const url = new URL(window.location.href);
   if (code) url.searchParams.set("partida", code);
   else url.searchParams.delete("partida");
-  window.history.replaceState(window.history.state, "", url);
+  if (url.href === window.location.href) return;
+  // Next.js copies its history state and updates useSearchParams for external writes.
+  // Passing its internal state back would bypass that update.
+  window.history.replaceState(null, "", url);
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { automaticAction, botAction, createGame, transition } from "../features/games/flip7/engine.ts";
-import { matchStorageKey, decodeMatch, readMatch, readMatches, removeMatch, saveMatch } from "../features/games/flip7/match-storage.ts";
+import { matchStorageKey, decodeMatch, readMatch, readMatches, removeMatch, saveMatch, matchUrl } from "../features/games/flip7/match-storage.ts";
 
 const code = "ABCDEF123456";
 const setup = [{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }];
@@ -128,4 +128,36 @@ test("histórico conserva todas as jogadas entre rodadas e ao retomar a partida"
   const storage = memoryStorage();
   saveMatch(snapshot(game), storage);
   assert.deepEqual(readMatch(storage).game.log, JSON.parse(JSON.stringify(game.log)));
+});
+
+
+test("navegar entre configuração e partida não repassa o estado interno do Next", () => {
+  const previousWindow = globalThis.window;
+  const writes = [];
+  globalThis.window = {
+    location: { href: "https://croebet.test/jogos/flip7?origem=jogos#mesa" },
+    history: {
+      state: { __NA: true, tree: "estado interno" },
+      replaceState(data, unused, url) {
+        writes.push({ data, url: String(url) });
+        globalThis.window.location.href = String(url);
+      },
+    },
+  };
+  try {
+    matchUrl(code);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].data, null);
+    assert.equal(new URL(writes[0].url).searchParams.get("partida"), code);
+    assert.equal(new URL(writes[0].url).searchParams.get("origem"), "jogos");
+    matchUrl(code);
+    assert.equal(writes.length, 1);
+    matchUrl(null);
+    assert.equal(writes.length, 2);
+    assert.equal(writes[1].data, null);
+    assert.equal(writes[1].url, "https://croebet.test/jogos/flip7?origem=jogos#mesa");
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });
