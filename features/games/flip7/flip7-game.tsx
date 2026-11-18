@@ -195,31 +195,34 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
             <option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option>
           </Select>
         </Field>
-        {options.mode === "vengeance" && <Field className="mb-4 grid-cols-[1fr_auto] items-center gap-4 text-base">
-          Modo Brutal
-          <Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal => setOptions(previous => ({ ...previous, brutal }))} />
-        </Field>}
-        <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
-          Número de jogadores
-          <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
-            {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
-          </Select>
-        </Field>
-        <Field className="mt-4 grid-cols-[1fr_auto] items-center gap-4 text-base">
-          Jogar com Croins
-          <Switch checked={withCroins} onCheckedChange={setWithCroins} />
-        </Field>
-        {withCroins && <div className="mt-4 space-y-3">
-          <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
-          <dl className="flex flex-wrap justify-between gap-3 text-sm">
-            <div><dt className="text-muted">Seu saldo</dt><dd className="font-medium tabular-nums">{formatBalance.format(balance)} Croins</dd></div>
-            <div className="text-right"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-accent tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
-          </dl>
-          {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
-        </div>}
+        <div className="grid grid-cols-2 items-center gap-4">
+          {options.mode === "vengeance" && <Field className="min-w-0 justify-items-start gap-2 text-sm sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
+            Modo Brutal
+            <Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal => setOptions(previous => ({ ...previous, brutal }))} />
+          </Field>}
+          <Field className="col-start-2 min-w-0 justify-items-end gap-2 text-right text-sm sm:grid-cols-[1fr_auto] sm:items-center sm:gap-3">
+            Número de jogadores
+            <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
+              {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <Surface className="mt-4 bg-background p-2">
+          <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
+            Jogar com Croins
+            <Switch checked={withCroins} onCheckedChange={setWithCroins} />
+          </Field>
+          {withCroins && <div className="mt-4 space-y-3">
+            <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
+            <dl className="text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-accent tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
+            </dl>
+            {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
+          </div>}
+        </Surface>
         <div className="mt-7 grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5" aria-label="Lugares da partida">
           <div className="flex min-w-0 flex-col items-center gap-2">
-            <Avatar className="size-16 border border-brand" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
+            <Avatar className="size-16" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
             <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
           </div>
           {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
