@@ -36,7 +36,7 @@ export function AccountMenu({
   name: string;
   sidebar?: boolean;
 }) {
-  const { signOut, avatar } = useDemoSession();
+  const { signOut, avatar, permissions } = useDemoSession();
   const { theme, setTheme } = useTheme();
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
@@ -125,12 +125,14 @@ export function AccountMenu({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href="/admin">
-              <Shield className="size-4" aria-hidden="true" />
-              Admin
-            </Link>
-          </DropdownMenuItem>
+          {permissions.canManageSite && (
+            <DropdownMenuItem asChild>
+              <Link href="/admin">
+                <Shield className="size-4" aria-hidden="true" />
+                Admin
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem asChild>
             <Link href="/historico">
               <History className="size-4" aria-hidden="true" />

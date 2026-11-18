@@ -1,15 +1,19 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/page-shell";
-import { AdminPanel } from "@/features/admin/admin-panel";
+import { AdminAccess } from "@/features/admin/admin-access";
+import { notFound } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "Admin | Croebet",
+  title: "Croebet",
+  description: null,
   robots: { index: false, follow: false },
 };
 export default function Admin() {
+  // Fail closed on the server until a verified backend session is available.
+  if (process.env.NODE_ENV !== "development") notFound();
   return (
     <PageShell>
-      <AdminPanel />
+      <AdminAccess />
     </PageShell>
   );
 }

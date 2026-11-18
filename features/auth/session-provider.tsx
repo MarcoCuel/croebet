@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { readAvatar, persistAvatar } from "@/features/auth/avatar-storage";
+import { demoPermissions } from "@/features/auth/permissions";
 import { DemoSession } from "./session-context";
 import { AuthDialog } from "./auth-dialog";
 import {
@@ -22,9 +23,19 @@ import {
 } from "@/features/wallet/wallet";
 import type { Prediction } from "@/features/betting/types";
 
-type SessionState = { username: string | null; wallet: Wallet; avatar: string | null; ready: boolean };
+type SessionState = {
+  username: string | null;
+  wallet: Wallet;
+  avatar: string | null;
+  ready: boolean;
+};
 type Action =
-  | { type: "session"; username: string | null; wallet: Wallet; avatar: string | null }
+  | {
+      type: "session";
+      username: string | null;
+      wallet: Wallet;
+      avatar: string | null;
+    }
   | { type: "avatar"; avatar: string | null }
   | { type: "clear-predictions" }
   | { type: "predict"; prediction: Prediction }
@@ -33,7 +44,12 @@ type Action =
 
 function sessionReducer(state: SessionState, action: Action): SessionState {
   if (action.type === "session")
-    return { username: action.username, wallet: action.wallet, avatar: action.avatar, ready: true };
+    return {
+      username: action.username,
+      wallet: action.wallet,
+      avatar: action.avatar,
+      ready: true,
+    };
   if (!state.username) return state;
   if (action.type === "avatar") return { ...state, avatar: action.avatar };
   if (action.type === "clear-predictions")
@@ -47,6 +63,14 @@ function sessionReducer(state: SessionState, action: Action): SessionState {
     };
   if (action.type === "claim")
     return { ...state, wallet: claimReward(state.wallet, action.date) };
+  if (
+    !demoPermissions(
+      state.username,
+      process.env.NEXT_PUBLIC_DEMO_ADMIN_USERS,
+      process.env.NODE_ENV === "development",
+    ).canManageSite
+  )
+    return state;
   return { ...state, wallet: addCroins(state.wallet, action.amount) };
 }
 
@@ -120,6 +144,12 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     <DemoSession.Provider
       value={{
         username,
+        sessionReady: state.ready,
+        permissions: demoPermissions(
+          username,
+          process.env.NEXT_PUBLIC_DEMO_ADMIN_USERS,
+          process.env.NODE_ENV === "development",
+        ),
         avatar: state.avatar,
         updateAvatar: (avatar) => {
           if (!username) return;

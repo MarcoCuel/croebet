@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { isRichTextDocument, richTextPlainText } from "@/lib/rich-text";
+import { useDemoSession } from "@/features/auth/session-context";
 import { toast } from "sonner";
 import { games } from "@/features/games/catalog";
 import { markets, type Market } from "@/features/betting/markets";
@@ -97,6 +98,7 @@ const SiteContext = createContext<{
   save: (next: SiteConfig) => boolean;
 } | null>(null);
 export function SiteConfigProvider({ children }: { children: ReactNode }) {
+  const { permissions } = useDemoSession();
   const [state, setState] = useState({ config: initial, ready: false });
   useEffect(() => {
     let config = initial;
@@ -113,6 +115,7 @@ export function SiteConfigProvider({ children }: { children: ReactNode }) {
     setState({ config, ready: true });
   }, []);
   function save(next: SiteConfig) {
+    if (!permissions.canManageSite) return false;
     if (!state.ready || !isSiteConfig(next)) {
       toast.error("Revise os campos antes de salvar.");
       return false;

@@ -39,11 +39,12 @@ export function Topbar({
   const { requestBack } = usePageBack();
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
+  const { permissions } = useDemoSession();
   const pageTitle =
     games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
     (
       {
-        "/admin": "Admin",
+        "/admin": permissions.canManageSite ? "Admin" : "Página não encontrada",
         "/jogos": "Jogos",
         "/apostas": "Apostas",
         "/rankings": "Rankings",

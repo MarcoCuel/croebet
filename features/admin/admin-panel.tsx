@@ -3,6 +3,7 @@
 import { AboutEditor } from "@/features/admin/about-editor";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import {
   Coins,
   FileText,
@@ -12,7 +13,6 @@ import {
   Tickets,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Heading } from "@/components/shared/heading";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -45,24 +45,14 @@ const text = (form: FormData, name: string) =>
 
 export function AdminPanel() {
   const { config, ready, save } = useSiteConfig();
-  const { username, openLogin } = useDemoSession();
+  const { sessionReady, permissions } = useDemoSession();
   const [section, setSection] = useState<Section>("overview");
   const [game, setGame] = useState<AdminGame | null>(null);
   const [market, setMarket] = useState<AdminMarket | null>(null);
   const [deleting, setDeleting] = useState<AdminMarket | null>(null);
+  if (!sessionReady) return null;
+  if (!permissions.canManageSite) notFound();
   if (!ready) return <p role="status">Carregando painel…</p>;
-  if (!username)
-    return (
-      <Card className="grid justify-items-start gap-4">
-        <Heading asChild>
-          <h1>Admin</h1>
-        </Heading>
-        <p className="text-muted">
-          Entre na sua conta para acessar o painel local.
-        </p>
-        <Button onClick={openLogin}>Entrar</Button>
-      </Card>
-    );
 
   return (
     <div className="min-w-0">
@@ -529,7 +519,7 @@ function MarketForm({
 }
 
 function AdminBalance() {
-  const { username, balance, addBalance } = useDemoSession();
+  const { username, balance, addBalance, permissions } = useDemoSession();
   return (
     <Card>
       <h2 className="text-lg font-semibold">Adicionar saldo</h2>
@@ -541,6 +531,7 @@ function AdminBalance() {
         className="mt-5 grid max-w-lg gap-4"
         onSubmit={(event) => {
           event.preventDefault();
+          if (!permissions.canManageSite) return;
           const form = new FormData(event.currentTarget);
           const target = text(form, "username");
           const amount = Number(form.get("amount"));
