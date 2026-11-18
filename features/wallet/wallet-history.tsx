@@ -116,7 +116,7 @@ export function WalletHistory({
           )}
         >
           {entries.length ? (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-contrast/6">
               {entries.map((entry) => {
                 const incoming = entry.amount > 0;
                 const Icon = incoming ? ArrowDownLeft : ArrowUpRight;

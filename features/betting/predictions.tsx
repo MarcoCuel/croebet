@@ -94,7 +94,7 @@ export function Predictions({ className }: { className?: string }) {
                   Croins apostados
                 </span>
               </div>
-              <ul aria-live="polite" className="divide-y divide-border">
+              <ul aria-live="polite" className="divide-y divide-contrast/6">
                 {predictions.map(
                   ({ market, outcome, stake, status, payout }, index) => (
                     <li

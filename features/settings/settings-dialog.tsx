@@ -101,7 +101,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
         data-lenis-prevent
       >
         {section === "Geral" && (
-          <dl className="divide-y divide-border text-sm">
+          <dl className="divide-y divide-contrast/6 text-sm">
             <div className="flex flex-wrap justify-between gap-3 pb-5">
               <dt className="text-muted">Nome</dt>
               <dd className="break-all">{displayName}</dd>

@@ -103,7 +103,7 @@ export default function Rankings() {
               <ol
                 role="list"
                 start={4}
-                className="divide-y divide-border border-t border-contrast/6"
+                className="divide-y divide-contrast/6 border-t border-contrast/6"
               >
                 {players.slice(3).map(({ name, amount }, position) => (
                   <li

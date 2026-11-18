@@ -115,7 +115,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
         </div>
         <div aria-hidden="true" className={cn("absolute inset-0 overflow-hidden bg-flip-card-back [box-shadow:var(--inset-shadow-flip-card)] [backface-visibility:hidden] [transform:rotateY(180deg)]", compact ? "rounded-md" : "rounded-[18cqi]")}>
           <span className={cn("absolute flex items-center justify-center bg-flip-card-inset overflow-hidden", compact ? "inset-1 rounded-sm" : "inset-2.5 rounded-[12cqi]")}>
-            <span className={cn("rotate-12 font-bold leading-none text-border", compact ? "text-2xl" : "text-[120cqi]")}>7</span>
+            <span className={cn("rotate-12 font-bold leading-none text-contrast/6", compact ? "text-2xl" : "text-[120cqi]")}>7</span>
           </span>
         </div>
       </div>

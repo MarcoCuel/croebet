@@ -543,7 +543,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-contrast/6">
                   {entries.map((entry) => (
                     <tr key={entry.id}>
                       <td className="px-3 py-3">{entry.username}</td>
@@ -580,7 +580,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
               <h3 className="mb-3 text-sm font-semibold">
                 Registros antigos fora da liquidação
               </h3>
-              <ul className="divide-y divide-border">
+              <ul className="divide-y divide-contrast/6">
                 {stats.legacyEntries.map((entry, index) => (
                   <li
                     key={index}
@@ -694,7 +694,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
                     ? "Nenhum palpite acertou o resultado. Cada participante receberá seu valor de volta."
                     : "O valor recebido inclui a aposta inicial."}
                 </p>
-                <ul className="mb-5 divide-y divide-border">
+                <ul className="mb-5 divide-y divide-contrast/6">
                   {plan.allocations.map((allocation) => {
                     const entry = entries.find(
                       (e) => e.id === allocation.predictionId,

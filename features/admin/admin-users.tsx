@@ -148,7 +148,7 @@ export function AdminUsers() {
           <span>Saldo</span>
           <span />
         </div>
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-contrast/6">
           {users.map((user) => (
             <li key={user.id}>
               <Link
@@ -295,7 +295,7 @@ export function AdminUserDetail({ id }: { id: string }) {
             {tab === "activity" ? "Movimentações recentes" : "Apostas recentes"}
           </h2>
           {tab === "activity" ? (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-contrast/6">
               {activity.length === 0 && (
                 <li className="py-4 text-sm text-muted">
                   Nenhuma movimentação registrada ainda.
@@ -331,7 +331,7 @@ export function AdminUserDetail({ id }: { id: string }) {
               ))}
             </ul>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-contrast/6">
               {predictions.length === 0 && (
                 <li className="py-4 text-sm text-muted">
                   Nenhuma aposta registrada ainda.
