@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("visitante acessando admin recebe página não encontrada sem convite de login", async ({
   page,
 }) => {
-  await page.goto("/admin");
+  await page.goto("/admin/jogos/flip7");
   await expect(
     page.getByRole("heading", { name: "404", exact: true }),
   ).toBeVisible();

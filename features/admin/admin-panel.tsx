@@ -1,5 +1,8 @@
 "use client";
 
+import { AdminGames } from "@/features/admin/admin-games";
+import { AdminGameEditor } from "@/features/admin/admin-game-editor";
+import { adminRoutes, type AdminSection } from "@/features/admin/routes";
 import { AboutEditor } from "@/features/admin/about-editor";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -26,11 +29,7 @@ import {
   formatBalance,
   isPrediction,
 } from "@/features/wallet/wallet";
-import {
-  useSiteConfig,
-  type AdminGame,
-  type AdminMarket,
-} from "@/features/admin/site-config";
+import { useSiteConfig, type AdminMarket } from "@/features/admin/site-config";
 
 const sections = [
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
@@ -39,15 +38,18 @@ const sections = [
   { id: "about", label: "Sobre", Icon: FileText },
   { id: "balance", label: "Saldo", Icon: Coins },
 ] as const;
-type Section = (typeof sections)[number]["id"];
 const text = (form: FormData, name: string) =>
   String(form.get(name) ?? "").trim();
 
-export function AdminPanel() {
+export function AdminPanel({
+  section = "overview",
+  gameSlug,
+}: {
+  section?: AdminSection;
+  gameSlug?: string;
+}) {
   const { config, ready, save } = useSiteConfig();
   const { sessionReady, permissions } = useDemoSession();
-  const [section, setSection] = useState<Section>("overview");
-  const [game, setGame] = useState<AdminGame | null>(null);
   const [market, setMarket] = useState<AdminMarket | null>(null);
   const [deleting, setDeleting] = useState<AdminMarket | null>(null);
   if (!sessionReady) return null;
@@ -67,10 +69,12 @@ export function AdminPanel() {
               variant={section === id ? "secondary" : "ghost"}
               className="justify-start"
               aria-current={section === id ? "page" : undefined}
-              onClick={() => setSection(id)}
+              asChild
             >
-              <Icon className="size-4" aria-hidden="true" />
-              {label}
+              <Link href={adminRoutes[id]}>
+                <Icon className="size-4" aria-hidden="true" />
+                {label}
+              </Link>
             </Button>
           ))}
         </nav>
@@ -110,52 +114,12 @@ export function AdminPanel() {
               </Card>
             </>
           )}
-          {section === "games" && (
-            <>
-              <h2 className="mb-4 text-lg font-semibold">Jogos</h2>
-              <div className="grid gap-3">
-                {config.games.map((entry) => (
-                  <Card
-                    key={entry.slug}
-                    className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-4"
-                  >
-                    <div className="min-w-0">
-                      <h3 className="font-medium">{entry.name}</h3>
-                      <p className="mt-1 text-sm text-muted">
-                        {entry.type} · {entry.enabled ? "Ativo" : "Pausado"}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setGame(entry)}
-                        aria-label={`Editar ${entry.name}`}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          save({
-                            ...config,
-                            games: config.games.map((g) =>
-                              g.slug === entry.slug
-                                ? { ...g, enabled: !g.enabled }
-                                : g,
-                            ),
-                          })
-                        }
-                      >
-                        {entry.enabled ? "Pausar" : "Ativar"}
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </>
-          )}
+          {section === "games" &&
+            (gameSlug ? (
+              <AdminGameEditor key={gameSlug} slug={gameSlug} />
+            ) : (
+              <AdminGames />
+            ))}
           {section === "markets" && (
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -235,87 +199,6 @@ export function AdminPanel() {
           {section === "balance" && <AdminBalance />}
         </section>
       </div>
-      <Dialog
-        open={!!game}
-        onOpenChange={(open) => {
-          if (!open) setGame(null);
-        }}
-      >
-        <DialogContent aria-describedby={undefined}>
-          <DialogTitle>Editar jogo</DialogTitle>
-          {game && (
-            <form
-              className="mt-5 grid gap-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                const updated = {
-                  ...game,
-                  name: text(form, "name"),
-                  type: text(form, "type"),
-                  description: text(form, "description"),
-                  coverTitle: text(form, "coverTitle")
-                    .split("\n")
-                    .map((t) => t.trim())
-                    .filter(Boolean),
-                };
-                if (
-                  save({
-                    ...config,
-                    games: config.games.map((g) =>
-                      g.slug === game.slug ? updated : g,
-                    ),
-                  })
-                )
-                  setGame(null);
-              }}
-            >
-              <Field>
-                Nome
-                <Input
-                  name="name"
-                  defaultValue={game.name}
-                  required
-                  maxLength={100}
-                />
-              </Field>
-              <Field>
-                Categoria
-                <Input
-                  name="type"
-                  defaultValue={game.type}
-                  required
-                  maxLength={100}
-                />
-              </Field>
-              <Field>
-                Título na capa
-                <Textarea
-                  name="coverTitle"
-                  defaultValue={game.coverTitle.join("\n")}
-                  required
-                  maxLength={100}
-                />
-              </Field>
-              <Field>
-                Descrição
-                <Textarea
-                  name="description"
-                  defaultValue={game.description}
-                  required
-                  maxLength={2000}
-                />
-              </Field>
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" onClick={() => setGame(null)}>
-                  Cancelar
-                </Button>
-                <Button type="submit">Salvar jogo</Button>
-              </div>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
       <Dialog
         open={!!market}
         onOpenChange={(open) => {

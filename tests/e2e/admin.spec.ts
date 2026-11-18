@@ -11,17 +11,28 @@ test("admin edita jogos e bloqueia acesso direto ao pausar", async ({
   page,
 }) => {
   const nav = page.getByRole("navigation", { name: "Seções do admin" });
-  await nav.getByRole("button", { name: "Jogos", exact: true }).click();
-  await page.getByRole("button", { name: "Editar Flip7", exact: true }).click();
-  await page.getByLabel("Nome", { exact: true }).fill("Flip7 da casa");
-  await page.getByLabel("Título na capa").fill("Flip7 da casa");
-  await page.getByRole("button", { name: "Salvar jogo" }).click();
+  await nav.getByRole("link", { name: "Jogos", exact: true }).click();
+  await page.getByRole("link", { name: "Editar Flip7", exact: true }).click();
+  await expect(page).toHaveURL("/admin/jogos/flip7");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByLabel("Categoria", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Descrição", { exact: true })).toHaveCount(0);
   await page.reload();
-  await nav.getByRole("button", { name: "Jogos", exact: true }).click();
+  await expect(page.getByLabel("Nome do jogo")).toHaveValue("Flip7");
+  await page.getByLabel("Nome do jogo").fill("Flip7 da casa");
+  await page.getByRole("button", { name: "Salvar jogo" }).click();
+  await expect(page).toHaveURL("/admin/jogos");
+  await page.reload();
+  await nav.getByRole("link", { name: "Jogos", exact: true }).click();
   const card = page
     .locator('[data-slot="card"]')
     .filter({ has: page.getByRole("heading", { name: "Flip7 da casa" }) });
+  await expect(
+    card.getByRole("img", { name: "Capa de Flip7 da casa" }),
+  ).toBeVisible();
+  await expect(card.getByText("Ativo", { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "Pausar" }).click();
+  await expect(card.getByText("Inativo", { exact: true })).toBeVisible();
   await page.goto("/jogos");
   await expect(page.getByRole("link", { name: "Flip7 da casa" })).toHaveCount(
     0,
@@ -36,7 +47,7 @@ test("admin cria, edita e exclui apostas e publica o Sobre local", async ({
   page,
 }) => {
   const nav = page.getByRole("navigation", { name: "Seções do admin" });
-  await nav.getByRole("button", { name: "Apostas", exact: true }).click();
+  await nav.getByRole("link", { name: "Apostas", exact: true }).click();
   await page.getByRole("button", { name: "Nova aposta", exact: true }).click();
   await page.getByLabel("Pergunta").fill("Vai ter jogo hoje?");
   await page.getByLabel("Categoria", { exact: true }).fill("Comunidade");
@@ -49,7 +60,7 @@ test("admin cria, edita e exclui apostas e publica o Sobre local", async ({
     page.getByRole("heading", { name: "Vai ter jogo hoje?" }),
   ).toBeVisible();
   await page.goto("/admin");
-  await nav.getByRole("button", { name: "Apostas", exact: true }).click();
+  await nav.getByRole("link", { name: "Apostas", exact: true }).click();
   await page.getByRole("button", { name: "Editar Vai ter jogo hoje?" }).click();
   await page.getByLabel("Pergunta").fill("Vai ter jogo amanhã?");
   await page.getByRole("button", { name: "Salvar aposta" }).click();
@@ -60,7 +71,7 @@ test("admin cria, edita e exclui apostas e publica o Sobre local", async ({
   await page
     .getByRole("button", { name: "Excluir aposta", exact: true })
     .click();
-  await nav.getByRole("button", { name: "Sobre", exact: true }).click();
+  await nav.getByRole("link", { name: "Sobre", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Conteúdo da página Sobre" })
     .fill("A casa está aberta.");
@@ -96,7 +107,7 @@ test("recarga fica no admin, valida conta e persiste movimentação", async ({
   await page.keyboard.press("Escape");
   await page
     .getByRole("navigation", { name: "Seções do admin" })
-    .getByRole("button", { name: "Saldo", exact: true })
+    .getByRole("link", { name: "Saldo", exact: true })
     .click();
   await page.getByLabel("Nome de usuário").fill("Inexistente");
   await page.getByLabel("Adicionar Croins de teste").fill("100");
@@ -132,7 +143,7 @@ test("editor visual preserva negrito e listas após salvar e reabrir", async ({
   page,
 }) => {
   const nav = page.getByRole("navigation", { name: "Seções do admin" });
-  await nav.getByRole("button", { name: "Sobre", exact: true }).click();
+  await nav.getByRole("link", { name: "Sobre", exact: true }).click();
   const editor = page.getByRole("textbox", {
     name: "Conteúdo da página Sobre",
   });
@@ -149,7 +160,7 @@ test("editor visual preserva negrito e listas após salvar e reabrir", async ({
     "Contribuições para a casa",
   );
   await page.goto("/admin");
-  await nav.getByRole("button", { name: "Sobre", exact: true }).click();
+  await nav.getByRole("link", { name: "Sobre", exact: true }).click();
   await expect(editor.locator("li strong")).toHaveText(
     "Contribuições para a casa",
   );

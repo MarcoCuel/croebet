@@ -83,7 +83,7 @@ test("sessão preserva carteira, bônus diário e palpites após recarregar", as
   await page.getByRole("menuitem", { name: "Admin", exact: true }).click();
   await page
     .getByRole("navigation", { name: "Seções do admin" })
-    .getByRole("button", { name: "Saldo", exact: true })
+    .getByRole("link", { name: "Saldo", exact: true })
     .click();
   await page.getByLabel("Adicionar Croins de teste").fill("100");
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
@@ -382,7 +382,7 @@ test("saldo leva ao histórico e a recarga fica no admin", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Admin", exact: true }).click();
   await page
     .getByRole("navigation", { name: "Seções do admin" })
-    .getByRole("button", { name: "Saldo", exact: true })
+    .getByRole("link", { name: "Saldo", exact: true })
     .click();
   await page.getByLabel("Adicionar Croins de teste").fill("100");
   await page.getByRole("button", { name: "Adicionar", exact: true }).click();
@@ -471,25 +471,25 @@ test("configurações alternam seções, aplicam tema e devolvem foco ao fechar"
     name: "Seções de configurações",
   });
   await expect(
-    nav.getByRole("button", { name: "Geral", exact: true }),
+    nav.getByRole("link", { name: "Geral", exact: true }),
   ).toBeFocused();
   await expect(
     dialog.getByRole("region", { name: "Geral", exact: true }),
   ).toContainText("Preferencias");
-  await nav.getByRole("button", { name: "Aparência", exact: true }).click();
+  await nav.getByRole("link", { name: "Aparência", exact: true }).click();
   await dialog.getByRole("button", { name: "Claro", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(
     dialog.getByRole("button", { name: "Claro", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await nav.getByRole("button", { name: "Histórico", exact: true }).click();
+  await nav.getByRole("link", { name: "Histórico", exact: true }).click();
   await expect(
     dialog.getByText("Nenhuma movimentação registrada ainda."),
   ).toBeVisible();
   expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
     true,
   );
-  await nav.getByRole("button", { name: "Conta", exact: true }).click();
+  await nav.getByRole("link", { name: "Conta", exact: true }).click();
   await expect(dialog.getByLabel("Nome de usuário")).toHaveValue(
     "Preferencias",
   );

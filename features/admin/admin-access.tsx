@@ -1,5 +1,6 @@
 "use client";
 
+import type { AdminSection } from "@/features/admin/routes";
 import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { useDemoSession } from "@/features/auth/session-context";
@@ -9,9 +10,15 @@ const AdminPanel = dynamic(() =>
   import("@/features/admin/admin-panel").then((module) => module.AdminPanel),
 );
 
-export function AdminAccess() {
+export function AdminAccess({
+  section = "overview",
+  gameSlug,
+}: {
+  section?: AdminSection;
+  gameSlug?: string;
+}) {
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
-  return <AdminPanel />;
+  return <AdminPanel section={section} gameSlug={gameSlug} />;
 }

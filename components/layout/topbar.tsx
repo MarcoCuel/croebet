@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { brandLinkClass, Wordmark } from "./brand";
+import { adminRoutes } from "@/features/admin/routes";
 import { useSiteConfig } from "@/features/admin/site-config";
 import { useHomeSection } from "@/features/home/home-section";
 import { usePageBack } from "./page-back";
@@ -41,6 +42,18 @@ export function Topbar({
   const isBets = section === "bets";
   const { permissions } = useDemoSession();
   const pageTitle =
+    (pathname.startsWith("/admin/") && permissions.canManageSite
+      ? pathname.startsWith("/admin/jogos/")
+        ? "Editar jogo"
+        : (
+            {
+              "/admin/jogos": "Jogos",
+              "/admin/apostas": "Apostas",
+              "/admin/sobre": "Sobre",
+              "/admin/saldo": "Saldo",
+            } as Record<string, string>
+          )[pathname]
+      : undefined) ??
     games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
     (
       {
@@ -55,9 +68,14 @@ export function Topbar({
     )[pathname] ??
     "Página não encontrada";
   const isInternalPage = pathname !== "/";
-  const backLink = pathname.startsWith("/jogos/")
-    ? { href: "/jogos", label: "Voltar para Jogos" }
-    : { href: "/", label: "Voltar para o início" };
+  const backLink =
+    pathname.startsWith("/admin/") && permissions.canManageSite
+      ? pathname.startsWith("/admin/jogos/")
+        ? { href: adminRoutes.games, label: "Voltar para Jogos do admin" }
+        : { href: "/admin", label: "Voltar para Admin" }
+      : pathname.startsWith("/jogos/")
+        ? { href: "/jogos", label: "Voltar para Jogos" }
+        : { href: "/", label: "Voltar para o início" };
   const {
     username,
     balance,
