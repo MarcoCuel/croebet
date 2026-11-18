@@ -63,7 +63,7 @@ function settle(game: Game) {
   if (game.phase !== "playing" || game.bonusChoice != null || game.pending || game.forced) return;
   while (game.queue.length) {
     game.pending = game.queue.shift()!;
-    if (vengeanceTargets(game).length) return;
+    if (game.pending.resolving ? cardChoices(game).length : vengeanceTargets(game).length) return;
     game.discard.push(game.pending.card); game.pending = null;
   }
   for (let offset = 1; offset <= game.players.length; offset++) {
@@ -81,9 +81,9 @@ function draw(game: Game, target: number, deferred: boolean) {
   log(game, `${game.players[target].name} comprou`, target, card);
   if (isNumber(card)) receive(game, target, card);
   else {
-    const pending: Pending = { source: target, card };
+    const pending: Pending = { source: target, card, ...(["steal", "remove"].includes(card.type) ? { resolving: true } : {}) };
     if (deferred) game.queue.push(pending);
-    else if (vengeanceTargets({ ...game, pending }).length) game.pending = pending;
+    else if (pending.resolving ? cardChoices({ ...game, pending }).length : vengeanceTargets({ ...game, pending }).length) game.pending = pending;
     else { game.discard.push(card); log(game, `${cardLabel(card)} sem alvo disponível.`, target); }
   }
 }

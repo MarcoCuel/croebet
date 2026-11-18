@@ -16,6 +16,12 @@ export function decodeMatch(raw: string, code: string): SavedMatch | null {
     // Version 1 snapshots created before modes were introduced are Classic matches.
     if (game.mode === undefined && game.brutal === undefined) { game.mode = "classic"; game.brutal = false; }
     if (!["classic", "vengeance"].includes(String(game.mode)) || typeof game.brutal !== "boolean" || (game.mode === "classic" && game.brutal)) return null;
+    // Older saves asked who would control Steal/Discard; now the drawer chooses the card directly.
+    if (game.mode === "vengeance") {
+      const direct = (value: unknown) => { if (object(value) && object(value.card) && ["steal", "remove"].includes(String(value.card.type))) value.resolving = true; };
+      direct(game.pending);
+      if (Array.isArray(game.queue)) game.queue.forEach(direct);
+    }
     const deck = createDeck(game.mode as Game["mode"]);
     const isCard = (value: unknown): value is Card => {
       if (!object(value) || !integer(value.id) || value.id >= deck.length) return false;

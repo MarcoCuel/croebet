@@ -321,16 +321,11 @@ test("Vingança permite roubar de quem parou, anima a transferência e retoma a 
   game.players[1].status = "stayed";
   game = transition(game, { type: "draw" });
   await restore(page, game);
-  await page.getByRole("button", { name: "Marco vai roubar", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Marco vai roubar", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Confirmar", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Selecionar 9 de Pessoa", exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Selecionar 9 de Pessoa", exact: true }).click();
-  expect((await savedGame(page)).players[1].cards).toHaveLength(1);
-  await expect(page.locator("[data-moving-card]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Confirmar", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Selecionar 9 de Pessoa", exact: true }).click();
-  await page.getByRole("button", { name: "Confirmar", exact: true }).click();
   await expect(page.locator("[data-moving-card]")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);
   await expect(page.locator("[data-moving-card]")).toHaveCount(0);
@@ -344,34 +339,40 @@ test("Vingança permite roubar de quem parou, anima a transferência e retoma a 
   await expect(hand.getByRole("img", { name: "9", exact: true })).toBeVisible();
 });
 
-test("Trocar seleciona duas cartas de mãos diferentes com teclado e move ambas", async ({ page }) => {
+test("Trocar anima uma prévia local reversível e só efetiva ao confirmar", async ({ page }) => {
   const game = transition(transition(scenario([["swap"]], { mode: "vengeance", brutal: false }), { type: "draw" }), { type: "target", target: 0 });
   await restore(page, game);
   const confirm = page.getByRole("button", { name: "Confirmar", exact: true });
   await expect(confirm).toBeDisabled();
   const before = await savedGame(page);
   const first = page.getByRole("button", { name: "Selecionar 8 de Marco", exact: true });
+  const second = page.getByRole("button", { name: "Selecionar 9 de Pessoa", exact: true });
+  const marco = page.getByRole("region", { name: "Mesa de Marco", exact: true });
+  const pessoa = page.getByRole("region", { name: "Mesa de Pessoa", exact: true });
   await first.focus(); await page.keyboard.press("Enter");
   await expect(first).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Selecionar 9 de Pessoa", exact: true }).click();
-  await expect(confirm).toBeEnabled();
-  await expect(page.locator("[data-moving-card]")).toHaveCount(0);
-  expect(await savedGame(page)).toEqual(before);
-  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(confirm).toBeDisabled();
-  await expect(first).toHaveAttribute("aria-pressed", "false");
-  expect(await savedGame(page)).toEqual(before);
-  await first.click();
-  await page.getByRole("button", { name: "Selecionar 9 de Pessoa", exact: true }).click();
-  // Deselecting a card invalidates the pair without committing the exchange.
-  await first.click();
-  await expect(confirm).toBeDisabled();
-  await first.click();
-  await confirm.click();
+  await second.click();
   await expect(page.locator("[data-moving-card]")).toHaveCount(2);
   await expect(page.locator("[data-moving-card]")).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Mesa de Marco", exact: true }).getByRole("img", { name: "9", exact: true })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Mesa de Pessoa", exact: true }).getByRole("img", { name: "8", exact: true })).toBeVisible();
+  await expect(marco.getByRole("img", { name: "9", exact: true })).toBeVisible();
+  expect(await savedGame(page)).toEqual(before);
+  await expect(confirm).toBeEnabled();
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(page.locator("[data-moving-card]")).toHaveCount(2);
+  await expect(page.locator("[data-moving-card]")).toHaveCount(0);
+  await expect(marco.getByRole("img", { name: "8", exact: true })).toBeVisible();
+  await expect(pessoa.getByRole("img", { name: "9", exact: true })).toBeVisible();
+  expect(await savedGame(page)).toEqual(before);
+  await first.click(); await second.click();
+  await expect(page.locator("[data-moving-card]")).toHaveCount(0);
+  await confirm.click();
+  await expect(marco.getByRole("img", { name: "9", exact: true })).toBeVisible();
+  await expect(pessoa.getByRole("img", { name: "8", exact: true })).toBeVisible();
+  const committed = await savedGame(page);
+  expect(committed.players[0].cards[0].value).toBe(9);
+  expect(committed.players[1].cards[0].value).toBe(8);
+  await page.reload();
+  await expect(marco.getByRole("img", { name: "9", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -417,7 +418,7 @@ test("O Zero bloqueia Parar e o Brutal mantém modificador novo visível para qu
   await expect(hand.getByRole("img", { name: "−10", exact: true })).toBeVisible();
 });
 
-test("Descartar confirma a carta ruim da própria mão e Cancelar preserva todas as cartas", async ({ page }) => {
+test("Descartar remove a carta própria com um clique e sem selecionar participante", async ({ page }) => {
   let game = scenario([["remove"]], { mode: "vengeance", brutal: false });
   const index = game.deck.findIndex(c => c.type === "minus" && c.value === 10);
   const bad = game.deck.splice(index, 1)[0];
@@ -425,16 +426,9 @@ test("Descartar confirma a carta ruim da própria mão e Cancelar preserva todas
   game.players[1].kind = "normal";
   game = transition(game, { type: "draw" });
   await restore(page, game);
-  await page.getByRole("button", { name: "Marco escolhe a carta para descartar", exact: true }).click();
-  const before = await savedGame(page);
-  const choice = page.getByRole("button", { name: "Selecionar −10 de Marco", exact: true });
-  await choice.click();
-  expect(await savedGame(page)).toEqual(before);
-  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await expect(choice).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByRole("button", { name: "Confirmar", exact: true })).toBeDisabled();
-  await choice.click();
-  await page.getByRole("button", { name: "Confirmar", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Marco escolhe a carta para descartar", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Confirmar", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Selecionar −10 de Marco", exact: true }).click();
   await expect(page.locator("[data-moving-card]")).toHaveCount(1);
   // Persisting precedes animation and the bot's next action.
   const saved = await savedGame(page);

@@ -201,15 +201,18 @@ test("Vingança permite parar sem números após a distribuição, inclusive com
   assert.equal(transition(initial, { type: "stay" }), initial);
 });
 
-test("Roubar transfere da vítima para quem recebeu o controle da ação, inclusive outro jogador", () => {
+test("Roubar escolhe a carta diretamente e entrega ao comprador, sem escolher participante", () => {
   for (const receiver of [0, 1]) {
     const f = fixture();
     const victim = receiver === 0 ? 1 : 0;
     const [stolen] = f.hand(victim, ["number", 8]);
     f.hand(receiver, ["number", 3]);
     f.stack(["steal"]);
+    f.game.turn = receiver;
     let g = transition(f.game, { type: "draw" });
-    g = transition(g, { type: "target", target: receiver });
+    assert.equal(g.pending.resolving, true);
+    assert.deepEqual(targets(g), []);
+    assert.equal(transition(g, { type: "target", target: victim }), g);
     assert.equal(g.pending.source, receiver);
     assert.equal(g.players[victim].cards[0].id, stolen.id);
     g = transition(g, { type: "cards", cards: [stolen.id] });

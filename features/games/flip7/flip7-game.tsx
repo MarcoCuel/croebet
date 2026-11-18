@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { usePageBack } from "@/components/layout/page-back";
 import gsap from "gsap";
@@ -47,7 +47,7 @@ function VengeanceRules({ brutal }: { brutal: boolean }) {
     <li>Compre ou pare. Repetir um número estoura. Sete cartas numéricas encerram a rodada; o 13 da sorte permite uma exceção aos números diferentes. Vence o maior total ao fim da rodada em que alguém alcançar 200.</li>
     <li>O Zero obriga a continuar comprando e zera a rodada, exceto se completar Flip7. O 7 azarado descarta suas outras cartas; recebê-lo não estoura. O 13 da sorte permite dois 13; um terceiro estoura.</li>
     <li>Some os números, aplique ÷2 arredondando para baixo, subtraia −2, −4, −6, −8 e −10 e, por último, acrescente o bônus de 15 do Flip7. {brutal ? "A pontuação pode ser negativa." : "A pontuação não pode ficar abaixo de zero."}</li>
-    <li>Ao comprar uma ação, escolha quem irá resolvê-la. Roubar pega uma carta de outra pessoa. Trocar troca duas cartas de pessoas diferentes. Descartar remove uma carta. Essas ações são obrigatórias quando há cartas válidas. Trocas e roubos podem causar estouro.</li>
+    <li>Roubar e Descartar são resolvidos por quem comprou a ação, clicando diretamente na carta. Nas outras ações, escolha quem irá resolvê-las. Roubar pega uma carta de outra pessoa. Trocar troca duas cartas de pessoas diferentes. Descartar remove uma carta. Essas ações são obrigatórias quando há cartas válidas. Trocas e roubos podem causar estouro.</li>
     <li>Só mais uma! obriga a comprar uma carta e parar. Compre 4 força até quatro compras; ações e modificadores só são resolvidos depois, na ordem de compra. Estourar durante a sequência descarta os efeitos que acabaram de sair.</li>
     <li>Quem parou continua vulnerável a ações e modificadores e resolve efeitos sem voltar à atividade. {brutal ? "Modificadores também podem atingir quem estourou; cartas anteriores ao estouro ficam fora de jogo." : "Quem estourou fica fora dos alvos."}</li>
     {brutal && <li>Ao fazer Flip7, escolha entre ganhar 15 pontos ou tirar 15 de outra pessoa. A rodada só é contabilizada após essa escolha.</li>}
@@ -55,13 +55,18 @@ function VengeanceRules({ brutal }: { brutal: boolean }) {
 }
 const playerStatus = { playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" } as const;
 const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove", "Dez", "Onze", "Doze", "Treze"];
-const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "amber", "lime", "orange", "red", "blue", "slate", "purple"];
+const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "coral", "lime", "orange", "red", "blue", "slate", "sky"];
 function PlayingCard({ card, flipped = false, compact = false, fluid = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean }) {
+  const gradientId = useId();
   const holographic = card.type === "lucky13" && !compact && !flipped;
   const special = ["freeze", "chance", "three", "one", "four", "steal", "swap", "remove"].includes(card.type);
   const numeric = isNumber(card);
   const Icon = card.type === "freeze" ? Snowflake : card.type === "chance" ? Heart : card.type === "swap" ? ArrowLeftRight : card.type === "steal" ? Hand : card.type === "remove" ? Trash2 : PlayingCardsFan;
-  const color = numeric ? numberColors[card.value] : card.type === "freeze" || card.type === "halve" ? "cyan" : card.type === "three" || card.type === "four" ? "amber" : card.type === "minus" || card.type === "remove" ? "red" : card.type === "swap" ? "purple" : "orange";
+  const color = card.type === "unlucky7" ? "silver" : numeric ? numberColors[card.value]
+    : card.type === "freeze" || card.type === "one" ? "cyan"
+    : card.type === "four" ? "yellow" : card.type === "three" || card.type === "steal" ? "amber"
+    : card.type === "minus" || card.type === "halve" ? "red"
+    : card.type === "swap" ? "lime" : card.type === "remove" ? "purple" : "orange";
   const label = card.type === "number" ? numberNames[card.value] : cardLabel(card);
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
@@ -79,7 +84,6 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
           )}>
           {holographic && <>
             <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-(image:--background-image-flip-holographic) bg-size-[250%_250%] bg-center opacity-60 motion-safe:animate-flip-holographic" />
-            <span aria-hidden="true" className="pointer-events-none absolute -inset-1/2 z-10 bg-(image:--background-image-flip-glare) mix-blend-screen motion-safe:animate-flip-glare" />
           </>}
           {compact ? <>
             {numeric && <span className="absolute top-0 h-0.5 w-4 rounded-b-full bg-(--card-color)" aria-hidden="true" />}
@@ -92,7 +96,10 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
               {numeric && <span className={cn("size-[11cqi] shrink-0 rounded-full bg-(--card-color)", holographic && "bg-white")} aria-hidden="true" />}
             </div>
             {special ? <Icon className={cn("absolute -bottom-[28cqi] left-[8cqi] size-[112cqi]", card.type === "chance" && "-rotate-15")} strokeWidth={1.5} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <svg className="absolute inset-0 size-full overflow-visible font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
-              <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={126} letterSpacing="-0.05em">{card.type === "double" || card.type === "halve" ? 2 : card.value}</text>
+              {card.type === "zero" && <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="var(--color-flip-cyan)" /><stop offset="35%" stopColor="var(--color-flip-pink)" /><stop offset="65%" stopColor="var(--color-flip-neutral)" /><stop offset="100%" stopColor="var(--color-flip-purple)" />
+              </linearGradient></defs>}
+              <text x="50" y="155" textAnchor="middle" fill={card.type === "zero" ? `url(#${gradientId})` : "currentColor"} fontSize={126} letterSpacing="-0.05em">{card.type === "double" || card.type === "halve" ? 2 : card.value}</text>
             </svg>}
           </>}
         </div>
@@ -229,6 +236,7 @@ export default function Flip7Game() {
   const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean; consumedChance?: Card; discardedCards?: Card[]; discardAfter?: boolean; hand?: { height: number; cards: { id: string; left: number; top: number; width: number; height: number }[] }; origin?: { left: number; top: number; width: number } } | null>(null);
   const [landed, setLanded] = useState(false);
   const [selectedCards, setSelectedCards] = useState<number[]>([]);
+  const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
   useEffect(() => {
     if (matchCode) matchUrl(matchCode);
@@ -283,7 +291,7 @@ export default function Flip7Game() {
         setFlight({ card, target: action.target, initial: false, parked: false, discardAfter: next.discard.some(c => c.id === card.id), hand: captureHand(action.target), origin: { left: source.left, top: source.top, width: source.width } });
       }
     }
-    if (action.type === "cards") {
+    if (action.type === "cards" && !swapPreview) {
       const movements = current.players.flatMap((player, owner) => player.cards.flatMap(card => {
         const target = next.players.findIndex(p => p.cards.some(c => c.id === card.id));
         if (target === owner) return [];
@@ -292,10 +300,11 @@ export default function Flip7Game() {
       }));
       if (movements.length) { locked.current = true; setMovingCards(movements); }
     }
+    setSwapPreview(null);
     if (matchCodeRef.current) persist(next, matchCodeRef.current);
     gameRef.current = next;
     setGame(next);
-  }, [persist]);
+  }, [persist, swapPreview]);
   const leave = () => {
     try { window.localStorage.removeItem(matchStorageKey); }
     catch { toast.error("Não foi possível abandonar a partida. Tente novamente."); return false; }
@@ -303,6 +312,7 @@ export default function Flip7Game() {
     locked.current = false;
     setFlight(null);
     setMovingCards(null);
+    setSwapPreview(null);
     setSelectedCards([]);
     setGame(null);
     setMatchCode(null);
@@ -426,13 +436,31 @@ export default function Flip7Game() {
   const winners = game.players.filter(player => player.total === maxScore);
   const actionLabel = game.pending ? cardLabel(game.pending.card) : "";
   const choices = cardChoices(game);
-  const selectingCards = !flight && !movingCards && human && game.pending?.resolving && ["swap", "steal", "remove"].includes(game.pending.card.type);
+  const selectingCards = !flight && !movingCards && human && game.pending?.resolving && game.pending.card.type === "swap";
   const validSelection = choices.some(ids => ids.length === selectedCards.length && ids.every(id => selectedCards.includes(id)));
   const eligibleCards = choices.filter(ids => selectedCards.every(id => ids.includes(id))).flat();
+  const animateSwapPreview = (ids: number[], reverse = false) => {
+    if (locked.current) return;
+    const owners = ids.map(id => game.players.findIndex(p => p.cards.some(c => c.id === id)));
+    const movements = ids.flatMap((id, index) => {
+      const card = game.players[owners[index]]?.cards.find(c => c.id === id);
+      const rect = boardRef.current?.querySelector<HTMLElement>(`[data-hand-card="${id}"]`)?.getBoundingClientRect();
+      return card && rect ? [{ card, target: owners[reverse ? index : 1 - index], origin: { left: rect.left, top: rect.top, width: rect.width } }] : [];
+    });
+    setPresentationBefore(game);
+    setSwapPreview(reverse ? null : ids);
+    setSelectedCards(reverse ? [] : ids);
+    if (movements.length) { locked.current = true; setMovingCards(movements); }
+  };
+  const previewPlayers = swapPreview ? game.players.map(player => ({ ...player, cards: player.cards.map(card => {
+    const index = swapPreview.indexOf(card.id);
+    return index < 0 ? card : game.players.flatMap(p => p.cards).find(c => c.id === swapPreview[1 - index]) ?? card;
+  }) })) : game.players;
   const status = game.phase === "over" ? `${winners.map(player => player.name).join(" e ")} ${winners.length > 1 ? "venceram" : "venceu"}!`
     : game.phase === "summary" ? (game.flip7 !== null ? `${game.players[game.flip7].name} fez Flip7!` : "Rodada encerrada")
     : game.bonusChoice != null ? `${actor.name} · Flip7: ganhe 15 pontos ou tire 15 de alguém`
     : game.forced ? `${game.players[game.forced.target].name}: mais ${game.forced.remaining} carta(s)`
+    : swapPreview ? "Prévia da troca · Confirme ou cancele"
     : game.pending?.card.type === "remove" ? (game.pending.resolving ? `${actor.name} vai descartar: escolha uma carta sua ou de outro jogador` : `${actor.name} · Descartar: escolha quem decidirá qual carta remover`)
     : game.pending?.card.type === "steal" ? (game.pending.resolving ? `${actor.name} vai roubar: escolha uma carta de outro jogador` : `${actor.name} · Roubar: escolha quem receberá a carta roubada`)
     : game.pending ? `${actor.name} · ${actionLabel}: ${game.pending.resolving ? "escolha " + (game.pending.card.type === "swap" ? "duas cartas" : "uma carta") : "escolha alguém"}` : !current.hasDrawn ? `Vez de ${current.name} · Distribuindo a primeira carta` : human ? "Sua vez" : `Vez de ${current.name}`;
@@ -450,7 +478,7 @@ export default function Flip7Game() {
           </div>}
           {selectingCards && <div className="flex gap-2">
             <Button disabled={!validSelection} onClick={() => send({ type: "cards", cards: selectedCards })}>Confirmar</Button>
-            <Button variant="secondary" onClick={() => setSelectedCards([])}>Cancelar</Button>
+            <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
           {game.phase !== "playing" && !flight && !movingCards && <Button onClick={() => game.phase === "summary" ? send({ type: "next" }) : leave()} disabled={!!flight || !!movingCards}>{game.phase === "summary" ? "Próxima rodada" : "Jogar novamente"}</Button>}
@@ -500,7 +528,7 @@ export default function Flip7Game() {
             </div>
           </div>
           <div className={cn("grid auto-rows-fr items-stretch gap-4", game.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-3")}>
-            {game.players.map((player, i) => {
+            {previewPlayers.map((player, i) => {
               const visiblePlayer = visibleGame.players[i];
               const inTransit = flight?.target === i && !flight.parked && !player.cards.some(card => card.id === flight.card.id) ? [flight.card] : [];
               const cards = [...player.cards, ...(flight?.target === i ? flight.discardedCards ?? [] : []), ...(flight?.target === i && flight.consumedChance ? [flight.consumedChance] : []), ...inTransit];
@@ -511,11 +539,11 @@ export default function Flip7Game() {
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
                 <PlayingCard card={card} flipped={flipped && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} fluid />
                 {!flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-accent hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
-                  if (game.pending && ["swap", "steal", "remove"].includes(game.pending.card.type)) {
-                    const limit = game.pending.card.type === "swap" ? 2 : 1;
-                    setSelectedCards(previous => previous.includes(card.id)
-                      ? previous.filter(id => id !== card.id)
-                      : previous.length < limit ? [...previous, card.id] : previous);
+                  if (game.pending?.card.type === "swap") {
+                    if (swapPreview) animateSwapPreview(swapPreview, true);
+                    else if (selectedCards.includes(card.id)) setSelectedCards([]);
+                    else if (selectedCards.length === 0) setSelectedCards([card.id]);
+                    else animateSwapPreview([selectedCards[0], card.id]);
                   } else send({ type: "cards", cards: [card.id] });
                 }}><span className="sr-only">Selecionar {cardLabel(card)} de {player.name}</span></Button>}
               </div>;
