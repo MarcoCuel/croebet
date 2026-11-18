@@ -19,6 +19,9 @@ const inter = localFont({
 export const metadata: Metadata = {
   title: "Croebet — O meu também é Betty",
   description: "Jogos de sorte, previsões duvidosas e Croins em jogo.",
+  icons: {
+    icon: { url: "/favicon.png", type: "image/png", sizes: "512x512" },
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
