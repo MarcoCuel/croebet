@@ -13,9 +13,9 @@ export const defaultAbout = {
       ],
     },
     {
-      title: "Seu dinheiro não nos interessa",
+      title: "Todo Croin tem seu lugar",
       paragraphs: [
-        "Operamos exclusivamente com Croins, nossa moeda virtual sem valor monetário. Sem depósitos, compra de moedas ou saques em dinheiro real. Conseguimos ser gananciosos sem precisar do número do seu cartão. Questão de competência.",
+        "Operamos exclusivamente com Croins. Você ganha, aposta e tenta multiplicar. A casa acompanha cada movimento com um interesse perfeitamente desinteressado. Principalmente quando os Croins voltam para cá.",
       ],
     },
     {

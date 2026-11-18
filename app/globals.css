@@ -139,7 +139,7 @@
   }
 
   /* Text links retain a keyboard focus indicator without a ring. */
-  :where(a:not([data-slot="button"])):focus-visible {
+  :where(a:not([data-slot="button"]):not([data-slot="dropdown-menu-item"])):focus-visible {
     @apply outline-none underline decoration-accent underline-offset-4;
   }
 }

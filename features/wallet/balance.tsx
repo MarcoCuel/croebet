@@ -10,7 +10,7 @@ export function Balance({ value }: { value: number }) {
         C
       </span>
       <span className="truncate" aria-live="polite">
-        <span className="sr-only">Saldo fictício de </span>
+        <span className="sr-only">Saldo de </span>
         {formatBalance.format(value)}{" "}
         <span className="sr-only">{value === 1 ? "Croin" : "Croins"}</span>
       </span>

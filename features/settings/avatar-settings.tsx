@@ -9,7 +9,7 @@ import { prepareAvatar } from "@/features/auth/avatar-storage";
 import { useDemoSession } from "@/features/auth/session-context";
 
 export function AvatarSettings() {
-  const { username, avatar, updateAvatar } = useDemoSession();
+  const { displayName, avatar, updateAvatar } = useDemoSession();
   const input = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   // Ignore a pending image if this account section unmounts during decoding.
@@ -21,7 +21,7 @@ export function AvatarSettings() {
       <div className="flex flex-wrap items-center gap-4">
         <Avatar className="size-16">
           {avatar && <AvatarImage src={avatar} alt="Sua foto de perfil" />}
-          <AvatarFallback className="text-lg">{Array.from(username ?? "")[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
+          <AvatarFallback className="text-lg">{Array.from(displayName ?? "")[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
         </Avatar>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" loading={saving} onClick={() => input.current?.click()}>{avatar ? "Trocar foto" : "Adicionar foto"}</Button>

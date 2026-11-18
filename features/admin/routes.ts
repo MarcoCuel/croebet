@@ -2,7 +2,7 @@ export const adminRoutes = {
   overview: "/admin",
   games: "/admin/jogos",
   markets: "/admin/apostas",
-  about: "/admin/sobre",
-  balance: "/admin/saldo",
+  users: "/admin/usuarios",
+  pages: "/admin/paginas",
 } as const;
 export type AdminSection = keyof typeof adminRoutes;

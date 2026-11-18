@@ -4,7 +4,7 @@ import { Predictions } from "@/features/betting/predictions";
 
 export const metadata: Metadata = {
   title: "Apostas | Croebet",
-  description: "Palpites sobre as lives e a comunidade com Croins fictícios.",
+  description: "Palpites sobre as lives e a comunidade com Croins.",
 };
 
 export default function BettingPage() {

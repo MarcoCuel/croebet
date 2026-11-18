@@ -3,6 +3,7 @@
 import { Award, PlayingCards, House, Info, Tickets, Trophy } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSiteConfig } from "@/features/admin/site-config";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -11,7 +12,6 @@ const links = [
   { href: "/apostas", label: "Apostas", Icon: Tickets },
   { href: "/rankings", label: "Rankings", Icon: Trophy },
   { href: "/conquistas", label: "Conquistas", Icon: Award },
-  { href: "/sobre", label: "Sobre", Icon: Info },
 ];
 
 export function MenuLinks({
@@ -22,9 +22,11 @@ export function MenuLinks({
   sidebar?: boolean;
 }) {
   const pathname = usePathname();
+  const { config } = useSiteConfig();
+  const menuLinks = [...links, ...config.pages.filter((page) => page.published && page.showInMenu).map((page) => ({ href: `/${page.slug}`, label: page.title, Icon: Info }))];
   return (
     <nav className="grid gap-1.5" aria-label="Navegação principal">
-      {links.map(({ href, label, Icon }) => (
+      {menuLinks.map(({ href, label, Icon }) => (
         <Link
           key={href}
           href={href}

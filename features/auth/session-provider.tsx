@@ -16,7 +16,11 @@ import {
   commitWallet,
   placeLocalPrediction,
 } from "@/features/betting/betting-storage";
-import { demoDataEvent } from "@/lib/demo-storage";
+import {
+  readDisplayName,
+  persistDisplayName,
+} from "@/features/auth/profile-storage";
+import { demoDataEvent, announceDemoData } from "@/lib/demo-storage";
 import {
   addCroins,
   claimReward,
@@ -28,6 +32,7 @@ import {
 
 type SessionState = {
   username: string | null;
+  displayName: string | null;
   wallet: Wallet;
   avatar: string | null;
   ready: boolean;
@@ -35,6 +40,7 @@ type SessionState = {
 export function DemoSessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({
     username: null,
+    displayName: null,
     wallet: initialWallet,
     avatar: null,
     ready: false,
@@ -59,6 +65,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
       }
     return {
       username: name,
+      displayName: name ? readDisplayName(name) : null,
       wallet,
       avatar: name ? readAvatar(name) : null,
       ready: true,
@@ -81,7 +88,11 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (username)
-        setState((current) => ({ ...current, wallet: readWallet(username) }));
+        setState((current) => ({
+          ...current,
+          wallet: readWallet(username),
+          displayName: readDisplayName(username),
+        }));
     }
     window.addEventListener(demoDataEvent, refresh);
     window.addEventListener("storage", refresh);
@@ -129,6 +140,17 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     <DemoSession.Provider
       value={{
         username,
+        displayName: state.displayName,
+        updateDisplayName: (value) => {
+          if (
+            !username ||
+            readUsername()?.toLowerCase() !== username.toLowerCase()
+          )
+            throw new Error("A sessão mudou. Atualize a página.");
+          const displayName = persistDisplayName(username, value);
+          setState((current) => ({ ...current, displayName }));
+          announceDemoData();
+        },
         sessionReady: state.ready,
         permissions,
         avatar: state.avatar,

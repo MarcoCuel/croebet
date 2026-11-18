@@ -104,7 +104,18 @@ export function addCroins(wallet: Wallet, amount: number): Wallet {
     !Number.isSafeInteger(wallet.balance + amount)
   )
     return wallet;
-  return recordTransaction(wallet, amount, "Croins de teste");
+  return recordTransaction(wallet, amount, "Croins adicionados pelo admin");
+}
+
+export function removeCroins(wallet: Wallet, amount: number): Wallet {
+  if (
+    !Number.isSafeInteger(amount) ||
+    amount < 1 ||
+    amount > 999999 ||
+    amount > wallet.balance
+  )
+    return wallet;
+  return recordTransaction(wallet, -amount, "Retirada de Croins pelo admin");
 }
 
 export function claimReward(wallet: Wallet, date: string): Wallet {

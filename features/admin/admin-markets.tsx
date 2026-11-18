@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { useSiteConfig } from "@/features/admin/site-config";
 import { marketStatuses, type MarketStatus } from "@/features/betting/markets";
 import { useMarketActivities } from "@/features/admin/market-activity";
@@ -28,17 +27,8 @@ export function AdminMarkets() {
   );
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Apostas</h1>
-        <Button asChild size="sm">
-          <Link href="/admin/apostas/nova">
-            <Plus className="size-4" aria-hidden="true" />
-            Nova aposta
-          </Link>
-        </Button>
-      </div>
-      <Input
-        type="search"
+      <h1 className="sr-only">Apostas</h1>
+      <SearchInput
         aria-label="Buscar apostas no admin"
         placeholder="Buscar apostas"
         value={search}

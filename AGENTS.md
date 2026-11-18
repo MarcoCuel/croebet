@@ -23,6 +23,7 @@
 ## Design system
 
 - Antes de criar uma solução específica, procure e reutilize um componente em `components/ui` ou `components/shared`.
+- Campos de busca usam `SearchInput` de `components/ui/search-input.tsx`, que já compõe o ícone e o estilo padrão sem borda aparente. Não recrie essa composição nas páginas.
 - Use `Button` para controles e CTAs, `Input` e `Field` para formulários, `Card` para superfícies, `Dialog` para modais e drawers, `DropdownMenu` para menus, `Tooltip` para dicas e `toast` de `sonner` para feedback.
 - Links com aparência de botão usam `<Button asChild><Link ... /></Button>`. Não aninhe botões e links.
 - Não use tags `button`, `input`, `textarea` ou `select` diretamente fora de `components/ui`. O lint aplica essa regra às páginas e aos componentes de produto.

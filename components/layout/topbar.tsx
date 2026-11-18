@@ -35,29 +35,40 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const {
-    config: { games },
+    config: { games, pages },
   } = useSiteConfig();
   const { requestBack } = usePageBack();
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
   const { permissions } = useDemoSession();
+  const pageAction = permissions.canManageSite
+    ? ({
+        [adminRoutes.pages]: { href: "/admin/paginas/nova", label: "Nova página" },
+        [adminRoutes.markets]: { href: "/admin/apostas/nova", label: "Nova aposta" },
+      } as Record<string, { href: string; label: string }>)[pathname]
+    : undefined;
   const pageTitle =
     (pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/apostas/")
+      ? pathname.startsWith("/admin/usuarios/")
+        ? "Usuário"
+        : pathname.startsWith("/admin/apostas/")
         ? pathname.endsWith("/nova")
           ? "Nova aposta"
           : "Gerenciar aposta"
+        : pathname.startsWith("/admin/paginas/")
+          ? pathname.endsWith("/nova") ? "Nova página" : "Editar página"
         : pathname.startsWith("/admin/jogos/")
           ? "Editar jogo"
           : (
               {
                 "/admin/jogos": "Jogos",
                 "/admin/apostas": "Apostas",
-                "/admin/sobre": "Sobre",
-                "/admin/saldo": "Saldo",
+                "/admin/paginas": "Páginas",
+                "/admin/usuarios": "Usuários",
               } as Record<string, string>
             )[pathname]
       : undefined) ??
+    pages.find((page) => page.published && pathname === `/${page.slug}`)?.title ??
     games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
     (
       {
@@ -67,15 +78,18 @@ export function Topbar({
         "/rankings": "Rankings",
         "/conquistas": "Conquistas",
         "/historico": "Histórico",
-        "/sobre": "Sobre",
       } as Record<string, string>
     )[pathname] ??
     "Página não encontrada";
   const isInternalPage = pathname !== "/";
   const backLink =
     pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/apostas/")
+      ? pathname.startsWith("/admin/usuarios/")
+        ? { href: adminRoutes.users, label: "Voltar para Usuários do admin" }
+        : pathname.startsWith("/admin/apostas/")
         ? { href: adminRoutes.markets, label: "Voltar para Apostas do admin" }
+        : pathname.startsWith("/admin/paginas/")
+          ? { href: adminRoutes.pages, label: "Voltar para Páginas do admin" }
         : pathname.startsWith("/admin/jogos/")
           ? { href: adminRoutes.games, label: "Voltar para Jogos do admin" }
           : { href: "/admin", label: "Voltar para Admin" }
@@ -136,9 +150,16 @@ export function Topbar({
           </Button>
         )}
         {isInternalPage ? (
-          <span className="truncate text-sm font-medium md:text-base">
-            {pageTitle}
-          </span>
+          <>
+            <span className="truncate text-sm font-medium md:text-base">
+              {pageTitle}
+            </span>
+            {pageAction && (
+              <Button asChild variant="secondary" size="sm">
+                <Link href={pageAction.href}>{pageAction.label}</Link>
+              </Button>
+            )}
+          </>
         ) : (
           <nav
             className="hidden items-center gap-1 rounded-panel bg-control p-1.5 md:flex"

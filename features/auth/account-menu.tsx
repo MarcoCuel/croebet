@@ -36,7 +36,8 @@ export function AccountMenu({
   name: string;
   sidebar?: boolean;
 }) {
-  const { signOut, avatar, permissions } = useDemoSession();
+  const { signOut, avatar, permissions, displayName } = useDemoSession();
+  const visibleName = displayName ?? name;
   const { theme, setTheme } = useTheme();
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
@@ -54,12 +55,12 @@ export function AccountMenu({
                 ? "w-full justify-start bg-transparent hover:bg-control"
                 : "w-auto",
             )}
-            aria-label={"Conta de " + name}
+            aria-label={"Conta de " + visibleName}
           >
             <Avatar aria-hidden="true">
               {avatar && <AvatarImage src={avatar} alt="" />}
               <AvatarFallback>
-                {Array.from(name)[0]?.toLocaleUpperCase("pt-BR")}
+                {Array.from(visibleName)[0]?.toLocaleUpperCase("pt-BR")}
               </AvatarFallback>
             </Avatar>
             <span
@@ -69,7 +70,7 @@ export function AccountMenu({
                   : "hidden max-w-24 truncate sm:inline"
               }
             >
-              {name}
+              {visibleName}
             </span>
             <ChevronDown
               className="hidden size-4 text-muted sm:inline"

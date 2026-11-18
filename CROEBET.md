@@ -25,7 +25,8 @@ A crítica não é necessariamente aos jogos de azar em si: o ponto principal é
 ## 3. Público e acesso
 
 - Público principal: quem acompanha ou participa das lives da Croezinha.
-- O cadastro não é fechado: qualquer pessoa pode participar.
+- O cadastro não é fechado: qualquer pessoa pode participar. Solicita apenas nome de usuário e senha, sem e-mail.
+- Nome de exibição e nome de usuário são distintos: o nome aparece publicamente e pode se repetir; o usuário é único, identifica a conta no login e nos endereços de perfil.
 - A linguagem e as referências podem ter piadas internas da comunidade, mas a navegação e as regras precisam ser compreensíveis para quem chega pela primeira vez.
 - A plataforma tem identidade própria; não precisa colocar o rosto, o nome ou as falas da streamer em todo lugar. O nome **Croebet** já faz a conexão.
 
@@ -134,7 +135,7 @@ Porém, o misticismo é **uma referência secundária**. A piada principal sempr
 - Componentes funcionais, navegação intuitiva e regras transparentes têm prioridade sobre efeitos decorativos.
 - A comunidade pode influenciar a identidade de jogos, eventos, conquistas e conteúdos.
 
-**Importante:** o caráter satírico e a origem da brincadeira podem ser detalhados na página **Sobre**, mas o fato de que Croins são fictícios e não há dinheiro real deve estar claro também nos contextos em que o usuário joga, aposta ou consulta seu saldo.
+**Direção de linguagem:** use apenas **Croin/Croins** na interface, nos metadados e nos textos públicos. Não repita avisos como “moeda fictícia”, “sem valor monetário” ou “dinheiro de mentira” nas páginas, nos jogos, nas apostas ou no saldo. O caráter satírico e a origem da plataforma podem ser apresentados na página **Sobre**, com a personalidade da marca. Essa orientação de texto não altera as regras da economia descritas neste documento.
 
 ## 7. Diretrizes para textos e microcopy
 

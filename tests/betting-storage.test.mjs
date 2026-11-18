@@ -22,6 +22,7 @@ const { initialWallet } = await import("../features/wallet/wallet.ts");
 const {
   changeLocalMarketStatus,
   creditLocalWallet,
+  adjustOwnLocalWallet,
   deleteLocalMarket,
   marketActivity,
   payLocalMarket,
@@ -258,6 +259,43 @@ test("migração remove categoria e converte disponibilidade sem apagar jogos ou
   assert.deepEqual(migrated.about, config.about);
 });
 
+test("configuração antiga recebe páginas em rascunho sem alterar Sobre nem carteiras", () => {
+  const config = structuredClone(initialSiteConfig);
+  delete config.pages;
+  delete config.pagesVersion;
+  config.about.document = [{ tag: "p", children: ["Sobre personalizado"] }];
+  storage.setItem(siteConfigKey, JSON.stringify(config));
+  const migrated = readSiteConfig();
+  assert.deepEqual(migrated.about, config.about);
+  assert.deepEqual(migrated.games, config.games);
+  assert.deepEqual(migrated.pages.map((p) => [p.slug, p.published]), [["sobre", true], ["termos", false], ["privacidade", false]]);
+  assert.deepEqual(migrated.pages[0].document, config.about.document);
+  migrated.pages[0].title = "A casa";
+  migrated.pages[0].slug = "a-casa";
+  writeSiteConfig(migrated);
+  assert.equal(readSiteConfig().pages[0].title, "A casa");
+  assert.equal(readSiteConfig().pages.some((p) => p.slug === "sobre"), false);
+});
+
+test("páginas rejeitam endereços reservados, duplicados e conteúdo inválido", () => {
+  for (const slug of ["admin", "jogos", "pagina/interna"]) {
+    const config = structuredClone(initialSiteConfig);
+    config.pages[0].slug = slug;
+    assert.throws(() => writeSiteConfig(config), /Revise/);
+  }
+  const config = structuredClone(initialSiteConfig);
+  config.pages[0].published = true;
+  config.pages[0].document = [];
+  assert.throws(() => writeSiteConfig(config), /Revise/);
+  config.pages[0].document = [{ tag: "script", children: ["alert(1)"] }];
+  assert.throws(() => writeSiteConfig(config), /Revise/);
+  config.pages[0].document = [{ tag: "p", children: ["Texto permitido"] }];
+  writeSiteConfig(config);
+  assert.deepEqual(readSiteConfig().pages, config.pages);
+  config.pages[1].slug = config.pages[0].slug;
+  assert.throws(() => writeSiteConfig(config), /Revise/);
+});
+
 test("prazo expirado bloqueia entrada mesmo se a página estava aberta", async () => {
   const config = readSiteConfig();
   config.markets = config.markets.map((m) =>
@@ -294,4 +332,35 @@ test("usuários comuns não criam, alteram, apuram, pagam ou creditam Croins", a
   await assert.rejects(payLocalMarket("peruca"), /autorizada/);
   await assert.rejects(creditLocalWallet("Comum", 50), /autorizada/);
   assert.equal(readWalletStrict("Comum").balance, 1067);
+});
+
+test("ajuste próprio adiciona e retira com histórico, preservando palpites e sem saldo negativo", async () => {
+  seed("Tonho");
+  await adjustOwnLocalWallet("Tonho", 100, "add");
+  await adjustOwnLocalWallet("Tonho", 50, "remove");
+  const wallet = readWalletStrict("Tonho");
+  assert.equal(wallet.balance, initialWallet.balance + 50);
+  assert.deepEqual(wallet.transactions.map((t) => t.amount), [-50, 100]);
+  for (const value of [0, -1, 1.5, NaN, Infinity, 1000000, 5000])
+    await assert.rejects(adjustOwnLocalWallet("Tonho", value, "remove"));
+  assert.deepEqual(readWalletStrict("Tonho"), wallet);
+  await assert.rejects(adjustOwnLocalWallet("Outro", 1, "add"), /sessão mudou/);
+  actor("Comum");
+  await assert.rejects(adjustOwnLocalWallet("Comum", 1, "remove"), /autorizada/);
+});
+
+test("ajuste próprio não grava após falha e retiradas concorrentes respeitam o saldo", async () => {
+  seed("Tonho");
+  const before = readWalletStrict("Tonho");
+  storage.fail = (key) => key.includes("demo-wallet:");
+  await assert.rejects(adjustOwnLocalWallet("Tonho", 100, "add"), /quota/);
+  assert.deepEqual(readWalletStrict("Tonho"), before);
+  storage.fail = null;
+  const results = await Promise.allSettled([
+    adjustOwnLocalWallet("Tonho", 1000, "remove"),
+    adjustOwnLocalWallet("Tonho", 1000, "remove"),
+  ]);
+  assert.equal(results.filter((item) => item.status === "fulfilled").length, 1);
+  assert.equal(readWalletStrict("Tonho").balance, 67);
+  assert.equal(readWalletStrict("Tonho").transactions.length, 1);
 });

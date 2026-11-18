@@ -4,7 +4,7 @@ import { WalletHistory } from "@/features/wallet/wallet-history";
 
 export const metadata: Metadata = {
   title: "Histórico | Croebet",
-  description: "Entradas e saídas dos seus Croins fictícios.",
+  description: "Entradas e saídas dos seus Croins.",
 };
 
 export default function HistoryPage() {

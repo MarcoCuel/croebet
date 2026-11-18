@@ -3,8 +3,17 @@ import { cn } from "@/lib/utils";
 
 import type { RichTextDocument } from "@/lib/rich-text";
 
-export const richTextStyles =
-  "text-base leading-relaxed text-muted [&_h1]:mb-4 [&_h1]:text-display [&_h1]:leading-tight [&_h1]:font-bold [&_h1]:tracking-display [&_h1]:text-foreground [&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-section [&_h2]:leading-tight [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:text-foreground [&_h3]:mt-7 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:text-foreground [&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_blockquote]:my-7 [&_blockquote]:rounded-panel [&_blockquote]:bg-surface [&_blockquote]:p-5 [&_blockquote_h2]:mt-0 [&_blockquote_h2]:text-xl [&_blockquote_p]:mb-0 [&>:first-child]:mt-0";
+export const richTextStyles = cn(
+  "text-base leading-relaxed text-muted",
+  "[&_h1]:mt-10 [&_h1]:mb-4 [&_h1]:text-display [&_h1]:leading-tight [&_h1]:font-bold [&_h1]:tracking-display [&_h1]:text-balance [&_h1]:whitespace-pre-line [&_h1]:text-foreground",
+  "[&_h1+p]:mt-4 [&_h1+p]:max-w-[55ch] [&_h1+p]:text-lg",
+  "[&_h2]:mt-10 [&_h2]:mb-3 [&_h2]:text-section [&_h2]:leading-tight [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:text-foreground",
+  "[&_h3]:mt-7 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:text-foreground",
+  "[&_p]:my-3 [&_strong]:font-semibold [&_strong]:text-foreground",
+  "[&_h1_strong]:[font-weight:inherit] [&_h2_strong]:[font-weight:inherit] [&_h3_strong]:[font-weight:inherit]",
+  "[&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1",
+  "[&_blockquote]:my-7 [&_blockquote]:rounded-panel [&_blockquote]:bg-surface [&_blockquote]:p-5 sm:[&_blockquote]:p-8 [&_blockquote_h2]:mt-0 [&_blockquote_h2]:text-xl [&_blockquote_p]:mb-0 [&>:first-child]:mt-0",
+);
 
 export function RichTextContent({
   document,

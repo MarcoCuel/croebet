@@ -14,15 +14,25 @@ export function AdminAccess({
   section = "overview",
   gameSlug,
   marketId,
+  pageSlug,
+  userId,
 }: {
   section?: AdminSection;
   gameSlug?: string;
   marketId?: string;
+  pageSlug?: string;
+  userId?: string;
 }) {
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
   return (
-    <AdminPanel section={section} gameSlug={gameSlug} marketId={marketId} />
+    <AdminPanel
+      section={section}
+      gameSlug={gameSlug}
+      marketId={marketId}
+      pageSlug={pageSlug}
+      userId={userId}
+    />
   );
 }

@@ -1,18 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowUpRight,
-  ChevronRight,
-  Clock3,
-  Search,
-  Timer,
-  Video,
-} from "lucide-react";
+import { ArrowUpRight, ChevronRight, Clock3, Timer, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { acceptsPredictions } from "@/features/betting/settlement";
 import { type Market } from "@/features/betting/markets";
@@ -63,16 +57,10 @@ export function MarketList({
 
   return (
     <section className="min-w-0" aria-label="Apostas abertas">
-      <div className="relative mb-4">
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted"
-          aria-hidden="true"
-        />
-        <Input
-          type="search"
+      <div className="mb-4">
+        <SearchInput
           aria-label="Buscar apostas"
           placeholder="Buscar apostas"
-          className="rounded-panel border-transparent bg-control pl-10"
           value={search}
           onChange={(event) => setSearch(event.currentTarget.value)}
         />
@@ -212,7 +200,7 @@ export function MarketList({
                   </div>
                 )}
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
-                  <span className="text-xs text-muted">Croins fictícios</span>
+                  <span className="text-xs text-muted">Croins</span>
                   <Button
                     variant="ghost"
                     size="sm"

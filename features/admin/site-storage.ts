@@ -6,7 +6,8 @@ import {
   type Market,
 } from "@/features/betting/markets";
 import { isSettlement, validOutcome } from "@/features/betting/settlement";
-import { defaultAbout, type AboutContent } from "@/features/about/content";
+import { defaultPages, isSitePage, type SitePage } from "@/features/pages/content";
+import { aboutDocument, defaultAbout, type AboutContent } from "@/features/about/content";
 
 export function isMarket(value: unknown): value is Market {
   if (!value || typeof value !== "object") return false;
@@ -47,11 +48,15 @@ export type SiteConfig = {
   games: AdminGame[];
   markets: AdminMarket[];
   about: AboutContent;
+  pages: SitePage[];
+  pagesVersion: 1;
 };
 export const initialSiteConfig: SiteConfig = {
   games: games.map((game) => ({ ...game, enabled: true })),
   markets,
   about: defaultAbout,
+  pages: [{ slug: "sobre", title: "Sobre", document: aboutDocument(defaultAbout), published: true, showInMenu: true }, ...defaultPages],
+  pagesVersion: 1,
 };
 export const siteConfigKey = "croebet:demo-site-config:v1";
 
@@ -81,6 +86,10 @@ export function isSiteConfig(value: unknown): value is SiteConfig {
     Array.isArray(data.markets) &&
     new Set(data.markets.map((m) => m?.id)).size === data.markets.length &&
     data.markets.every(isMarket) &&
+    data.pagesVersion === 1 &&
+    Array.isArray(data.pages) &&
+    data.pages.every(isSitePage) &&
+    new Set(data.pages.map((p) => p.slug)).size === data.pages.length &&
     !!data.about &&
     (data.about.document === undefined ||
       (isRichTextDocument(data.about.document) &&
@@ -117,6 +126,16 @@ export function readSiteConfig(): SiteConfig {
         status = "closed";
       return { ...market, status, endsAt: market.endsAt ?? null };
     });
+  if (data && typeof data === "object" && data.pagesVersion === undefined) {
+    const pages = data.pages === undefined ? structuredClone(defaultPages) : data.pages;
+    if (Array.isArray(pages) && data.about && isSiteConfig({ ...data, pages, pagesVersion: 1 })) {
+      data.pages = pages.some((page: SitePage) => page.slug === "sobre") ? pages : [
+        { slug: "sobre", title: "Sobre", document: aboutDocument(data.about), published: true, showInMenu: true },
+        ...pages,
+      ];
+      data.pagesVersion = 1;
+    }
+  }
   if (!isSiteConfig(data))
     throw new Error(
       "A configuração salva contém dados inválidos. Nenhum dado foi alterado.",

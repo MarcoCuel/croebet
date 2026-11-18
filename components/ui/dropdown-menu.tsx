@@ -12,7 +12,7 @@ export const DropdownMenuSub = DropdownPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownPrimitive.RadioGroup;
 
 const itemClassName =
-  "relative flex min-h-8 cursor-pointer items-center gap-2 rounded-lg border-(length:--border-width-hairline) border-transparent px-2 py-1 text-xs text-foreground outline-none focus-visible:border-foreground data-highlighted:bg-control-hover data-disabled:pointer-events-none data-disabled:opacity-50";
+  "relative flex min-h-8 cursor-pointer items-center gap-2 rounded-lg border-(length:--border-width-hairline) border-transparent px-2 py-1 text-xs text-foreground outline-none data-highlighted:bg-control-hover data-disabled:pointer-events-none data-disabled:opacity-50";
 
 export function DropdownMenuSubTrigger({
   className,

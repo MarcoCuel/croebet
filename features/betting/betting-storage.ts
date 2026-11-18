@@ -10,7 +10,11 @@ import {
   writeSiteConfig,
   type SiteConfig,
 } from "@/features/admin/site-storage";
-import { addCroins, registerPrediction } from "@/features/wallet/wallet";
+import {
+  addCroins,
+  removeCroins,
+  registerPrediction,
+} from "@/features/wallet/wallet";
 import type { Wallet } from "@/features/wallet/wallet";
 import type {
   IdentifiedPrediction,
@@ -263,6 +267,32 @@ export async function creditLocalWallet(username: string, amount: number) {
     if (next === wallet)
       throw new Error(
         "Informe um valor inteiro de 1 a 999999, sem exceder o limite de saldo.",
+      );
+    writeWalletStrict(username, next);
+    announceDemoData();
+  });
+}
+
+// The prototype only supports adjusting the signed-in administrator's wallet.
+export async function adjustOwnLocalWallet(
+  username: string,
+  amount: number,
+  direction: "add" | "remove",
+) {
+  return withDemoLock(() => {
+    requireLocalAdmin();
+    if (readUsername()?.toLowerCase() !== username.toLowerCase())
+      throw new Error("A sessão mudou. Atualize a página.");
+    if (direction !== "add" && direction !== "remove")
+      throw new Error("Operação inválida.");
+    const wallet = readWalletStrict(username);
+    const next =
+      direction === "add"
+        ? addCroins(wallet, amount)
+        : removeCroins(wallet, amount);
+    if (next === wallet)
+      throw new Error(
+        "Informe um valor inteiro de 1 a 999999 e verifique o saldo disponível.",
       );
     writeWalletStrict(username, next);
     announceDemoData();

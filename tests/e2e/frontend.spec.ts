@@ -83,10 +83,12 @@ test("sessão preserva carteira, bônus diário e palpites após recarregar", as
   await page.getByRole("menuitem", { name: "Admin", exact: true }).click();
   await page
     .getByRole("navigation", { name: "Seções do admin" })
-    .getByRole("link", { name: "Saldo", exact: true })
+    .getByRole("link", { name: "Usuários", exact: true })
     .click();
-  await page.getByLabel("Adicionar Croins de teste").fill("100");
-  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page.locator('a[href="/admin/usuarios/minha-conta"]').click();
+  await page.getByRole("button", { name: "Ajustar Croins", exact: true }).click();
+  await page.getByLabel("Valor em Croins").fill("100");
+  await page.getByRole("button", { name: "Adicionar Croins", exact: true }).click();
   await page.goto("/apostas");
   await page.getByRole("button", { name: "Sim", exact: true }).click();
   await page.getByLabel("Valor em Croins").fill("10");
@@ -382,10 +384,12 @@ test("saldo leva ao histórico e a recarga fica no admin", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Admin", exact: true }).click();
   await page
     .getByRole("navigation", { name: "Seções do admin" })
-    .getByRole("link", { name: "Saldo", exact: true })
+    .getByRole("link", { name: "Usuários", exact: true })
     .click();
-  await page.getByLabel("Adicionar Croins de teste").fill("100");
-  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page.locator('a[href="/admin/usuarios/minha-conta"]').click();
+  await page.getByRole("button", { name: "Ajustar Croins", exact: true }).click();
+  await page.getByLabel("Valor em Croins").fill("100");
+  await page.getByRole("button", { name: "Adicionar Croins", exact: true }).click();
   await page.goto("/apostas");
   await page.getByRole("button", { name: "Sim", exact: true }).click();
   await page.getByLabel("Valor em Croins").fill("10");
@@ -405,7 +409,7 @@ test("saldo leva ao histórico e a recarga fica no admin", async ({ page }) => {
   await page.getByRole("button", { name: "Entradas", exact: true }).click();
   await expect(movements.getByRole("listitem")).toHaveCount(1);
   await expect(
-    movements.getByText("Croins de teste", { exact: true }),
+    movements.getByText("Croins adicionados pelo admin", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Saídas", exact: true }).click();
   await expect(movements.getByRole("listitem")).toHaveCount(1);
@@ -579,4 +583,27 @@ test("foto de perfil persiste por conta e pode ser removida", async ({
   await page.reload();
   await expect(account).toBeVisible();
   await expect(account.locator("img")).toHaveCount(0);
+});
+
+test("nome público muda sem alterar o usuário de login, saldo ou permissões", async ({ page }) => {
+  await page.goto("/");
+  await signIn(page);
+  const walletBefore = await page.evaluate(() => localStorage.getItem("croebet:demo-wallet:arquitetura"));
+  await page.getByRole("button", { name: "Conta de Arquitetura", exact: true }).last().click();
+  await page.getByRole("menuitem", { name: "Configurações", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Configurações", exact: true });
+  await dialog.getByRole("button", { name: "Conta", exact: true }).click();
+  await expect(dialog.getByLabel("Nome de usuário", { exact: true })).toHaveValue("Arquitetura");
+  await expect(dialog.getByLabel("Nome de usuário", { exact: true })).toHaveAttribute("readonly", "");
+  await dialog.getByLabel("Nome", { exact: true }).fill("Marco Cuel");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Nome atualizado.", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Fechar configurações", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Conta de Marco Cuel", exact: true }).last()).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Conta de Marco Cuel", exact: true }).last().click();
+  await expect(page.getByRole("menuitem", { name: "Admin", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("croebet:demo-username"))).toBe("Arquitetura");
+  expect(await page.evaluate(() => localStorage.getItem("croebet:demo-wallet:arquitetura"))).toBe(walletBefore);
+  expect(await page.evaluate(() => localStorage.getItem("croebet:demo-wallet:marco cuel"))).toBeNull();
 });

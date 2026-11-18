@@ -7,6 +7,8 @@ import type { Wallet } from "@/features/wallet/wallet";
 
 export type DemoSessionValue = Wallet & {
   username: string | null;
+  displayName: string | null;
+  updateDisplayName: (name: string) => void;
   sessionReady: boolean;
   permissions: SessionPermissions;
   avatar: string | null;
