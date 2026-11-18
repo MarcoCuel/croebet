@@ -3,9 +3,9 @@
 @theme static {
   --font-sans: var(--font-inter), system-ui, sans-serif;
 
-  --color-brand: #FF477B;
-  --color-brand-hover: #FF477B;
-  --color-accent: #FF477B;
+  --color-brand: #FF2C67;
+  --color-brand-hover: #FF2C67;
+  --color-accent: #FF2C67;
   --color-background: #101010;
   --color-chrome: #101010;
   --color-surface: #1b1b1b;
