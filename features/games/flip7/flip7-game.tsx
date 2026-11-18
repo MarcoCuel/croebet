@@ -433,7 +433,8 @@ export default function Flip7Game() {
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
   const human = actor.kind === "human";
-  const playable = !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
+  const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
+  const playable = !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
   const validTargets = targets(game);
   const maxScore = Math.max(...game.players.map(player => player.total));
   const winners = game.players.filter(player => player.total === maxScore);
@@ -466,7 +467,7 @@ export default function Flip7Game() {
     : swapPreview ? "Prévia da troca · Confirme ou cancele"
     : game.pending?.card.type === "remove" ? (game.pending.resolving ? `${actor.name} vai descartar: escolha uma carta sua ou de outro jogador` : `${actor.name} · Descartar: escolha quem decidirá qual carta remover`)
     : game.pending?.card.type === "steal" ? (game.pending.resolving ? `${actor.name} vai roubar: escolha uma carta de outro jogador` : `${actor.name} · Roubar: escolha quem receberá a carta roubada`)
-    : game.pending ? `${actor.name} · ${actionLabel}: ${game.pending.resolving ? "escolha " + (game.pending.card.type === "swap" ? "duas cartas" : "uma carta") : "escolha alguém"}` : !current.hasDrawn ? `Vez de ${current.name} · Distribuindo a primeira carta` : human ? "Sua vez" : `Vez de ${current.name}`;
+    : game.pending ? `${actor.name} · ${actionLabel}: ${game.pending.resolving ? "escolha " + (game.pending.card.type === "swap" ? "duas cartas" : "uma carta") : "escolha alguém"}` : !current.hasDrawn ? `Vez de ${current.name} · Distribuindo a primeira carta` : automaticZero ? `${current.name} · Zero: compra automática` : human ? "Sua vez" : `Vez de ${current.name}`;
   const waitingActions = [game.pending, ...game.queue].filter(action => action !== null);
   const activeSeat = visibleGame.bonusChoice ?? visibleGame.forced?.target ?? visibleGame.pending?.source ?? visibleGame.turn;
 

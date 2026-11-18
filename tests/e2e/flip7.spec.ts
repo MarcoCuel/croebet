@@ -402,7 +402,7 @@ test("O Zero bloqueia Parar e o Brutal mantém modificador novo visível para qu
   game = transition(game, { type: "draw" });
   game.turn = 0;
   await restore(page, game);
-  await expect(page.getByRole("button", { name: "Parar", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Parar", exact: true })).toHaveCount(0);
   game = scenario([["minus", 10]], { mode: "vengeance", brutal: true });
   game.players[1].status = "busted";
   game.players[1].bustedCards = game.players[1].cards.map(c => c.id);

@@ -161,6 +161,6 @@ export function automaticAction(game: Game): Action | null {
   if (game.pending) return game.players[game.pending.source].kind === "human" ? null : botAction(game);
   if (game.forced) return { type: "step" };
   const player = game.players[game.turn];
-  if (!player.hasDrawn) return { type: "draw" };
+  if (!player.hasDrawn || (game.mode === "vengeance" && player.status === "playing" && player.cards.some(c => c.type === "zero"))) return { type: "draw" };
   return player.kind === "human" ? null : botAction(game);
 }

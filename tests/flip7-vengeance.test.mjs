@@ -239,3 +239,21 @@ test("Descartar permite remover exatamente o modificador próprio escolhido, pre
   assert.equal(score(g.players[0], g), 8);
   roundTrip(g);
 });
+
+test("Zero compra automaticamente na própria vez e pausa em escolhas e turnos de outras pessoas", () => {
+  const f = fixture(); f.hand(0, ["zero"]); f.hand(1, ["number", 4]); f.hand(2, ["number", 5]);
+  f.game.players[2].kind = "human";
+  f.stack(["number", 1], ["remove"]);
+  assert.deepEqual(automaticAction(f.game), { type: "draw" });
+  let g = transition(f.game, automaticAction(f.game));
+  assert.equal(g.turn, 1); assert.equal(automaticAction(g), null);
+  g = transition(g, { type: "stay" }); g = transition(g, { type: "stay" });
+  assert.equal(g.turn, 0); assert.deepEqual(automaticAction(g), { type: "draw" });
+  g = transition(g, automaticAction(g));
+  assert.equal(g.pending.card.type, "remove"); assert.equal(automaticAction(g), null);
+  const zero = g.players[0].cards.find(c => c.type === "zero");
+  g = transition(g, { type: "cards", cards: [zero.id] });
+  assert.equal(g.turn, 0); assert.equal(automaticAction(g), null); roundTrip(g);
+  const classic = createGame(setup, 42); classic.players[0].hasDrawn = true;
+  assert.equal(automaticAction(classic), null);
+});
