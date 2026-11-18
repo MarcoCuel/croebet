@@ -1,10 +1,12 @@
 # Arquitetura do frontend
 
-## Diagnóstico inicial
+> Estado do protótipo e convenções de interface. A arquitetura aprovada, a política de dados e o roadmap estão em [backend-architecture.md](backend-architecture.md). A Croebet está construindo sua primeira versão funcional: dados locais, chaves e compatibilidade entre formatos antigos descritos abaixo são detalhes históricos do código, não requisitos de preservação. O backend separado em Fastify e o monorepo ainda não foram implementados.
 
-A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Lucide, GSAP e Lenis. Não havia configuração de lint nem componentes base compartilhados. `navigation.tsx` concentrava 401 linhas com sessão, carteira, bônus, armazenamento, sidebar, dropdowns e três modais. Rotas importavam sessão e dados de outras rotas. O CSS global, com 228 linhas, definia controles e componentes inteiros por classes próprias. Inputs de autenticação e carteira tinham medidas diferentes; links e botões repetiam estilos de ação.
+## Estado atual e contexto
 
-A migração preserva o catálogo, os mercados, a metadata, as imagens, os textos, as rotas, o GSAP e o Lenis. Os jogos individuais continuam exibindo a mensagem de adaptação. Não foi implementado um backend ou substituído um jogo.
+A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Lucide, GSAP e Lenis. A organização atual separa UI, layout e features, com primitives compartilhados e validação por ESLint, TypeScript, testes Node e Playwright. O frontend ainda está na raiz; a reorganização para `apps/web` faz parte do planejamento aprovado.
+
+O Flip 7 já é jogável localmente; os outros jogos exibem “Em breve”. Autenticação, carteiras e administração continuam como protótipos locais, sem backend. A integração preservará componentes, metadata, imagens, textos, rotas, GSAP e Lenis; os dados mockados poderão ser descartados.
 
 ## Organização e dependências
 
@@ -78,7 +80,7 @@ Se um modal for aberto por um método compartilhado, preserve a referência do c
 
 Componentes já necessários e disponíveis: Button, Input, Field, Dialog/drawer, DropdownMenu, Tooltip, Card, Badge, Avatar, Skeleton e Sonner. Textarea, Select, Checkbox, RadioGroup e Tabs ficam adiados porque nenhuma tela atual os utiliza. Adicione-os no mesmo padrão quando uma funcionalidade precisar, sem instalar componentes especulativos.
 
-## Estado e compatibilidade da demonstração
+## Estado atual da demonstração
 
 `DemoSessionProvider` coordena a sessão e um reducer de carteira. A persistência começa após a leitura inicial do navegador para não substituir dados existentes pelo saldo padrão. As chaves de localStorage foram mantidas; a carteira agora inclui `transactions`, uma lista de movimentações com identificador, data ISO, descrição, valor com sinal e saldo resultante. Carteiras antigas recebem uma lista vazia sem alterar saldo, bônus ou palpites. Entradas inválidas do histórico são descartadas sem apagar a carteira; dados corrompidos são descartados com fallback em memória. As regras puras de carteira rejeitam valores fracionários, saldo insuficiente e overflow. O bônus diário utiliza `America/Sao_Paulo`.
 
@@ -142,7 +144,7 @@ A seção Páginas do admin usa um editor compartilhado WYSIWYG com títulos, su
 
 Copie `.env.example` para `.env.local`, configure `NEXT_PUBLIC_DEMO_ADMIN_USERS` com os nomes locais autorizados e reinicie `pnpm dev`. Lista vazia não autoriza ninguém; cadastrar-se ou escolher o nome "admin" não concede permissão automaticamente. Essa configuração é pública e serve apenas para simular permissões no desenvolvimento: a sessão local ainda não verifica identidade. O estado de permissão não é lido de um papel editável no localStorage.
 
-Em produção, `app/admin/layout.tsx` executa `notFound()` no servidor incondicionalmente, inclusive com nomes configurados. Ao integrar o backend, substitua o adaptador `demoPermissions` por permissões de uma sessão verificada no servidor e esse bloqueio pela consulta da mesma sessão, antes de renderizar o painel. Cada endpoint de administração deve verificar `canManageSite` independentemente do frontend; mantenha resposta 404 para acessos não autorizados. Não use a lista pública ou um cookie com papel não assinado como mecanismo de autenticação.
+Atualmente, em produção, `app/admin/layout.tsx` executa `notFound()` incondicionalmente. Na integração, o Next.js consultará a sessão via HTTP no Fastify para compor o painel; cada endpoint e evento administrativo será autorizado pelo próprio Fastify. Preserve a resposta 404 para acessos administrativos não autorizados. Não use a lista pública ou um cookie com papel não assinado como autenticação. Os detalhes estão no planejamento central, sem Route Handlers como backend de domínio.
 
 ### Catálogo administrativo de jogos
 
@@ -162,9 +164,9 @@ Novos palpites incluem `id`, `marketId`, `username`, `createdAt` e `status`, gra
 
 `features/betting/settlement.ts` contém regras puras; `betting-storage.ts` contém operações locais autorizadas, participantes e persistência. Todas as mutações de saldo e de mercado compartilham `navigator.locks`, relendo o estado no bloqueio. O provider de sessão não regrava snapshots antigos após efeitos React. Falhas de gravação não geram toast de sucesso nem fecham a confirmação do palpite. Configurações genéricas de jogos/Sobre preservam os mercados atuais e não alteram seu ciclo de vida. Dados inválidos bloqueiam operações sem substituí-los silenciosamente.
 
-A migração preserva o mesmo armazenamento de catálogo, carteiras, jogos e Sobre; converte `enabled` antigo para Aberta/Pausada e descarta categoria. Palpites antigos continuam válidos e aparecem separadamente no admin quando a pergunta coincide; sem identificação suficiente, não entram em totais nem liquidações automáticas. A interface e as confirmações deixam essa exclusão explícita. Não são criadas datas ou vínculos históricos fictícios. A ação de limpeza de desenvolvimento remove somente registros antigos; novos palpites e recibos permanecem preservados.
+O código local contém conversões de formatos e tratamento de palpites antigos. Esses mecanismos não devem ser transportados para a API: carteiras, palpites e configurações mockadas podem ser descartados. A primeira base funcional começa limpa, com seeds de referência revisados e sem importação dos navegadores.
 
-A implementação continua restrita às contas e ao armazenamento deste navegador. Não há servidor de pagamentos. Ao integrar o backend, mantenha as regras puras, IDs e idempotência, e substitua a camada local por autorização e transações de banco. Testes cobrem rateio, precisão, concorrência, migração, permissões, quota, lote interrompido, saldo e repetição de pagamento; os testes de navegador incluem criação, apuração, pagamento, cancelamento e histórico.
+A implementação continua restrita às contas e ao armazenamento deste navegador. Na integração com Fastify, reutilize as regras puras e os testes de precisão e idempotência; IDs dos mocks não precisam ser mantidos. A persistência local será substituída por autorização e transações de banco. Testes específicos de formatos antigos podem ser removidos junto dos adaptadores descartados; preserve a cobertura das regras e acrescente integração, concorrência e rollback no PostgreSQL.
 
 ### Páginas institucionais
 

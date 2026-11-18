@@ -1,5 +1,7 @@
 # Flip7 local
 
+> Este documento descreve regras e apresentação do protótipo atual. A execução autoritativa no Fastify, Socket.IO, recuperação após reinícios e o roadmap estão em [backend-architecture.md](backend-architecture.md). Salvamentos e recibos locais são descartáveis; não há requisito de importar partidas ou preservar formatos antigos na primeira versão funcional. As descrições de compatibilidade abaixo registram o código existente, sem obrigar a nova implementação.
+
 ## Referência analisada
 
 URL: https://flip-7-618523404455.us-west1.run.app/ — analisada em 17/11/2026.
