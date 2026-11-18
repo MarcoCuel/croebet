@@ -83,10 +83,10 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
       <div className={cn("relative @container w-full aspect-[5/8] transition-transform duration-300 ease-in-out motion-reduce:transition-none sm:aspect-[2/3]", compact && "h-full aspect-auto sm:aspect-auto", sideways && "absolute top-1/2 left-1/2 w-[62.5%] -translate-x-1/2 -translate-y-1/2 rotate-90 sm:w-2/3")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": !compact && card.type === "chance" ? "var(--color-brand)" : `var(--color-flip-${color})` } as CSSProperties}
-          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-flip-card shadow-md [backface-visibility:hidden]",
-            compact ? "rounded-md border-[0.125rem] border-field-border/30" : "rounded-[18cqi] text-(--card-color) after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)]",
+          className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-flip-card shadow-md [backface-visibility:hidden] after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)]",
+            compact ? "rounded-md" : "rounded-[18cqi] text-(--card-color)",
             !compact && !numeric && "bg-(--card-color) text-white",
-            compact && (numeric ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-white"),
+            compact && (numeric ? "text-(--card-color)" : "bg-(--card-color) text-white"),
             compact && card.type === "chance" && "bg-brand text-white",
             holographic && "bg-flip-ink text-white",
           )}>
@@ -706,9 +706,9 @@ export default function Flip7Game() {
         </div>
         <div className={cn("grid min-w-0 overflow-clip transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:self-stretch", historyVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
           <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:sticky @[60rem]:top-[calc(var(--header-height)+1rem)] @[60rem]:w-56 @[60rem]:self-start", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
-            <div className="rounded-panel bg-surface p-4">
-              {/* Reserve page top (1rem), panel padding (2rem), and footer (7.25rem + border). */}
-              <div className="max-h-[max(12rem,calc(100dvh-var(--header-height)-10.25rem-var(--border-width-hairline)))] overflow-y-auto text-xs leading-relaxed text-muted" data-lenis-prevent><GameLog game={visibleGame} /></div>
+            {/* Reserve a 1rem gap above and below the panel; padding scrolls with its content. */}
+            <div className="max-h-[max(0rem,calc(100dvh-var(--header-height)-2rem))] overflow-y-auto rounded-panel bg-surface p-4 text-xs leading-relaxed text-muted" data-lenis-prevent>
+              <GameLog game={visibleGame} />
             </div>
           </aside>
         </div>
