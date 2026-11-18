@@ -53,7 +53,8 @@ test("entrada atualiza o pote, usa bots e reload não cobra novamente", async ({
   expect((await wallet(page)).balance).toBe(1017);
   await page.getByRole("button", { name: "Abandonar partida", exact: true }).click();
   await abandon.getByRole("button", { name: "Abandonar partida", exact: true }).click();
-  await expect(page).toHaveURL(/\/jogos$/);
+  await expect(page).toHaveURL(/\/jogos\/flip7$/);
+  await expect(page.getByRole("combobox", { name: "Número de jogadores", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("croebet:flip7:match"))).toBeNull();
   expect((await wallet(page)).balance).toBe(1017);
   expect(errors).toEqual([]);

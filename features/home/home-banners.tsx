@@ -72,7 +72,7 @@ export function HomeBanners() {
           </Button>
         )}
       </Banner>
-      <Banner className="bg-linear-to-b from-reward-start to-reward-end">
+      <Banner className="bg-linear-to-b from-reward-start to-reward-end text-foreground">
         <Badge className="tabular-nums">
           {dailyClaimed ? `Próximo resgate em ${countdown}` : "Disponível"}
         </Badge>

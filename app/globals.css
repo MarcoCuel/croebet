@@ -149,9 +149,9 @@
 :root[data-theme="light"] {
   color-scheme: light;
   --color-accent: #94127b;
-  --color-background: #f7f7f7;
+  --color-background: #fff;
   --color-chrome: #fff;
-  --color-surface: #fff;
+  --color-surface: #f7f7f7;
   --color-control: #ededed;
   --color-control-hover: #e3e3e3;
   --color-foreground: #171717;

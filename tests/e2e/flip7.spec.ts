@@ -293,7 +293,8 @@ test("voltar do Flip7 permite cancelar ou abandonar a partida salva", async ({ p
   await expect(dialog).not.toBeVisible();
   await back.click();
   await dialog.getByRole("button", { name: "Abandonar partida", exact: true }).click();
-  await expect(page).toHaveURL(/\/jogos$/);
+  await expect(page).toHaveURL(/\/jogos\/flip7$/);
+  await expect(page.getByRole("combobox", { name: "Número de jogadores", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("croebet:flip7:match"))).toBeNull();
   await page.goto("/jogos/flip7");
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toHaveCount(0);

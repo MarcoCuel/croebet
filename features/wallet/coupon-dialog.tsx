@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
-  DialogClose,
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -41,12 +40,7 @@ export function CouponDialog() {
             onInput={(event) => event.currentTarget.setCustomValidity("")}
           />
         </Field>
-        <div className="flex justify-end gap-2">
-          <DialogClose asChild>
-            <Button variant="secondary">Cancelar</Button>
-          </DialogClose>
-          <Button type="submit">Resgatar cupom</Button>
-        </div>
+        <Button type="submit" className="w-full">Resgatar cupom</Button>
       </form>
     </DialogContent>
   );

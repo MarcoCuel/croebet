@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Bell, Construction, TvMinimalPlay } from "lucide-react";
+import { ArrowUpRight, Bell, Construction, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,9 +32,9 @@ export function NotificationsMenu() {
             <span className="mt-1 block text-xs leading-snug text-muted">
               A Croebet está em construção. Ajustes e novidades podem aparecer enquanto você joga.
             </span>
-            <span className="mt-3 block text-xs text-muted">A casa está em obras.</span>
+            <span className="mt-3 block text-xs text-muted">18 de Nov. 2026</span>
           </span>
-          <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand" aria-hidden="true">
+          <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-control text-foreground" aria-hidden="true">
             <Construction className="size-8" />
           </span>
         </DropdownMenuLabel>
@@ -52,8 +52,8 @@ export function NotificationsMenu() {
                 <span className="sr-only"> (abre em nova aba)</span>
               </span>
             </span>
-            <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-control text-foreground" aria-hidden="true">
-              <TvMinimalPlay className="size-8" />
+            <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand" aria-hidden="true">
+              <Play className="size-8" />
             </span>
           </a>
         </DropdownMenuItem>

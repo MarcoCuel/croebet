@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { useRouter } from "next/navigation";
 import { usePageBack } from "@/components/layout/page-back";
 import gsap from "gsap";
 import { toast } from "sonner";
@@ -248,10 +247,9 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
 export default function Flip7Game() {
-  const router = useRouter();
   const { username, sessionReady, openLogin } = useDemoSession();
   const { registerBackHandler } = usePageBack();
-  const [exitHref, setExitHref] = useState<string | null>(null);
+  const [exitOpen, setExitOpen] = useState(false);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
   const [resultReady, setResultReady] = useState(false);
@@ -272,9 +270,9 @@ export default function Flip7Game() {
   const hasMatch = game !== null;
   useEffect(() => {
     if (!hasMatch) return;
-    return registerBackHandler(href => {
+    return registerBackHandler(() => {
       exitTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      setExitHref(href);
+      setExitOpen(true);
     });
   }, [hasMatch, registerBackHandler]);
   const saveErrorShown = useRef(false);
@@ -522,13 +520,13 @@ export default function Flip7Game() {
   }, [movingCards]);
 
   useEffect(() => {
-    if (!game || flight || movingCards || exitHref || game.phase === "over" || !wagerReady || leaving) return;
+    if (!game || flight || movingCards || exitOpen || game.phase === "over" || !wagerReady || leaving) return;
     const action: Action | null = game.phase === "summary" ? { type: "next" } : automaticAction(game);
     if (!action) return;
     const initial = action.type === "draw" && !game.players[game.turn].hasDrawn;
     const timer = setTimeout(() => send(action), game.phase === "summary" ? 1600 : initial ? 60 : game.forced ? 100 : 220);
     return () => clearTimeout(timer);
-  }, [game, flight, movingCards, exitHref, send, wagerReady, leaving]);
+  }, [game, flight, movingCards, exitOpen, send, wagerReady, leaving]);
 
   if (!game) return <SetupScreen initialError={restored.error} onStart={async (setup, options, stake) => {
     const next = createGame(setup, Math.floor(Math.random() * 4294967296), options);
@@ -546,8 +544,8 @@ export default function Flip7Game() {
     <h2 className="font-semibold">Partida com Croins</h2>
     <p role={paymentError ? "alert" : "status"} className="text-sm text-muted">{!ownsWager ? `Entre como ${wager.username} para retomar esta partida.` : paymentError || "Confirmando sua entrada…"}</p>
     {!username && <Button onClick={openLogin}>Entrar para continuar</Button>}
-    {ownsWager && paymentError && <div className="flex flex-wrap gap-2"><Button onClick={() => setPaymentAttempt(value => value + 1)}>Tentar novamente</Button><Button variant="secondary" onClick={() => window.location.reload()}>Recarregar partida</Button><Button variant="secondary" loading={leaving} onClick={() => setExitHref("/jogos")}>Abandonar partida</Button></div>}
-    <Dialog open={exitHref !== null} onOpenChange={open => { if (!open) setExitHref(null); }}><DialogContent><DialogTitle>Abandonar partida?</DialogTitle><DialogDescription>A entrada de {formatBalance.format(wager.stake)} Croins não será devolvida se já tiver sido paga.</DialogDescription><div className="mt-6 flex justify-end gap-2"><DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose><Button variant="destructive" loading={leaving} onClick={async () => { const href = exitHref; if (await leave()) { setExitHref(null); if (href) router.push(href); } }}>Abandonar partida</Button></div></DialogContent></Dialog>
+    {ownsWager && paymentError && <div className="flex flex-wrap gap-2"><Button onClick={() => setPaymentAttempt(value => value + 1)}>Tentar novamente</Button><Button variant="secondary" onClick={() => window.location.reload()}>Recarregar partida</Button><Button variant="secondary" loading={leaving} onClick={() => setExitOpen(true)}>Abandonar partida</Button></div>}
+    <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}><DialogContent><DialogTitle>Abandonar partida?</DialogTitle><DialogDescription>A entrada de {formatBalance.format(wager.stake)} Croins não será devolvida se já tiver sido paga.</DialogDescription><div className="mt-6 flex justify-end gap-2"><DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose><Button variant="destructive" loading={leaving} onClick={async () => { if (await leave()) setExitOpen(false); }}>Abandonar partida</Button></div></DialogContent></Dialog>
   </Surface>;
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
@@ -620,7 +618,7 @@ export default function Flip7Game() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-accent tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
-            {wager && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitHref("/jogos"); }}>Abandonar</Button>}
+            {wager && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
@@ -639,9 +637,9 @@ export default function Flip7Game() {
             </div>
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {visibleGame.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
-                <Avatar className="size-14" aria-hidden="true">
+                <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-accent)]")} aria-hidden="true">
                   {player.kind === "human" && <AccountAvatarImage name={player.name} />}
-                  <AvatarFallback className={cn("text-sm", visibleGame.phase === "playing" && activeSeat === i && "bg-selected text-accent")}>
+                  <AvatarFallback className="text-sm">
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
                   </AvatarFallback>
                 </Avatar>
@@ -712,7 +710,7 @@ export default function Flip7Game() {
           </aside>
         </div>
       </div>
-      <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitHref && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
+      <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
           <DialogTitle>Resultado da partida</DialogTitle>
           <DialogDescription className="mt-3 text-lg font-semibold text-accent">
@@ -744,17 +742,15 @@ export default function Flip7Game() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={exitHref !== null} onOpenChange={open => { if (!open) setExitHref(null); }}>
+      <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>
           <DialogDescription className="mt-3 text-sm text-muted">{wager && game.phase !== "over" ? `A partida será encerrada e sua entrada de ${formatBalance.format(wager.stake)} Croins não será devolvida.` : "A partida será encerrada e o progresso será perdido."}</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
             <Button variant="destructive" loading={leaving} disabled={leaving || !ownsWager} onClick={async () => {
-              if (exitHref && await leave()) {
-                const href = exitHref;
-                setExitHref(null);
-                router.push(href);
+              if (exitOpen && await leave()) {
+                setExitOpen(false);
               }
             }}>Abandonar partida</Button>
           </div>
