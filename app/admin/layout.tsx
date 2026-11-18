@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 
 export const metadata: Metadata = {
-  title: "Croebet",
+  title: "Admin · Croebet",
   description: null,
   robots: { index: false, follow: false },
 };
