@@ -37,6 +37,35 @@
   --color-cover-slots: #3c2319;
   --color-image-shade: #100a15;
 
+  --background-image-flip-holographic: linear-gradient(
+    125deg,
+    var(--color-flip-cyan) 0%,
+    var(--color-flip-green) 18%,
+    var(--color-flip-neutral) 36%,
+    var(--color-flip-pink) 54%,
+    var(--color-flip-purple) 72%,
+    var(--color-flip-blue) 88%,
+    var(--color-flip-cyan) 100%
+  );
+  --background-image-flip-glare: radial-gradient(
+    circle at center,
+    rgb(255 255 255 / 65%),
+    rgb(255 255 255 / 12%) 25%,
+    transparent 65%
+  );
+
+  --animate-flip-holographic: flip-holographic 6s ease-in-out infinite;
+  --animate-flip-glare: flip-glare 6s ease-in-out infinite;
+
+  @keyframes flip-holographic {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes flip-glare {
+    0%, 100% { transform: translate(-25%, -15%); opacity: 0.35; }
+    50% { transform: translate(25%, 15%); opacity: 0.75; }
+  }
+
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(255 255 255 / 10%);
   --inset-shadow-primary-button: inset 0 -0.125rem 0.25rem
     rgb(255 255 255 / 26%);

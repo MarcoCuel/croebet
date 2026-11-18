@@ -156,6 +156,13 @@ test("estouro vira a mão, encerra a rodada e próxima rodada preserva o placar"
   game.players[1].status = "stayed";
   await restore(page, game);
   await page.getByRole("button", { name: "Comprar", exact: true }).click();
+  await expect(page.locator("[data-flying-card]")).toHaveCount(1);
+  const during = page.getByRole("region", { name: "Mesa de Marco", exact: true });
+  await expect(during).not.toContainText("Estourou");
+  await expect(during.getByText("8 pts", { exact: true })).toBeVisible();
+  await expect(during.getByRole("img", { name: "Carta de costas", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Histórico da partida" })).not.toContainText("Marco estourou");
   await expect(page.locator("[data-flying-card]")).toHaveCount(0);
   const hand = page.getByRole("region", { name: "Mesa de Marco", exact: true });
   await expect(hand).toContainText("Estourou");
