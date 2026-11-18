@@ -76,26 +76,46 @@ export function decodeMatch(raw: string, code: string): SavedMatch | null {
   }
 }
 
-export function readMatch(storage: Storage = window.localStorage): SavedMatch | null {
+/** Read the collection, including snapshots saved by the original single-match format. */
+export function readMatches(storage: Storage = window.localStorage): SavedMatch[] {
   const raw = storage.getItem(matchStorageKey);
-  if (!raw) return null;
+  if (!raw) return [];
   try {
-    const saved: unknown = JSON.parse(raw);
-    return object(saved) && typeof saved.code === "string" ? decodeMatch(raw, saved.code) : null;
+    const stored: unknown = JSON.parse(raw);
+    const candidates = object(stored) && stored.version === 2 && Array.isArray(stored.matches) ? stored.matches : [stored];
+    const matches = new Map<string, SavedMatch>();
+    for (const candidate of candidates) {
+      if (!object(candidate) || typeof candidate.code !== "string") continue;
+      const match = decodeMatch(JSON.stringify(candidate), candidate.code);
+      if (match) matches.set(match.code, match);
+    }
+    return [...matches.values()];
   } catch {
-    return null;
+    return [];
   }
 }
 
-/** A single atomic write replaces the only saved Flip7 match. */
-export function saveMatch(match: SavedMatch, storage: Storage = window.localStorage) {
-  storage.setItem(matchStorageKey, JSON.stringify(match));
+export function readMatch(storage: Storage = window.localStorage, code?: string): SavedMatch | null {
+  const matches = readMatches(storage);
+  return (code ? matches.find(match => match.code === code) : matches.at(-1)) ?? null;
 }
 
-export function currentMatch(): { match: SavedMatch | null; error: string } {
+/** Update only this code, keeping every other snapshot in the same atomic write. */
+export function saveMatch(match: SavedMatch, storage: Storage = window.localStorage) {
+  const matches = readMatches(storage).filter(saved => saved.code !== match.code);
+  storage.setItem(matchStorageKey, JSON.stringify({ version: 2, matches: [...matches, match] }));
+}
+
+export function removeMatch(code: string, storage: Storage = window.localStorage) {
+  const matches = readMatches(storage).filter(match => match.code !== code);
+  if (matches.length) storage.setItem(matchStorageKey, JSON.stringify({ version: 2, matches }));
+  else storage.removeItem(matchStorageKey);
+}
+
+export function currentMatch(code?: string): { match: SavedMatch | null; error: string } {
   try {
-    const match = readMatch();
-    return { match, error: match || !window.localStorage.getItem(matchStorageKey) ? "" : "A partida salva está inválida ou incompatível. Inicie uma nova partida." };
+    const match = readMatch(window.localStorage, code);
+    return { match, error: match || !window.localStorage.getItem(matchStorageKey) ? "" : code ? "Partida não encontrada ou incompatível." : "A partida salva está inválida ou incompatível. Inicie uma nova partida." };
   } catch {
     return { match: null, error: "Não foi possível acessar as partidas salvas neste navegador." };
   }

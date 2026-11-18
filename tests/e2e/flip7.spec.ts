@@ -80,7 +80,7 @@ test("Flip7 lista a partida salva e mantém a retomada após recarregar", async 
     localStorage.setItem("croebet:flip7:match", JSON.stringify({ version: 1, code, game }));
   }, { code, game });
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Partida em andamento", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Partidas em andamento", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
   const board = page.getByRole("region", { name: "Mesa de Flip7", exact: true });
   await expect(board).toBeVisible();
@@ -96,6 +96,45 @@ test("Flip7 lista a partida salva e mantém a retomada após recarregar", async 
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
   await expect(page.getByLabel("Código da partida", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toHaveCount(0);
+});
+
+test("configuração permanece disponível ao lado de três partidas e ignora as finalizadas", async ({ page, isMobile }) => {
+  await page.goto("/jogos/flip7");
+  const active = ["ABCDEF123456", "123456ABCDEF", "AABBCCDDEEFF"].map(code => ({ version: 1, code, game: scenario([]) }));
+  const finished = structuredClone(active[0]);
+  finished.code = "112233445566";
+  finished.game.phase = "over";
+  finished.game.players.forEach(player => { player.status = "stayed"; player.total = 200; });
+  finished.game.history = [[200, 200]];
+  await page.evaluate(matches => {
+    localStorage.setItem("croebet:demo-username", "Marco");
+    localStorage.setItem("croebet:flip7:match", JSON.stringify({ version: 2, matches }));
+  }, [...active, finished]);
+  await page.reload();
+  const list = page.getByRole("complementary", { name: "Partidas em andamento" });
+  await expect(list.getByRole("button", { name: "Continuar partida", exact: true })).toHaveCount(3);
+  const count = page.getByRole("combobox", { name: "Número de jogadores", exact: true });
+  await expect(count).toBeVisible();
+  await expect(page.getByText("Partida finalizada", { exact: true })).toHaveCount(0);
+  if (!isMobile) {
+    const listBox = await list.boundingBox();
+    const formBox = await count.boundingBox();
+    expect(listBox!.x).toBeGreaterThan(formBox!.x + formBox!.width);
+  }
+  await page.getByRole("switch", { name: "Jogar com Croins", exact: true }).check();
+  await page.getByRole("button", { name: "Pagar 50 Croins e jogar", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();
+  const newCode = new URL(page.url()).searchParams.get("partida")!;
+  expect([...active, finished].some(match => match.code === newCode)).toBe(false);
+  const savedCodes = await page.evaluate(() => JSON.parse(localStorage.getItem("croebet:flip7:match")!).matches.map((match: { code: string }) => match.code));
+  expect(savedCodes).toEqual(expect.arrayContaining([...active, finished].map(match => match.code)));
+  expect(savedCodes).toHaveLength(5);
+  await page.goto("/jogos/flip7");
+  await expect(list.getByRole("button", { name: "Continuar partida", exact: true })).toHaveCount(4);
+  await expect(count).toBeVisible();
+  await list.getByRole("button", { name: "Continuar partida", exact: true }).first().click();
+  await expect(page).toHaveURL(/partida=ABCDEF123456/);
+  expect(await savedGame(page)).toEqual(active[0].game);
 });
 
 // Real deck fixtures preserve IDs and avoid depending on random cards or timing.
@@ -120,7 +159,11 @@ async function restore(page: Page, game: Game) {
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();
 }
 async function savedGame(page: Page) {
-  return page.evaluate(() => JSON.parse(localStorage.getItem("croebet:flip7:match")!).game as Game);
+  return page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem("croebet:flip7:match")!);
+    const code = new URLSearchParams(location.search).get("partida");
+    return (stored.version === 2 ? stored.matches.find((match: { code: string }) => match.code === code) ?? stored.matches.at(-1) : stored).game as Game;
+  });
 }
 
 test("Congelar pendente sobrevive ao reload, anima a entrega e mantém a carta com o alvo", async ({ page }) => {
@@ -181,7 +224,7 @@ test("estouro vira a mão, encerra a rodada e próxima rodada preserva o placar"
   expect((await savedGame(page)).players.map(p => p.total)).toEqual([0, 9]);
 });
 
-test("fim de partida restaura vencedores empatados e Jogar novamente limpa o salvamento", async ({ page }) => {
+test("Jogar novamente preserva a partida finalizada e permite reabrir o resultado pela URL", async ({ page }) => {
   const game = scenario([]);
   game.players.forEach(p => { p.total = 200; p.status = "stayed"; });
   game.history = [[200, 200]]; game.phase = "over";
@@ -199,10 +242,15 @@ test("fim de partida restaura vencedores empatados e Jogar novamente limpa o sal
   await expect(page.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Jogar novamente", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Número de jogadores" })).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem("croebet:flip7:match"))).toBeNull();
+  expect(await savedGame(page)).toEqual(game);
+  await expect(page.getByRole("complementary", { name: "Partidas em andamento" })).toHaveCount(0);
   await expect(page).not.toHaveURL(/partida=/);
   await page.reload();
   await expect(page.getByRole("combobox", { name: "Número de jogadores" })).toBeVisible();
+  await page.goto("/jogos/flip7?partida=ABCDEF123456");
+  await expect(result).toBeVisible();
+  await expect(result).toContainText("Marco e Pessoa venceram!");
+  expect(await savedGame(page)).toEqual(game);
 });
 
 test("configuração suporta 12 vagas e preserva edição ao reduzir e aumentar os lugares", async ({ page }) => {
@@ -290,8 +338,8 @@ test("voltar do Flip7 navega sem abandonar e permite continuar pela página do j
   await expect(page.getByRole("dialog", { name: "Abandonar partida?" })).toHaveCount(0);
   expect(await savedGame(page)).toEqual(before);
   await page.goto("/jogos/flip7");
-  await expect(page.getByRole("heading", { name: "Partida em andamento", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Partidas em andamento", exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Número de jogadores", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();
   expect(await savedGame(page)).toEqual(before);
@@ -317,11 +365,13 @@ test("voltar de uma partida finalizada abre a página do Flip7 e preserva o resu
     await back.click();
   }
   await expect(page).toHaveURL(/\/jogos\/flip7$/);
-  await expect(page.getByRole("heading", { name: "Partida finalizada", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Partida finalizada", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "Partidas em andamento" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Número de jogadores", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toHaveCount(0);
   expect((await savedGame(page)).phase).toBe("over");
   if (!isMobile) await expect(page.getByRole("link", { name: "Voltar para Jogos", exact: true })).toHaveAttribute("href", "/jogos");
-  await page.getByRole("button", { name: "Ver resultado", exact: true }).click();
+  await page.goto("/jogos/flip7?partida=ABCDEF123456");
   await expect(page.getByRole("dialog", { name: "Resultado da partida", exact: true })).toBeVisible();
 });
 

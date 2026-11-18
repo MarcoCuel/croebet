@@ -37,12 +37,12 @@ test("entrada atualiza o pote, usa bots e reload não cobra novamente", async ({
   await expect(board).toBeVisible();
   await expect(board.getByText("200 Croins", { exact: true })).toBeVisible();
   expect((await wallet(page)).balance).toBe(1017);
-  const code = await page.evaluate(() => JSON.parse(localStorage.getItem("croebet:flip7:match")!).code);
+  const code = new URL(page.url()).searchParams.get("partida")!;
   await page.reload();
   await expect(board).toBeVisible();
   await page.goto("/jogos");
   await page.goto("/jogos/flip7");
-  await expect(page.getByRole("heading", { name: "Partida em andamento", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Partidas em andamento", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
   await expect(board).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
@@ -70,7 +70,7 @@ for (const outcome of ["vitória", "empate", "derrota"] as const) {
     // Keep the actual debited entry and deck, preparing the final human decision.
     await page.evaluate(outcome => {
       const saved = JSON.parse(localStorage.getItem("croebet:flip7:match")!);
-      const game = saved.game as Game;
+      const game = (saved.version === 2 ? saved.matches.find((match: { code: string }) => match.code === new URLSearchParams(location.search).get("partida")) : saved).game as Game;
       game.deck.push(...game.discard, ...game.players.flatMap(p => p.cards), ...game.queue.map(p => p.card), ...(game.pending ? [game.pending.card] : []));
       game.discard = []; game.queue = []; game.pending = null; game.forced = null;
       game.turn = 0; game.phase = "playing"; game.flip7 = null; game.history = []; game.lastDraw = null;
@@ -100,9 +100,16 @@ for (const outcome of ["vitória", "empate", "derrota"] as const) {
     expect((await wallet(page)).balance).toBe(expectedBalance);
     const transactions = (await wallet(page)).transactions;
     expect(transactions.map((tx: { amount: number }) => tx.amount)).toEqual(expectedPrize ? [expectedPrize, -50] : [-50]);
+    const finishedUrl = page.url();
+    const finishedSnapshot = await page.evaluate(() => localStorage.getItem("croebet:flip7:match"));
     await result.getByRole("button", { name: "Jogar novamente", exact: true }).click();
     await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toBeVisible();
-    expect(await page.evaluate(() => localStorage.getItem("croebet:flip7:match"))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem("croebet:flip7:match"))).toBe(finishedSnapshot);
+    await expect(page.getByRole("complementary", { name: "Partidas em andamento" })).toHaveCount(0);
+    await page.goto(finishedUrl);
+    await expect(result).toBeVisible();
+    expect((await wallet(page)).balance).toBe(expectedBalance);
+    expect((await wallet(page)).transactions).toEqual(transactions);
     await page.goto("/historico");
     await expect(page.getByText(/Flip7 · Entrada/)).toBeVisible();
     if (expectedPrize) await expect(page.getByText(/Flip7 · Prêmio/)).toBeVisible();

@@ -1,7 +1,7 @@
 import { readUsername, readWalletStrict, writeWalletStrict } from "@/features/auth/session-storage";
 import type { Wallet } from "@/features/wallet/wallet";
 import { announceDemoData, withDemoLock } from "@/lib/demo-storage";
-import { decodeMatch, matchStorageKey, readMatch, saveMatch, type SavedMatch } from "./match-storage.ts";
+import { decodeMatch, readMatch, removeMatch, saveMatch, type SavedMatch } from "./match-storage.ts";
 import type { Game } from "./types";
 import { wagerPayouts } from "./wager.ts";
 
@@ -13,7 +13,7 @@ function owner(match: SavedMatch) {
 }
 
 function paidMatch(code: string) {
-  const match = readMatch();
+  const match = readMatch(window.localStorage, code);
   if (!match || match.code !== code || !match.wager)
     throw new Error("A partida mudou em outra aba. Atualize a página.");
   owner(match);
@@ -76,7 +76,7 @@ function payPrize(match: SavedMatch) {
 /** Save the initial intent before charging, so every debited entry has a resumable match. */
 export async function startLocalMatch(match: SavedMatch) {
   return withDemoLock(() => {
-    if (readMatch()) throw new Error("Já existe uma partida salva. Atualize a página para retomá-la.");
+    if (readMatch(window.localStorage, match.code)) throw new Error("Já existe uma partida com este código.");
     if (!decodeMatch(JSON.stringify(match), match.code)) throw new Error("Configuração da partida inválida.");
     if (match.wager) {
       const wallet = readWalletStrict(owner(match));
@@ -113,12 +113,12 @@ export async function saveWagerProgress(code: string, previous: Game, next: Game
 
 export async function leaveLocalMatch(code: string) {
   return withDemoLock(() => {
-    const match = readMatch();
+    const match = readMatch(window.localStorage, code);
     if (!match || match.code !== code) throw new Error("A partida mudou. Atualize a página.");
     if (match.wager) {
       owner(match);
       if (match.game.phase === "over") payPrize(match);
     }
-    localStorage.removeItem(matchStorageKey);
+    removeMatch(code);
   });
 }

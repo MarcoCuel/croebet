@@ -13,7 +13,7 @@ As regras e os bots são executados no navegador. As dependências React e fonte
 A adaptação reimplementa o jogo em TypeScript e React com os primitives existentes, textos em português e integração ao catálogo. Nenhum script remoto, proxy ou service worker da referência é executado ou incorporado. A arte do catálogo é um SVG local criado para esta integração.
 
 - `features/games/flip7/engine.ts`: estado e transições independentes de React, DOM, autenticação ou carteira.
-- `features/games/flip7/match-storage.ts`: snapshot versionado, validação e persistência local de uma única partida.
+- `features/games/flip7/match-storage.ts`: snapshot versionado, validação e persistência local de múltiplas partidas por código.
 - `features/games/flip7/flip7-game.tsx`: configuração, mesa, cartas, regras, histórico de rodadas e timer cancelável dos bots/compras forçadas.
 - `features/games/flip7/flip7-loader.tsx`: fronteira cliente com carregamento dinâmico exclusivo da página do jogo.
 - `app/jogos/[slug]/page.tsx`: composição da plataforma; mantém o comportamento dos demais jogos.
@@ -34,9 +34,9 @@ Congelar e Compre 3 resolvidos ficam na mão do destinatário, sem somar pontos,
 
 ## Limites atuais
 
-Cada partida recebe um código aleatório de 12 caracteres e uma URL com `?partida=CODIGO`. Existe somente uma partida salva de Flip7, na chave `croebet:flip7:match` do localStorage. O estado completo é salvo antes de renderizar cada jogada, incluindo automações e escolhas de alvo. O snapshot tem versão e validação estrutural, índices e conservação das 94 cartas. Falhas de gravação apresentam feedback sem interromper o jogo.
+Cada partida recebe um código aleatório de 12 caracteres e uma URL com `?partida=CODIGO`. A chave `croebet:flip7:match` do localStorage armazena uma coleção versionada de partidas, cada uma com seu código. O formato antigo de uma partida é lido e migrado ao salvar, sem perder seu progresso. O estado completo é salvo antes de renderizar cada jogada, incluindo automações e escolhas de alvo. O snapshot tem versão e validação estrutural, índices e conservação das 94 cartas. Falhas de gravação apresentam feedback sem interromper o jogo.
 
-Recarregar a URL com `?partida=CODIGO` retoma a partida diretamente. Acessar `/jogos/flip7` apresenta a partida salva com modo, quantidade de jogadores, rodada e o botão Continuar partida (ou Ver resultado, se encerrada). Ao continuar, a URL recebe seu identificador. Enquanto houver partida salva, a configuração de outra partida não é exibida. Dentro de uma URL com `?partida=CODIGO`, o botão de voltar leva a `/jogos/flip7`, inclusive após o fim da partida; na página do Flip7, leva a `/jogos`. O botão de voltar e a navegação do site não abrem confirmação nem abandonam a partida; a confirmação fica exclusivamente na ação Abandonar dentro da mesa. Não há campo de código nem múltiplas partidas simultâneas. Ao fim da partida, Jogar novamente limpa o salvamento e retorna à configuração. A retomada restaura o resultado da última jogada, sem repetir a animação nem comprar a mesma carta novamente; compras automáticas ainda pendentes continuam normalmente. Dados inválidos ou incompatíveis exibem erro na configuração.
+Recarregar a URL com `?partida=CODIGO` retoma somente aquela partida. `/jogos/flip7` mantém a configuração sempre disponível e lista à direita as partidas em andamento, com modo, quantidade de jogadores, rodada, participantes e Continuar partida. No mobile, a lista fica abaixo da configuração. Partidas finalizadas não aparecem na lista nem bloqueiam novas partidas; seu resultado permanece acessível pela URL original. É possível iniciar várias partidas sem substituir as anteriores. Dentro da partida, o botão de voltar leva a `/jogos/flip7`; na página inicial do jogo, leva a `/jogos`. Navegar não abandona partidas nem abre confirmação. Somente Abandonar remove o código correspondente, preservando todas as outras partidas. Jogar novamente volta à configuração sem excluir a partida finalizada; seu resultado continua acessível pela URL original. A retomada restaura o resultado da última jogada; compras automáticas pendentes continuam normalmente. Dados inválidos ou incompatíveis exibem erro na configuração.
 
 Os códigos identificam partidas salvas somente neste navegador e origem; não são credenciais ou salas online. Limpar os dados do site remove as partidas; outro dispositivo não consegue recuperá-las. A aplicação precisa carregar seus arquivos inicialmente; esta integração não adiciona suporte PWA/offline ao site. Depois de carregado, o motor não depende de requisições para jogar.
 
@@ -46,7 +46,7 @@ Pontos do Flip7 não são convertidos em Croins e não atualizam rankings/conqui
 
 `tests/flip7.test.mjs` cobre baralho, pontuação, estouros, proteção, ações em fila, alvos, término e rotação de rodadas. Simulações com 80 sementes conferem conservação/identidade das 94 cartas e término das partidas.
 
-`tests/flip7-storage.test.mjs` verifica snapshots e a próxima transição em partidas completas, incluindo ações pendentes, compras forçadas, resumo e fim; também cobre o salvamento único, dados corrompidos/incompatíveis e falhas de gravação. O E2E inclui reload, URL, navegação sem abandono e retomada explícita ao reabrir a página do jogo.
+`tests/flip7-storage.test.mjs` verifica snapshots e a próxima transição em partidas completas, incluindo ações pendentes, compras forçadas, resumo e fim; também cobre o salvamento por código e migração do formato antigo, dados corrompidos/incompatíveis e falhas de gravação. O E2E inclui reload, URL, navegação sem abandono e retomada explícita ao reabrir a página do jogo.
 
 `tests/e2e/flip7.spec.ts` cobre entrada pelo catálogo, configuração, regras e foco, turnos locais, confirmação de nova partida e overflow em desktop/mobile. A execução depende de Chrome e permissão para abrir a porta local do servidor Playwright.
 
@@ -115,7 +115,7 @@ A passagem de rodada é automática: após concluir entregas e transferências, 
 
 Trocar também vai diretamente à seleção de cartas, sem etapa de escolher participante. Quem compra a ação controla a prévia e a confirmação; snapshots antigos de Trocar são normalizados para esse fluxo, inclusive ações enfileiradas.
 
-O fim da partida abre um diálogo após as animações, com vencedores (incluindo empates) e classificação completa por pontuação decrescente. Pontos negativos são exibidos normalmente. Fechar/Escape permite consultar a mesa; Ver resultado reabre o diálogo. Jogar novamente limpa o snapshot e volta à configuração. Retomar uma partida encerrada reabre o resultado.
+O fim da partida abre um diálogo após as animações, com vencedores (incluindo empates) e classificação completa por pontuação decrescente. Pontos negativos são exibidos normalmente. Fechar/Escape permite consultar a mesa; Ver resultado reabre o diálogo. Jogar novamente volta à configuração e preserva o snapshot completo, a classificação e a URL da partida finalizada. Retomar uma partida encerrada reabre o resultado.
 
 A configuração mantém modo, opção Brutal e quantidade de lugares na chave independente `croebet:flip7:setup`. Mudanças são salvas na própria tela, permanecendo após navegação, reload, abandono e Jogar novamente. Partidas existentes fornecem a configuração inicial ao migrar. Dados inválidos ou armazenamento indisponível usam Clássico, dois lugares e Brutal desativado. Nomes e tipos dos participantes não são persistidos nessa preferência.
 

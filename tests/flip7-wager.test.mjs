@@ -174,15 +174,20 @@ test("abandono perde a entrada e outra conta não consegue jogar, pagar ou aband
   assert.equal(readWalletStrict("Marco").balance, 1017);
 });
 
-test("concorrência não substitui partidas nem regrava jogadas antigas", async () => {
+test("partidas concorrentes têm entradas independentes e rejeitam jogadas antigas", async () => {
   const match = snapshot();
   const starts = await Promise.allSettled([startLocalMatch(match), startLocalMatch({ ...match, code: "123456ABCDEF" })]);
-  assert.equal(starts.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(starts.filter(result => result.status === "fulfilled").length, 2);
   const next = transition(match.game, { type: "draw" });
   const moves = await Promise.allSettled([saveWagerProgress(code, match.game, next), saveWagerProgress(code, match.game, next)]);
   assert.equal(moves.filter(result => result.status === "fulfilled").length, 1);
   assert.deepEqual(readMatch().game, next);
-  assert.equal(readWalletStrict("Marco").balance, 1017);
+  assert.equal(readWalletStrict("Marco").balance, 967);
+  const other = readMatch(storage, "123456ABCDEF");
+  assert.deepEqual(other.game, match.game);
+  await leaveLocalMatch(code);
+  assert.deepEqual(readMatch(storage, "123456ABCDEF"), other);
+  assert.equal(readMatch(storage, code), null);
 });
 
 test("limite da carteira e códigos já usados não geram partida nem débito", async () => {
@@ -220,4 +225,24 @@ test("partidas antigas continuam livres e não movimentam a carteira", async () 
   assert.equal(readMatch().wager, undefined);
   await leaveLocalMatch(code);
   assert.equal(readWalletStrict("Marco").balance, initialWallet.balance);
+});
+
+
+test("três partidas têm débitos e prêmios isolados, sem sobrescrever resultados", async () => {
+  const codes = [code, "123456ABCDEF", "AABBCCDDEEFF"];
+  const matches = codes.map(code => ({ ...snapshot(), code }));
+  await Promise.all(matches.map(match => startLocalMatch(match)));
+  assert.equal(readWalletStrict("Marco").balance, initialWallet.balance - 150);
+  for (const match of matches) {
+    await prepareWagerMatch(match.code);
+    assert.deepEqual(readMatch(storage, match.code), match);
+  }
+  const end = finished(matches[1].game, [250, 100, 100, 100]);
+  await saveWagerProgress(codes[1], matches[1].game, end);
+  await Promise.all([prepareWagerMatch(codes[1]), prepareWagerMatch(codes[1])]);
+  assert.equal(readWalletStrict("Marco").balance, initialWallet.balance - 150 + 200);
+  assert.equal(readWalletStrict("Marco").transactions.filter(tx => tx.id.endsWith(":prize")).length, 1);
+  await leaveLocalMatch(codes[0]);
+  assert.equal(readMatch(storage, codes[1]).game.phase, "over");
+  assert.deepEqual(readMatch(storage, codes[2]), matches[2]);
 });

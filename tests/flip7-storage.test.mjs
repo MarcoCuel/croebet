@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { automaticAction, botAction, createGame, transition } from "../features/games/flip7/engine.ts";
-import { matchStorageKey, decodeMatch, readMatch, saveMatch } from "../features/games/flip7/match-storage.ts";
+import { matchStorageKey, decodeMatch, readMatch, readMatches, removeMatch, saveMatch } from "../features/games/flip7/match-storage.ts";
 
 const code = "ABCDEF123456";
 const setup = [{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }];
 const snapshot = game => ({ version: 1, code, game });
 function memoryStorage() {
   const data = new Map();
-  return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) };
+  return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value), removeItem: key => data.delete(key) };
 }
 
-test("retoma o estado exato e mantém somente uma partida salva", () => {
+test("retoma cada código sem substituir outras partidas e migra o formato antigo", () => {
   const storage = memoryStorage();
   const first = snapshot(transition(createGame(setup, 42), { type: "draw" }));
   saveMatch(first, storage);
@@ -19,7 +19,20 @@ test("retoma o estado exato e mantém somente uma partida salva", () => {
   const second = { ...snapshot(createGame(setup, 73)), code: "123456ABCDEF" };
   saveMatch(second, storage);
   assert.deepEqual(readMatch(storage), second);
-  assert.equal(storage.getItem(matchStorageKey), JSON.stringify(second));
+  assert.deepEqual(readMatch(storage, first.code), first);
+  assert.deepEqual(readMatches(storage), [first, second]);
+  const updated = { ...first, game: transition(first.game, { type: "draw" }) };
+  saveMatch(updated, storage);
+  assert.deepEqual(readMatch(storage, second.code), second);
+  assert.deepEqual(readMatch(storage, first.code), updated);
+  removeMatch(first.code, storage);
+  assert.deepEqual(readMatches(storage), [second]);
+  storage.setItem(matchStorageKey, JSON.stringify(first));
+  saveMatch(second, storage);
+  assert.deepEqual(readMatches(storage), [first, second]);
+  removeMatch(second.code, storage);
+  removeMatch(first.code, storage);
+  assert.equal(storage.getItem(matchStorageKey), null);
   assert.equal(readMatch(memoryStorage()), null);
 });
 
@@ -65,6 +78,7 @@ test("dados inválidos ou incompatíveis são rejeitados sem apagar partidas", (
 test("falha ao gravar não substitui a referência da partida salva", () => {
   const writes = [];
   assert.throws(() => saveMatch(snapshot(createGame(setup, 42)), {
+    getItem() { return null; },
     setItem(key) { writes.push(key); throw new Error("Quota excedida"); },
   }));
   assert.deepEqual(writes, [matchStorageKey]);
