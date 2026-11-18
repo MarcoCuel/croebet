@@ -1,12 +1,12 @@
 # Arquitetura da primeira versão funcional
 
-Atualizado em 18/11/2026. Planejamento técnico; nenhuma aplicação ou infraestrutura descrita como futura foi implementada por este documento.
+Atualizado em 18/11/2026. Referência técnica e roadmap. Fundação iniciada; consultar o estado de implementação e validação ao final.
 
 ## Referências e situação atual
 
 Este documento concentra decisões técnicas e roadmap. [../CROEBET.md](../CROEBET.md) continua sendo a referência de produto; [frontend-architecture.md](frontend-architecture.md) documenta interface e implementação atual; [flip7.md](flip7.md) detalha regras e apresentação do jogo; [../AGENTS.md](../AGENTS.md) define convenções de desenvolvimento. Ao aprovar uma mudança arquitetural, atualizar esta referência e corrigir os links ou instruções afetados, sem copiar o planejamento inteiro para outros arquivos.
 
-A inspeção atual encontrou Next.js 16.4.6, React 19.2.8, TypeScript 6.0.3, Tailwind 4, Radix, GSAP, Lenis e Three.js/React Three Fiber. O pnpm workspace contém somente a aplicação na raiz. Fastify, Socket.IO, PostgreSQL, Drizzle, Zod e Argon2id ainda não estão integrados. Não há API de domínio nem multiplayer online.
+A inspeção atual encontrou Next.js 16.4.6, React 19.2.8, TypeScript 6.0.3, Tailwind 4, Radix, GSAP, Lenis e Three.js/React Three Fiber. O workspace agora separa `apps/web`, `apps/api` e `packages/shared`. A fundação da API e os contratos estão escritos, mas a instalação das novas dependências está bloqueada no ambiente atual. Não há autenticação real, API de domínio nem multiplayer online.
 
 Sessão, carteira, apostas, partidas e configurações usam o navegador. O login não verifica a senha. O Flip 7 tem motores puros para Clássico, Vingança e Brutal, pessoas no mesmo dispositivo e bots; os demais jogos do catálogo exibem “Em breve”. Rankings, conquistas e parte dos usuários administrativos são fixtures. O novo admin de cupons também é um protótipo local, sem resgate público integrado. Existem testes Node de regras/persistência e Playwright de interface.
 
@@ -200,7 +200,7 @@ O Next.js não precisa reiniciar para publicar a API, nem a API para publicar o 
 
 ## Roadmap incremental
 
-Todas as etapas abaixo estão planejadas. A atualização documental não autoriza iniciar implementação. Cada entrega funcional inclui seus testes; o objetivo é integrar código/interface, nunca migrar dados mockados.
+As etapas 1 e 2 tiveram implementação autorizada e iniciada. As demais continuam planejadas. Cada entrega funcional inclui seus testes; o objetivo é integrar código/interface, nunca migrar dados mockados.
 
 | Etapa | Entrega | Dependências | Critério de conclusão |
 | --- | --- | --- | --- |
@@ -243,3 +243,28 @@ Pendências operacionais: domínio/provedor, dimensionamento e frequência/reten
 - [PostgreSQL: locks](https://www.postgresql.org/docs/current/explicit-locking.html) e [SELECT / SKIP LOCKED](https://www.postgresql.org/docs/current/sql-select.html).
 - [Drizzle: transações](https://orm.drizzle.team/docs/transactions).
 - [OWASP: sessões](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) e [hash de senhas](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
+
+## Fundação iniciada — operação e validação
+
+O frontend e seus testes foram movidos integralmente para `apps/web`, com `@/` preservado e raiz Turbopack no monorepo. `apps/api` contém Fastify com liveness em `GET /api/v1/health` e readiness em `GET /api/v1/health/ready`, configuração Zod, pool `pg`, conexão Drizzle, migration inicial e seed da identificação operacional do ambiente. Nenhum usuário, valor de economia ou endpoint de domínio foi introduzido. Socket.IO será conectado na etapa multiplayer, sem transporte de polling próprio.
+
+Comandos na raiz:
+
+| Comando | Uso |
+| --- | --- |
+| `pnpm install` | Instalar/resolver dependências e atualizar o lockfile do workspace. Ainda pendente por indisponibilidade do registry. |
+| `pnpm dev` | Iniciar web e API em paralelo; a API exige `.env` configurado. |
+| `pnpm dev:web` / `pnpm dev:api` | Iniciar aplicações separadamente. |
+| `pnpm build` | Compilar shared, API e frontend na ordem de dependências. |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | Verificações agregadas; dependem da instalação completa. |
+| `pnpm test:e2e` | Playwright do frontend existente. |
+| `pnpm test:integration` | Integração da API com `TEST_DATABASE_URL` de banco isolado, migrado e identificado como test. |
+| `pnpm db:migrate` / `pnpm db:seed` | Aplicar estrutura e inserir identificação de ambiente. |
+| `pnpm db:generate` | Gerar próximas migrations a partir do schema Drizzle. |
+| `pnpm db:reset` | Recriar exclusivamente o destino development/test autorizado, aplicando migration e seed. |
+
+Preparação: copiar `apps/api/.env.example` para `apps/api/.env` e ajustar o banco de desenvolvimento; a configuração demo do frontend está em `apps/web/.env.example` e usa `.env.local` nessa aplicação. `APP_ENV` e `DATABASE_URL` são obrigatórios na API. Não são criados banco ou usuários PostgreSQL automaticamente. Criar o banco isolado, executar migrate e seed antes de esperar readiness positiva. Liveness independe do banco; readiness retorna 503 se conexão, schema ou identificação não estiverem prontos.
+
+Reset exige `APP_ENV=development` ou `test`, `NODE_ENV` diferente de production, identificação compatível já persistida, URL exata em `DB_RESET_ALLOWED_URL` e nome real do banco em `DB_RESET_CONFIRM`. Banco sem identificação não pode ser resetado; criar/migrar e semear explicitamente primeiro. Essas variáveis ficam ausentes por padrão. Não há flag force. Em produção, migrations exigem `DATABASE_MIGRATION_URL` separada; usuário runtime deve ser provisionado sem privilégios DDL. Nunca preencher allowlist de reset com destino de produção.
+
+Validações observadas: 118 testes existentes do frontend aprovados; lint de todo o workspace aprovado; typecheck e build de produção do frontend aprovados com Node 22.22.0; contrato público Zod compilado/testado e guarda de reset testada. O registry npm falhou com `ENOTFOUND`, sem cache de Fastify/Drizzle/pg: instalação, resolução final do lockfile, build/typecheck completo e testes HTTP/Drizzle da API permanecem pendentes. A migration inicial e seu snapshot precisam ser conferidos com Drizzle Kit instalado. O PostgreSQL local instalado não inicia por ausência de `libicui18n.74.dylib`, impedindo validar migrations e rollback reais; nenhum banco existente foi alterado. Playwright foi tentado, mas o ambiente recusou `127.0.0.1:3100` com EPERM. Não considerar as etapas 1 e 2 totalmente validadas enquanto essas pendências não forem resolvidas.

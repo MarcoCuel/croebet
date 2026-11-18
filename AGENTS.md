@@ -10,7 +10,7 @@
 ## Stack e arquitetura
 
 - Next.js App Router, React, TypeScript, Tailwind CSS 4, GSAP e Lenis. Preserve a stack e as funcionalidades existentes.
-- A arquitetura aprovada separa Next.js e Fastify em um monorepo pnpm, com PostgreSQL, Drizzle + `pg`, Zod e Socket.IO + HTTP. A reorganização ainda está planejada; não confunda os diretórios atuais com a estrutura de destino descrita em `docs/backend-architecture.md`. Regras de negócio, autenticação, permissões, banco e execução dos jogos pertencem ao Fastify; o frontend não acessa o banco nem serviços internos da API.
+- A arquitetura aprovada separa Next.js e Fastify em um monorepo pnpm, com PostgreSQL, Drizzle + `pg`, Zod e Socket.IO + HTTP. O frontend está em `apps/web`; os caminhos de frontend abaixo são relativos a essa aplicação. A base do backend está em `apps/api` e os contratos públicos em `packages/shared`; consulte o estado de validação em `docs/backend-architecture.md`. Regras de negócio, autenticação, permissões, banco e execução dos jogos pertencem ao Fastify; o frontend não acessa o banco nem serviços internos da API.
 - `app/`: rotas, metadata e composição de páginas. Use Server Components por padrão.
 - `components/ui/`: primitives do design system, no padrão shadcn/ui, com Radix UI para interação acessível.
 - `components/layout/`: navegação, sidebar, topbar, rodapé, providers e estrutura de página.

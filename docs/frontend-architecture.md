@@ -1,10 +1,10 @@
 # Arquitetura do frontend
 
-> Estado do protótipo e convenções de interface. A arquitetura aprovada, a política de dados e o roadmap estão em [backend-architecture.md](backend-architecture.md). A Croebet está construindo sua primeira versão funcional: dados locais, chaves e compatibilidade entre formatos antigos descritos abaixo são detalhes históricos do código, não requisitos de preservação. O backend separado em Fastify e o monorepo ainda não foram implementados.
+> Estado do protótipo e convenções de interface. A arquitetura aprovada, a política de dados e o roadmap estão em [backend-architecture.md](backend-architecture.md). A Croebet está construindo sua primeira versão funcional: dados locais, chaves e compatibilidade entre formatos antigos descritos abaixo são detalhes históricos do código, não requisitos de preservação. O frontend foi movido para `apps/web` sem redesign; os caminhos de implementação neste documento são relativos a essa pasta. A fundação Fastify está em `apps/api`, com validações ainda pendentes da instalação das dependências.
 
 ## Estado atual e contexto
 
-A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Lucide, GSAP e Lenis. A organização atual separa UI, layout e features, com primitives compartilhados e validação por ESLint, TypeScript, testes Node e Playwright. O frontend ainda está na raiz; a reorganização para `apps/web` faz parte do planejamento aprovado.
+A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Lucide, GSAP e Lenis. A organização atual separa UI, layout e features, com primitives compartilhados e validação por ESLint, TypeScript, testes Node e Playwright. O frontend está em `apps/web`, preservando relações entre pastas e o alias `@/`.
 
 O Flip 7 já é jogável localmente; os outros jogos exibem “Em breve”. Autenticação, carteiras e administração continuam como protótipos locais, sem backend. A integração preservará componentes, metadata, imagens, textos, rotas, GSAP e Lenis; os dados mockados poderão ser descartados.
 

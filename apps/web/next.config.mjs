@@ -6,7 +6,7 @@ const nextConfig = {
     turbopackPluginRuntimeStrategy: "workerThreads",
   },
   turbopack: {
-    root: fileURLToPath(new URL(".", import.meta.url)),
+    root: fileURLToPath(new URL("../../", import.meta.url)),
   },
 };
 
