@@ -14,6 +14,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useRef, useState } from "react";
 import { SettingsDialog } from "@/features/settings/settings-dialog";
@@ -73,7 +74,6 @@ export function AccountMenu({
         <DropdownMenuContent
           side={sidebar ? "top" : "bottom"}
           align={sidebar ? "start" : "end"}
-          className="[&_[data-slot=dropdown-menu-item]]:gap-2 [&_[data-slot=dropdown-menu-item]]:text-xs"
           onCloseAutoFocus={(event) => {
             if (openingDialog.current) {
               event.preventDefault();
@@ -110,6 +110,7 @@ export function AccountMenu({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => {
               openingDialog.current = true;
@@ -126,6 +127,7 @@ export function AccountMenu({
               Histórico
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={signOut}>
             <LogOut className="size-4" aria-hidden="true" />
             Sair

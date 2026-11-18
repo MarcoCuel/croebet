@@ -12,7 +12,7 @@ export const DropdownMenuSub = DropdownPrimitive.Sub;
 export const DropdownMenuRadioGroup = DropdownPrimitive.RadioGroup;
 
 const itemClassName =
-  "relative flex min-h-10 cursor-pointer items-center gap-3 rounded-lg border-(length:--border-width-hairline) border-transparent px-3 text-sm text-muted outline-none focus:border-foreground focus:bg-control-hover focus:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50";
+  "relative flex min-h-8 cursor-pointer items-center gap-2 rounded-lg border-(length:--border-width-hairline) border-transparent px-2 py-1 text-xs text-foreground outline-none focus-visible:border-foreground data-highlighted:bg-control-hover data-disabled:pointer-events-none data-disabled:opacity-50";
 
 export function DropdownMenuSubTrigger({
   className,
@@ -39,7 +39,7 @@ export function DropdownMenuSubContent({
   return (
     <DropdownPrimitive.Portal>
       <DropdownPrimitive.SubContent
-        className={cn("z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-panel bg-surface p-1.5 text-foreground shadow-lg outline-none", className)}
+        className={cn("z-50 min-w-36 max-w-[calc(100vw-2rem)] rounded-panel border-(length:--border-width-hairline) border-foreground/10 bg-surface p-1 text-foreground shadow-lg outline-none", className)}
         sideOffset={sideOffset}
         data-lenis-prevent
         {...props}
@@ -80,7 +80,7 @@ export function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
         className={cn(
-          "z-50 min-w-44 max-w-[calc(100vw-2rem)] rounded-panel bg-surface p-1.5 text-foreground shadow-lg outline-none",
+          "z-50 min-w-44 max-w-[calc(100vw-2rem)] rounded-panel border-(length:--border-width-hairline) border-foreground/10 bg-surface p-1 text-foreground shadow-lg outline-none",
           className,
         )}
         data-lenis-prevent
@@ -114,6 +114,18 @@ export function DropdownMenuLabel({
     <DropdownPrimitive.Label
       data-slot="dropdown-menu-label"
       className={cn("px-3 py-2 text-sm text-muted", className)}
+      {...props}
+    />
+  );
+}
+
+export function DropdownMenuSeparator({
+  className,
+  ...props
+}: ComponentProps<typeof DropdownPrimitive.Separator>) {
+  return (
+    <DropdownPrimitive.Separator
+      className={cn("mx-2 my-1 h-(--border-width-hairline) bg-foreground/10", className)}
       {...props}
     />
   );

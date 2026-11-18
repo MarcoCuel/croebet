@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card as Surface } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ import { automaticAction, canStay, cardLabel, createGame, isNumber, modeLabel, s
 import type { Action, Card, Game, GameOptions, Setup } from "./engine";
 import { cardChoices } from "./vengeance";
 import { GOAL } from "./engine";
+import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
 import { matchStorageKey, currentMatch, matchUrl, saveMatch, type SavedMatch } from "./match-storage";
 
 function Rules({ options }: { options: GameOptions }) {
@@ -162,8 +164,13 @@ function ParticipantSlot({ index, player, onChange }: { index: number; player: S
 
 function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], options: GameOptions) => void; initialError: string }) {
   const { username, openLogin } = useDemoSession();
-  const [count, setCount] = useState(2);
-  const [options, setOptions] = useState<GameOptions>({ mode: "classic", brutal: false });
+  const [preferences] = useState(readSetupPreferences);
+  const [count, setCount] = useState(preferences.count);
+  const [options, setOptions] = useState<GameOptions>({ mode: preferences.mode, brutal: preferences.brutal });
+  useEffect(() => {
+    try { saveSetupPreferences({ count, ...options }); }
+    catch { toast.error("Não foi possível salvar as configurações do Flip7.", { id: "flip7-setup-storage" }); }
+  }, [count, options]);
   const [opponents, setOpponents] = useState<(Setup | null)[]>(Array(11).fill(null));
   const selected = opponents.slice(0, count - 1);
   const ready = selected.every(player => player !== null);
@@ -172,15 +179,13 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
       <Surface>
         <Field className="mb-4 min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
           Versão
-          <Select aria-label="Versão do Flip7" value={options.mode} onChange={event => setOptions({ mode: event.target.value as GameOptions["mode"], brutal: false })}>
+          <Select aria-label="Versão do Flip7" value={options.mode} onChange={event => setOptions(previous => ({ ...previous, mode: event.target.value as GameOptions["mode"] }))}>
             <option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option>
           </Select>
         </Field>
-        {options.mode === "vengeance" && <Field className="mb-4 min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
+        {options.mode === "vengeance" && <Field className="mb-4 grid-cols-[1fr_auto] items-center gap-4 text-base">
           Modo Brutal
-          <Select aria-label="Modo Brutal" value={String(options.brutal)} onChange={event => setOptions(previous => ({ ...previous, brutal: event.target.value === "true" }))}>
-            <option value="false">Desativado</option><option value="true">Ativado</option>
-          </Select>
+          <Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal => setOptions(previous => ({ ...previous, brutal }))} />
         </Field>}
         <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
           Número de jogadores
@@ -246,6 +251,12 @@ export default function Flip7Game() {
   useEffect(() => {
     if (matchCode) matchUrl(matchCode);
   }, [matchCode]);
+  useEffect(() => {
+    if (!restored.match) return;
+    const previous = restored.match.game;
+    try { saveSetupPreferences({ count: previous.players.length, mode: previous.mode, brutal: previous.mode === "vengeance" ? previous.brutal : readSetupPreferences().brutal }); }
+    catch { toast.error("Não foi possível salvar as configurações do Flip7.", { id: "flip7-setup-storage" }); }
+  }, [restored]);
   const persist = useCallback((next: Game, code: string) => {
     try {
       saveMatch({ version: 1, code, game: next });

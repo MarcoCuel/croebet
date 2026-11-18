@@ -303,18 +303,22 @@ test("configuração seleciona Vingança e Brutal e adapta as regras", async ({ 
   await page.goto("/jogos/flip7");
   await page.evaluate(() => localStorage.setItem("croebet:demo-username", "Marco"));
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Modo Brutal" })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Modo Brutal" })).toHaveCount(0);
   await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("vengeance");
-  await page.getByRole("combobox", { name: "Modo Brutal" }).selectOption("true");
+  const brutalSwitch = page.getByRole("switch", { name: "Modo Brutal" });
+  await expect(brutalSwitch).not.toBeChecked();
+  await brutalSwitch.focus(); await page.keyboard.press("Space");
+  await expect(brutalSwitch).toBeChecked();
+
   await page.getByRole("button", { name: "Regras", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("Brutal");
   await expect(page.getByRole("dialog")).toContainText("A pontuação pode ser negativa");
   await page.keyboard.press("Escape");
   await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("classic");
-  await expect(page.getByRole("combobox", { name: "Modo Brutal" })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Modo Brutal" })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("vengeance");
-  await page.getByRole("combobox", { name: "Modo Brutal" }).selectOption("true");
+  await page.getByRole("switch", { name: "Modo Brutal" }).check();
   await page.getByRole("button", { name: "Adicionar jogador 2", exact: true }).click();
   const participant = page.getByRole("dialog");
   await participant.getByLabel("Nome", { exact: true }).fill("Pessoa");
@@ -501,4 +505,27 @@ test("resultado final ordena todos os jogadores e preserva pontos negativos no B
   await expect(rows.nth(0)).toContainText("220 pts");
   await expect(rows.nth(1)).toContainText("Marco");
   await expect(rows.nth(1)).toContainText("-5 pts");
+});
+
+test("configuração do Flip7 preserva modo, Brutal e lugares ao sair e recarregar", async ({ page }) => {
+  await page.goto("/jogos/flip7");
+  await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("vengeance");
+  await page.getByRole("switch", { name: "Modo Brutal" }).check();
+  await page.getByRole("combobox", { name: "Número de jogadores" }).selectOption("4");
+  await page.goto("/jogos"); await page.goto("/jogos/flip7");
+  await expect(page.getByRole("combobox", { name: "Versão do Flip7" })).toHaveValue("vengeance");
+  await expect(page.getByRole("switch", { name: "Modo Brutal" })).toBeChecked();
+  await expect(page.getByRole("combobox", { name: "Número de jogadores" })).toHaveValue("4");
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Número de jogadores" })).toHaveValue("4");
+  await expect(page.getByRole("switch", { name: "Modo Brutal" })).toBeChecked();
+  await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("classic");
+  await page.reload();
+  await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("vengeance");
+  await expect(page.getByRole("switch", { name: "Modo Brutal" })).toBeChecked();
+  await page.getByRole("switch", { name: "Modo Brutal" }).uncheck();
+  await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("classic");
+  await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("vengeance");
+  await expect(page.getByRole("switch", { name: "Modo Brutal" })).not.toBeChecked();
+
 });

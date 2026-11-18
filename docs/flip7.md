@@ -116,3 +116,5 @@ A passagem de rodada é automática: após concluir entregas e transferências, 
 Trocar também vai diretamente à seleção de cartas, sem etapa de escolher participante. Quem compra a ação controla a prévia e a confirmação; snapshots antigos de Trocar são normalizados para esse fluxo, inclusive ações enfileiradas.
 
 O fim da partida abre um diálogo após as animações, com vencedores (incluindo empates) e classificação completa por pontuação decrescente. Pontos negativos são exibidos normalmente. Fechar/Escape permite consultar a mesa; Ver resultado reabre o diálogo. Jogar novamente limpa o snapshot e volta à configuração. Retomar uma partida encerrada reabre o resultado.
+
+A configuração mantém modo, opção Brutal e quantidade de lugares na chave independente `croebet:flip7:setup`. Mudanças são salvas na própria tela, permanecendo após navegação, reload, abandono e Jogar novamente. Partidas existentes fornecem a configuração inicial ao migrar. Dados inválidos ou armazenamento indisponível usam Clássico, dois lugares e Brutal desativado. Nomes e tipos dos participantes não são persistidos nessa preferência.
