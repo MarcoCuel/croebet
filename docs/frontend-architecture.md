@@ -92,7 +92,7 @@ O estado de navegação é independente da carteira. Os diálogos utilizam porta
 
 ## 3D sob demanda
 
-A base não está montada em nenhuma página atual. `CroinPreview` é um exemplo opcional para futuras experiências e carrega a cena por `next/dynamic` com SSR desativado. O componente pode ser importado por uma página servidor, pois ele mesmo estabelece a fronteira cliente:
+A home utiliza `CroinBanner` no card de resgate diário: uma moeda procedural com aro e emblema C nas duas faces, carregada por `next/dynamic` com SSR desativado somente quando visível. A decoração não captura eventos ou foco e falhas de WebGL não afetam o resgate. `CroinPreview` continua disponível para visualização interativa e pode ser importado por uma página servidor, pois ele mesmo estabelece a fronteira cliente:
 
 ```tsx
 import { CroinPreview } from "@/three/scenes/croin-preview";
@@ -100,9 +100,9 @@ import { CroinPreview } from "@/three/scenes/croin-preview";
 <CroinPreview className="mx-auto max-w-80" />;
 ```
 
-O módulo carregado contém `SceneCanvas`, `StudioLighting`, `CroinModel`, `BrandMaterial` e `PreviewControls`. Não há render loop ou Canvas no layout. O renderer utiliza `frameloop="demand"`, DPR entre 1 e 1.5 e Suspense; o wrapper apresenta Skeleton e fallback em caso de erro ou indisponibilidade de WebGL. A moeda procedural é apenas exemplo técnico, sem alterar os assets atuais.
+O módulo de preview contém `SceneCanvas`, `StudioLighting`, `CroinModel`, `BrandMaterial` e `PreviewControls`. Não há render loop ou Canvas no layout. O renderer utiliza `frameloop="demand"`, DPR entre 1 e 1.5 e Suspense; o preview apresenta Skeleton e fallback em caso de erro ou indisponibilidade de WebGL. O banner reutiliza modelo, iluminação e canvas, sem controles interativos.
 
-Materiais leem `--color-brand` uma vez ao montar e invalidam o frame. OrbitControls invalida o renderer quando há interação. Não há `useFrame`, animações contínuas, estado atualizado por frame, downloads de HDR/fontes externas ou migração automática dos jogos.
+Materiais leem `--color-brand` uma vez ao montar e invalidam o frame. OrbitControls invalida o renderer quando há interação. No banner, `useFrame` gira uma ref e solicita o próximo frame apenas enquanto a página está visível e o usuário permite animação. O canvas desmonta ao sair da viewport; movimento reduzido mantém a moeda estática. Não há estado React atualizado por frame, downloads de HDR/fontes externas ou migração automática dos jogos.
 
 ## Validação
 

@@ -20,8 +20,8 @@
   --color-prediction-yes: #4dc48b;
   --color-prediction-no: #f15b66;
 
-  --color-reward-start: #FF477B20;
-  --color-reward-end: #FF477B;
+  --color-reward-start: color-mix(in srgb, var(--color-brand) 10%, transparent);
+  --color-reward-end: color-mix(in srgb, var(--color-brand) 35%, transparent);
   --color-flip-neutral: #e7c75f;
   --color-flip-slate: #a7a0bb;
   --color-flip-lime: #a8c550;
