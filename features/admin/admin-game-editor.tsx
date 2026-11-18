@@ -22,7 +22,7 @@ export function AdminGameEditor({ slug }: { slug: string }) {
         <form
           key={slug}
           className="grid items-start gap-6 sm:grid-cols-[12rem_minmax(0,1fr)]"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             const name = String(form.get("name") ?? "").trim();
@@ -35,7 +35,7 @@ export function AdminGameEditor({ slug }: { slug: string }) {
               return;
             }
             if (
-              save({
+              await save({
                 ...config,
                 games: config.games.map((g) =>
                   g.slug === slug

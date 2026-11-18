@@ -20,9 +20,11 @@ export function PredictionTicket({
   onReturnFocus: () => void;
 }) {
   const { balance, placePrediction } = useDemoSession();
+  const [saving, setSaving] = useState(false);
   const [amount, setAmount] = useState("");
   const stake = Number(amount);
-  const validStake = Number.isSafeInteger(stake) && stake >= 1 && stake <= balance;
+  const validStake =
+    Number.isSafeInteger(stake) && stake >= 1 && stake <= balance;
 
   return (
     <Dialog
@@ -41,12 +43,17 @@ export function PredictionTicket({
         <DialogTitle>Confirmar aposta</DialogTitle>
         <form
           className="grid gap-4"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             if (!validStake) return;
-            placePrediction({ ...selection, stake });
-            toast.success("Aposta registrada.");
-            onClose();
+            if (saving) return;
+            setSaving(true);
+            const success = await placePrediction({ ...selection, stake });
+            setSaving(false);
+            if (success) {
+              toast.success("Aposta registrada.");
+              onClose();
+            }
           }}
         >
           <Field>
@@ -67,9 +74,20 @@ export function PredictionTicket({
               onChange={(event) => setAmount(event.currentTarget.value)}
             />
           </Field>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Valores rápidos">
+          <div
+            className="flex flex-wrap gap-2"
+            role="group"
+            aria-label="Valores rápidos"
+          >
             {[10, 25, 50, 100].map((value) => (
-              <Button key={value} variant={stake === value ? "outline" : "secondary"} size="sm" disabled={value > balance} aria-pressed={stake === value} onClick={() => setAmount(String(value))}>
+              <Button
+                key={value}
+                variant={stake === value ? "outline" : "secondary"}
+                size="sm"
+                disabled={value > balance}
+                aria-pressed={stake === value}
+                onClick={() => setAmount(String(value))}
+              >
                 {value} Croins
               </Button>
             ))}
@@ -78,7 +96,7 @@ export function PredictionTicket({
             <Button variant="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!validStake}>
+            <Button type="submit" disabled={!validStake} loading={saving}>
               Confirmar aposta
             </Button>
           </div>

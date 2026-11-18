@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/page-shell";
-import { Heading } from "@/components/shared/heading";
 import { WalletHistory } from "@/features/wallet/wallet-history";
 
 export const metadata: Metadata = {
@@ -11,8 +10,8 @@ export const metadata: Metadata = {
 export default function HistoryPage() {
   return (
     <PageShell className="pb-8">
-      <Heading asChild variant="display"><h1>Histórico</h1></Heading>
-      <WalletHistory />
+      <h1 className="sr-only">Histórico</h1>
+      <WalletHistory className="mt-0" />
     </PageShell>
   );
 }

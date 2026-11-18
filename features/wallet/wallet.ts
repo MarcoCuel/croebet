@@ -33,6 +33,21 @@ export function isPrediction(value: unknown): value is Prediction {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
   return (
+    (entry.id === undefined ||
+      (typeof entry.id === "string" &&
+        !!entry.id &&
+        typeof entry.marketId === "string" &&
+        !!entry.marketId &&
+        typeof entry.username === "string" &&
+        !!entry.username &&
+        typeof entry.createdAt === "string" &&
+        Number.isFinite(Date.parse(entry.createdAt)))) &&
+    (entry.settlementId === undefined ||
+      (typeof entry.settlementId === "string" &&
+        !!entry.settlementId &&
+        Number.isSafeInteger(entry.payout) &&
+        Number(entry.payout) >= 0 &&
+        ["won", "lost", "refunded"].includes(String(entry.status)))) &&
     typeof entry.market === "string" &&
     typeof entry.outcome === "string" &&
     Number.isSafeInteger(entry.stake) &&
@@ -42,7 +57,9 @@ export function isPrediction(value: unknown): value is Prediction {
   );
 }
 
-export function isWalletTransaction(value: unknown): value is WalletTransaction {
+export function isWalletTransaction(
+  value: unknown,
+): value is WalletTransaction {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
   return (
@@ -50,23 +67,32 @@ export function isWalletTransaction(value: unknown): value is WalletTransaction 
     typeof entry.createdAt === "string" &&
     Number.isFinite(Date.parse(entry.createdAt)) &&
     typeof entry.description === "string" &&
-    Number.isSafeInteger(entry.amount) && entry.amount !== 0 &&
-    Number.isSafeInteger(entry.balance) && Number(entry.balance) >= 0
+    Number.isSafeInteger(entry.amount) &&
+    entry.amount !== 0 &&
+    Number.isSafeInteger(entry.balance) &&
+    Number(entry.balance) >= 0
   );
 }
 
-function recordTransaction(wallet: Wallet, amount: number, description: string): Wallet {
+function recordTransaction(
+  wallet: Wallet,
+  amount: number,
+  description: string,
+): Wallet {
   const balance = wallet.balance + amount;
   return {
     ...wallet,
     balance,
-    transactions: [{
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      description,
-      amount,
-      balance,
-    }, ...wallet.transactions],
+    transactions: [
+      {
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        description,
+        amount,
+        balance,
+      },
+      ...wallet.transactions,
+    ],
   };
 }
 
@@ -87,7 +113,10 @@ export function claimReward(wallet: Wallet, date: string): Wallet {
     !Number.isSafeInteger(wallet.balance + dailyReward)
   )
     return wallet;
-  return { ...recordTransaction(wallet, dailyReward, "Bônus diário"), lastClaim: date };
+  return {
+    ...recordTransaction(wallet, dailyReward, "Bônus diário"),
+    lastClaim: date,
+  };
 }
 
 export function registerPrediction(
@@ -97,7 +126,11 @@ export function registerPrediction(
   if (!isPrediction(prediction) || prediction.stake > wallet.balance)
     return wallet;
   return {
-    ...recordTransaction(wallet, -prediction.stake, `Aposta · ${prediction.market} · ${prediction.outcome}`),
+    ...recordTransaction(
+      wallet,
+      -prediction.stake,
+      `Aposta · ${prediction.market} · ${prediction.outcome}`,
+    ),
     predictions: [prediction, ...wallet.predictions],
   };
 }

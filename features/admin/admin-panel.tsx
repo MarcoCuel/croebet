@@ -1,10 +1,13 @@
 "use client";
 
+import { AdminMarkets } from "@/features/admin/admin-markets";
+import { AdminMarketEditor } from "@/features/admin/admin-market-editor";
+import { creditLocalWallet } from "@/features/betting/betting-storage";
+import { acceptsPredictions } from "@/features/betting/settlement";
 import { AdminGames } from "@/features/admin/admin-games";
 import { AdminGameEditor } from "@/features/admin/admin-game-editor";
 import { adminRoutes, type AdminSection } from "@/features/admin/routes";
 import { AboutEditor } from "@/features/admin/about-editor";
-import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -12,7 +15,6 @@ import {
   FileText,
   LayoutDashboard,
   PlayingCards,
-  Plus,
   Tickets,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,16 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useDemoSession } from "@/features/auth/session-context";
-import { readWallet } from "@/features/auth/session-storage";
-import {
-  addCroins,
-  formatBalance,
-  isPrediction,
-} from "@/features/wallet/wallet";
-import { useSiteConfig, type AdminMarket } from "@/features/admin/site-config";
+import { formatBalance } from "@/features/wallet/wallet";
+import { useSiteConfig } from "@/features/admin/site-config";
 
 const sections = [
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
@@ -44,17 +39,18 @@ const text = (form: FormData, name: string) =>
 export function AdminPanel({
   section = "overview",
   gameSlug,
+  marketId,
 }: {
   section?: AdminSection;
   gameSlug?: string;
+  marketId?: string;
 }) {
-  const { config, ready, save } = useSiteConfig();
+  const { config, ready, error } = useSiteConfig();
   const { sessionReady, permissions } = useDemoSession();
-  const [market, setMarket] = useState<AdminMarket | null>(null);
-  const [deleting, setDeleting] = useState<AdminMarket | null>(null);
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
   if (!ready) return <p role="status">Carregando painel…</p>;
+  if (error) return <Card role="alert">{error}</Card>;
 
   return (
     <div className="min-w-0">
@@ -92,7 +88,7 @@ export function AdminPanel({
                   ],
                   [
                     "Apostas abertas",
-                    config.markets.filter((m) => m.enabled).length,
+                    config.markets.filter((m) => acceptsPredictions(m)).length,
                   ],
                   ["Páginas editáveis", 1],
                 ].map(([label, count]) => (
@@ -120,76 +116,12 @@ export function AdminPanel({
             ) : (
               <AdminGames />
             ))}
-          {section === "markets" && (
-            <>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">Apostas</h2>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    setMarket({
-                      id: crypto.randomUUID(),
-                      question: "",
-                      category: "",
-                      criterion: "",
-                      type: "binary",
-                      options: ["Sim", "Não"],
-                      enabled: true,
-                    })
-                  }
-                >
-                  <Plus className="size-4" aria-hidden="true" />
-                  Nova aposta
-                </Button>
-              </div>
-              <div className="grid gap-3">
-                {config.markets.map((entry) => (
-                  <Card key={entry.id} className="p-4 sm:p-4">
-                    <h3 className="font-medium">{entry.question}</h3>
-                    <p className="mt-1 text-sm text-muted">
-                      {entry.category} · {entry.enabled ? "Aberta" : "Pausada"}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setMarket(entry)}
-                        aria-label={`Editar ${entry.question}`}
-                      >
-                        Editar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          save({
-                            ...config,
-                            markets: config.markets.map((m) =>
-                              m.id === entry.id
-                                ? { ...m, enabled: !m.enabled }
-                                : m,
-                            ),
-                          })
-                        }
-                      >
-                        {entry.enabled ? "Pausar" : "Abrir"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDeleting(entry)}
-                      >
-                        Excluir
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-                {config.markets.length === 0 && (
-                  <Card>Nenhuma aposta cadastrada.</Card>
-                )}
-              </div>
-            </>
-          )}
+          {section === "markets" &&
+            (marketId ? (
+              <AdminMarketEditor key={marketId} id={marketId} />
+            ) : (
+              <AdminMarkets />
+            ))}
           {section === "about" && (
             <Card>
               <h2 className="mb-5 text-lg font-semibold">Página Sobre</h2>
@@ -199,210 +131,12 @@ export function AdminPanel({
           {section === "balance" && <AdminBalance />}
         </section>
       </div>
-      <Dialog
-        open={!!market}
-        onOpenChange={(open) => {
-          if (!open) setMarket(null);
-        }}
-      >
-        <DialogContent aria-describedby={undefined}>
-          <DialogTitle>
-            {config.markets.some((m) => m.id === market?.id)
-              ? "Editar aposta"
-              : "Nova aposta"}
-          </DialogTitle>
-          {market && (
-            <MarketForm
-              key={market.id}
-              market={market}
-              onCancel={() => setMarket(null)}
-              onSave={(updated) => {
-                if (
-                  save({
-                    ...config,
-                    markets: config.markets.some((m) => m.id === updated.id)
-                      ? config.markets.map((m) =>
-                          m.id === updated.id ? updated : m,
-                        )
-                      : [...config.markets, updated],
-                  })
-                )
-                  setMarket(null);
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={!!deleting}
-        onOpenChange={(open) => {
-          if (!open) setDeleting(null);
-        }}
-      >
-        <DialogContent aria-describedby={undefined}>
-          <DialogTitle>Excluir esta aposta?</DialogTitle>
-          <p className="mt-4 text-sm text-muted">
-            {deleting?.question} Os palpites já registrados serão preservados no
-            histórico.
-          </p>
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDeleting(null)}>
-              Cancelar
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (
-                  save({
-                    ...config,
-                    markets: config.markets.filter(
-                      (m) => m.id !== deleting?.id,
-                    ),
-                  })
-                )
-                  setDeleting(null);
-              }}
-            >
-              Excluir aposta
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
 
-function MarketForm({
-  market,
-  onCancel,
-  onSave,
-}: {
-  market: AdminMarket;
-  onCancel: () => void;
-  onSave: (market: AdminMarket) => void;
-}) {
-  const [type, setType] = useState(market.type);
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const base = {
-      id: market.id,
-      enabled: market.enabled,
-      question: text(form, "question"),
-      category: text(form, "category"),
-      criterion: text(form, "criterion"),
-    };
-    const options =
-      type === "binary"
-        ? ["Sim", "Não"]
-        : text(form, "options")
-            .split("\n")
-            .map((t) => t.trim())
-            .filter(Boolean);
-    if (
-      type === "choice" &&
-      (options.length < 2 || new Set(options).size !== options.length)
-    ) {
-      toast.error("Adicione pelo menos duas opções diferentes, uma por linha.");
-      return;
-    }
-    onSave(
-      type === "number"
-        ? { ...base, type, unit: text(form, "unit") }
-        : { ...base, type, options },
-    );
-  }
-  return (
-    <form className="mt-5 grid gap-4" onSubmit={submit}>
-      <Field>
-        Pergunta
-        <Input
-          name="question"
-          defaultValue={market.question}
-          required
-          maxLength={200}
-        />
-      </Field>
-      <Field>
-        Categoria
-        <Input
-          name="category"
-          defaultValue={market.category}
-          required
-          maxLength={100}
-        />
-      </Field>
-      <div>
-        <p className="mb-2 text-sm font-medium">Formato</p>
-        <div
-          className="flex flex-wrap gap-2"
-          role="group"
-          aria-label="Formato da aposta"
-        >
-          {(
-            [
-              ["binary", "Sim ou não"],
-              ["choice", "Opções"],
-              ["number", "Número"],
-            ] as const
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              size="sm"
-              variant={type === value ? "secondary" : "ghost"}
-              aria-pressed={type === value}
-              onClick={() => setType(value)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-      </div>
-      {type === "choice" && (
-        <Field>
-          Opções (uma por linha)
-          <Textarea
-            name="options"
-            defaultValue={
-              market.type === "choice" ? market.options.join("\n") : ""
-            }
-            required
-            maxLength={2000}
-          />
-        </Field>
-      )}
-      {type === "number" && (
-        <Field>
-          Unidade
-          <Input
-            name="unit"
-            defaultValue={market.type === "number" ? market.unit : "minutos"}
-            required
-            maxLength={50}
-          />
-        </Field>
-      )}
-      <Field>
-        Critério do palpite
-        <Textarea
-          name="criterion"
-          defaultValue={market.criterion}
-          required
-          maxLength={3000}
-        />
-      </Field>
-      <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button type="submit">Salvar aposta</Button>
-      </div>
-    </form>
-  );
-}
-
 function AdminBalance() {
-  const { username, balance, addBalance, permissions } = useDemoSession();
+  const { username, balance, permissions } = useDemoSession();
   return (
     <Card>
       <h2 className="text-lg font-semibold">Adicionar saldo</h2>
@@ -412,49 +146,23 @@ function AdminBalance() {
       </p>
       <form
         className="mt-5 grid max-w-lg gap-4"
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
           if (!permissions.canManageSite) return;
-          const form = new FormData(event.currentTarget);
+          const element = event.currentTarget;
+          const form = new FormData(element);
           const target = text(form, "username");
           const amount = Number(form.get("amount"));
           try {
-            const key = `croebet:demo-wallet:${target.toLowerCase()}`;
-            const raw = localStorage.getItem(key);
-            if (!raw) {
-              toast.error("Conta não encontrada neste navegador.");
-              return;
-            }
-            const stored = JSON.parse(raw);
-            if (
-              !stored ||
-              !Number.isSafeInteger(stored.balance) ||
-              stored.balance < 0 ||
-              typeof stored.lastClaim !== "string" ||
-              !Array.isArray(stored.predictions) ||
-              !stored.predictions.every(isPrediction)
-            ) {
-              toast.error("A carteira desta conta contém dados inválidos.");
-              return;
-            }
-            const wallet =
-              target.toLowerCase() === username?.toLowerCase()
-                ? { ...readWallet(target), balance }
-                : readWallet(target);
-            const next = addCroins(wallet, amount);
-            if (next === wallet) {
-              toast.error(
-                "Informe um valor inteiro de 1 a 999999, sem exceder o limite de saldo.",
-              );
-              return;
-            }
-            if (target.toLowerCase() === username?.toLowerCase())
-              addBalance(amount);
-            else localStorage.setItem(key, JSON.stringify(next));
-            event.currentTarget.reset();
+            await creditLocalWallet(target, amount);
+            element.reset();
             toast.success(`${amount} Croins adicionados a ${target}.`);
-          } catch {
-            toast.error("Não foi possível atualizar o saldo.");
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Não foi possível atualizar o saldo.",
+            );
           }
         }}
       >

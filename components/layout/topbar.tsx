@@ -43,16 +43,20 @@ export function Topbar({
   const { permissions } = useDemoSession();
   const pageTitle =
     (pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/jogos/")
-        ? "Editar jogo"
-        : (
-            {
-              "/admin/jogos": "Jogos",
-              "/admin/apostas": "Apostas",
-              "/admin/sobre": "Sobre",
-              "/admin/saldo": "Saldo",
-            } as Record<string, string>
-          )[pathname]
+      ? pathname.startsWith("/admin/apostas/")
+        ? pathname.endsWith("/nova")
+          ? "Nova aposta"
+          : "Gerenciar aposta"
+        : pathname.startsWith("/admin/jogos/")
+          ? "Editar jogo"
+          : (
+              {
+                "/admin/jogos": "Jogos",
+                "/admin/apostas": "Apostas",
+                "/admin/sobre": "Sobre",
+                "/admin/saldo": "Saldo",
+              } as Record<string, string>
+            )[pathname]
       : undefined) ??
     games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
     (
@@ -70,9 +74,11 @@ export function Topbar({
   const isInternalPage = pathname !== "/";
   const backLink =
     pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/jogos/")
-        ? { href: adminRoutes.games, label: "Voltar para Jogos do admin" }
-        : { href: "/admin", label: "Voltar para Admin" }
+      ? pathname.startsWith("/admin/apostas/")
+        ? { href: adminRoutes.markets, label: "Voltar para Apostas do admin" }
+        : pathname.startsWith("/admin/jogos/")
+          ? { href: adminRoutes.games, label: "Voltar para Jogos do admin" }
+          : { href: "/admin", label: "Voltar para Admin" }
       : pathname.startsWith("/jogos/")
         ? { href: "/jogos", label: "Voltar para Jogos" }
         : { href: "/", label: "Voltar para o início" };

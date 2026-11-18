@@ -13,12 +13,16 @@ const AdminPanel = dynamic(() =>
 export function AdminAccess({
   section = "overview",
   gameSlug,
+  marketId,
 }: {
   section?: AdminSection;
   gameSlug?: string;
+  marketId?: string;
 }) {
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
-  return <AdminPanel section={section} gameSlug={gameSlug} />;
+  return (
+    <AdminPanel section={section} gameSlug={gameSlug} marketId={marketId} />
+  );
 }

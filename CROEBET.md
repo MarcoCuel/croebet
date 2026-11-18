@@ -50,7 +50,15 @@ Além dos jogos de cassino, haverá uma área de **apostas em acontecimentos ou 
 
 - Criação e gerenciamento das apostas: comunidade, organizadores e moderadores, de acordo com as permissões que vierem a ser definidas.
 - Os usuários fazem suas apostas com Croins.
-- Critérios de encerramento, apuração e pagamento das apostas ainda precisam ser especificados.
+- Critérios do protótipo estão descritos abaixo; a operação de produção ainda depende da integração e dos controles do backend.
+
+#### Regras aprovadas para o protótipo administrativo
+
+- Apostas passam por rascunho, abertura, pausa, encerramento, apuração e pagamento. Cancelamentos devolvem os Croins após confirmação da liquidação.
+- O total apostado é rateado entre os palpites vencedores proporcionalmente ao valor apostado, sem taxa da casa e incluindo a aposta inicial no crédito. Sobras de arredondamento são distribuídas de maneira determinística.
+- Para apostas numéricas, vale o acerto exato. Sem vencedores, os participantes recebem de volta o valor apostado.
+- Regras e opções não mudam após o primeiro palpite. Encerrar entradas, definir resultado e pagar são etapas distintas; apuração e pagamentos precisam ser verificáveis e não podem gerar créditos duplicados.
+- Esta implementação usa contas locais do navegador. Palpites antigos sem identificação suficiente são preservados fora da liquidação automática; a operação global depende da integração com o backend.
 
 ### 4.3. Croins: economia fictícia
 

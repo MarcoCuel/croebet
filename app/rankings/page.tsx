@@ -47,36 +47,52 @@ const formatCroins = new Intl.NumberFormat("pt-BR");
 export default function Rankings() {
   return (
     <PageShell>
-      <Heading asChild variant="display">
-        <h1>Rankings</h1>
-      </Heading>
-      <div className="mt-6 grid gap-3 lg:grid-cols-2">
+      <h1 className="sr-only">Rankings</h1>
+      <div className="grid gap-3 lg:grid-cols-2">
         {rankings.map(({ title, label, players }, index) => (
           <Card asChild key={title}>
             <section aria-labelledby={`ranking-${index}`}>
               <Heading id={`ranking-${index}`}>{title}</Heading>
-              <ol role="list" className="mx-auto mt-8 grid max-w-sm grid-cols-3 items-end gap-2 pb-8 pt-4">
+              <ol
+                role="list"
+                className="mx-auto mt-8 grid max-w-sm grid-cols-3 items-end gap-2 pb-8 pt-4"
+              >
                 {players.slice(0, 3).map(({ name, amount }, position) => (
                   <li
                     key={name}
                     value={position + 1}
                     className={cn(
                       "flex min-w-0 flex-col items-center text-center",
-                      position === 0 ? "order-2 pb-5" : position === 1 ? "order-1" : "order-3",
+                      position === 0
+                        ? "order-2 pb-5"
+                        : position === 1
+                          ? "order-1"
+                          : "order-3",
                     )}
                   >
                     <div className="relative">
-                      <Avatar className={cn(
-                        "border-2 border-brand p-1",
-                        position === 0 ? "size-20" : "size-16",
-                      )} aria-hidden="true">
-                        <AvatarFallback className="rounded-full text-lg">{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      <Avatar
+                        className={cn(
+                          "border-2 border-brand p-1",
+                          position === 0 ? "size-20" : "size-16",
+                        )}
+                        aria-hidden="true"
+                      >
+                        <AvatarFallback className="rounded-full text-lg">
+                          {name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
                       <span className="absolute -top-3 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-brand text-xs font-semibold text-primary-foreground">
-                        <span className="sr-only">Posição </span>{position + 1}
+                        <span className="sr-only">Posição </span>
+                        {position + 1}
                       </span>
                     </div>
-                    <span className="mt-3 w-full truncate text-sm font-semibold" title={name}>{name}</span>
+                    <span
+                      className="mt-3 w-full truncate text-sm font-semibold"
+                      title={name}
+                    >
+                      {name}
+                    </span>
                     <span className="mt-1 text-xs text-muted tabular-nums">
                       {formatCroins.format(amount)} Croins
                       <span className="sr-only"> {label}</span>
@@ -84,21 +100,39 @@ export default function Rankings() {
                   </li>
                 ))}
               </ol>
-              <ol role="list" start={4} className="divide-y divide-border border-t border-border">
+              <ol
+                role="list"
+                start={4}
+                className="divide-y divide-border border-t border-border"
+              >
                 {players.slice(3).map(({ name, amount }, position) => (
-                  <li key={name} className="flex items-center gap-3 py-4 last:pb-0">
-                    <span className="w-5 shrink-0 text-center text-sm font-semibold text-muted tabular-nums" aria-hidden="true">
+                  <li
+                    key={name}
+                    className="flex items-center gap-3 py-4 last:pb-0"
+                  >
+                    <span
+                      className="w-5 shrink-0 text-center text-sm font-semibold text-muted tabular-nums"
+                      aria-hidden="true"
+                    >
                       {position + 4}
                     </span>
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-control text-xs font-semibold text-muted inset-shadow-primary-button" aria-hidden="true">
+                    <span
+                      className="grid size-10 shrink-0 place-items-center rounded-full bg-control text-xs font-semibold text-muted inset-shadow-primary-button"
+                      aria-hidden="true"
+                    >
                       {name.slice(0, 2).toUpperCase()}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium" title={name}>
+                    <span
+                      className="min-w-0 flex-1 truncate text-sm font-medium"
+                      title={name}
+                    >
                       {name}
                     </span>
                     <span className="shrink-0 text-right text-sm font-semibold tabular-nums">
                       {formatCroins.format(amount)}
-                      <span className="ml-1 text-xs font-normal text-muted">Croins</span>
+                      <span className="ml-1 text-xs font-normal text-muted">
+                        Croins
+                      </span>
                       <span className="sr-only"> {label}</span>
                     </span>
                   </li>

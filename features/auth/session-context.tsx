@@ -18,7 +18,7 @@ export type DemoSessionValue = Wallet & {
   claimDaily: () => void;
   addBalance: (amount: number) => void;
   clearPredictions: () => void;
-  placePrediction: (prediction: Prediction) => void;
+  placePrediction: (prediction: Prediction) => Promise<boolean>;
 };
 
 export const DemoSession = createContext<DemoSessionValue | null>(null);

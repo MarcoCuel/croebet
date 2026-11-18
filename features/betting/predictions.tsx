@@ -14,10 +14,16 @@ import { cn } from "@/lib/utils";
 export function Predictions({ className }: { className?: string }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const selectionTrigger = useRef<HTMLElement | null>(null);
-  const { username, openLogin, predictions, clearPredictions } = useDemoSession();
+  const { username, openLogin, predictions, clearPredictions } =
+    useDemoSession();
 
   return (
-    <div className={cn("mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]", className)}>
+    <div
+      className={cn(
+        "mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]",
+        className,
+      )}
+    >
       <MarketList
         onSelect={(next) => {
           if (!username) {
@@ -38,18 +44,23 @@ export function Predictions({ className }: { className?: string }) {
           onReturnFocus={() => selectionTrigger.current?.focus()}
         />
       )}
-      <section className="min-w-0 xl:sticky xl:top-[calc(var(--header-height)+1rem)]" aria-labelledby="predictions-title">
+      <section
+        className="min-w-0 xl:sticky xl:top-[calc(var(--header-height)+1rem)]"
+        aria-labelledby="predictions-title"
+      >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 id="predictions-title" className="text-lg font-semibold">Minhas apostas</h2>
+          <h2 id="predictions-title" className="text-lg font-semibold">
+            Minhas apostas
+          </h2>
           {process.env.NODE_ENV === "development" && (
             <Button
               variant="link"
               size="sm"
               className="min-h-0 p-0 text-sm font-normal text-brand"
-              disabled={predictions.length === 0}
+              disabled={!predictions.some((p) => !p.id)}
               onClick={clearPredictions}
             >
-              Limpar apostas
+              Limpar antigas
             </Button>
           )}
         </div>
@@ -57,26 +68,68 @@ export function Predictions({ className }: { className?: string }) {
           {predictions.length === 0 ? (
             <div className="grid justify-items-center gap-3 py-8 text-center">
               <Ticket className="size-6 text-muted" aria-hidden="true" />
-              <p className="text-sm font-medium">Você ainda não fez nenhuma aposta.</p>
-              <p className="max-w-56 text-xs leading-relaxed text-muted">Escolha um resultado e registre seu palpite com Croins.</p>
+              <p className="text-sm font-medium">
+                Você ainda não fez nenhuma aposta.
+              </p>
+              <p className="max-w-56 text-xs leading-relaxed text-muted">
+                Escolha um resultado e registre seu palpite com Croins.
+              </p>
             </div>
           ) : (
             <>
-            <div className="mb-1 flex items-center justify-between gap-3 border-b border-border pb-4 text-xs text-muted">
-              <span>{predictions.length} {predictions.length === 1 ? "palpite registrado" : "palpites registrados"}</span>
-              <span className="tabular-nums">{formatBalance.format(predictions.reduce((total, prediction) => total + prediction.stake, 0))} Croins apostados</span>
-            </div>
-            <ul aria-live="polite" className="divide-y divide-border">
-              {predictions.map(({ market, outcome, stake }, index) => (
-                <li key={predictions.length - index} className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm">
-                  <div className="min-w-0">
-                    <p className="font-medium">{market}</p>
-                    <p className="mt-2 inline-flex rounded-md bg-control-hover px-2 py-1 text-xs">{outcome}</p>
-                  </div>
-                  <span className="shrink-0 text-muted tabular-nums">{formatBalance.format(stake)} {stake === 1 ? "Croin" : "Croins"}</span>
-                </li>
-              ))}
-            </ul>
+              <div className="mb-1 flex items-center justify-between gap-3 border-b border-border pb-4 text-xs text-muted">
+                <span>
+                  {predictions.length}{" "}
+                  {predictions.length === 1
+                    ? "palpite registrado"
+                    : "palpites registrados"}
+                </span>
+                <span className="tabular-nums">
+                  {formatBalance.format(
+                    predictions.reduce(
+                      (total, prediction) => total + prediction.stake,
+                      0,
+                    ),
+                  )}{" "}
+                  Croins apostados
+                </span>
+              </div>
+              <ul aria-live="polite" className="divide-y divide-border">
+                {predictions.map(
+                  ({ market, outcome, stake, status, payout }, index) => (
+                    <li
+                      key={predictions.length - index}
+                      className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium">{market}</p>
+                        {status && (
+                          <p className="mt-1 text-xs text-muted">
+                            {
+                              {
+                                pending: "Aguardando resultado",
+                                won: "Premiada",
+                                lost: "Não premiada",
+                                refunded: "Devolvida",
+                              }[status]
+                            }
+                            {payout !== undefined && payout > 0
+                              ? ` · ${formatBalance.format(payout)} Croins recebidos`
+                              : ""}
+                          </p>
+                        )}
+                        <p className="mt-2 inline-flex rounded-md bg-control-hover px-2 py-1 text-xs">
+                          {outcome}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-muted tabular-nums">
+                        {formatBalance.format(stake)}{" "}
+                        {stake === 1 ? "Croin" : "Croins"}
+                      </span>
+                    </li>
+                  ),
+                )}
+              </ul>
             </>
           )}
         </Card>

@@ -15,13 +15,13 @@ export function AboutEditor() {
   return (
     <form
       className="grid gap-4"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         if (!richTextPlainText(document).trim()) {
           toast.error("Escreva o conteúdo da página antes de salvar.");
           return;
         }
-        save({ ...config, about: { ...config.about, document } });
+        await save({ ...config, about: { ...config.about, document } });
       }}
     >
       <RichTextEditor

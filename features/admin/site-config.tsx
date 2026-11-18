@@ -7,128 +7,92 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isRichTextDocument, richTextPlainText } from "@/lib/rich-text";
-import { useDemoSession } from "@/features/auth/session-context";
 import { toast } from "sonner";
-import { games } from "@/features/games/catalog";
-import { markets, type Market } from "@/features/betting/markets";
-import { defaultAbout, type AboutContent } from "@/features/about/content";
-
-export type AdminGame = (typeof games)[number] & { enabled: boolean };
-export type AdminMarket = Market & { enabled: boolean };
-export type SiteConfig = {
-  games: AdminGame[];
-  markets: AdminMarket[];
-  about: AboutContent;
-};
-const initial: SiteConfig = {
-  games: games.map((game) => ({ ...game, enabled: true })),
-  markets: markets.map((market) => ({ ...market, enabled: true })),
-  about: defaultAbout,
-};
-const key = "croebet:demo-site-config:v1";
-
-export function isSiteConfig(value: unknown): value is SiteConfig {
-  if (!value || typeof value !== "object") return false;
-  const data = value as SiteConfig;
-  const text = (value: unknown) =>
-    typeof value === "string" && value.trim().length > 0;
-  return (
-    Array.isArray(data.games) &&
-    data.games.length === games.length &&
-    new Set(data.games.map((g) => g?.slug)).size === games.length &&
-    data.games.every(
-      (g) =>
-        g &&
-        games.some(
-          (original) => original.slug === g.slug && original.cover === g.cover,
-        ) &&
-        text(g.name) &&
-        text(g.type) &&
-        text(g.description) &&
-        Array.isArray(g.coverTitle) &&
-        g.coverTitle.length > 0 &&
-        g.coverTitle.every(text) &&
-        typeof g.enabled === "boolean",
-    ) &&
-    Array.isArray(data.markets) &&
-    new Set(data.markets.map((m) => m?.id)).size === data.markets.length &&
-    data.markets.every(
-      (m) =>
-        m &&
-        text(m.id) &&
-        text(m.question) &&
-        text(m.category) &&
-        text(m.criterion) &&
-        typeof m.enabled === "boolean" &&
-        (m.type === "number"
-          ? text(m.unit)
-          : (m.type === "binary" || m.type === "choice") &&
-            Array.isArray(m.options) &&
-            m.options.length >= 2 &&
-            m.options.every(text) &&
-            new Set(m.options).size === m.options.length &&
-            (m.type !== "binary" ||
-              (m.options.length === 2 &&
-                m.options[0] === "Sim" &&
-                m.options[1] === "Não"))),
-    ) &&
-    !!data.about &&
-    (data.about.document === undefined ||
-      (isRichTextDocument(data.about.document) &&
-        richTextPlainText(data.about.document).trim().length > 0)) &&
-    text(data.about.title) &&
-    text(data.about.intro) &&
-    Array.isArray(data.about.sections) &&
-    data.about.sections.length === defaultAbout.sections.length &&
-    data.about.sections.every(
-      (s) =>
-        s &&
-        text(s.title) &&
-        Array.isArray(s.paragraphs) &&
-        s.paragraphs.length > 0 &&
-        s.paragraphs.every(text),
-    )
-  );
-}
+import { requireLocalAdmin } from "@/features/betting/betting-storage";
+import { useDemoSession } from "@/features/auth/session-context";
+import {
+  announceDemoData,
+  demoDataEvent,
+  withDemoLock,
+} from "@/lib/demo-storage";
+import {
+  initialSiteConfig,
+  readSiteConfig,
+  writeSiteConfig,
+  type SiteConfig,
+} from "@/features/admin/site-storage";
+export type {
+  AdminGame,
+  AdminMarket,
+  SiteConfig,
+} from "@/features/admin/site-storage";
 
 const SiteContext = createContext<{
   config: SiteConfig;
   ready: boolean;
-  save: (next: SiteConfig) => boolean;
+  revision: number;
+  error: string | null;
+  save: (next: SiteConfig) => Promise<boolean>;
 } | null>(null);
 export function SiteConfigProvider({ children }: { children: ReactNode }) {
   const { permissions } = useDemoSession();
-  const [state, setState] = useState({ config: initial, ready: false });
+  const [state, setState] = useState({
+    config: initialSiteConfig,
+    ready: false,
+    revision: 0,
+    error: null as string | null,
+  });
   useEffect(() => {
-    let config = initial;
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const saved: unknown = JSON.parse(raw);
-        if (isSiteConfig(saved)) config = saved;
+    function refresh() {
+      try {
+        const config = readSiteConfig();
+        setState((s) => ({
+          config,
+          ready: true,
+          revision: s.revision + 1,
+          error: null,
+        }));
+      } catch (error) {
+        setState((s) => ({
+          ...s,
+          ready: true,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Não foi possível ler os dados locais.",
+        }));
       }
-    } catch {
-      /* Fall back to the original catalog if storage cannot be read. */
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState({ config, ready: true });
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    window.addEventListener(demoDataEvent, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(demoDataEvent, refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
-  function save(next: SiteConfig) {
-    if (!permissions.canManageSite) return false;
-    if (!state.ready || !isSiteConfig(next)) {
-      toast.error("Revise os campos antes de salvar.");
-      return false;
-    }
+  async function save(next: SiteConfig) {
+    if (!permissions.canManageSite || !state.ready || state.error) return false;
     try {
-      localStorage.setItem(key, JSON.stringify(next));
-    } catch {
-      toast.error("Não foi possível salvar as alterações neste navegador.");
+      await withDemoLock(() => {
+        requireLocalAdmin();
+        const current = readSiteConfig();
+        // Market changes go through lifecycle services, never generic content saves.
+        writeSiteConfig({ ...next, markets: current.markets });
+        announceDemoData();
+      });
+      toast.success("Alterações salvas.");
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar as alterações.",
+      );
       return false;
     }
-    setState({ config: next, ready: true });
-    toast.success("Alterações salvas.");
-    return true;
   }
   return (
     <SiteContext.Provider value={{ ...state, save }}>

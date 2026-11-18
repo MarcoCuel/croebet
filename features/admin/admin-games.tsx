@@ -10,7 +10,6 @@ export function AdminGames() {
   const { config, save } = useSiteConfig();
   return (
     <>
-      <h2 className="mb-4 text-lg font-semibold">Jogos</h2>
       <ul className="grid grid-cols-2 gap-4 xl:grid-cols-3 2xl:grid-cols-4">
         {config.games.map((game) => (
           <li key={game.slug} className="min-w-0">

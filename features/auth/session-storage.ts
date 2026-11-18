@@ -64,3 +64,26 @@ export function persistWallet(name: string, wallet: Wallet) {
     /* Keep the wallet usable in memory. */
   }
 }
+
+export function readWalletStrict(name: string): Wallet {
+  const raw = localStorage.getItem(walletKey(name));
+  if (!raw)
+    throw new Error(`Carteira de ${name} não encontrada neste navegador.`);
+  const value = JSON.parse(raw);
+  if (
+    !value ||
+    !Number.isSafeInteger(value.balance) ||
+    value.balance < 0 ||
+    typeof value.lastClaim !== "string" ||
+    !Array.isArray(value.predictions) ||
+    !value.predictions.every(isPrediction) ||
+    (value.transactions !== undefined &&
+      (!Array.isArray(value.transactions) ||
+        !value.transactions.every(isWalletTransaction)))
+  )
+    throw new Error(`A carteira de ${name} contém dados inválidos.`);
+  return { ...value, transactions: value.transactions ?? [] };
+}
+export function writeWalletStrict(name: string, wallet: Wallet) {
+  localStorage.setItem(walletKey(name), JSON.stringify(wallet));
+}

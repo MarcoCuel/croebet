@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   ChevronRight,
@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { acceptsPredictions } from "@/features/betting/settlement";
 import { type Market } from "@/features/betting/markets";
 import type { Selection } from "@/features/betting/types";
 import { useSiteConfig } from "@/features/admin/site-config";
@@ -28,7 +29,16 @@ export function MarketList({
   onSelect: (selection: Selection) => void;
 }) {
   const { config } = useSiteConfig();
-  const markets = config.markets.filter((market) => market.enabled);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const markets = config.markets.filter((market) =>
+    acceptsPredictions(market, now),
+  );
   const [minutes, setMinutes] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof filters)[number]>("Todas");
@@ -47,9 +57,7 @@ export function MarketList({
       (filter === "Número" && market.type === "number");
     return (
       matchesType &&
-      normalize(`${market.question} ${market.category}`).includes(
-        normalize(search.trim()),
-      )
+      normalize(market.question).includes(normalize(search.trim()))
     );
   });
 
@@ -94,6 +102,10 @@ export function MarketList({
           {visibleMarkets.length === 1 ? "aposta" : "apostas"}
         </span>
       </div>
+      <p className="mb-4 text-xs text-muted">
+        Premiação por rateio proporcional, sem taxa. Números exigem acerto
+        exato. Sem vencedores, os Croins são devolvidos.
+      </p>
       <div className="grid min-w-0 items-stretch gap-4 md:grid-cols-2">
         {visibleMarkets.map((market) => {
           const input = minutes[market.id] ?? "";
@@ -114,7 +126,6 @@ export function MarketList({
                     <Icon className="size-5" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <p className="mb-1 text-xs text-muted">{market.category}</p>
                     <h2 className="text-base leading-snug font-semibold tracking-tight">
                       {market.question}
                     </h2>
@@ -127,6 +138,7 @@ export function MarketList({
                       event.preventDefault();
                       if (validMinutes)
                         onSelect({
+                          marketId: market.id,
                           market: market.question,
                           outcome: `${value} ${market.unit}`,
                         });
@@ -183,7 +195,11 @@ export function MarketList({
                         )}
                         aria-haspopup="dialog"
                         onClick={() =>
-                          onSelect({ market: market.question, outcome })
+                          onSelect({
+                            marketId: market.id,
+                            market: market.question,
+                            outcome,
+                          })
                         }
                       >
                         {outcome}
@@ -258,13 +274,19 @@ export function MarketList({
             </div>
             <div>
               <dt className="mb-1 font-semibold">Encerramento</dt>
-              <dd className="text-muted">Prazo ainda não definido.</dd>
+              <dd className="text-muted">
+                {details?.endsAt
+                  ? new Date(details.endsAt).toLocaleString("pt-BR")
+                  : "Prazo ainda não definido."}
+              </dd>
             </div>
             <div>
               <dt className="mb-1 font-semibold">Apuração e retorno</dt>
               <dd className="leading-relaxed text-muted">
-                Os palpites ficam registrados. A apuração e o pagamento ainda
-                não estão disponíveis; não há retorno definido para esta aposta.
+                O total apostado é dividido entre os vencedores
+                proporcionalmente ao valor de cada aposta, sem taxa. Para
+                números, vale o acerto exato. Sem vencedores, os valores são
+                devolvidos.
               </dd>
             </div>
           </dl>

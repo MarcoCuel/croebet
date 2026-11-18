@@ -48,29 +48,34 @@ test("admin cria, edita e exclui apostas e publica o Sobre local", async ({
 }) => {
   const nav = page.getByRole("navigation", { name: "Seções do admin" });
   await nav.getByRole("link", { name: "Apostas", exact: true }).click();
-  await page.getByRole("button", { name: "Nova aposta", exact: true }).click();
+  await page.getByRole("link", { name: "Nova aposta", exact: true }).click();
   await page.getByLabel("Pergunta").fill("Vai ter jogo hoje?");
-  await page.getByLabel("Categoria", { exact: true }).fill("Comunidade");
+  await expect(page.getByLabel("Categoria", { exact: true })).toHaveCount(0);
   await page
     .getByLabel("Critério do palpite")
     .fill("Vale o primeiro jogo da transmissão.");
   await page.getByRole("button", { name: "Salvar aposta" }).click();
+  await page
+    .getByRole("button", { name: "Publicar aposta", exact: true })
+    .click();
   await page.goto("/apostas");
   await expect(
     page.getByRole("heading", { name: "Vai ter jogo hoje?" }),
   ).toBeVisible();
-  await page.goto("/admin");
-  await nav.getByRole("link", { name: "Apostas", exact: true }).click();
-  await page.getByRole("button", { name: "Editar Vai ter jogo hoje?" }).click();
+  await page.goto("/admin/apostas");
+  await page
+    .getByRole("link", { name: "Gerenciar Vai ter jogo hoje?" })
+    .click();
   await page.getByLabel("Pergunta").fill("Vai ter jogo amanhã?");
   await page.getByRole("button", { name: "Salvar aposta" }).click();
-  const card = page.locator('[data-slot="card"]').filter({
-    has: page.getByRole("heading", { name: "Vai ter jogo amanhã?" }),
-  });
-  await card.getByRole("button", { name: "Excluir", exact: true }).click();
   await page
     .getByRole("button", { name: "Excluir aposta", exact: true })
     .click();
+  await page
+    .locator('[aria-label="Confirmar ação"]')
+    .getByRole("button", { name: "Excluir aposta", exact: true })
+    .click();
+  await expect(page).toHaveURL("/admin/apostas");
   await nav.getByRole("link", { name: "Sobre", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Conteúdo da página Sobre" })
