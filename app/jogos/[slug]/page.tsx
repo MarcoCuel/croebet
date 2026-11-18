@@ -4,6 +4,9 @@ import { PageShell } from "@/components/layout/page-shell";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { games } from "@/features/games/catalog";
+import { Gamepad2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Heading } from "@/components/shared/heading";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -29,12 +32,17 @@ export default async function Game({ params }: Props) {
         {slug === "flip7" ? (
           <Flip7Loader />
         ) : (
-          <section
-            className={`relative isolate grid min-h-64 place-items-center border overflow-hidden rounded-panel bg-(--cover) p-5`}
-            aria-labelledby="game-state"
-          >
-            <h3>Em breve</h3>
-          </section>
+          <Card asChild className="flex min-h-80 flex-col items-center justify-center border border-dashed border-border py-16 text-center">
+            <section aria-labelledby="game-state">
+              <div className="mb-5 grid size-16 place-items-center rounded-full bg-brand/10 text-brand">
+                <Gamepad2 className="size-8" aria-hidden="true" />
+              </div>
+              <Heading id="game-state">Em breve</Heading>
+              <p className="mt-2 max-w-xs text-sm text-muted">
+                A casa está preparando a próxima rodada.
+              </p>
+            </section>
+          </Card>
         )}
       </ManagedGame>
     </PageShell>
