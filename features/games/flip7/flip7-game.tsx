@@ -4,7 +4,7 @@ import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type 
 import gsap from "gsap";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, Heart, Snowflake, Plus, Minus, Divide, ArrowLeftRight, Hand, Trash2, X, UserRound } from "lucide-react";
+import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -67,16 +67,19 @@ const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "
 const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "coral", "lime", "orange", "red", "blue", "slate", "sky"];
 function PlayingCard({ card, flipped = false, compact = false, fluid = false, sideways = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean; sideways?: boolean }) {
   const gradientId = useId();
-  const holographic = card.type === "lucky13" && !compact && !flipped;
+  const holographic = card.type === "lucky13" && !flipped;
   const special = ["freeze", "chance", "three", "one", "four", "steal", "swap", "remove"].includes(card.type);
   const numeric = isNumber(card);
-  const Icon = card.type === "freeze" ? Snowflake : card.type === "chance" ? Heart : card.type === "swap" ? ArrowLeftRight : card.type === "steal" ? Hand : card.type === "remove" ? Trash2 : PlayingCardsFan;
+  const Icon = card.type === "one" ? PlayingCardIcon : card.type === "freeze" ? Lock : card.type === "chance" ? Heart : card.type === "swap" ? ArrowLeftRight : card.type === "steal" ? Hand : card.type === "remove" ? ArrowUp : PlayingCardsFan;
   const color = card.type === "unlucky7" ? "silver" : numeric ? numberColors[card.value]
     : card.type === "freeze" || card.type === "one" ? "cyan"
     : card.type === "four" ? "yellow" : card.type === "three" || card.type === "steal" ? "amber"
     : card.type === "minus" || card.type === "halve" ? "red"
     : card.type === "swap" ? "lime" : card.type === "remove" ? "purple" : "orange";
   const label = card.type === "number" ? numberNames[card.value] : cardLabel(card);
+  const zeroGradient = card.type === "zero" ? <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stopColor="var(--color-flip-cyan)" /><stop offset="35%" stopColor="var(--color-flip-pink)" /><stop offset="65%" stopColor="var(--color-flip-neutral)" /><stop offset="100%" stopColor="var(--color-flip-purple)" />
+  </linearGradient></defs> : null;
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
       data-card-back={flipped || undefined}
@@ -97,8 +100,11 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
             <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-(image:--background-image-flip-holographic) bg-size-[250%_250%] bg-center opacity-60 motion-safe:animate-flip-holographic" />
           </>}
           {compact ? <>
-            {numeric && <span className="absolute top-1 right-1 size-1 rounded-full bg-(--card-color)" aria-hidden="true" />}
-            {special ? <Icon className="size-4" fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className="text-lg font-medium normal-nums">{cardLabel(card)}</span>}
+            {numeric && <span className={cn("absolute top-1 right-1 z-10 size-1 rounded-full bg-(--card-color)", holographic && "bg-white")} aria-hidden="true" />}
+            {special ? <Icon className="size-4 rotate-15" fill="none" aria-hidden="true" /> : card.type === "zero" ? <svg className="relative z-10 h-8 w-6 font-medium normal-nums" viewBox="0 0 24 32" aria-hidden="true">
+              {zeroGradient}
+              <text x="12" y="23" textAnchor="middle" fontSize={18} fill={`url(#${gradientId})`}>0</text>
+            </svg> : <span className="relative z-10 text-lg font-medium normal-nums">{numeric ? card.value : cardLabel(card)}</span>}
           </> : <>
             <div className={cn("absolute inset-x-[12cqi] top-[12cqi] z-10 flex items-start justify-between gap-[6cqi]", special && "justify-center")}>
               <span className={cn("min-w-0 text-[16cqi] leading-none font-normal", numeric && "text-foreground", holographic && "text-white", special && "text-center", (["bonus", "double", "minus", "halve"].includes(card.type)) && "text-[32cqi]")}>
@@ -106,10 +112,8 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
               </span>
               {numeric && <span className={cn("size-[11cqi] shrink-0 rounded-full bg-(--card-color)", holographic && "bg-white")} aria-hidden="true" />}
             </div>
-            {special ? <Icon className={cn("absolute -bottom-[28cqi] left-[8cqi] size-[112cqi]", card.type === "chance" && "-rotate-15")} strokeWidth={1.5} fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <svg className="absolute inset-0 size-full overflow-visible font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
-              {card.type === "zero" && <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="var(--color-flip-cyan)" /><stop offset="35%" stopColor="var(--color-flip-pink)" /><stop offset="65%" stopColor="var(--color-flip-neutral)" /><stop offset="100%" stopColor="var(--color-flip-purple)" />
-              </linearGradient></defs>}
+            {special ? <Icon className="absolute -bottom-[28cqi] left-[8cqi] size-[112cqi] rotate-15" strokeWidth={1.5} fill="none" aria-hidden="true" /> : <svg className="absolute inset-0 size-full overflow-visible font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+              {zeroGradient}
               <text x="50" y="155" textAnchor="middle" fill={card.type === "zero" ? `url(#${gradientId})` : "currentColor"} fontSize={126} letterSpacing="-0.05em">{card.type === "double" || card.type === "halve" ? 2 : card.value}</text>
             </svg>}
           </>}
