@@ -381,7 +381,7 @@ export default function Flip7Game() {
         timeline.set(ghost, { autoAlpha: 0 })
           .set(destination, { visibility: "visible" })
           .to(discarded, { y: reduced ? 0 : -12, duration: reduced ? 0 : 0.16, ease: "power2.out" }, reduced ? ">" : ">0.2")
-          .to(discarded, { y: reduced ? 0 : 64, x: reduced ? 0 : 24, rotation: reduced ? 0 : 12, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.32, ease: "power2.in" });
+          .to(discarded, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.32, ease: "power2.in" });
       }
     }
     if (flight.discardedCards?.length || flight.discardAfter) {
@@ -390,7 +390,7 @@ export default function Flip7Game() {
         return element ? [element] : [];
       }), ...(flight.discardAfter ? [destination] : [])];
       timeline.set(ghost, { autoAlpha: 0 }).set(destination, { visibility: "visible" })
-        .to(discarded, { y: reduced ? 0 : 48, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.28, ease: "power2.in" });
+        .to(discarded, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
     }
     return () => {
       timeline.kill();
@@ -410,7 +410,7 @@ export default function Flip7Game() {
       if (!ghost || !target) continue;
       const rect = target.getBoundingClientRect();
       timeline.fromTo(ghost, { x: movement.origin.left, y: movement.origin.top, scale: movement.origin.width / ghost.offsetWidth, transformOrigin: "top left" },
-        { x: rect.left, y: rect.top, scale: rect.width / ghost.offsetWidth, opacity: movement.target === null ? 0 : 1, duration: reduced ? 0 : 0.35, ease: "power2.inOut" }, 0);
+        { x: movement.target === null ? movement.origin.left + (reduced ? 0 : 96) : rect.left, y: movement.target === null ? movement.origin.top - (reduced ? 0 : 128) : rect.top, scale: movement.target === null ? movement.origin.width / ghost.offsetWidth * (reduced ? 1 : 0.8) : rect.width / ghost.offsetWidth, rotation: movement.target === null && !reduced ? 18 : 0, opacity: movement.target === null ? 0 : 1, duration: reduced ? 0 : 0.35, ease: "power2.inOut" }, 0);
     }
     return () => { timeline.kill(); };
   }, [movingCards]);
