@@ -7,6 +7,7 @@ const titles = {
   overview: "Visão geral",
   games: "Jogos",
   markets: "Apostas",
+  coupons: "Cupons",
   users: "Usuários",
   pages: "Páginas",
 } as const;

@@ -16,12 +16,14 @@ export function AdminAccess({
   marketId,
   pageSlug,
   userId,
+  couponId,
 }: {
   section?: AdminSection;
   gameSlug?: string;
   marketId?: string;
   pageSlug?: string;
   userId?: string;
+  couponId?: string;
 }) {
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
@@ -33,6 +35,7 @@ export function AdminAccess({
       marketId={marketId}
       pageSlug={pageSlug}
       userId={userId}
+      couponId={couponId}
     />
   );
 }

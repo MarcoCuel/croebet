@@ -33,13 +33,16 @@ export function Topbar({
   const { permissions } = useDemoSession();
   const pageAction = permissions.canManageSite
     ? ({
+        [adminRoutes.coupons]: { href: "/admin/cupons/novo", label: "Novo cupom" },
         [adminRoutes.pages]: { href: "/admin/paginas/nova", label: "Nova página" },
         [adminRoutes.markets]: { href: "/admin/apostas/nova", label: "Nova aposta" },
       } as Record<string, { href: string; label: string }>)[pathname]
     : undefined;
   const pageTitle =
     (pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/usuarios/")
+      ? pathname.startsWith("/admin/cupons/")
+        ? pathname.endsWith("/novo") ? "Novo cupom" : "Gerenciar cupom"
+        : pathname.startsWith("/admin/usuarios/")
         ? "Usuário"
         : pathname.startsWith("/admin/apostas/")
         ? pathname.endsWith("/nova")
@@ -51,6 +54,7 @@ export function Topbar({
           ? "Editar jogo"
           : (
               {
+                "/admin/cupons": "Cupons",
                 "/admin/jogos": "Jogos",
                 "/admin/apostas": "Apostas",
                 "/admin/paginas": "Páginas",
@@ -74,7 +78,9 @@ export function Topbar({
   const isInternalPage = pathname !== "/";
   const backLink =
     pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/usuarios/")
+      ? pathname.startsWith("/admin/cupons/")
+        ? { href: adminRoutes.coupons, label: "Voltar para Cupons do admin" }
+        : pathname.startsWith("/admin/usuarios/")
         ? { href: adminRoutes.users, label: "Voltar para Usuários do admin" }
         : pathname.startsWith("/admin/apostas/")
         ? { href: adminRoutes.markets, label: "Voltar para Apostas do admin" }

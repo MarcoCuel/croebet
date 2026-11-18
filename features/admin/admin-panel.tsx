@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminCoupons, AdminCouponEditor } from "@/features/admin/admin-coupons";
 import { AdminUsers, AdminUserDetail } from "@/features/admin/admin-users";
 import { AdminMarkets } from "@/features/admin/admin-markets";
 import { AdminMarketEditor } from "@/features/admin/admin-market-editor";
@@ -12,6 +13,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   FileText,
+  Ticket,
   LayoutDashboard,
   PlayingCards,
   Tickets,
@@ -26,6 +28,7 @@ const sections = [
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
   { id: "games", label: "Jogos", Icon: PlayingCards },
   { id: "markets", label: "Apostas", Icon: Tickets },
+  { id: "coupons", label: "Cupons", Icon: Ticket },
   { id: "users", label: "Usuários", Icon: Users },
   { id: "pages", label: "Páginas", Icon: FileText },
 ] as const;
@@ -36,12 +39,14 @@ export function AdminPanel({
   marketId,
   pageSlug,
   userId,
+  couponId,
 }: {
   section?: AdminSection;
   gameSlug?: string;
   marketId?: string;
   pageSlug?: string;
   userId?: string;
+  couponId?: string;
 }) {
   const { ready, error } = useSiteConfig();
   const { sessionReady, permissions } = useDemoSession();
@@ -95,6 +100,7 @@ export function AdminPanel({
             ) : (
               <AdminPages />
             ))}
+          {section === "coupons" && (couponId ? <AdminCouponEditor key={couponId} id={couponId} /> : <AdminCoupons />)}
           {section === "users" &&
             (userId ? (
               <AdminUserDetail key={userId} id={userId} />
