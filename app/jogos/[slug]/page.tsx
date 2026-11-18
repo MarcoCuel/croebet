@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const game = games.find((entry) => entry.slug === slug);
   if (!game) notFound();
-  return { title: `${game.name} | Croebet`, description: game.description };
+  return { title: `${game.name} · Croebet`, description: game.description };
 }
 
 export default async function Game({ params }: Props) {

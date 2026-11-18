@@ -46,7 +46,8 @@ export function requireLocalAdmin() {
   )
     throw new Error("Operação não autorizada.");
 }
-function wallets(): { username: string; wallet: Wallet }[] {
+export function readAdminWallets(): { username: string; wallet: Wallet }[] {
+  requireLocalAdmin();
   const prefix = "croebet:demo-wallet:";
   return Object.keys(localStorage)
     .filter((key) => key.startsWith(prefix))
@@ -58,7 +59,7 @@ function wallets(): { username: string; wallet: Wallet }[] {
 }
 export function marketActivity(market: Market): MarketActivity {
   requireLocalAdmin();
-  const all = wallets();
+  const all = readAdminWallets();
   const entries: IdentifiedPrediction[] = [];
   const legacyEntries: { username: string; outcome: string; stake: number }[] =
     [];

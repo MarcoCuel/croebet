@@ -2,6 +2,7 @@
 
 import {
   ChevronDown,
+  ChevronsUpDown,
   History,
   Shield,
   Settings,
@@ -42,6 +43,7 @@ export function AccountMenu({
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const TriggerIcon = sidebar ? ChevronsUpDown : ChevronDown;
   return (
     <>
       <DropdownMenu>
@@ -72,7 +74,7 @@ export function AccountMenu({
             >
               {visibleName}
             </span>
-            <ChevronDown
+            <TriggerIcon
               className="hidden size-4 text-muted sm:inline"
               aria-hidden="true"
             />

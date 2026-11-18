@@ -18,7 +18,7 @@ export function PageContent({ slug }: { slug: string }) {
 
   return (
     <article className="mx-auto max-w-[46rem]">
-      <title>{`${page.title} | Croebet`}</title>
+      <title>{`${page.title} · Croebet`}</title>
       <RichTextContent document={document} />
     </article>
   );

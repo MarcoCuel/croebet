@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = { title: "Rankings | Croebet" };
+export const metadata: Metadata = { title: "Rankings · Croebet" };
 
 const rankings = [
   {

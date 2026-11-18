@@ -3,7 +3,7 @@
 import { AdminUsers, AdminUserDetail } from "@/features/admin/admin-users";
 import { AdminMarkets } from "@/features/admin/admin-markets";
 import { AdminMarketEditor } from "@/features/admin/admin-market-editor";
-import { acceptsPredictions } from "@/features/betting/settlement";
+import { AdminOverview } from "@/features/admin/admin-overview";
 import { AdminGames } from "@/features/admin/admin-games";
 import { AdminGameEditor } from "@/features/admin/admin-game-editor";
 import { adminRoutes, type AdminSection } from "@/features/admin/routes";
@@ -43,7 +43,7 @@ export function AdminPanel({
   pageSlug?: string;
   userId?: string;
 }) {
-  const { config, ready, error } = useSiteConfig();
+  const { ready, error } = useSiteConfig();
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
@@ -76,38 +76,7 @@ export function AdminPanel({
           className="min-w-0"
           aria-label={sections.find((s) => s.id === section)?.label}
         >
-          {section === "overview" && (
-            <>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[
-                  [
-                    "Jogos ativos",
-                    config.games.filter((g) => g.enabled).length,
-                  ],
-                  [
-                    "Apostas abertas",
-                    config.markets.filter((m) => acceptsPredictions(m)).length,
-                  ],
-                  ["Páginas editáveis", config.pages.length],
-                ].map(([label, count]) => (
-                  <Card key={label} className="p-5">
-                    <p className="text-sm text-muted">{label}</p>
-                    <p className="mt-2 text-3xl font-semibold">{count}</p>
-                  </Card>
-                ))}
-              </div>
-              <Card className="mt-5">
-                <h2 className="font-semibold">A casa está sob seu comando</h2>
-                <p className="mt-2 text-sm text-muted">
-                  Edite o catálogo, abra ou pause apostas, atualize as páginas e
-                  gerencie os Croins da sua conta.
-                </p>
-                <Button asChild variant="link" className="mt-3 px-0">
-                  <Link href="/">Ver site</Link>
-                </Button>
-              </Card>
-            </>
-          )}
+          {section === "overview" && <AdminOverview />}
           {section === "games" &&
             (gameSlug ? (
               <AdminGameEditor key={gameSlug} slug={gameSlug} />

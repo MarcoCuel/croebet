@@ -179,3 +179,9 @@ Os demais registros estão isolados em `features/admin/user-fixtures.ts`, sem le
 ### Nome de exibição e usuário
 
 A sessão separa `displayName` de `username`. Configurações → Conta permite editar Nome e consultar Nome de usuário, que permanece o identificador do login, da carteira, das permissões, dos avatares e dos futuros endereços de perfil. O nome público aparece no menu da conta, no resumo das configurações e no perfil administrativo; pode se repetir. É salvo por usuário em `croebet:demo-display-name:<usuário>`, com fallback ao username para contas anteriores e atualização entre abas. Falhas de gravação não alteram o nome em memória nem geram sucesso. O protótipo mantém o username sem edição; não há migração de carteira ou autenticação de produção.
+
+### Visão geral administrativa
+
+`features/admin/admin-overview.tsx` substitui as contagens de catálogo por um resumo operacional. Os filtros Hoje, 7 dias e 30 dias usam dias de calendário em `America/Sao_Paulo`. O resumo agrega carteiras locais validadas, sem incluir os perfis de exemplo da listagem de usuários: participantes com movimentações ou palpites, palpites identificados, volume apostado, bônus diários, ajustes manuais líquidos e movimentações recentes. O saldo é atual e não muda com o período. Palpites antigos sem identificação ou data não entram nas séries temporais; suas carteiras são preservadas.
+
+As pendências de apuração e pagamento independem do período e levam à interna da aposta, priorizando pagamentos. O gráfico de palpites e as apostas mais movimentadas acompanham o filtro. A leitura é atualizada pelo `revision` do provider, incluindo eventos entre abas e a atualização periódica existente. Falhas de leitura exibem erro sem apresentar totais parciais. Histórico global de acessos, cadastros, partidas e resultado da casa permanece indisponível; o painel não estima esses dados nem trata o volume do rateio como receita da casa.

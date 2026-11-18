@@ -19,7 +19,6 @@ test("rotas mantêm conteúdo, imagens, responsividade e não montam Canvas", as
     ["/jogos", "Jogos"],
     ["/apostas", "Apostas"],
     ["/rankings", "Rankings"],
-    ["/conquistas", "Conquistas"],
     ["/sobre", "Sobre o Croebet"],
     ["/jogos/roleta", "Rola Rola"],
   ]) {

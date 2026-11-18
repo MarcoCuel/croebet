@@ -90,10 +90,6 @@ export function MarketList({
           {visibleMarkets.length === 1 ? "aposta" : "apostas"}
         </span>
       </div>
-      <p className="mb-4 text-xs text-muted">
-        Premiação por rateio proporcional, sem taxa. Números exigem acerto
-        exato. Sem vencedores, os Croins são devolvidos.
-      </p>
       <div className="grid min-w-0 items-stretch gap-4 md:grid-cols-2">
         {visibleMarkets.map((market) => {
           const input = minutes[market.id] ?? "";

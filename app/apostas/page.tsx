@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Predictions } from "@/features/betting/predictions";
 
 export const metadata: Metadata = {
-  title: "Apostas | Croebet",
+  title: "Apostas · Croebet",
   description: "Palpites sobre as lives e a comunidade com Croins.",
 };
 

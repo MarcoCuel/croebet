@@ -3,7 +3,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { WalletHistory } from "@/features/wallet/wallet-history";
 
 export const metadata: Metadata = {
-  title: "Histórico | Croebet",
+  title: "Histórico · Croebet",
   description: "Entradas e saídas dos seus Croins.",
 };
 
