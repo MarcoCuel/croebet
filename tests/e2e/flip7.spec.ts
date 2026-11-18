@@ -67,7 +67,7 @@ test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessí
   expect(errors).toEqual([]);
 });
 
-test("Flip7 mantém uma única partida e a retoma automaticamente", async ({ page }) => {
+test("Flip7 lista a partida salva e mantém a retomada após recarregar", async ({ page }) => {
   const code = "ABCDEF123456";
   let game = createGame([{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }], 42);
   for (let step = 0; step < 30; step++) {
@@ -80,6 +80,8 @@ test("Flip7 mantém uma única partida e a retoma automaticamente", async ({ pag
     localStorage.setItem("croebet:flip7:match", JSON.stringify({ version: 1, code, game }));
   }, { code, game });
   await page.reload();
+  await expect(page.getByRole("heading", { name: "Partida em andamento", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
   const board = page.getByRole("region", { name: "Mesa de Flip7", exact: true });
   await expect(board).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
@@ -88,6 +90,8 @@ test("Flip7 mantém uma única partida e a retoma automaticamente", async ({ pag
   await expect(board).toHaveText(before);
   await page.goto("/jogos");
   await page.goto("/jogos/flip7");
+  await expect(board).toHaveCount(0);
+  await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
   await expect(board).toHaveText(before);
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
   await expect(page.getByLabel("Código da partida", { exact: true })).toHaveCount(0);
@@ -112,7 +116,7 @@ async function restore(page: Page, game: Game) {
   await page.evaluate(game => {
     localStorage.setItem("croebet:flip7:match", JSON.stringify({ version: 1, code: "ABCDEF123456", game }));
   }, game);
-  await page.reload();
+  await page.goto("/jogos/flip7?partida=ABCDEF123456");
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();
 }
 async function savedGame(page: Page) {
@@ -277,27 +281,48 @@ test("a mão só abre espaço quando a carta começa a chegar", async ({ page })
   expect(after.x).toBeGreaterThan(before.x);
 });
 
-test("voltar do Flip7 permite cancelar ou abandonar a partida salva", async ({ page }) => {
+test("voltar do Flip7 navega sem abandonar e permite continuar pela página do jogo", async ({ page, isMobile }) => {
   await restore(page, scenario([["number", 6]]));
-  const back = page.getByRole("link", { name: "Voltar para Jogos", exact: true });
-  await back.click();
-  const dialog = page.getByRole("dialog", { name: "Abandonar partida?" });
-  await expect(dialog).toBeVisible();
-  await expect(page).toHaveURL(/\/jogos\/flip7/);
-  await dialog.getByRole("button", { name: "Continuar jogando", exact: true }).click();
-  await expect(dialog).not.toBeVisible();
-  await expect(back).toBeFocused();
-  expect(await savedGame(page)).toBeTruthy();
-  await back.click();
-  await page.keyboard.press("Escape");
-  await expect(dialog).not.toBeVisible();
-  await back.click();
-  await dialog.getByRole("button", { name: "Abandonar partida", exact: true }).click();
+  const before = await savedGame(page);
+  if (isMobile) await page.goto("/jogos/flip7");
+  else await page.getByRole("link", { name: "Voltar para Flip7", exact: true }).click();
   await expect(page).toHaveURL(/\/jogos\/flip7$/);
+  await expect(page.getByRole("dialog", { name: "Abandonar partida?" })).toHaveCount(0);
+  expect(await savedGame(page)).toEqual(before);
+  await page.goto("/jogos/flip7");
+  await expect(page.getByRole("heading", { name: "Partida em andamento", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();
+  expect(await savedGame(page)).toEqual(before);
+  await page.getByRole("button", { name: "Abandonar partida", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Abandonar partida?" });
+  await dialog.getByRole("button", { name: "Abandonar partida", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Número de jogadores", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("croebet:flip7:match"))).toBeNull();
-  await page.goto("/jogos/flip7");
+});
+
+test("voltar de uma partida finalizada abre a página do Flip7 e preserva o resultado", async ({ page, isMobile }) => {
+  const game = scenario([]);
+  game.players.forEach(player => { player.total = 200; player.status = "stayed"; });
+  game.history = [[200, 200]];
+  game.phase = "over";
+  await restore(page, game);
+  await expect(page.getByRole("dialog", { name: "Resultado da partida", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  if (isMobile) await page.goto("/jogos/flip7");
+  else {
+    const back = page.getByRole("link", { name: "Voltar para Flip7", exact: true });
+    await expect(back).toHaveAttribute("href", "/jogos/flip7");
+    await back.click();
+  }
+  await expect(page).toHaveURL(/\/jogos\/flip7$/);
+  await expect(page.getByRole("heading", { name: "Partida finalizada", exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toHaveCount(0);
+  expect((await savedGame(page)).phase).toBe("over");
+  if (!isMobile) await expect(page.getByRole("link", { name: "Voltar para Jogos", exact: true })).toHaveAttribute("href", "/jogos");
+  await page.getByRole("button", { name: "Ver resultado", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Resultado da partida", exact: true })).toBeVisible();
 });
 
 test("configuração seleciona Vingança e Brutal e adapta as regras", async ({ page }) => {

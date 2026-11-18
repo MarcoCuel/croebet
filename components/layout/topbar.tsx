@@ -2,7 +2,8 @@
 
 import { ChevronLeft, Menu } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { useDemoSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
 import { Balance } from "@/features/wallet/balance";
@@ -27,7 +28,6 @@ export function Topbar({
   const {
     config: { games, pages },
   } = useSiteConfig();
-  const { requestBack } = usePageBack();
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
   const { permissions } = useDemoSession();
@@ -117,25 +117,9 @@ export function Topbar({
           <Wordmark />
         </Link>
         {isInternalPage && (
-          <Button asChild variant="ghost" size="icon" className="hidden shrink-0 md:inline-flex">
-            <Link
-              href={backLink.href}
-              aria-label={backLink.label}
-              onClick={(event) => {
-                if (
-                  !event.metaKey &&
-                  !event.ctrlKey &&
-                  !event.shiftKey &&
-                  !event.altKey &&
-                  event.button === 0 &&
-                  requestBack(backLink.href)
-                )
-                  event.preventDefault();
-              }}
-            >
-              <ChevronLeft className="size-4" aria-hidden="true" />
-            </Link>
-          </Button>
+          <Suspense fallback={<BackButton backLink={backLink} />}>
+            <MatchBackButton pathname={pathname} backLink={backLink} />
+          </Suspense>
         )}
         {isInternalPage ? (
           <>
@@ -224,5 +208,39 @@ export function Topbar({
         </div>
       )}
     </header>
+  );
+}
+
+type BackLink = { href: string; label: string };
+
+function MatchBackButton({ pathname, backLink }: { pathname: string; backLink: BackLink }) {
+  const searchParams = useSearchParams();
+  const destination = pathname === "/jogos/flip7" && searchParams.has("partida")
+    ? { href: "/jogos/flip7", label: "Voltar para Flip7" }
+    : backLink;
+  return <BackButton backLink={destination} />;
+}
+
+function BackButton({ backLink }: { backLink: BackLink }) {
+  const { requestBack } = usePageBack();
+  return (
+    <Button asChild variant="ghost" size="icon" className="hidden shrink-0 md:inline-flex">
+      <Link
+        href={backLink.href}
+        aria-label={backLink.label}
+        onClick={(event) => {
+          if (
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.shiftKey &&
+            !event.altKey &&
+            event.button === 0 &&
+            requestBack(backLink.href)
+          ) event.preventDefault();
+        }}
+      >
+        <ChevronLeft className="size-4" aria-hidden="true" />
+      </Link>
+    </Button>
   );
 }

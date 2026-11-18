@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { usePageBack } from "@/components/layout/page-back";
 import gsap from "gsap";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, Heart, Snowflake, Plus, Minus, Divide, ArrowLeftRight, Hand, Trash2, X, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card as Surface } from "@/components/ui/card";
+import { Heading } from "@/components/shared/heading";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
@@ -249,8 +250,27 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
 export default function Flip7Game() {
+  const requestedCode = useSearchParams().get("partida");
+  const saved = currentMatch();
+  const resuming = !!saved.match && requestedCode === saved.match.code;
+
+  if (saved.match && !resuming) {
+    const { game, code } = saved.match;
+    const finished = game.phase === "over";
+    return <div className="mx-auto w-full max-w-xl py-6 sm:py-12">
+      <Surface className="space-y-4">
+        <Heading>{finished ? "Partida finalizada" : "Partida em andamento"}</Heading>
+        <p className="text-sm text-muted">{modeLabel(game)} · {game.players.length} jogadores · Rodada {game.round}</p>
+        <Button className="w-full" onClick={() => matchUrl(code)}>{finished ? "Ver resultado" : "Continuar partida"}</Button>
+      </Surface>
+    </div>;
+  }
+
+  return <Flip7Table />;
+}
+
+function Flip7Table() {
   const { username, sessionReady, openLogin } = useDemoSession();
-  const { registerBackHandler } = usePageBack();
   const [exitOpen, setExitOpen] = useState(false);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
@@ -269,14 +289,6 @@ export default function Flip7Game() {
   const ownsWager = !wager || wager.username.toLowerCase() === username?.toLowerCase();
   const wagerReady = !wager || (ownsWager && payment?.code === matchCode && (game?.phase !== "over" || payment.phase === "over") && !paymentError && !externalChange);
   const matchCodeRef = useRef(matchCode);
-  const hasMatch = game !== null;
-  useEffect(() => {
-    if (!hasMatch) return;
-    return registerBackHandler(() => {
-      exitTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      setExitOpen(true);
-    });
-  }, [hasMatch, registerBackHandler]);
   const saveErrorShown = useRef(false);
   const [historyVisible, setHistoryVisible] = useState(true);
   const gameRef = useRef<Game | null>(game);
@@ -620,7 +632,7 @@ export default function Flip7Game() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-accent tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
-            {wager && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
+            {game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
@@ -685,8 +697,8 @@ export default function Flip7Game() {
                 }}><span className="sr-only">Selecionar {cardLabel(card)} de {player.name}</span></Button>}
               </div>;
               return <section key={i} aria-label={`Mesa de ${player.name}`} className={cn(
-                "relative min-h-48 min-w-0 rounded-panel border border-field-border/30 p-3",
-                visibleGame.phase === "playing" && activeSeat === i && "border-brand",
+                "relative min-h-48 min-w-0 rounded-panel bg-foreground/6 p-3 transition-shadow duration-300 ease-in-out motion-reduce:transition-none",
+                visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]",
                 visiblePlayer.status !== "playing" && "opacity-50",
               )}>
                 <div className="mb-3 flex items-center justify-between gap-2 text-sm">

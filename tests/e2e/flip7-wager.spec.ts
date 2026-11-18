@@ -42,6 +42,8 @@ test("entrada atualiza o pote, usa bots e reload não cobra novamente", async ({
   await expect(board).toBeVisible();
   await page.goto("/jogos");
   await page.goto("/jogos/flip7");
+  await expect(page.getByRole("heading", { name: "Partida em andamento", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
   await expect(board).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
   expect((await wallet(page)).transactions.map((tx: { amount: number }) => tx.amount)).toEqual([-50]);
