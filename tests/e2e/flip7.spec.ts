@@ -436,3 +436,22 @@ test("Descartar remove a carta própria com um clique e sem selecionar participa
   expect(saved.players[0].cards.some(c => c.id === bad.id)).toBe(false);
   await expect(page.locator("[data-moving-card]")).toHaveCount(0);
 });
+
+test("Vingança deita a primeira carta de cada linha ao passar e mantém o efeito após reload", async ({ page }) => {
+  const game = scenario([], { mode: "vengeance", brutal: false });
+  for (const [type, value] of [["minus", 2], ["number", 10]] as const) {
+    const index = game.deck.findIndex(c => c.type === type && c.value === value);
+    game.players[0].cards.push(game.deck.splice(index, 1)[0]);
+  }
+  await restore(page, game);
+  const hand = page.getByRole("region", { name: "Mesa de Marco", exact: true });
+  await expect(hand.locator("[data-card-sideways]")).toHaveCount(0);
+  await page.getByRole("button", { name: "Parar", exact: true }).click();
+  await expect(hand.locator("[data-card-sideways]")).toHaveCount(2);
+  await expect(hand.getByRole("img", { name: "10", exact: true })).not.toHaveAttribute("data-card-sideways");
+  await expect(hand.getByRole("img", { name: "Carta de costas", exact: true })).toHaveCount(0);
+  expect((await savedGame(page)).players[0].status).toBe("stayed");
+  await page.reload();
+  await expect(hand.locator("[data-card-sideways]")).toHaveCount(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

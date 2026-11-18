@@ -56,7 +56,7 @@ function VengeanceRules({ brutal }: { brutal: boolean }) {
 const playerStatus = { playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" } as const;
 const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove", "Dez", "Onze", "Doze", "Treze"];
 const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "coral", "lime", "orange", "red", "blue", "slate", "sky"];
-function PlayingCard({ card, flipped = false, compact = false, fluid = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean }) {
+function PlayingCard({ card, flipped = false, compact = false, fluid = false, sideways = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean; sideways?: boolean }) {
   const gradientId = useId();
   const holographic = card.type === "lucky13" && !compact && !flipped;
   const special = ["freeze", "chance", "three", "one", "four", "steal", "swap", "remove"].includes(card.type);
@@ -71,8 +71,10 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
   return (
     <div role="img" aria-label={flipped ? "Carta de costas" : cardLabel(card)} title={flipped ? undefined : cardLabel(card)}
       data-card-back={flipped || undefined}
+      data-card-sideways={sideways || undefined}
       data-holographic={holographic || undefined}
       className={cn("@container shrink-0 font-sans normal-nums [perspective:50rem]", fluid ? "aspect-[5/8] w-full sm:aspect-[2/3]" : compact ? "h-14 w-9" : "h-32 w-20 sm:h-36 sm:w-24")}>
+      <div className={cn("relative size-full transition-transform duration-300 ease-in-out motion-reduce:transition-none", sideways && "rotate-90 scale-[0.625] sm:scale-[0.666667]")}>
       <div className={cn("relative size-full transition-transform duration-700 [transform-style:preserve-3d] motion-reduce:transition-none", flipped && "[transform:rotateY(180deg)]")}>
         <div aria-hidden={flipped} style={{ "--card-color": !compact && card.type === "chance" ? "var(--color-brand)" : `var(--color-flip-${color})` } as CSSProperties}
           className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-control-hover shadow-sm [backface-visibility:hidden]",
@@ -106,6 +108,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false }: 
         <div aria-hidden="true" className={cn("absolute inset-0 overflow-hidden bg-control inset-shadow-flip-card [backface-visibility:hidden] [transform:rotateY(180deg)]", compact ? "rounded-md" : "rounded-[18cqi]")}>
           <span className={cn("absolute bg-control-hover", compact ? "inset-1 rounded-sm" : "inset-[14cqi] rounded-[12cqi]")} />
         </div>
+      </div>
       </div>
     </div>
   );
@@ -537,7 +540,7 @@ export default function Flip7Game() {
               const flipped = visiblePlayer.status === "busted" && !movingCards?.some(m => m.target === i) && (!flight || flight.target !== i || landed);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id}
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
-                <PlayingCard card={card} flipped={flipped && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} fluid />
+                <PlayingCard card={card} flipped={flipped && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={game.mode === "vengeance" && visiblePlayer.status === "stayed" && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
                 {!flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-accent hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
                   if (game.pending?.card.type === "swap") {
                     if (swapPreview) animateSwapPreview(swapPreview, true);
