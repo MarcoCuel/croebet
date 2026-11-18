@@ -19,7 +19,7 @@ const contentVariants = cva(
         default:
           "top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-panel p-8 motion-safe:data-[state=open]:animate-dialog-in",
         drawer:
-          "inset-y-0 left-0 h-dvh w-[min(19rem,calc(100%-2rem))] bg-chrome p-4",
+          "inset-y-0 left-0 h-dvh w-[min(19rem,calc(100%-2rem))] bg-chrome p-4 motion-safe:data-[state=open]:animate-drawer-in",
       },
     },
     defaultVariants: { variant: "default" },
