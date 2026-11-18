@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export function GameCover({ slug, name }: { slug: string; name: string }) {
   return (
-    <div className="relative aspect-square overflow-hidden rounded-panel bg-control">
+    <div className="relative aspect-square overflow-hidden rounded-panel bg-contrast/6">
       <Image
         src={`/art/${slug}.webp`}
         alt={`Capa de ${name}`}

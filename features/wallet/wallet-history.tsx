@@ -68,20 +68,20 @@ export function WalletHistory({
           compact ? "lg:grid-cols-3" : "sm:grid-cols-3",
         )}
       >
-        <Card className={cn("grid gap-3", compact && "bg-control-hover")}>
+        <Card className={cn("grid gap-3", compact && "bg-contrast/10")}>
           <h2 className="text-sm text-muted">Saldo atual</h2>
           <div className="text-2xl font-semibold">
             <Balance value={balance} />
           </div>
         </Card>
-        <Card className={cn("grid gap-3", compact && "bg-control-hover")}>
+        <Card className={cn("grid gap-3", compact && "bg-contrast/10")}>
           <h2 className="text-sm text-muted">Entradas</h2>
-          <p className="text-2xl font-semibold tabular-nums text-accent">
+          <p className="text-2xl font-semibold tabular-nums text-brand">
             +{formatBalance.format(income)}{" "}
             <span className="text-xs font-normal text-muted">Croins</span>
           </p>
         </Card>
-        <Card className={cn("grid gap-3", compact && "bg-control-hover")}>
+        <Card className={cn("grid gap-3", compact && "bg-contrast/10")}>
           <h2 className="text-sm text-muted">Saídas</h2>
           <p className="text-2xl font-semibold tabular-nums">
             −{formatBalance.format(expense)}{" "}
@@ -112,7 +112,7 @@ export function WalletHistory({
         <Card
           className={cn(
             "overflow-hidden p-0 sm:p-0",
-            compact && "bg-control-hover",
+            compact && "bg-contrast/10",
           )}
         >
           {entries.length ? (
@@ -127,12 +127,12 @@ export function WalletHistory({
                   >
                     <span
                       className={cn(
-                        "hidden size-10 shrink-0 place-items-center rounded-panel bg-control sm:grid",
+                        "hidden size-10 shrink-0 place-items-center rounded-panel bg-contrast/6 sm:grid",
                         compact && "bg-surface",
                       )}
                     >
                       <Icon
-                        className={cn("size-4", incoming && "text-accent")}
+                        className={cn("size-4", incoming && "text-brand")}
                         aria-hidden="true"
                       />
                     </span>
@@ -151,7 +151,7 @@ export function WalletHistory({
                       <p
                         className={cn(
                           "text-sm font-semibold",
-                          incoming && "text-accent",
+                          incoming && "text-brand",
                         )}
                       >
                         <span className="sr-only">

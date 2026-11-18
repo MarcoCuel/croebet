@@ -154,7 +154,7 @@ export function AdminUsers() {
               <Link
                 href={`/admin/usuarios/${user.id}`}
                 aria-label={`Ver usuário ${user.username}`}
-                className="grid grid-cols-2 items-center gap-3 p-5 transition-colors hover:bg-control motion-reduce:transition-none xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]"
+                className="grid grid-cols-2 items-center gap-3 p-5 transition-colors hover:bg-contrast/10 motion-reduce:transition-none xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]"
               >
                 <div className="col-span-2 flex min-w-0 items-center gap-3 xl:col-span-1">
                   <UserAvatar user={user} />

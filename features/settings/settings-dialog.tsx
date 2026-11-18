@@ -68,7 +68,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="shrink-0 border-b border-border p-3 sm:w-48 sm:border-r sm:border-b-0 sm:p-4">
+      <div className="shrink-0 border-b border-contrast/6 p-3 sm:w-48 sm:border-r sm:border-b-0 sm:p-4">
         <DialogTitle className="px-3 pt-2 pb-4 text-sm font-medium">
           Configurações
         </DialogTitle>
@@ -83,7 +83,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
               size="sm"
               className={cn(
                 "justify-start text-sm font-normal",
-                section === item && "bg-control-hover text-foreground",
+                section === item && "bg-contrast/10 text-foreground",
               )}
               aria-current={section === item ? "true" : undefined}
               aria-controls={panelId}
@@ -134,7 +134,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
                   onClick={() => setTheme(value)}
                   className={cn(
                     "min-h-16 justify-start gap-3 px-4 font-normal lg:min-h-24 lg:flex-col lg:justify-center",
-                    theme === value && "bg-control-hover text-accent",
+                    theme === value && "bg-contrast/10 text-brand",
                   )}
                 >
                   <Icon className="size-5" aria-hidden="true" />
@@ -148,7 +148,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
           <div className="grid gap-6">
             <AvatarSettings />
             <AccountIdentity key={username} />
-            <div className="border-t border-border pt-6">
+            <div className="border-t border-contrast/6 pt-6">
               <Button
                 variant="secondary"
                 onClick={() => {

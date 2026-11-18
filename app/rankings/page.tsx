@@ -82,7 +82,7 @@ export default function Rankings() {
                           {name.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="absolute -top-3 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-brand text-xs font-semibold text-primary-foreground">
+                      <span className="absolute -top-3 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-brand text-xs font-semibold text-white">
                         <span className="sr-only">Posição </span>
                         {position + 1}
                       </span>
@@ -103,7 +103,7 @@ export default function Rankings() {
               <ol
                 role="list"
                 start={4}
-                className="divide-y divide-border border-t border-border"
+                className="divide-y divide-border border-t border-contrast/6"
               >
                 {players.slice(3).map(({ name, amount }, position) => (
                   <li
@@ -117,7 +117,7 @@ export default function Rankings() {
                       {position + 4}
                     </span>
                     <span
-                      className="grid size-10 shrink-0 place-items-center rounded-full bg-control text-xs font-semibold text-muted inset-shadow-primary-button"
+                      className="grid size-10 shrink-0 place-items-center rounded-full bg-contrast/6 text-xs font-semibold text-muted inset-shadow-primary-button"
                       aria-hidden="true"
                     >
                       {name.slice(0, 2).toUpperCase()}

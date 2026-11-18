@@ -35,7 +35,7 @@ export function MenuLinks({
           aria-label={label}
           title={label}
           className={cn(
-            "flex min-h-10 items-center gap-3 rounded-panel border-(length:--border-width-hairline) border-transparent px-3 text-left text-sm text-muted outline-none hover:bg-control-hover hover:text-foreground focus-visible:border-foreground aria-[current]:bg-control aria-[current]:text-foreground",
+            "flex min-h-10 items-center gap-3 rounded-panel border-(length:--border-width-hairline) border-transparent px-3 text-left text-sm text-muted outline-none hover:bg-contrast/10 hover:text-foreground focus-visible:border-foreground aria-[current]:bg-contrast/6 aria-[current]:text-foreground",
             sidebar &&
               "@max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:px-0",
           )}

@@ -54,7 +54,7 @@ export function AccountMenu({
             className={cn(
               "h-11 px-2 py-0 font-normal",
               sidebar
-                ? "w-full justify-start bg-transparent hover:bg-control"
+                ? "w-full justify-start bg-transparent hover:bg-contrast/10"
                 : "w-auto",
             )}
             aria-label={"Conta de " + visibleName}

@@ -9,7 +9,7 @@ export function Footer() {
   const { config } = useSiteConfig();
   const { sessionReady, username } = useDemoSession();
   return (
-    <footer className="mx-auto mt-12 flex w-[calc(100%-2*var(--page-gap))] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-(length:--border-width-hairline) border-border py-6 px-2 text-sm text-muted">
+    <footer className="mx-auto mt-12 flex w-[calc(100%-2*var(--page-gap))] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-(length:--border-width-hairline) border-contrast/6 py-6 px-2 text-sm text-muted">
       <nav className="flex flex-wrap gap-4" aria-label="Navegação do rodapé">
         <Link className="hover:text-foreground" href="/jogos">
           Jogos

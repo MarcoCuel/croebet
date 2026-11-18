@@ -28,7 +28,7 @@ export function Sidebar({
     <>
       <aside
         id="lobby-sidebar"
-        className="@container/sidebar fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-expanded) flex-col border-r-(length:--border-width-hairline) border-border bg-chrome transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none md:flex group-data-[sidebar=collapsed]/navigation:invisible group-data-[sidebar=collapsed]/navigation:-translate-x-full"
+        className="@container/sidebar fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-expanded) flex-col border-r-(length:--border-width-hairline) border-contrast/6 bg-background transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none md:flex group-data-[sidebar=collapsed]/navigation:invisible group-data-[sidebar=collapsed]/navigation:-translate-x-full"
         inert={!expanded}
         aria-hidden={!expanded}
         aria-label="Menu lateral"
@@ -51,7 +51,7 @@ export function Sidebar({
           </div>
           {username ? (
             <div className="-mx-3 @max-[8rem]/sidebar:hidden">
-              <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-control p-2">
+              <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-contrast/6 p-2">
                 <Button
                   asChild
                   variant="ghost"
@@ -63,7 +63,7 @@ export function Sidebar({
                 </Button>
                 <RedeemButton />
               </div>
-              <div className="border-t-(length:--border-width-hairline) border-border px-3 pt-3">
+              <div className="border-t-(length:--border-width-hairline) border-contrast/6 px-3 pt-3">
                 <AccountMenu name={username} sidebar />
               </div>
             </div>

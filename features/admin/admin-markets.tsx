@@ -69,7 +69,7 @@ export function AdminMarkets() {
               <li key={market.id}>
                 <Card className="flex h-full flex-col gap-4">
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                    <span className="rounded-lg bg-control px-2 py-1">
+                    <span className="rounded-lg bg-contrast/6 px-2 py-1">
                       {marketStatuses[market.status]}
                     </span>
                     {market.endsAt && (

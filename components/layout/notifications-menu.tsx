@@ -34,7 +34,7 @@ export function NotificationsMenu() {
             </span>
             <span className="mt-3 block text-xs text-muted">18 de Nov. 2026</span>
           </span>
-          <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-control text-foreground" aria-hidden="true">
+          <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-contrast/6 text-foreground" aria-hidden="true">
             <Construction className="size-8" />
           </span>
         </DropdownMenuLabel>

@@ -32,7 +32,7 @@ export default async function Game({ params }: Props) {
         {slug === "flip7" ? (
           <Flip7Loader />
         ) : (
-          <Card asChild className="flex min-h-80 flex-col items-center justify-center border border-dashed border-border py-16 text-center">
+          <Card asChild className="flex min-h-80 flex-col items-center justify-center border border-dashed border-contrast/6 py-16 text-center">
             <section aria-labelledby="game-state">
               <div className="mb-5 grid size-16 place-items-center rounded-full bg-brand/10 text-brand">
                 <Gamepad2 className="size-8" aria-hidden="true" />

@@ -79,7 +79,7 @@ export function MarketList({
             onClick={() => setFilter(item)}
             className={cn(
               "text-sm font-medium",
-              filter === item && "bg-control-hover text-foreground",
+              filter === item && "bg-contrast/10 text-foreground",
             )}
           >
             {item}
@@ -106,7 +106,7 @@ export function MarketList({
             >
               <article id={market.id}>
                 <div className="mb-5 flex items-start gap-3">
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-panel bg-brand/10 text-accent">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-panel bg-brand/10 text-brand">
                     <Icon className="size-5" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
@@ -195,7 +195,7 @@ export function MarketList({
                     ))}
                   </div>
                 )}
-                <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-3">
+                <div className="mt-4 flex items-center justify-between gap-2 border-t border-contrast/6 pt-3">
                   <span className="text-xs text-muted">Croins</span>
                   <Button
                     variant="ghost"

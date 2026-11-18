@@ -173,7 +173,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
         <h1 className="max-w-[45ch] text-xl font-semibold">
           {creating ? "Nova aposta" : market.question}
         </h1>
-        <span className="rounded-lg bg-control px-3 py-1 text-xs">
+        <span className="rounded-lg bg-contrast/6 px-3 py-1 text-xs">
           {marketStatuses[market.status]}
         </span>
       </div>
@@ -576,7 +576,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
             </div>
           )}
           {stats.legacyEntries.length > 0 && (
-            <div className="mt-5 border-t border-border pt-5">
+            <div className="mt-5 border-t border-contrast/6 pt-5">
               <h3 className="mb-3 text-sm font-semibold">
                 Registros antigos fora da liquidação
               </h3>
@@ -619,7 +619,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
                         {Math.round((row.amount / stats.total) * 100)}%
                       </span>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-control">
+                    <div className="h-2 overflow-hidden rounded-full bg-contrast/6">
                       <div
                         className="h-full bg-brand"
                         style={{
@@ -754,7 +754,7 @@ export function AdminMarketEditor({ id }: { id: string }) {
               </p>
             )}
             {!finished && !resolved && !creating && (
-              <div className="mt-5 border-t border-border pt-5">
+              <div className="mt-5 border-t border-contrast/6 pt-5">
                 <Button
                   variant="link"
                   disabled={busy || !!error}

@@ -127,7 +127,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
 function GameLog({ game }: { game: Game }) {
   return <ol className="space-y-3">{game.log.map((entry, i) => {
     const player = entry.player !== undefined ? game.players[entry.player] : null;
-    return <li key={i} className="flex items-center gap-2 border-b border-border pb-3 last:border-0">
+    return <li key={i} className="flex items-center gap-2 border-b border-contrast/6 pb-3 last:border-0">
       {player && <Avatar className="size-7" aria-hidden="true">{player.kind === "human" && <AccountAvatarImage name={player.name} />}<AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
       <span className="min-w-0 flex-1 break-words">{entry.message}</span>
       {entry.card && <PlayingCard card={entry.card} compact />}
@@ -224,7 +224,7 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
               {withCroins && <div className="mt-4 space-y-3">
                 <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
                 <dl className="text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-accent tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
+                  <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-brand tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
                 </dl>
                 {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
               </div>}
@@ -245,7 +245,7 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
             <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5" aria-label="Lugares da partida">
               <div className="flex min-w-0 flex-col items-center gap-2">
                 <Avatar className="size-16" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
-                <span className="w-full truncate text-center text-xs font-medium text-accent" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
+                <span className="w-full truncate text-center text-xs font-medium text-brand" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
               </div>
               {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
             </div>
@@ -649,7 +649,7 @@ function Flip7Table({ code }: { code: string | null }) {
   return (
     <Surface ref={boardRef} className="relative @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
-        <div className="pointer-events-auto flex w-fit max-w-[calc(100vw-8rem)] flex-wrap items-center justify-center gap-3 rounded-panel border border-border bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
+        <div className="pointer-events-auto flex w-fit max-w-[calc(100vw-8rem)] flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
           <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : movingCards ? "Movendo cartas" : status}</h2>
           {playable && <div className="flex gap-2">
             <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
@@ -664,7 +664,7 @@ function Flip7Table({ code }: { code: string | null }) {
         </div>
       </div>
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
-        <Button variant="secondary" size="icon" className="rounded-full border border-border shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight || !!movingCards} onClick={() => setHistoryVisible(visible => !visible)}>
+        <Button variant="secondary" size="icon" className="rounded-full border border-contrast/6 shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight || !!movingCards} onClick={() => setHistoryVisible(visible => !visible)}>
           {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
         </Button>
       </div>
@@ -672,7 +672,7 @@ function Flip7Table({ code }: { code: string | null }) {
         <div className="min-w-0 pb-32 sm:pb-24">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
-            {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-accent tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
+            {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-brand tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
             {game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
@@ -692,7 +692,7 @@ function Flip7Table({ code }: { code: string | null }) {
             </div>
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {visibleGame.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
-                <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-accent)]")} aria-hidden="true">
+                <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
                   {player.kind === "human" && <AccountAvatarImage name={player.name} />}
                   <AvatarFallback className="text-sm">
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
@@ -700,12 +700,12 @@ function Flip7Table({ code }: { code: string | null }) {
                 </Avatar>
                 <div className="min-w-0 space-y-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-accent")}>{player.name}</p>
+                    <p className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand")}>{player.name}</p>
                     <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
                   </div>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
                     <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
-                    <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-accent">{player.total + (visibleGame.phase === "playing" ? score(player, visibleGame) : 0)}</span> ao vivo</span>
+                    <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-brand">{player.total + (visibleGame.phase === "playing" ? score(player, visibleGame) : 0)}</span> ao vivo</span>
                   </p>
                 </div>
               </div>)}
@@ -728,7 +728,7 @@ function Flip7Table({ code }: { code: string | null }) {
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id}
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
                 <PlayingCard card={card} flipped={flipped && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={sideways && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
-                {!flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-accent hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
+                {!flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-brand hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
                   if (game.pending?.card.type === "swap") {
                     if (swapPreview) animateSwapPreview(swapPreview, true);
                     else if (selectedCards.includes(card.id)) setSelectedCards([]);
@@ -738,7 +738,7 @@ function Flip7Table({ code }: { code: string | null }) {
                 }}><span className="sr-only">Selecionar {cardLabel(card)} de {player.name}</span></Button>}
               </div>;
               return <section key={i} aria-label={`Mesa de ${player.name}`} className={cn(
-                "relative min-h-48 min-w-0 rounded-panel bg-foreground/6 p-3 transition-shadow duration-300 ease-in-out motion-reduce:transition-none",
+                "relative min-h-48 min-w-0 rounded-panel bg-contrast/6 p-3 transition-shadow duration-300 ease-in-out motion-reduce:transition-none",
                 visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]",
                 visiblePlayer.status !== "playing" && "opacity-50",
               )}>
@@ -751,8 +751,8 @@ function Flip7Table({ code }: { code: string | null }) {
                   {modifiers.length > 0 && <div className={rowClass}>{modifiers.map(renderCard)}</div>}
                   <div className={rowClass}>{numeric.map(renderCard)}</div>
                 </div>
-                {!flight && !movingCards && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={game.pending.card.type === "steal" ? `${player.name} vai roubar` : game.pending.card.type === "remove" ? `${player.name} escolhe a carta para descartar` : `Escolher ${player.name}`} title={game.pending.card.type === "steal" ? `${player.name} receberá a carta roubada` : game.pending.card.type === "remove" ? `${player.name} poderá escolher uma carta de qualquer mão` : `Escolher ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "target", target: i })}>{game.pending.card.type === "steal" ? <span>{player.name} vai roubar</span> : game.pending.card.type === "remove" ? <span>{player.name} escolhe o descarte</span> : <span className="sr-only">Escolher {player.name}</span>}</Button>}
-                {!flight && !movingCards && game.bonusChoice != null && human && <Button variant="ghost" aria-label={game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-accent hover:bg-brand/10" onClick={() => send({ type: "bonus", target: game.bonusChoice === i ? null : i })}><span className="sr-only">{game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`}</span></Button>}
+                {!flight && !movingCards && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={game.pending.card.type === "steal" ? `${player.name} vai roubar` : game.pending.card.type === "remove" ? `${player.name} escolhe a carta para descartar` : `Escolher ${player.name}`} title={game.pending.card.type === "steal" ? `${player.name} receberá a carta roubada` : game.pending.card.type === "remove" ? `${player.name} poderá escolher uma carta de qualquer mão` : `Escolher ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-brand hover:bg-brand/10" onClick={() => send({ type: "target", target: i })}>{game.pending.card.type === "steal" ? <span>{player.name} vai roubar</span> : game.pending.card.type === "remove" ? <span>{player.name} escolhe o descarte</span> : <span className="sr-only">Escolher {player.name}</span>}</Button>}
+                {!flight && !movingCards && game.bonusChoice != null && human && <Button variant="ghost" aria-label={game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`} className="absolute inset-0 size-full rounded-panel border border-field-border hover:border-brand hover:bg-brand/10" onClick={() => send({ type: "bonus", target: game.bonusChoice === i ? null : i })}><span className="sr-only">{game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`}</span></Button>}
               </section>;
             })}
           </div>
@@ -769,15 +769,15 @@ function Flip7Table({ code }: { code: string | null }) {
       <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
           <DialogTitle>Resultado da partida</DialogTitle>
-          <DialogDescription className="mt-3 text-lg font-semibold text-accent">
+          <DialogDescription className="mt-3 text-lg font-semibold text-brand">
             {winners.map(player => player.name).join(" e ")} {winners.length > 1 ? "venceram" : "venceu"}!
           </DialogDescription>
-          {wager && payouts && <div className="mt-4 space-y-3 rounded-lg bg-control p-4 text-sm" aria-label="Resultado em Croins">
+          {wager && payouts && <div className="mt-4 space-y-3 rounded-lg bg-contrast/6 p-4 text-sm" aria-label="Resultado em Croins">
             <dl className="grid grid-cols-2 gap-3">
               <div><dt className="text-muted">Sua entrada</dt><dd className="font-medium tabular-nums">{formatBalance.format(wager.stake)} Croins</dd></div>
               <div><dt className="text-muted">Pote total</dt><dd className="font-medium tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</dd></div>
               <div><dt className="text-muted">Seu prêmio</dt><dd className="font-medium tabular-nums">{formatBalance.format(payouts[0])} Croins</dd></div>
-              <div><dt className="text-muted">Seu resultado</dt><dd className={cn("font-semibold tabular-nums", payouts[0] > wager.stake ? "text-accent" : "text-muted")}>{payouts[0] > wager.stake ? "+" : ""}{formatBalance.format(payouts[0] - wager.stake)} Croins</dd></div>
+              <div><dt className="text-muted">Seu resultado</dt><dd className={cn("font-semibold tabular-nums", payouts[0] > wager.stake ? "text-brand" : "text-muted")}>{payouts[0] > wager.stake ? "+" : ""}{formatBalance.format(payouts[0] - wager.stake)} Croins</dd></div>
             </dl>
             {!wagerReady && <p role={paymentError ? "alert" : "status"} className="text-muted">{!ownsWager ? `Entre como ${wager.username} para concluir a partida.` : paymentError || "Confirmando o resultado em Croins…"}</p>}
             {!username && <Button size="sm" onClick={openLogin}>Entrar para continuar</Button>}
@@ -785,10 +785,10 @@ function Flip7Table({ code }: { code: string | null }) {
             {wagerReady && payouts[0] > 0 && <p role="status" className="text-muted">Prêmio creditado no seu saldo.</p>}
           </div>}
           <ol aria-label="Classificação final" className="mt-5 max-h-[50dvh] space-y-2 overflow-y-auto" data-lenis-prevent>
-            {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-control p-3 text-sm", player.total === maxScore && "bg-selected")}>
+            {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-contrast/6 p-3 text-sm", player.total === maxScore && "bg-selected")}>
               <span className="w-6 shrink-0 text-muted tabular-nums">{standings.findIndex(p => p.total === player.total) + 1}º</span>
               <span className="min-w-0 flex-1 break-words font-medium">{player.name}</span>
-              {payouts && payouts[game.players.indexOf(player)] > 0 && <span className="text-xs font-medium text-accent tabular-nums">{formatBalance.format(payouts[game.players.indexOf(player)])} Croins</span>}
+              {payouts && payouts[game.players.indexOf(player)] > 0 && <span className="text-xs font-medium text-brand tabular-nums">{formatBalance.format(payouts[game.players.indexOf(player)])} Croins</span>}
               <span className="shrink-0 font-semibold tabular-nums">{player.total} pts</span>
             </li>)}
           </ol>

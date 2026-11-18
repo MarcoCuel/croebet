@@ -77,7 +77,7 @@ export function Predictions({ className }: { className?: string }) {
             </div>
           ) : (
             <>
-              <div className="mb-1 flex items-center justify-between gap-3 border-b border-border pb-4 text-xs text-muted">
+              <div className="mb-1 flex items-center justify-between gap-3 border-b border-contrast/6 pb-4 text-xs text-muted">
                 <span>
                   {predictions.length}{" "}
                   {predictions.length === 1
@@ -118,7 +118,7 @@ export function Predictions({ className }: { className?: string }) {
                               : ""}
                           </p>
                         )}
-                        <p className="mt-2 inline-flex rounded-md bg-control-hover px-2 py-1 text-xs">
+                        <p className="mt-2 inline-flex rounded-md bg-contrast/10 px-2 py-1 text-xs">
                           {outcome}
                         </p>
                       </div>

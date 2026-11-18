@@ -31,6 +31,8 @@ As dependências apontam das rotas para features e componentes; componentes UI n
 
 `app/globals.css` centraliza cores semânticas, tipografia fluida, espaçamento de página e banner, alturas estruturais, raio de painel, sombras, gradientes e borda fina. As demais dimensões utilizam a escala de `rem` do Tailwind. Proporções e posicionamento das imagens foram preservados.
 
+A paleta da interface usa `background`, `surface`, `foreground`, `muted`, `brand` e `contrast`. `contrast` é branco no dark e `#010101` no light: controles e campos usam `bg-contrast/6`, hover usa `bg-contrast/10` e divisórias usam `border-contrast/6`. Cabeçalho e sidebar compartilham `background`; modais e dropdowns usam `surface` opaca. Bordas de campos que precisam de maior contraste mantêm `field-border`. Estados destrutivos, seleção, previsões e cores próprias dos jogos conservam tokens específicos. Não recrie aliases como `control`, `field`, `chrome`, `accent`, `primary`, `secondary`, `card` ou `popover` para as mesmas cores.
+
 Não existem classes CSS globais de componentes. A sidebar utiliza consultas de container nas classes Tailwind; o espaço do conteúdo segue a mesma variável CSS compartilhada pela sidebar e topbar. `Heading` reúne as variantes de tipografia antes repetidas no CSS. `PageShell` padroniza largura e respiro das páginas internas.
 
 A altura mínima de campos e botões padrão é 2.75rem. Tamanhos menores são explícitos em ferramentas compactas da navegação. Modais e dropdowns não têm borda rosa; os controles usam borda de foco simples. Links textuais preservam indicação de foco de teclado. O efeito de gradiente e sombra interna permanece nos botões primários e na Croin.

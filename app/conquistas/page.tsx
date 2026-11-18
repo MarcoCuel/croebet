@@ -64,7 +64,7 @@ export default function Achievements() {
                       "relative my-3 grid size-24 place-items-center rounded-full border-4 bg-primary-button inset-shadow-primary-button",
                       level > 0
                         ? "border-brand/30 bg-brand/15 text-brand"
-                        : "border-border bg-control text-muted",
+                        : "border-contrast/6 bg-contrast/6 text-muted",
                     )}
                   >
                     <div className="grid size-16 place-items-center rounded-full border border-current/20">
@@ -92,7 +92,7 @@ export default function Achievements() {
                       aria-valuemax={milestone.target}
                       aria-valuenow={progress}
                       aria-valuetext={`${format.format(progress)} de ${format.format(milestone.target)} ${unit}. Nível ${level} de ${milestones.length}.`}
-                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-control"
+                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-contrast/6"
                     >
                       <div
                         className="h-full rounded-full bg-brand"

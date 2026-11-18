@@ -112,11 +112,11 @@ export function RichTextEditor({
     { name: "redo", label: "Refazer", Icon: Redo2 },
   ];
   return (
-    <div className="overflow-hidden rounded-panel border border-field-border bg-background focus-within:border-accent">
+    <div className="overflow-hidden rounded-panel border border-field-border bg-background focus-within:border-brand">
       <div
         role="group"
         aria-label="Formatação do texto"
-        className="flex flex-wrap items-center gap-1 border-b border-border bg-control p-2"
+        className="flex flex-wrap items-center gap-1 border-b border-contrast/6 bg-contrast/6 p-2"
       >
         {(
           [
@@ -135,7 +135,7 @@ export function RichTextEditor({
             {title}
           </Button>
         ))}
-        <span className="mx-1 h-5 border-l border-border" aria-hidden="true" />
+        <span className="mx-1 h-5 border-l border-contrast/6" aria-hidden="true" />
         {tools.map(({ name, label, Icon }) => (
           <Button
             key={name}

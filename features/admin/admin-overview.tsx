@@ -62,8 +62,8 @@ export function AdminOverview() {
           </div>
           {data.predictionCount > 0 ? (
             <>
-              <div role="img" aria-label={data.buckets.map((entry) => `${shortDay(entry.day)}: ${entry.count} palpites, ${formatBalance.format(entry.total)} Croins`).join("; ")} className="mt-6 flex h-44 items-end gap-1 border-b border-border pb-2 sm:gap-2">
-                {data.buckets.map((entry) => <div key={entry.day} className="flex h-full min-w-0 flex-1 items-end" title={`${shortDay(entry.day)} · ${entry.count} palpites · ${formatBalance.format(entry.total)} Croins`}><div className={cn("w-full rounded-t-sm", entry.count ? "bg-brand" : "bg-control")} style={{ height: entry.count ? `${(entry.count / maximum) * 100}%` : "0.25rem" }} /></div>)}
+              <div role="img" aria-label={data.buckets.map((entry) => `${shortDay(entry.day)}: ${entry.count} palpites, ${formatBalance.format(entry.total)} Croins`).join("; ")} className="mt-6 flex h-44 items-end gap-1 border-b border-contrast/6 pb-2 sm:gap-2">
+                {data.buckets.map((entry) => <div key={entry.day} className="flex h-full min-w-0 flex-1 items-end" title={`${shortDay(entry.day)} · ${entry.count} palpites · ${formatBalance.format(entry.total)} Croins`}><div className={cn("w-full rounded-t-sm", entry.count ? "bg-brand" : "bg-contrast/6")} style={{ height: entry.count ? `${(entry.count / maximum) * 100}%` : "0.25rem" }} /></div>)}
               </div>
               <div aria-hidden="true" className="mt-2 flex justify-between text-xs text-muted"><span>{shortDay(data.buckets[0].day)}</span>{days > 1 && <span>{shortDay(data.buckets.at(-1)!.day)}</span>}</div>
             </>

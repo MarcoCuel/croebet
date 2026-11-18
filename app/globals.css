@@ -4,17 +4,11 @@
   --font-sans: var(--font-inter), system-ui, sans-serif;
 
   --color-brand: #FF2C67;
-  --color-brand-hover: #FF2C67;
-  --color-accent: #FF2C67;
   --color-background: #101010;
-  --color-chrome: #101010;
+  --color-contrast: #fff;
   --color-surface: #1b1b1b;
-  --color-control: #1e1e1e;
-  --color-control-hover: #2c2c2c;
   --color-foreground: #fafafa;
   --color-muted: #aaa;
-  --color-border: rgb(255 255 255 / 6%);
-  --color-field: #262626;
   --color-field-border: #595959;
   --color-selected: #391c34;
   --color-prediction-yes: #4dc48b;
@@ -43,9 +37,9 @@
   --color-flip-silver: #b8bdc6;
   --color-flip-yellow: #e5d744;
   --color-flip-ink: #171717;
-  --color-flip-card: var(--color-control-hover);
-  --color-flip-card-back: var(--color-control);
-  --color-flip-card-inset: var(--color-control-hover);
+  --color-flip-card: #2c2c2c;
+  --color-flip-card-back: #1e1e1e;
+  --color-flip-card-inset: var(--color-flip-card);
   --color-cover-krepinho: #411031;
   --color-cover-crystal: #231242;
   --color-cover-roulette: #092e33;
@@ -100,18 +94,6 @@
   --shadow-lg: 0 0.75rem 1.75rem rgb(0 0 0 / 30%);
   --color-destructive: #b52c3b;
   --color-destructive-hover: #cb3546;
-  --color-primary: var(--color-brand);
-  --color-primary-foreground: #fff;
-  --color-secondary: var(--color-control);
-  --color-secondary-foreground: var(--color-foreground);
-  --color-card: var(--color-surface);
-  --color-card-foreground: var(--color-foreground);
-  --color-popover: var(--color-surface);
-  --color-popover-foreground: var(--color-foreground);
-  --color-muted-foreground: var(--color-muted);
-  --color-accent-foreground: var(--color-background);
-  --color-input: var(--color-field-border);
-  --color-ring: var(--color-accent);
 
   --text-display: clamp(2rem, 4vw, 3.5rem);
   --text-section: clamp(1.25rem, 2vw, 1.75rem);
@@ -155,16 +137,11 @@
   --color-flip-card-back: #fff;
   --color-flip-card-inset: #ededed;
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(0 0 0 / 10%);
-  --color-accent: #FF2C67;
   --color-background: #fff;
-  --color-chrome: #fff;
+  --color-contrast: #010101;
   --color-surface: #f7f7f7;
-  --color-control: #ededed;
-  --color-control-hover: #e3e3e3;
   --color-foreground: #171717;
   --color-muted: #616161;
-  --color-border: rgb(16 16 16 / 6%);
-  --color-field: #ededed;
   --color-field-border: #858585;
   --color-selected: #f5e1f1;
   --color-prediction-yes: #167546;
@@ -180,6 +157,6 @@
 
   /* Text links retain a keyboard focus indicator without a ring. */
   :where(a:not([data-slot="button"]):not([data-slot="dropdown-menu-item"])):focus-visible {
-    @apply outline-none underline decoration-accent underline-offset-4;
+    @apply outline-none underline decoration-brand underline-offset-4;
   }
 }
