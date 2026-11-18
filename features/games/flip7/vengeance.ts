@@ -50,7 +50,7 @@ function receive(game: Game, index: number, card: Card, checkFlip = true) {
     game.discard.push(...player.cards);
     player.cards = [];
     if (game.forced?.target === index) game.discard.push(...game.queue.splice(game.forced.queueStart ?? 0).map(p => p.card));
-    log(game, `${player.name} perdeu as outras cartas com o 7 azarado.`, index, card);
+    log(game, `${player.name} perdeu as outras cartas com o 7 de merda.`, index, card);
   }
   player.cards.push(card);
   if (!isNumber(card)) return;

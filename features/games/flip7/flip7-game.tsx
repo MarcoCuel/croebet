@@ -45,7 +45,7 @@ function Rules({ options }: { options: GameOptions }) {
 function VengeanceRules({ brutal }: { brutal: boolean }) {
   return <ol className="mt-5 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-muted">
     <li>Compre ou pare. Repetir um número estoura. Sete cartas numéricas encerram a rodada; o 13 da sorte permite uma exceção aos números diferentes. Vence o maior total ao fim da rodada em que alguém alcançar 200.</li>
-    <li>O Zero obriga a continuar comprando e zera a rodada, exceto se completar Flip7. O 7 azarado descarta suas outras cartas; recebê-lo não estoura. O 13 da sorte permite dois 13; um terceiro estoura.</li>
+    <li>O Zero obriga a continuar comprando e zera a rodada, exceto se completar Flip7. O 7 de merda descarta suas outras cartas; recebê-lo não estoura. O 13 da sorte permite dois 13; um terceiro estoura.</li>
     <li>Some os números, aplique ÷2 arredondando para baixo, subtraia −2, −4, −6, −8 e −10 e, por último, acrescente o bônus de 15 do Flip7. {brutal ? "A pontuação pode ser negativa." : "A pontuação não pode ficar abaixo de zero."}</li>
     <li>Roubar, Descartar e Trocar são resolvidos por quem comprou a ação, selecionando diretamente as cartas. Trocar permite conferir uma prévia e confirmar ou cancelar. Só mais uma! e Compre 4 permitem escolher quem receberá a ação. Roubar pega uma carta de outra pessoa. Trocar troca duas cartas de pessoas diferentes. Descartar remove uma carta. Essas ações são obrigatórias quando há cartas válidas. Trocas e roubos podem causar estouro.</li>
     <li>Só mais uma! obriga a comprar uma carta e parar. Compre 4 força até quatro compras; ações e modificadores só são resolvidos depois, na ordem de compra. Estourar durante a sequência descarta os efeitos que acabaram de sair.</li>

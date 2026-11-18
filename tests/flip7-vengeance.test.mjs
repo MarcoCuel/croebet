@@ -50,7 +50,7 @@ test("Zero impede parar e zera a rodada, mas completar Flip7 recupera soma e bô
   const g = transition(f.game, { type: "draw" });
   assert.equal(g.phase, "summary"); assert.equal(g.history[0][0], 36); roundTrip(g);
 });
-test("7 azarado limpa números, modificadores e efeitos anteriores da sequência sem estourar", () => {
+test("7 de merda limpa números, modificadores e efeitos anteriores da sequência sem estourar", () => {
   const f = fixture(); f.hand(0, ["number", 7], ["minus", 4]); f.stack(["four"], ["minus", 6], ["unlucky7"], ["number", 1], ["number", 2]);
   let g = transition(f.game, { type: "draw" }); g = transition(g, { type: "target", target: 0 });
   for (let i = 0; i < 4; i++) { g = transition(g, { type: "step" }); roundTrip(g); }

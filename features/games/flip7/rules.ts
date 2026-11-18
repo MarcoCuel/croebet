@@ -62,6 +62,6 @@ export function cardLabel(card: Card): string {
   if (card.type === "number") return String(card.value);
   if (card.type === "bonus") return `+${card.value}`;
   if (card.type === "minus") return `−${card.value}`;
-  return ({ double: "×2", chance: "Segunda chance", freeze: "Congelar", three: "Compre 3", zero: "O Zero", unlucky7: "7 azarado", lucky13: "13 da sorte", halve: "÷2", one: "Só mais uma!", four: "Compre 4", steal: "Roubar", swap: "Trocar", remove: "Descartar" } as const)[card.type];
+  return ({ double: "×2", chance: "Segunda chance", freeze: "Congelar", three: "Compre 3", zero: "O Zero", unlucky7: "7 de merda", lucky13: "13 da sorte", halve: "÷2", one: "Só mais uma!", four: "Compre 4", steal: "Roubar", swap: "Trocar", remove: "Descartar" } as const)[card.type];
 }
 export function log(game: Game, message: string, player?: number, card?: Card) { game.log.unshift({ message, player, card }); }
