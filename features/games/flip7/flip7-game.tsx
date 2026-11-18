@@ -86,7 +86,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
           className={cn("absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-flip-card shadow-md [backface-visibility:hidden]",
             compact ? "rounded-md border-[0.125rem] border-field-border/30" : "rounded-[18cqi] text-(--card-color) after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)]",
             !compact && !numeric && "bg-(--card-color) text-white",
-            compact && (numeric ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-flip-ink"),
+            compact && (numeric ? "text-(--card-color)" : "border-white/10 bg-(--card-color) text-white"),
             compact && card.type === "chance" && "bg-brand text-white",
             holographic && "bg-flip-ink text-white",
           )}>
@@ -94,7 +94,7 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
             <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-(image:--background-image-flip-holographic) bg-size-[250%_250%] bg-center opacity-60 motion-safe:animate-flip-holographic" />
           </>}
           {compact ? <>
-            {numeric && <span className="absolute top-0 h-0.5 w-4 rounded-b-full bg-(--card-color)" aria-hidden="true" />}
+            {numeric && <span className="absolute top-1 right-1 size-1 rounded-full bg-(--card-color)" aria-hidden="true" />}
             {special ? <Icon className="size-4" fill={card.type === "chance" ? "currentColor" : "none"} aria-hidden="true" /> : <span className="text-lg font-medium normal-nums">{cardLabel(card)}</span>}
           </> : <>
             <div className={cn("absolute inset-x-[12cqi] top-[12cqi] z-10 flex items-start justify-between gap-[6cqi]", special && "justify-center")}>
