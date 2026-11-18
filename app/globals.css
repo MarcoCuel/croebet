@@ -3,9 +3,9 @@
 @theme static {
   --font-sans: var(--font-inter), system-ui, sans-serif;
 
-  --color-brand: #ad158f;
-  --color-brand-hover: #c01a9f;
-  --color-accent: #f68add;
+  --color-brand: #FF477B;
+  --color-brand-hover: #FF477B;
+  --color-accent: #FF477B;
   --color-background: #101010;
   --color-chrome: #101010;
   --color-surface: #1b1b1b;
@@ -17,8 +17,8 @@
   --color-field-border: #595959;
   --color-selected: #391c34;
 
-  --color-reward-start: #1b1019;
-  --color-reward-end: #80136c;
+  --color-reward-start: #FF477B20;
+  --color-reward-end: #FF477B;
   --color-flip-neutral: #e7c75f;
   --color-flip-slate: #a7a0bb;
   --color-flip-lime: #a8c550;
@@ -37,7 +37,7 @@
   --color-cover-slots: #3c2319;
   --color-image-shade: #100a15;
 
-  --inset-shadow-flip-card: inset 0 0 0 0.125rem var(--color-field-border);
+  --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(255 255 255 / 10%);
   --inset-shadow-primary-button: inset 0 -0.125rem 0.25rem
     rgb(255 255 255 / 26%);
   --background-image-primary-button: linear-gradient(

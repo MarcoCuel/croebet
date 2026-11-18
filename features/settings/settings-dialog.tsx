@@ -62,7 +62,8 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <Button
               key={item}
               variant="ghost"
-              className={cn("justify-start rounded-lg px-3 text-sm font-normal", section === item && "bg-control-hover text-foreground")}
+              size="sm"
+              className={cn("justify-start text-sm font-normal", section === item && "bg-control-hover text-foreground")}
               aria-current={section === item ? "true" : undefined}
               aria-controls={panelId}
               onClick={() => setSection(item)}

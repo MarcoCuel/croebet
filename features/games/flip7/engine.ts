@@ -1,68 +1,29 @@
-/** Local Flip7 rules, adapted from the public reference. See docs/flip7.md. */
-export type PlayerKind = "human" | "easy" | "normal" | "hard";
-export type Setup = { name: string; kind: PlayerKind };
-export type Card = { id: number; type: "number" | "bonus" | "double" | "chance" | "freeze" | "three"; value: number };
-export type Player = Setup & { cards: Card[]; total: number; hasDrawn: boolean; status: "playing" | "stayed" | "frozen" | "busted" };
-type Pending = { source: number; card: Card; give?: boolean };
-export type LogEntry = { message: string; player?: number; card?: Card };
-export type Game = {
-  players: Player[]; deck: Card[]; discard: Card[]; turn: number; round: number;
-  phase: "playing" | "summary" | "over"; seed: number;
-  pending: Pending | null; queue: Pending[]; forced: { target: number; remaining: number } | null;
-  history: number[][]; log: LogEntry[]; flip7: number | null; lastDraw: Card | null;
-};
-export type Action = { type: "draw" | "stay" | "step" | "next" } | { type: "target"; target: number };
-export const GOAL = 200;
+/** Local Flip7 rules. Classic and Vengeance share cards, persistence and presentation. */
+import type { Action, Game, GameOptions, Setup } from "./types";
+import { createDeck, GOAL, log, numbers, score, shuffle } from "./rules.ts";
+import { vengeanceAction, vengeanceTargets, vengeanceTransition } from "./vengeance.ts";
+export type { Action, Card, Game, GameMode, GameOptions, Player, PlayerKind, Setup } from "./types";
+export { canStay, cardLabel, createDeck, GOAL, isNumber, modeLabel, numbers, score } from "./rules.ts";
 
-export function createDeck(): Card[] {
-  const cards: Card[] = [];
-  const add = (type: Card["type"], value: number, count: number) => {
-    for (let i = 0; i < count; i++) cards.push({ id: cards.length, type, value });
-  };
-  for (let n = 0; n <= 12; n++) add("number", n, Math.max(n, 1));
-  for (const n of [2, 4, 6, 8, 10]) add("bonus", n, 1);
-  add("double", 0, 1);
-  for (const type of ["chance", "freeze", "three"] as const) add(type, 0, 3);
-  return cards;
-}
-function shuffle(game: Game, cards: Card[]) {
-  const result = [...cards];
-  for (let i = result.length - 1; i > 0; i--) {
-    let seed = game.seed;
-    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
-    game.seed = seed >>> 0;
-    const j = Math.floor((game.seed / 4294967296) * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-export function createGame(setup: Setup[], seed = 1): Game {
+export function createGame(setup: Setup[], seed = 1, options: Partial<GameOptions> = {}): Game {
   if (setup.length < 2 || setup.length > 12 || !setup.some(p => p.kind === "human")) throw new Error("Escolha de 2 a 12 participantes, com ao menos uma pessoa.");
   const game: Game = {
+    mode: options.mode ?? "classic", brutal: options.mode === "vengeance" && options.brutal === true,
     players: setup.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 24) || `Jogador ${i + 1}`, cards: [], total: 0, hasDrawn: false, status: "playing" })),
     deck: [], discard: [], turn: 0, round: 1, phase: "playing", seed: (seed >>> 0) || 1,
     pending: null, queue: [], forced: null, lastDraw: null, history: [], log: [{ message: "Partida iniciada." }], flip7: null,
   };
-  game.deck = shuffle(game, createDeck());
+  game.deck = shuffle(game, createDeck(game.mode));
   return game;
 }
-export const numbers = (player: Player) => player.cards.filter(c => c.type === "number");
-export function score(player: Player): number {
-  if (player.status === "busted") return 0;
-  const values = numbers(player);
-  const base = values.reduce((sum, c) => sum + c.value, 0);
-  return base * (player.cards.some(c => c.type === "double") ? 2 : 1)
-    + player.cards.filter(c => c.type === "bonus").reduce((sum, c) => sum + c.value, 0)
-    + (values.length === 7 ? 15 : 0);
-}
 export function targets(game: Game): number[] {
+  if (game.mode === "vengeance") return vengeanceTargets(game);
   if (!game.pending) return [];
   const { source, give } = game.pending;
   return game.players.flatMap((p, i) => p.status === "playing" && (!give || (i !== source && !p.cards.some(c => c.type === "chance"))) ? [i] : []);
 }
-function log(game: Game, message: string, player?: number, card?: Card) { game.log.unshift({ message, player, card }); }
 function finish(game: Game) {
-  const scores = game.players.map(score);
+  const scores = game.players.map(player => score(player));
   game.history.push(scores);
   game.players.forEach((p, i) => { p.total += scores[i]; });
   game.phase = game.players.some(p => p.total >= GOAL) ? "over" : "summary";
@@ -127,6 +88,8 @@ function draw(game: Game, index: number, forced: boolean) {
   } else player.cards.push(card);
 }
 export function transition(current: Game, action: Action): Game {
+  if (current.mode === "vengeance") return vengeanceTransition(current, action);
+  if (action.type === "cards" || action.type === "bonus") return current;
   if (action.type === "next") {
     if (current.phase !== "summary") return current;
     const game = structuredClone(current);
@@ -168,12 +131,9 @@ export function transition(current: Game, action: Action): Game {
   settle(game);
   return game;
 }
-export function cardLabel(card: Card): string {
-  return card.type === "number" ? String(card.value) : card.type === "bonus" ? `+${card.value}`
-    : ({ double: "×2", chance: "Segunda chance", freeze: "Congelar", three: "Compre 3" } as const)[card.type];
-}
 /** Bots use public information only: unseen cards, visible hands and discards. */
 export function botAction(game: Game): Action {
+  if (game.mode === "vengeance") return vengeanceAction(game);
   if (game.pending) {
     const options = targets(game);
     const source = game.pending.source;
@@ -197,6 +157,7 @@ export function botAction(game: Game): Action {
 /** Initial deals are automatic; human target selections always pause the loop. */
 export function automaticAction(game: Game): Action | null {
   if (game.phase !== "playing") return null;
+  if (game.bonusChoice != null) return game.players[game.bonusChoice].kind === "human" ? null : botAction(game);
   if (game.pending) return game.players[game.pending.source].kind === "human" ? null : botAction(game);
   if (game.forced) return { type: "step" };
   const player = game.players[game.turn];

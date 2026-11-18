@@ -77,3 +77,26 @@ As mãos usam uma grade de linha única para números e outra para modificadores
 ## Configuração por vagas
 
 O seletor define de 2 a 12 lugares. A conta conectada ocupa o primeiro lugar fixo. Os demais aparecem como Disponível; o botão + abre um diálogo com Nome e Tipo (Pessoa ou Bot). Bots adicionados usam a estratégia média. Lugares preenchidos permitem editar ou remover o participante pelo mesmo diálogo. É preciso preencher todos os lugares selecionados antes de começar. Diminuir e aumentar a quantidade preserva as configurações dos lugares temporariamente ocultos.
+
+## Vingança e modo Brutal
+
+A configuração permite escolher Clássico ou A vingança nunca é plena. Brutal é uma opção exclusiva do Vingança. A mesa identifica a modalidade; regras, bots, alvos e pontuação seguem a opção salva na partida. A adaptação mantém de 2 a 12 pessoas em todos os modos.
+
+Referências oficiais consultadas:
+
+- [Manual da The Op, Ruleset Edition 1](https://cdn.shopify.com/s/files/1/0611/3958/3198/files/26_FLIP_7_VENGEANCE_RULES_C.pdf?v=1770853610).
+- [FAQ oficial de Vingança](https://theop.games/pages/flip-7-wav-faqs).
+
+`types.ts` descreve o estado e as ações. `rules.ts` compartilha baralhos, nomes, embaralhamento, classificação numérica e pontuação. `engine.ts` preserva as transições do Clássico e encaminha Vingança a `vengeance.ts`.
+
+Vingança usa 108 cartas: 92 numéricas, seis modificadores e dez ações. O 7 azarado e o 13 da sorte substituem uma cópia comum desses valores; O Zero completa os números. O Zero obriga comprar e zera a pontuação, exceto no Flip7; o 7 azarado descarta as outras cartas e os efeitos já recebidos na sequência forçada; o 13 da sorte permite um segundo 13, ambos contando para o Flip7. Modificadores são −2/−4/−6/−8/−10 e ÷2. As ações são Só mais uma!, Compre 4, Roubar, Trocar e Descartar, com duas cópias cada. Ações usadas são descartadas nesta edição.
+
+Quem compra uma ação escolhe quem irá resolvê-la. Em Roubar/Trocar/Descartar, o destinatário seleciona cartas da mesa, com teclado ou ponteiro; Trocar exige cartas de pessoas diferentes e pode estourar ambas. Pessoas que pararam continuam elegíveis e resolvem efeitos sem voltar à atividade. Compre 4 adia ações e modificadores, mantendo ordem de compra. A fila distingue efeitos ainda pertencentes à sequência daqueles já liberados: estourar durante as quatro compras cancela os primeiros; estourar depois em Só mais uma! não apaga os outros efeitos já liberados, conforme a FAQ. Compras forçadas interrompem no estouro ou no Flip7.
+
+A pontuação soma números, divide por dois arredondando para baixo, subtrai modificadores e só então adiciona o bônus. Vingança padrão limita o resultado a zero. Brutal permite valores negativos e modificadores em pessoas estouradas. `bustedCards` identifica as cartas viradas e fora de jogo; novos modificadores recebidos depois do estouro ficam abertos e são contabilizados sobre base zero. Completar Flip7 no Brutal pausa para escolher +15 ou −15 para outro participante, inclusive estourado; a rodada é contabilizada uma única vez, após escolher.
+
+A persistência conserva a chave e a versão existentes. Snapshots anteriores sem modalidade são interpretados como Clássico. A validação usa o baralho da modalidade, aceita pontos negativos somente no Brutal e confere alvos, escolha do bônus, sequências forçadas, identidade e conservação das 94/108 cartas. A seleção das duas cartas de uma troca é visual e pode ser refeita após reload. Confirmar na barra inferior efetiva a troca; Cancelar limpa a seleção sem consumir a ação obrigatória. Roubar e Descartar também exigem confirmar a carta selecionada. Descartar explicita quem decide e permite selecionar cartas da própria mão ou de outros participantes; Cancelar mantém todas as cartas. Na primeira etapa, o rótulo explicita quem vai roubar e receber a carta; na segunda, o participante seleciona a carta de outra pessoa. O histórico identifica quem roubou e quem perdeu a carta. Os demais estados de escolha são persistidos.
+
+Animações GSAP movimentam cartas roubadas/trocadas entre mãos e cartas descartadas até o baralho. O 7 azarado aguarda chegar antes de descartar as cartas anteriores. Automações aguardam as animações e respeitam movimento reduzido.
+
+`tests/flip7-vengeance.test.mjs` cobre as novas regras, filas encadeadas, negativos, escolha do bônus, compatibilidade de salvamento, dados adulterados e decisões dos bots sem acessar ordem do baralho. Simulações de Vingança e Brutal com 2, 3, 6 e 12 participantes verificam conservação das cartas e retomada em cada transição. Os cenários de navegador cobrem configuração, seleção por teclado, roubo/troca com animação, Zero, modificadores após estouro e reload durante a escolha do bônus.

@@ -21,7 +21,7 @@ test("rotas mantêm conteúdo, imagens, responsividade e não montam Canvas", as
     ["/rankings", "Rankings"],
     ["/conquistas", "Conquistas"],
     ["/sobre", "Sobre o Croebet"],
-    ["/jogos/roleta", "Roleta Rola Rola"],
+    ["/jogos/roleta", "Rola Rola"],
   ]) {
     const response = await page.goto(path);
     expect(response?.status()).toBe(200);

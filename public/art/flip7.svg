@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
-<defs><radialGradient id="bg"><stop stop-color="#80136c"/><stop offset="1" stop-color="#231242"/></radialGradient><linearGradient id="paper" x2="1" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#f5e1f1"/></linearGradient></defs>
-<path fill="url(#bg)" d="M0 0h600v600H0z"/>
-<g transform="translate(300 270)" stroke-width="5">
-<g transform="rotate(-22) translate(-145 -130)"><rect width="160" height="230" rx="18" fill="url(#paper)" stroke="#f68add"/><text x="80" y="150" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="115" fill="#94127b">2</text></g>
-<g transform="rotate(20) translate(-15 -145)"><rect width="160" height="230" rx="18" fill="url(#paper)" stroke="#f68add"/><text x="80" y="150" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="110" fill="#94127b">12</text></g>
-<g transform="translate(-80 -90)"><rect width="160" height="230" rx="18" fill="#ad158f" stroke="#f68add"/><text x="80" y="155" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="130" fill="#fff">7</text><text x="80" y="205" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="18" fill="#fff">SÓ MAIS UMA</text></g></g>
-</svg>

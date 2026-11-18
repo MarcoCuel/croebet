@@ -12,6 +12,7 @@ import {
 import { HomeSectionProvider } from "@/features/home/home-section";
 import { BalanceDialog } from "@/features/wallet/balance-dialog";
 import { Sidebar } from "./sidebar";
+import { PageBackProvider } from "./page-back";
 import { Topbar } from "./topbar";
 import { MenuLinks } from "./navigation-links";
 import { brandLinkClass, Wordmark } from "./brand";
@@ -52,6 +53,7 @@ export function Navigation({ children }: { children: ReactNode }) {
   }
 
   return (
+    <PageBackProvider>
     <HomeSectionProvider>
       <div
         className="group/navigation [--sidebar-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)]"
@@ -118,5 +120,6 @@ export function Navigation({ children }: { children: ReactNode }) {
         </div>
       </div>
     </HomeSectionProvider>
+    </PageBackProvider>
   );
 }

@@ -28,8 +28,8 @@ export const games = [
   {
     slug: "roleta",
     cover: "[--cover:var(--color-cover-roulette)]",
-    name: "Roleta Rola Rola",
-    coverTitle: ["Roleta", "Rola Rola"],
+    name: "ola Rola",
+    coverTitle: ["Rola", "Rola"],
     type: "Roleta",
     description:
       "A lua está cheia e a roleta está girando. Qual dos dois manda na sua sorte?",

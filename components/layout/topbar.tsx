@@ -22,6 +22,7 @@ import {
 import { brandLinkClass, Wordmark } from "./brand";
 import { games } from "@/features/games/catalog";
 import { useHomeSection } from "@/features/home/home-section";
+import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
 
 export function Topbar({
@@ -34,6 +35,7 @@ export function Topbar({
   onOpenBalance: () => void;
 }) {
   const pathname = usePathname();
+  const { requestBack } = usePageBack();
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
   const pageTitle = games.find((game) => pathname === `/jogos/${game.slug}`)?.name
@@ -79,7 +81,9 @@ export function Topbar({
             size="icon"
             className="shrink-0"
           >
-            <Link href={backLink.href} aria-label={backLink.label}>
+            <Link href={backLink.href} aria-label={backLink.label} onClick={event => {
+              if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && event.button === 0 && requestBack(backLink.href)) event.preventDefault();
+            }}>
               <ChevronLeft className="size-4" aria-hidden="true" />
             </Link>
           </Button>
