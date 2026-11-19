@@ -47,32 +47,34 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
       <Button type="button" variant="ghost" disabled={saving} onClick={() => window.location.reload()}>Recarregar menus</Button>
     </div>
     <div className="grid items-start gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
-      <aside className="grid gap-5" aria-label="Adicionar itens ao menu">
-        <Card role="group" aria-label="Páginas fixas" className="grid gap-4">
-          <Field>Página fixa<Select aria-label="Página fixa" value={fixed} onChange={event => setFixed(event.target.value as keyof typeof fixedMenuPages)} disabled={saving}>
-            {Object.entries(fixedMenuPages).map(([key, value]) => <option key={key} value={key}>{value.label}{value.disabled ? " — Em breve" : ""}</option>)}
-          </Select></Field>
-          <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => add({ id: crypto.randomUUID(), type: "fixed", target: fixed, label: fixedMenuPages[fixed].label, newTab: false })}>Adicionar</Button>
-        </Card>
-        <Card role="group" aria-label="Páginas criadas" className="grid gap-4">
-          {initial.pages.length ? <>
-            <Field>Página criada<Select aria-label="Página criada" value={pageId} onChange={event => setPageId(event.target.value)} disabled={saving}>
-              {initial.pages.map(page => <option key={page.id} value={page.id}>{page.title}{page.published ? "" : " — Rascunho"}</option>)}
+      <aside className="xl:sticky xl:top-[calc(var(--header-height)+1rem)]" aria-label="Adicionar itens ao menu">
+        <Card className="divide-y divide-contrast/6 overflow-hidden p-0 sm:p-0 xl:max-h-[calc(100dvh-var(--header-height)-2rem)] xl:overflow-y-auto" data-lenis-prevent>
+          <div role="group" aria-label="Páginas fixas" className="grid gap-4 p-5 sm:p-6">
+            <Field>Página fixa<Select aria-label="Página fixa" value={fixed} onChange={event => setFixed(event.target.value as keyof typeof fixedMenuPages)} disabled={saving}>
+              {Object.entries(fixedMenuPages).map(([key, value]) => <option key={key} value={key}>{value.label}{value.disabled ? " — Em breve" : ""}</option>)}
             </Select></Field>
-            <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || !pageId || current.items.length >= 50} onClick={() => {
-              const page = initial.pages.find(page => page.id === pageId);
-              if (page) add({ id: crypto.randomUUID(), type: "page", pageId, label: page.title, newTab: false });
+            <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => add({ id: crypto.randomUUID(), type: "fixed", target: fixed, label: fixedMenuPages[fixed].label, newTab: false })}>Adicionar</Button>
+          </div>
+          <div role="group" aria-label="Páginas criadas" className="grid gap-4 p-5 sm:p-6">
+            {initial.pages.length ? <>
+              <Field>Página criada<Select aria-label="Página criada" value={pageId} onChange={event => setPageId(event.target.value)} disabled={saving}>
+                {initial.pages.map(page => <option key={page.id} value={page.id}>{page.title}{page.published ? "" : " — Rascunho"}</option>)}
+              </Select></Field>
+              <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || !pageId || current.items.length >= 50} onClick={() => {
+                const page = initial.pages.find(page => page.id === pageId);
+                if (page) add({ id: crypto.randomUUID(), type: "page", pageId, label: page.title, newTab: false });
+              }}>Adicionar</Button>
+            </> : <p className="text-sm text-muted">Nenhuma página criada ainda.</p>}
+          </div>
+          <div role="group" aria-label="Link personalizado" className="grid gap-4 p-5 sm:p-6">
+            <Field>Rótulo do link<Input value={customLabel} maxLength={80} disabled={saving} onChange={event => setCustomLabel(event.target.value)} /></Field>
+            <Field>URL do link<Input value={customUrl} maxLength={2000} disabled={saving} placeholder="https:// ou /endereco" onChange={event => setCustomUrl(event.target.value)} /></Field>
+            <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => {
+              const result = menuWriteSchema.safeParse({ version: current.version, items: [...current.items, { id: crypto.randomUUID(), type: "custom", label: customLabel, url: customUrl, newTab: false }] });
+              if (!result.success) return void toast.error(result.error.issues[0].message);
+              update(result.data.items); setCustomLabel(""); setCustomUrl("");
             }}>Adicionar</Button>
-          </> : <p className="text-sm text-muted">Nenhuma página criada ainda.</p>}
-        </Card>
-        <Card role="group" aria-label="Link personalizado" className="grid gap-4">
-          <Field>Rótulo do link<Input value={customLabel} maxLength={80} disabled={saving} onChange={event => setCustomLabel(event.target.value)} /></Field>
-          <Field>URL do link<Input value={customUrl} maxLength={2000} disabled={saving} placeholder="https:// ou /endereco" onChange={event => setCustomUrl(event.target.value)} /></Field>
-          <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => {
-            const result = menuWriteSchema.safeParse({ version: current.version, items: [...current.items, { id: crypto.randomUUID(), type: "custom", label: customLabel, url: customUrl, newTab: false }] });
-            if (!result.success) return void toast.error(result.error.issues[0].message);
-            update(result.data.items); setCustomLabel(""); setCustomUrl("");
-          }}>Adicionar</Button>
+          </div>
         </Card>
       </aside>
       <form className="grid gap-4" aria-label={location === "main" ? "Editar menu principal" : "Editar menu do rodapé"} onSubmit={async event => {

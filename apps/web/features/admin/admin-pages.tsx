@@ -57,9 +57,9 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
           {label} {filter === value && <AdminFilterCount count={pages.filter(page => matchesFilter(page, value)).length} />}
         </Button>)}
     </>} search={<SearchInput value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar páginas…" aria-label="Buscar páginas" />} />
-    <Card>
+    <Card className="overflow-hidden p-0 sm:p-0">
       {visible.length ? <ul aria-label="Páginas" className="divide-y divide-contrast/6">
-        {visible.map(page => <li key={page.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 py-4 first:pt-0 last:pb-0">
+        {visible.map(page => <li key={page.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
           <div className="min-w-0 flex-1 basis-48">
             <div className="flex flex-wrap items-center gap-2">
               {page.status === "trash" ? <span className="break-words font-semibold">{page.title}</span> : <Link className="break-words font-semibold hover:underline" href={`/admin/paginas/${page.slug}`}>{page.title}</Link>}
@@ -78,7 +78,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
             </>}
           </div>
         </li>)}
-      </ul> : <p className="text-sm text-muted">{!pages.length ? "Nenhuma página criada ainda." : "Nenhuma página encontrada."}</p>}
+      </ul> : <p className="p-6 text-sm text-muted">{!pages.length ? "Nenhuma página criada ainda." : "Nenhuma página encontrada."}</p>}
     </Card>
 
     <Dialog open={!!deleting} onOpenChange={open => { if (!open && !pending) setDeleting(null); }}>
