@@ -19,7 +19,7 @@ import { AvatarSettings } from "@/features/settings/avatar-settings";
 import { useDemoSession } from "@/features/auth/session-context";
 import { useTheme } from "@/features/theme/theme-provider";
 import Link from "next/link";
-import { formatBalance } from "@/features/wallet/wallet";
+import { BalanceValue } from "@/features/wallet/balance";
 import { cn } from "@/lib/utils";
 
 const sections = ["Geral", "Aparência", "Conta", "Histórico"] as const;
@@ -116,7 +116,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <div className="flex flex-wrap justify-between gap-3 py-5">
               <dt className="text-muted">Saldo atual</dt>
               <dd className="tabular-nums">
-                {walletReady ? formatBalance.format(balance) : "—"} Croins
+                <BalanceValue key={username} value={walletReady ? balance : null} /> <span aria-hidden="true">Croins</span>
               </dd>
             </div>
             <div className="flex flex-wrap justify-between gap-3 py-5">

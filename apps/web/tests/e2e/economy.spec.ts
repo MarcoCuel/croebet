@@ -67,3 +67,39 @@ test("contador libera o botão na meia-noite de São Paulo", async ({ page }) =>
   await page.clock.runFor(3000);
   await expect(page.getByRole('button', { name: 'Resgatar', exact: true })).toBeEnabled();
 });
+
+test("saldo anima ganhos e perdas, sem repetir o efeito no reload", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/");
+  const number = page.locator("header [aria-live=polite] + span").first();
+  const delta = page.locator("header [aria-live=polite] + span + span").first();
+  await expect(number).toHaveText("30");
+  await expect(delta).toHaveCSS("opacity", "0");
+  // Refresh the confirmed wallet, as happens after a coupon or on returning to the tab.
+  daily = { ...daily, balance: 40 };
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(delta).toHaveText("+10");
+  await expect(number).toHaveText("40");
+  await expect(delta).toHaveCSS("opacity", "0");
+  daily = { ...daily, balance: 25 };
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(delta).toHaveText("−15");
+  await expect(delta).toHaveAttribute("data-direction", "loss");
+  await expect(number).toHaveText("25");
+  await page.reload();
+  await expect(number).toHaveText("25");
+  await expect(delta).toHaveCSS("opacity", "0");
+  await expect(delta).toBeEmpty();
+});
+
+test("movimento reduzido atualiza o saldo diretamente", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const number = page.locator("header [aria-live=polite] + span").first();
+  const delta = page.locator("header [aria-live=polite] + span + span").first();
+  await expect(number).toHaveText("30");
+  daily = { ...daily, balance: 40 };
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(number).toHaveText("40");
+  await expect(delta).toHaveCSS("opacity", "0");
+});

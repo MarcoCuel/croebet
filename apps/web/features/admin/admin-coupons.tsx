@@ -24,14 +24,26 @@ export function AdminCoupons({ initial, query }: { initial: ReturnType<typeof co
   return <div className="grid min-w-0 gap-4">
     <h1 className="sr-only">Cupons</h1>
     <AdminListHeader filterLabel="Status dos cupons" filters={<>{["Todos", "Ativo", "Agendado", "Pausado", "Expirado", "Esgotado"].map(status => <Button key={status} size="sm" variant={query.status === status ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/cupons", { ...query, status, offset: 0 })} aria-current={query.status === status ? "page" : undefined}>{status} {query.status === status && <AdminFilterCount count={initial.counts[status as keyof typeof initial.counts]} />}</Link></Button>)}</>} search={<ManagementSearch base="/admin/cupons" query={query} label="Buscar cupons" placeholder="Buscar por código" />} />
-    <ul className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">{initial.items.map(c => <li key={c.id}><Card className="flex h-full flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="break-all font-semibold">{c.code}</h2><Status coupon={c} /></div>
-      <p className="text-2xl font-semibold tabular-nums">{formatBalance.format(c.amount)} <span className="text-sm font-normal text-muted">Croins</span></p>
-      <dl className="grid grid-cols-2 gap-4 text-sm"><div><dt className="text-xs text-muted">Resgates</dt><dd className="mt-1">{c.redeemed} / {c.limit ?? "ilimitado"}</dd></div><div><dt className="text-xs text-muted">Distribuídos</dt><dd className="mt-1">{formatBalance.format(c.distributed)} Croins</dd></div></dl>
-      <div className="mt-auto space-y-1 text-xs text-muted"><p>Início: {c.startsAt ? adminDate(c.startsAt) : "Imediato"}</p><p>Término: {c.endsAt ? adminDate(c.endsAt) : "Sem vencimento"}</p></div>
-      <Button asChild variant="secondary" size="sm" className="self-start"><Link href={`/admin/cupons/${c.id}`} aria-label={`Gerenciar ${c.code}`}>Gerenciar</Link></Button>
-    </Card></li>)}</ul>
-    {!initial.items.length && <Card className="text-sm text-muted">Nenhum cupom encontrado.</Card>}
+    <Card className="overflow-hidden p-0 sm:p-0">
+      {initial.items.length ? <ul aria-label="Cupons" className="divide-y divide-contrast/6">
+        {initial.items.map(c => <li key={c.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
+          <div className="min-w-0 flex-1 basis-48">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link className="break-all font-semibold hover:underline" href={`/admin/cupons/${c.id}`}>{c.code}</Link>
+              <Status coupon={c} />
+            </div>
+            <p className="mt-1 text-sm text-muted"><span className="tabular-nums">{formatBalance.format(c.amount)}</span> Croins por resgate</p>
+          </div>
+          <dl className="flex flex-wrap gap-x-5 gap-y-3 text-sm">
+            <div><dt className="text-xs text-muted">Resgates</dt><dd className="mt-1 tabular-nums">{c.redeemed} / {c.limit ?? "ilimitado"}</dd></div>
+            <div><dt className="text-xs text-muted">Distribuídos</dt><dd className="mt-1 tabular-nums">{formatBalance.format(c.distributed)} Croins</dd></div>
+            <div><dt className="text-xs text-muted">Início</dt><dd className="mt-1">{c.startsAt ? adminDate(c.startsAt) : "Imediato"}</dd></div>
+            <div><dt className="text-xs text-muted">Término</dt><dd className="mt-1">{c.endsAt ? adminDate(c.endsAt) : "Sem vencimento"}</dd></div>
+          </dl>
+          <Button asChild variant="secondary" size="sm"><Link href={`/admin/cupons/${c.id}`} aria-label={`Gerenciar ${c.code}`}>Gerenciar</Link></Button>
+        </li>)}
+      </ul> : <p className="p-5 text-sm text-muted">Nenhum cupom encontrado.</p>}
+    </Card>
     <ListPagination base="/admin/cupons" query={query} hasMore={initial.hasMore} />
   </div>;
 }

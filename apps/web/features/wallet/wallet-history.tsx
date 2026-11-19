@@ -46,7 +46,7 @@ const filters = [
 export function WalletHistory({ initial, direction, now }: {
   initial: WalletData; direction: "all" | "income" | "expense"; now: string;
 }) {
-  const { username, sessionReady, openLogin } = useDemoSession();
+  const { username, sessionReady, openLogin, balance, walletReady } = useDemoSession();
   const [owner] = useState(username);
   const router = useRouter();
   const [history, setHistory] = useState(initial.status === "ready" ? initial.history : { items: [], hasMore: false });
@@ -86,7 +86,7 @@ export function WalletHistory({ initial, direction, now }: {
       <Card className="grid gap-2">
         <p className="text-sm text-muted">Saldo disponível</p>
         <p className="flex flex-wrap items-center gap-2 text-3xl font-semibold tabular-nums sm:text-4xl">
-          <Balance value={initial.balance} /> <span aria-hidden="true" className="text-lg font-normal text-muted">Croins</span>
+          <Balance key={username} value={walletReady ? balance : initial.balance} /> <span aria-hidden="true" className="text-lg font-normal text-muted">Croins</span>
         </p>
       </Card>
       <section aria-labelledby="transactions-title">
