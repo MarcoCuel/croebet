@@ -37,7 +37,7 @@ export function BalanceValue({ value }: { value: number | null }) {
       }
       const counter = { value: displayed.current ?? from };
       gsap.to(counter, {
-        value, duration: 0.6, ease: "power2.out",
+        value, duration: 1, ease: "power2.out",
         onUpdate: () => {
           displayed.current = counter.value;
           label.textContent = formatBalance.format(Math.round(counter.value));
@@ -45,7 +45,7 @@ export function BalanceValue({ value }: { value: number | null }) {
         onComplete: () => { displayed.current = value; label.textContent = formatBalance.format(value); },
       });
       gsap.fromTo(indicator, { opacity: 0, y: 4 }, { opacity: 1, y: 0, duration: 0.15 });
-      gsap.to(indicator, { opacity: 0, y: -8, delay: 0.65, duration: 0.4, ease: "power1.out" });
+      gsap.to(indicator, { opacity: 0, y: -8, delay: 1.05, duration: 0.4, ease: "power1.out" });
     });
     return () => media.revert();
   }, [value]);

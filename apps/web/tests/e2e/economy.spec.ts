@@ -103,3 +103,26 @@ test("movimento reduzido atualiza o saldo diretamente", async ({ page }) => {
   await expect(number).toHaveText("40");
   await expect(delta).toHaveCSS("opacity", "0");
 });
+
+test("cupom fecha o modal antes de atualizar e animar o saldo", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { token: "fixture" } }));
+  let redeemed = false;
+  await page.route("**/api/v1/coupons/redeem", async route => {
+    daily = { ...daily, balance: 80 };
+    redeemed = true;
+    await route.fulfill({ json: daily });
+  });
+  await page.route("**/api/v1/rewards/daily", async route => {
+    if (redeemed) await expect(page.getByRole("dialog")).toHaveCount(0);
+    await route.fulfill({ json: daily });
+  });
+  await page.goto("/");
+  await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Código do cupom").fill("LIVE50");
+  await dialog.getByRole("button", { name: "Resgatar cupom", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("header [aria-live=polite] + span + span").first()).toHaveText("+50");
+  await expect(page.locator("header [aria-live=polite] + span").first()).toHaveText("80");
+});

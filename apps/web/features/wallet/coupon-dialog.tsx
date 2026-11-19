@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 import { dailyStatusSchema, redeemCouponSchema } from "@croebet/shared";
 import { toast } from "sonner";
@@ -24,7 +25,15 @@ export function CouponDialog({ onRedeemed }: { onRedeemed: () => void }) {
       const input = redeemCouponSchema.safeParse({ code, requestId: request.current.id });
       if (!input.success) return void toast.error(input.error.issues[0].message);
       setPending(true);
-      try { await managementRequest("/coupons/redeem", dailyStatusSchema, "POST", input.data); request.current = null; await refreshWallet(); router.refresh(); toast.success("Cupom resgatado."); onRedeemed(); }
+      try {
+        await managementRequest("/coupons/redeem", dailyStatusSchema, "POST", input.data);
+        request.current = null;
+        // Commit the dialog closure before updating any of the visible balances.
+        flushSync(() => onRedeemed());
+        await refreshWallet();
+        router.refresh();
+        toast.success("Cupom resgatado.");
+      }
       catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível resgatar o cupom."); }
       finally { setPending(false); }
     }}>
