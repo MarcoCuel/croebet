@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createGame } from "../../features/games/flip7/engine";
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Marco", displayName: "Marco", role: "user" };
-const economy = { initialBalance: 30, dailyReward: 10, dailyCooldownHours: 24, suggestedBets: [1, 5, 10, 50], defaultBet: 5 };
+const economy = { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 50], defaultBet: 5 };
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/me", route => route.fulfill({ json: { user } }));
   await page.route("**/api/v1/economy", route => route.fulfill({ json: economy }));

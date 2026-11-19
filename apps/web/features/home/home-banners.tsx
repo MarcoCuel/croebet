@@ -36,10 +36,10 @@ export function HomeBanners() {
     .map(value => String(value).padStart(2, "0")).join(":");
   return (
     <section
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      className="grid gap-3 sm:grid-cols-2"
       aria-label="Destaques da Croebet"
     >
-      <Banner className="bg-brand sm:col-span-2 lg:col-span-1">
+      <Banner className="bg-brand">
         <Heading asChild variant="banner">
           <h1>
             Aposte na
@@ -69,22 +69,12 @@ export function HomeBanners() {
         <div>
           <Heading variant="banner">Resgate diário</Heading>
           <p className="mt-3 text-sm sm:text-base">
-            {economy ? `${economy.dailyReward} Croins a cada ${economy.dailyCooldownHours} horas` : "Resgate temporariamente indisponível"}
+            {economy ? `${economy.dailyReward} Croins por dia. Renova à meia-noite de São Paulo.` : "Resgate temporariamente indisponível"}
           </p>
           <Button className="mt-5" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
             {coolingDown ? "Aguarde o próximo resgate" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar"}
           </Button>
         </div>
-      </Banner>
-      <Banner className="bg-surface text-foreground">
-        <Heading variant="banner">
-          Participe
-          <br />
-          do Ranking
-        </Heading>
-        <Button asChild>
-          <Link href="/rankings">Ver ranking</Link>
-        </Button>
       </Banner>
     </section>
   );

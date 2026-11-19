@@ -1,3 +1,5 @@
+import { managementRoutes } from "../admin/routes.ts";
+import { governanceLock, protectLastAdmin, ManagementError } from "../admin/service.ts";
 import { readWallet, readTransactions } from "../wallet/service.ts";
 import { economy } from "../economy/config.ts";
 import { grantInitialBalance, readDailyStatus, claimDailyReward, RewardError } from "../economy/service.ts";
@@ -50,6 +52,8 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     await client.query("insert into sessions (token_hash, user_id, expires_at, idle_expires_at) values ($1, $2, now() + interval '30 days', now() + interval '7 days')", [tokenHash(token), userId]);
     return token;
   }
+
+  await managementRoutes(app, { pool, current, sessionName, limit });
 
   if (avatarStorage) {
     app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
@@ -150,7 +154,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     try { return await claimDailyReward(pool, user.id, tokenHash(request.cookies[sessionName]!), input.data.requestId); }
     catch (error) {
       if (error instanceof RewardError) return reply.code(error.code === "UNAUTHENTICATED" ? 401 : 409).send({ error: {
-        code: error.code, message: error.code === "UNAUTHENTICATED" ? "Entre novamente." : `Aguarde ${economy.dailyCooldownHours} horas desde o último resgate.`,
+        code: error.code, message: error.code === "UNAUTHENTICATED" ? "Entre novamente." : "Você já resgatou hoje. Volte à meia-noite no horário de São Paulo.",
       } });
       throw error;
     }
@@ -234,18 +238,24 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const client = await pool.connect();
     try {
       await client.query("begin");
-      const locked = await client.query(`select u.id, u.avatar_key from users u join sessions s on s.user_id = u.id
+      await client.query(governanceLock);
+      const locked = await client.query(`select u.id, u.avatar_key, u.role, u.status from users u join sessions s on s.user_id = u.id
         where u.id = $1 and u.status = 'active' and u.password_hash = $2 and s.token_hash = $3
         and s.expires_at > clock_timestamp() and s.idle_expires_at > clock_timestamp() for update of u, s`,
         [user.id, user.password_hash, tokenHash(request.cookies[sessionName]!)]);
       if (!locked.rows[0]) { await client.query("rollback"); return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } }); }
+      await protectLastAdmin(client, locked.rows[0], { role: "user", status: "suspended" });
       await client.query("delete from sessions where user_id = $1", [user.id]);
       if (locked.rows[0].avatar_key) await client.query("insert into avatar_cleanup (key) values ($1) on conflict do nothing", [locked.rows[0].avatar_key]);
       await client.query("delete from users where id = $1", [user.id]);
       await client.query("commit");
       reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions);
       return reply.code(204).send();
-    } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
+    } catch (error) {
+      await client.query("rollback");
+      if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
+      throw error;
+    } finally { client.release(); }
   });
   app.patch("/api/v1/me/username", async (request, reply) => {
     const token = request.cookies[sessionName];

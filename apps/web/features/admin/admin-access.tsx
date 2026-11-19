@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { AdminSection } from "@/features/admin/routes";
 import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
@@ -17,7 +18,9 @@ export function AdminAccess({
   pageSlug,
   userId,
   couponId,
+  content,
 }: {
+  content?: ReactNode;
   section?: AdminSection;
   gameSlug?: string;
   marketId?: string;
@@ -30,6 +33,7 @@ export function AdminAccess({
   if (!permissions.canManageSite) notFound();
   return (
     <AdminPanel
+      content={content}
       section={section}
       gameSlug={gameSlug}
       marketId={marketId}

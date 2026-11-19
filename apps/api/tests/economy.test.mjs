@@ -14,22 +14,22 @@ test('rotas da API carregam diretamente em TypeScript no modo de desenvolvimento
 });
 
 test('economia aprovada é centralizada; cupons aceitam valores livres inteiros positivos', () => {
-  assert.deepEqual(economy, { initialBalance: 30, dailyReward: 10, dailyCooldownHours: 24, suggestedBets: [1, 5, 10, 50], defaultBet: 5 });
+  assert.deepEqual(economy, { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 50], defaultBet: 5 });
   for (const amount of [1, 7, 333, Number.MAX_SAFE_INTEGER]) assert.equal(couponAmountSchema.parse(amount), amount);
   for (const amount of [0, -1, 0.5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.equal(couponAmountSchema.safeParse(amount).success, false);
   assert.equal(dailyClaimSchema.safeParse({ requestId: 'invalid' }).success, false);
   assert.equal(dailyClaimSchema.safeParse({ requestId: '00000000-0000-4000-8000-000000000001', amount: 999 }).success, false);
 });
-test('resgate usa 24 horas corridas, inclusive na virada do dia, sem qualquer teto de saldo', () => {
-  const claimed = new Date('2026-11-19T02:59:59.000Z');
-  const next = new Date(claimed.getTime() + 24 * 3600000);
+test('resgate libera à meia-noite de São Paulo, sem qualquer teto de saldo', () => {
+  const claimed = new Date('2026-11-19T01:00:00.000Z'); // 22h de 18/11 em São Paulo
+  const next = new Date('2026-11-19T03:00:00.000Z'); // meia-noite de 19/11
   for (const balance of [0, 29, 30, 39, 100000]) {
-    assert.equal(dailyStatus(balance, null, claimed).eligible, true);
-    assert.equal(dailyStatus(balance, claimed, new Date('2026-11-19T03:00:01Z')).eligible, false);
-    assert.equal(dailyStatus(balance, claimed, new Date(next.getTime() - 1)).eligible, false);
-    assert.equal(dailyStatus(balance, claimed, next).eligible, true);
-    assert.equal(dailyStatus(balance, claimed, new Date(next.getTime() + 1)).eligible, true);
-    assert.equal(dailyStatus(balance, claimed, next).nextClaimAt, next.toISOString());
+    assert.equal(dailyStatus(balance, null, claimed, null).eligible, true);
+    assert.equal(dailyStatus(balance, claimed, new Date('2026-11-19T02:00:00Z'), next).eligible, false);
+    assert.equal(dailyStatus(balance, claimed, new Date(next.getTime() - 1), next).eligible, false);
+    assert.equal(dailyStatus(balance, claimed, next, next).eligible, true);
+    assert.equal(dailyStatus(balance, claimed, new Date('2026-11-19T04:00:00Z'), next).eligible, true); // 1h do dia seguinte
+    assert.equal(dailyStatus(balance, claimed, next, next).nextClaimAt, next.toISOString());
   }
 });
 test('cadastro concede crédito auditável na transação do chamador', async () => {

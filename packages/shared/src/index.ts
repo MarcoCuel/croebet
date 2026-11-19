@@ -39,7 +39,7 @@ export const transactionsSchema = z.object({ items: z.array(transactionSchema), 
 export const economySchema = z.object({
   initialBalance: croinsSchema,
   dailyReward: croinsSchema,
-  dailyCooldownHours: z.number().int().positive(),
+  dailyResetTimeZone: z.literal("America/Sao_Paulo"),
   suggestedBets: z.array(z.number().int().positive().max(Number.MAX_SAFE_INTEGER)).min(1),
   defaultBet: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
 }).strict().refine(value => value.suggestedBets.includes(value.defaultBet));
@@ -55,3 +55,45 @@ export type DailyStatus = z.infer<typeof dailyStatusSchema>;
 export const dailyClaimSchema = z.object({ requestId: z.uuid() }).strict();
 // Coupon amounts are chosen per coupon, never drawn from a preset reward.
 export const couponAmountSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+
+export const roleSchema = z.enum(["user", "admin"]);
+export const userStatusSchema = z.enum(["active", "suspended"]);
+export const reasonSchema = z.string().trim().min(3, "Informe um motivo com pelo menos 3 caracteres.").max(256).regex(/^[^\u0000-\u001f\u007f]+$/u);
+export const adminQuerySchema = z.object({
+  q: z.string().trim().max(80).default(""),
+  status: z.enum(["all", "active", "suspended"]).default("all"),
+  offset: z.coerce.number().int().min(0).max(1000000).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
+export const userChangeSchema = z.object({ role: roleSchema, status: userStatusSchema, expectedRole: roleSchema, expectedStatus: userStatusSchema, reason: reasonSchema }).strict();
+export const balanceAdjustmentSchema = z.object({ requestId: z.uuid(), direction: z.enum(["add", "remove"]), amount: couponAmountSchema, reason: reasonSchema }).strict();
+export const adminUserSchema = z.object({
+  id: z.uuid(), username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema,
+  role: roleSchema, status: userStatusSchema, balance: croinsSchema, createdAt: z.iso.datetime(),
+}).strict();
+export type AdminUser = z.infer<typeof adminUserSchema>;
+export const adminUsersSchema = z.object({ items: z.array(adminUserSchema), hasMore: z.boolean(), total: z.number().int().nonnegative() }).strict();
+export const auditSchema = z.object({ id: z.uuid(), actorId: z.uuid(), actorUsername: z.string().nullable(), action: z.string(), reason: z.string(), createdAt: z.iso.datetime(), details: z.record(z.string(), z.unknown()) }).strict();
+export const auditPageSchema = z.object({ items: z.array(auditSchema), hasMore: z.boolean() }).strict();
+export const adminUserDetailSchema = z.object({ user: adminUserSchema, transactions: transactionsSchema, audit: auditPageSchema }).strict();
+export const couponCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,32}$/, "Use de 3 a 32 letras, números, hífen ou sublinhado.");
+export const couponWriteSchema = z.object({
+  code: couponCodeSchema, amount: couponAmountSchema, limit: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),
+  startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), paused: z.boolean(),
+  version: z.number().int().nonnegative(), reason: reasonSchema,
+}).strict().refine(value => !value.startsAt || !value.endsAt || Date.parse(value.endsAt) > Date.parse(value.startsAt), { message: "O término deve ser posterior ao início.", path: ["endsAt"] });
+export const couponSchema = z.object({
+  id: z.uuid(), code: couponCodeSchema, amount: couponAmountSchema, limit: z.number().int().positive().nullable(),
+  startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), paused: z.boolean(), version: z.number().int().nonnegative(),
+  redeemed: z.number().int().nonnegative(), distributed: croinsSchema,
+  status: z.enum(["Ativo", "Agendado", "Pausado", "Expirado", "Esgotado"]),
+}).strict();
+export type Coupon = z.infer<typeof couponSchema>;
+export const couponsQuerySchema = z.object({ q: z.string().trim().max(80).default(""), status: z.enum(["Todos", "Ativo", "Agendado", "Pausado", "Expirado", "Esgotado"]).default("Todos"), offset: z.coerce.number().int().min(0).max(1000000).default(0), limit: z.coerce.number().int().min(1).max(100).default(20) }).strict();
+export const couponsSchema = z.object({ items: z.array(couponSchema), hasMore: z.boolean(), total: z.number().int().nonnegative() }).strict();
+export const redemptionsSchema = z.object({ items: z.array(z.object({ id: z.uuid(), username: z.string().nullable(), amount: couponAmountSchema, createdAt: z.iso.datetime() }).strict()), hasMore: z.boolean() }).strict();
+export const couponDetailSchema = z.object({ coupon: couponSchema, redemptions: redemptionsSchema, audit: auditPageSchema }).strict();
+export const redeemCouponSchema = z.object({ code: couponCodeSchema, requestId: z.uuid() }).strict();
+export const resourceIdSchema = z.uuid();
+export const commandResultSchema = z.object({ ok: z.literal(true) }).strict();
+export const resourceResultSchema = z.object({ id: z.uuid() }).strict();

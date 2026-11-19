@@ -1,7 +1,6 @@
 "use client";
 
-import { AdminCoupons, AdminCouponEditor } from "@/features/admin/admin-coupons";
-import { AdminUsers, AdminUserDetail } from "@/features/admin/admin-users";
+import type { ReactNode } from "react";
 import { AdminMarkets } from "@/features/admin/admin-markets";
 import { AdminMarketEditor } from "@/features/admin/admin-market-editor";
 import { AdminOverview } from "@/features/admin/admin-overview";
@@ -38,9 +37,9 @@ export function AdminPanel({
   gameSlug,
   marketId,
   pageSlug,
-  userId,
-  couponId,
+  content,
 }: {
+  content?: ReactNode;
   section?: AdminSection;
   gameSlug?: string;
   marketId?: string;
@@ -52,8 +51,8 @@ export function AdminPanel({
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
-  if (!ready) return <p role="status">Carregando painel…</p>;
-  if (error) return <Card role="alert">{error}</Card>;
+  if (!ready && !content) return <p role="status">Carregando painel…</p>;
+  if (error && !content) return <Card role="alert">{error}</Card>;
 
   return (
     <div className="min-w-0">
@@ -100,13 +99,7 @@ export function AdminPanel({
             ) : (
               <AdminPages />
             ))}
-          {section === "coupons" && (couponId ? <AdminCouponEditor key={couponId} id={couponId} /> : <AdminCoupons />)}
-          {section === "users" &&
-            (userId ? (
-              <AdminUserDetail key={userId} id={userId} />
-            ) : (
-              <AdminUsers />
-            ))}
+          {(section === "coupons" || section === "users") && content}
         </section>
       </div>
     </div>

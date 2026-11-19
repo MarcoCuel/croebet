@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`troca de página durante a rolagem mantém o topo (${reducedMotion})`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion });
-    await page.goto("/conquistas");
+    await page.goto("/sobre");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     if (reducedMotion === "no-preference") {
       await expect(page.locator("html")).toHaveClass(/lenis/);
@@ -13,8 +13,8 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await page.mouse.wheel(0, 650);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(20);
     // Activate an existing link without Playwright scrolling it into view first.
-    await page.locator('a[href="/rankings"]').first().evaluate((link: HTMLAnchorElement) => link.click());
-    await expect(page).toHaveURL("/rankings");
+    await page.locator('a[href="/jogos"]').first().evaluate((link: HTMLAnchorElement) => link.click());
+    await expect(page).toHaveURL("/jogos");
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     // Check multiple frames so residual Lenis momentum cannot pass unnoticed.
     const positions = await page.evaluate(async () => {

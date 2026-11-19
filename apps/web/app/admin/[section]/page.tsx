@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AdminAccess } from "@/features/admin/admin-access";
+import { adminQuerySchema, adminUsersSchema, couponsQuerySchema, couponsSchema } from "@croebet/shared";
+import { getManagement } from "@/features/admin/server-management";
+import { AdminUsers } from "@/features/admin/admin-users";
+import { AdminCoupons } from "@/features/admin/admin-coupons";
+import { ManagementUnavailable } from "@/features/admin/management-shared";
 import { adminRoutes } from "@/features/admin/routes";
 
 const titles = {
@@ -25,9 +30,10 @@ export async function generateMetadata({
 }
 
 export default async function AdminSectionPage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ section: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { section } = await params;
   if (section === "sobre") redirect("/admin/paginas/sobre");
@@ -35,5 +41,18 @@ export default async function AdminSectionPage({
     ([, href]) => href === `/admin/${section}`,
   );
   if (!entry) notFound();
+  if (section === "usuarios" || section === "cupons") {
+    const search = await searchParams;
+    const users = section === "usuarios";
+    const parsed = (users ? adminQuerySchema : couponsQuerySchema).safeParse({ q: search.q, status: search.status, offset: search.offset });
+    const query = parsed.success ? parsed.data : (users ? adminQuerySchema : couponsQuerySchema).parse({});
+    const url = new URLSearchParams({ q: query.q, status: query.status, offset: String(query.offset) });
+    if (users) {
+      const data = await getManagement(`/admin/users?${url}`, adminUsersSchema);
+      return <AdminAccess section="users" content={data ? <AdminUsers key={url.toString()} initial={data} query={query} /> : <ManagementUnavailable />} />;
+    }
+    const data = await getManagement(`/admin/coupons?${url}`, couponsSchema);
+    return <AdminAccess section="coupons" content={data ? <AdminCoupons key={url.toString()} initial={data} query={query} /> : <ManagementUnavailable />} />;
+  }
   return <AdminAccess section={entry[0] as keyof typeof adminRoutes} />;
 }

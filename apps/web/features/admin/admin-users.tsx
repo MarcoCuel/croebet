@@ -1,359 +1,91 @@
 "use client";
 
+import { commandResultSchema } from "@croebet/shared";
+
 import { useState } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { adminUserDetailSchema, adminUsersSchema, transactionsSchema, userChangeSchema, type AdminUser } from "@croebet/shared";
+import { toast } from "sonner";
 import { ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { SearchInput } from "@/components/ui/search-input";
-import {
-  exampleUsers,
-  examplePredictions,
-  getExampleActivity,
-  userStatuses,
-  type ExampleUser,
-  type UserStatus,
-} from "@/features/admin/user-fixtures";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { formatBalance } from "@/features/wallet/wallet";
 import { useDemoSession } from "@/features/auth/session-context";
 import { AdminUserBalance } from "@/features/admin/admin-user-balance";
-import { cn } from "@/lib/utils";
+import { managementRequest } from "@/features/admin/management-api";
+import { adminDate, AuditHistory, ManagementSearch, ListPagination, listHref, type ListQuery } from "@/features/admin/management-shared";
 
-type AdminUser = Omit<ExampleUser, "games" | "wins" | "joined" | "lastSeen"> & {
-  games?: number;
-  wins?: number;
-  joined?: string;
-  lastSeen?: string;
-  avatar?: string | null;
-};
-function useCurrentAdminUser(): AdminUser {
-  const { username, displayName, balance, predictions, avatar } =
-    useDemoSession();
-  return {
-    id: "minha-conta",
-    name: displayName ?? username ?? "",
-    username: username ?? "",
-    role: "Administrador",
-    status: "active",
-    balance,
-    bets: predictions.length,
-    avatar,
-  };
+const roleLabel = { user: "Usuário", admin: "Administrador" };
+function UserAvatar({ user, large = false }: { user: AdminUser; large?: boolean }) {
+  return <Avatar className={large ? "size-16" : "size-10"} aria-hidden="true">
+    {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}<AvatarFallback>{Array.from(user.displayName)[0]}</AvatarFallback>
+  </Avatar>;
 }
-
-const normalize = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-const date = (value: string) =>
-  new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "medium",
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value.length === 10 ? `${value}T12:00:00-03:00` : value));
-
-function UserAvatar({
-  user,
-  large = false,
-}: {
-  user: AdminUser;
-  large?: boolean;
-}) {
-  return (
-    <Avatar className={large ? "size-16" : "size-10"} aria-hidden="true">
-      {user.avatar && <AvatarImage src={user.avatar} alt="" />}
-      <AvatarFallback className={large ? "text-lg" : undefined}>
-        {user.name
-          .split(" ")
-          .slice(0, 2)
-          .map((word) => word[0])
-          .join("")}
-      </AvatarFallback>
-    </Avatar>
-  );
+function Status({ user }: { user: AdminUser }) {
+  return <Badge variant="secondary" className={user.status === "active" ? "bg-prediction-yes/10 text-prediction-yes" : "bg-prediction-no/10 text-prediction-no"}>{user.status === "active" ? "Ativo" : "Suspenso"}</Badge>;
 }
-
-function UserStatusBadge({ status }: { status: UserStatus }) {
-  return (
-    <Badge
-      variant="secondary"
-      className={
-        status === "active"
-          ? "bg-prediction-yes/10 text-prediction-yes"
-          : "bg-prediction-no/10 text-prediction-no"
-      }
-    >
-      {userStatuses[status]}
-    </Badge>
-  );
+export function AdminUsers({ initial, query }: { initial: ReturnType<typeof adminUsersSchema.parse>; query: ListQuery }) {
+  return <div>
+    <h1 className="sr-only">Usuários</h1>
+    <ManagementSearch base="/admin/usuarios" query={query} label="Buscar usuários no admin" placeholder="Buscar por nome ou usuário" />
+    <div className="my-4 flex flex-wrap items-center justify-between gap-3">
+      <nav aria-label="Status dos usuários" className="flex flex-wrap gap-1">{[["all", "Todos"], ["active", "Ativos"], ["suspended", "Suspensos"]].map(([value, label]) => <Button key={value} size="sm" variant={query.status === value ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/usuarios", { ...query, status: value, offset: 0 })} aria-current={query.status === value ? "page" : undefined}>{label}</Link></Button>)}</nav>
+      <p className="text-xs text-muted" role="status">{initial.total} {initial.total === 1 ? "usuário" : "usuários"}</p>
+    </div>
+    <Card className="overflow-hidden p-0 sm:p-0">
+      <div aria-hidden="true" className="hidden grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem] gap-4 px-5 py-4 text-xs text-muted xl:grid"><span>Usuário</span><span>Permissão</span><span>Status</span><span>Saldo</span><span /></div>
+      <ul className="divide-y divide-contrast/6">{initial.items.map(user => <li key={user.id}><Link href={`/admin/usuarios/${user.id}`} aria-label={`Ver usuário ${user.username}`} className="grid grid-cols-2 items-center gap-3 p-5 transition-colors hover:bg-contrast/10 xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]">
+        <div className="col-span-2 flex min-w-0 items-center gap-3 xl:col-span-1"><UserAvatar user={user} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{user.displayName}</p><p className="truncate text-xs text-muted">@{user.username}</p></div></div>
+        <span className="text-sm text-muted">{roleLabel[user.role]}</span><Status user={user} /><span className="col-span-2 text-sm font-medium tabular-nums xl:col-span-1">{formatBalance.format(user.balance)} <span className="text-xs text-muted">Croins</span></span><ArrowUpRight className="hidden size-4 justify-self-end text-muted xl:block" aria-hidden="true" />
+      </Link></li>)}</ul>
+      {!initial.items.length && <p className="p-6 text-sm text-muted">Nenhum usuário encontrado.</p>}
+    </Card>
+    <ListPagination base="/admin/usuarios" query={query} hasMore={initial.hasMore} />
+  </div>;
 }
-
-export function AdminUsers() {
-  const currentUser = useCurrentAdminUser();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<UserStatus | "all">("all");
-  const users = [currentUser, ...exampleUsers].filter(
-    (user) =>
-      (status === "all" || user.status === status) &&
-      normalize(`${user.name} ${user.username}`).includes(normalize(search.trim())),
-  );
-  return (
-    <div>
-      <h1 className="sr-only">Usuários</h1>
-      <SearchInput
-        aria-label="Buscar usuários no admin"
-        placeholder="Buscar por nome ou usuário"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-      <div className="my-4 flex flex-wrap items-center justify-between gap-3">
-        <div
-          className="flex flex-wrap gap-1"
-          role="group"
-          aria-label="Status dos usuários"
-        >
-          {(
-            [
-              ["all", "Todos"],
-              ["active", "Ativos"],
-              ["suspended", "Suspensos"],
-            ] as const
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              size="sm"
-              variant={status === value ? "secondary" : "ghost"}
-              aria-pressed={status === value}
-              onClick={() => setStatus(value)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-        <p className="text-xs text-muted" role="status">
-          {users.length} {users.length === 1 ? "usuário" : "usuários"}
-        </p>
-      </div>
-      <Card className="overflow-hidden p-0 sm:p-0">
-        <div
-          aria-hidden="true"
-          className="hidden grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem] items-center gap-4 px-5 py-4 text-xs text-muted xl:grid"
-        >
-          <span>Usuário</span>
-          <span>Permissão</span>
-          <span>Status</span>
-          <span>Saldo</span>
-          <span />
-        </div>
-        <ul className="divide-y divide-contrast/6">
-          {users.map((user) => (
-            <li key={user.id}>
-              <Link
-                href={`/admin/usuarios/${user.id}`}
-                aria-label={`Ver usuário ${user.username}`}
-                className="grid grid-cols-2 items-center gap-3 p-5 transition-colors hover:bg-contrast/10 motion-reduce:transition-none xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]"
-              >
-                <div className="col-span-2 flex min-w-0 items-center gap-3 xl:col-span-1">
-                  <UserAvatar user={user} />
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {user.name}
-                    </p>
-                    <p className="truncate text-xs text-muted">@{user.username}</p>
-                  </div>
-                </div>
-                <span className="text-sm text-muted">{user.role}</span>
-                <UserStatusBadge status={user.status} />
-                <span className="col-span-2 text-sm font-medium tabular-nums xl:col-span-1">
-                  {formatBalance.format(user.balance)}{" "}
-                  <span className="text-xs font-normal text-muted">Croins</span>
-                </span>
-                <ArrowUpRight
-                  className="hidden size-4 justify-self-end text-muted xl:block"
-                  aria-hidden="true"
-                />
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {users.length === 0 && (
-          <p className="p-6 text-sm text-muted">Nenhum usuário encontrado.</p>
-        )}
+function UserPermissions({ user }: { user: AdminUser }) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
+  const { refreshAccount } = useDemoSession();
+  return <Dialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }}><DialogTrigger asChild><Button variant="secondary">Editar permissão e status</Button></DialogTrigger>
+    <DialogContent aria-describedby={undefined}><DialogTitle>Permissão e status</DialogTitle><form className="mt-5 grid gap-4" onSubmit={async event => {
+      event.preventDefault(); if (pending) return;
+      const form = new FormData(event.currentTarget);
+      const input = userChangeSchema.safeParse({ role: form.get("role"), status: form.get("status"), expectedRole: user.role, expectedStatus: user.status, reason: form.get("reason") });
+      if (!input.success) return void toast.error(input.error.issues[0].message);
+      setPending(true);
+      try { await managementRequest(`/admin/users/${user.id}`, commandResultSchema, "PATCH", input.data); setOpen(false); toast.success("Usuário atualizado."); await refreshAccount(); router.refresh(); }
+      catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar o usuário."); }
+      finally { setPending(false); }
+    }}>
+      <Field>Permissão<Select name="role" defaultValue={user.role} disabled={pending}><option value="user">Usuário</option><option value="admin">Administrador</option></Select></Field>
+      <Field>Status<Select name="status" defaultValue={user.status} disabled={pending}><option value="active">Ativo</option><option value="suspended">Suspenso</option></Select></Field>
+      <Field>Motivo<Input name="reason" required minLength={3} maxLength={256} disabled={pending} /></Field>
+      <Button type="submit" loading={pending}>Salvar alterações</Button>
+    </form></DialogContent>
+  </Dialog>;
+}
+export function AdminUserDetail({ initial }: { initial: ReturnType<typeof adminUserDetailSchema.parse> }) {
+  const { user } = initial;
+  const [transactions, setTransactions] = useState(initial.transactions);
+  const [loading, setLoading] = useState(false);
+  return <div className="grid gap-5">
+    <Card className="flex flex-wrap items-center gap-4"><UserAvatar user={user} large /><div className="min-w-0 flex-1"><h1 className="break-words text-xl font-semibold">{user.displayName}</h1><p className="mt-1 text-sm text-muted">@{user.username}</p></div><Status user={user} /></Card>
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <Card className="grid gap-5"><h2 className="font-semibold">Dados da conta</h2><dl className="grid gap-4 text-sm"><div><dt className="text-muted">Permissão</dt><dd className="mt-1">{roleLabel[user.role]}</dd></div><div><dt className="text-muted">Cadastro</dt><dd className="mt-1">{adminDate(user.createdAt)}</dd></div><div><dt className="text-muted">Saldo em Croins</dt><dd className="mt-2 text-2xl font-semibold tabular-nums">{formatBalance.format(user.balance)}</dd></div></dl><AdminUserBalance userId={user.id} /><UserPermissions user={user} /></Card>
+      <Card className="min-w-0"><h2 className="font-semibold">Movimentações</h2><ul className="mt-3 divide-y divide-contrast/6">{transactions.items.map(entry => <li key={entry.id} className="flex items-start justify-between gap-4 py-4"><div className="min-w-0"><p className="break-words text-sm font-medium">{entry.description}</p><p className="mt-1 text-xs text-muted">{adminDate(entry.createdAt)}</p>{entry.reference && <p className="mt-1 break-words text-xs text-muted">{entry.reference}</p>}</div><div className="shrink-0 text-right"><p className={entry.amount > 0 ? "text-sm font-semibold tabular-nums text-brand" : "text-sm font-semibold tabular-nums"}>{entry.amount > 0 ? "+" : "−"}{formatBalance.format(Math.abs(entry.amount))} Croins</p><p className="mt-1 text-xs text-muted">Saldo: {formatBalance.format(entry.balance)}</p></div></li>)}</ul>
+        {!transactions.items.length && <p className="mt-4 text-sm text-muted">Nenhuma movimentação registrada ainda.</p>}
+        {transactions.hasMore && <Button className="mt-4" variant="secondary" loading={loading} onClick={async () => { if (loading) return; setLoading(true); try { const next = await managementRequest(`/admin/users/${user.id}/transactions?offset=${transactions.items.length}`, transactionsSchema); setTransactions(current => ({ items: [...current.items, ...next.items], hasMore: next.hasMore })); } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível carregar as movimentações."); } finally { setLoading(false); } }}>Carregar mais</Button>}
       </Card>
     </div>
-  );
-}
-
-export function AdminUserDetail({ id }: { id: string }) {
-  const currentUser = useCurrentAdminUser();
-  const session = useDemoSession();
-  const isCurrentUser = id === currentUser.id;
-  const fixture = exampleUsers.find((item) => item.id === id);
-  const user: AdminUser | undefined = isCurrentUser ? currentUser : fixture;
-  const [tab, setTab] = useState<"activity" | "bets">("activity");
-  if (!user) notFound();
-  const activity = isCurrentUser
-    ? session.transactions.map((item) => ({
-        ...item,
-        title: item.description,
-        detail: new Intl.DateTimeFormat("pt-BR", {
-          dateStyle: "medium",
-          timeStyle: "short",
-          timeZone: "America/Sao_Paulo",
-        }).format(new Date(item.createdAt)),
-      }))
-    : getExampleActivity(fixture!);
-  const predictions = isCurrentUser
-    ? session.predictions.map((item) => ({
-        question: item.market,
-        choice: item.outcome,
-        amount: item.stake,
-        status: (
-          {
-            pending: "Em aberto",
-            won: "Ganhou",
-            lost: "Perdeu",
-            refunded: "Devolvida",
-          } as const
-        )[item.status ?? "pending"],
-      }))
-    : examplePredictions;
-  return (
-    <div className="grid gap-5">
-      <Card className="flex flex-wrap items-center gap-4">
-        <UserAvatar user={user} large />
-        <div className="min-w-0 flex-1">
-          <h1 className="break-words text-xl font-semibold">{user.name}</h1>
-          <p className="mt-1 text-sm text-muted">@{user.username}</p>
-        </div>
-        <UserStatusBadge status={user.status} />
-      </Card>
-      <dl className="grid grid-cols-2 gap-4 2xl:grid-cols-4">
-        {[
-          ["Saldo em Croins", formatBalance.format(user.balance)],
-          ["Jogos disputados", user.games],
-          ["Apostas realizadas", user.bets],
-          ["Vitórias nos jogos", user.wins],
-        ].map(([label, value]) => (
-          <Card key={label} className="min-w-0 p-4 sm:p-5">
-            <dt className="text-xs text-muted">{label}</dt>
-            <dd className="mt-2 text-2xl font-semibold tabular-nums">
-              {value ?? "—"}
-            </dd>
-            {label === "Saldo em Croins" && isCurrentUser && (
-              <dd>
-                <AdminUserBalance />
-              </dd>
-            )}
-          </Card>
-        ))}
-      </dl>
-      <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <Card className="min-w-0 2xl:sticky 2xl:top-[calc(var(--header-height)+1rem)]">
-          <h2 className="font-semibold">Dados da conta</h2>
-          <dl className="mt-5 grid gap-5 text-sm">
-            {[
-              ["Nome", user.name],
-              ["Permissão", user.role],
-              ["Cadastro", user.joined ? date(user.joined) : "—"],
-              ["Último acesso", user.lastSeen ? date(user.lastSeen) : "—"],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-xs text-muted">{label}</dt>
-                <dd className="mt-1 break-words">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-        <Card className="min-w-0">
-          <div
-            className="mb-3 flex flex-wrap gap-1"
-            role="group"
-            aria-label="Histórico do usuário"
-          >
-            <Button
-              size="sm"
-              variant={tab === "activity" ? "secondary" : "ghost"}
-              aria-pressed={tab === "activity"}
-              onClick={() => setTab("activity")}
-            >
-              Movimentações
-            </Button>
-            <Button
-              size="sm"
-              variant={tab === "bets" ? "secondary" : "ghost"}
-              aria-pressed={tab === "bets"}
-              onClick={() => setTab("bets")}
-            >
-              Apostas
-            </Button>
-          </div>
-          <h2 className="sr-only">
-            {tab === "activity" ? "Movimentações recentes" : "Apostas recentes"}
-          </h2>
-          {tab === "activity" ? (
-            <ul className="divide-y divide-contrast/6">
-              {activity.length === 0 && (
-                <li className="py-4 text-sm text-muted">
-                  Nenhuma movimentação registrada ainda.
-                </li>
-              )}
-              {activity.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-start justify-between gap-4 py-4"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{item.title}</p>
-                    <p className="mt-1 text-xs text-muted">{item.detail}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p
-                      className={cn(
-                        "text-sm font-semibold tabular-nums",
-                        item.amount > 0
-                          ? "text-prediction-yes"
-                          : "text-prediction-no",
-                      )}
-                    >
-                      {item.amount > 0 ? "+" : ""}
-                      {formatBalance.format(item.amount)}{" "}
-                      <span className="text-xs">Croins</span>
-                    </p>
-                    <p className="mt-1 text-xs text-muted">
-                      Saldo: {formatBalance.format(item.balance)}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <ul className="divide-y divide-contrast/6">
-              {predictions.length === 0 && (
-                <li className="py-4 text-sm text-muted">
-                  Nenhuma aposta registrada ainda.
-                </li>
-              )}
-              {predictions.map((bet, index) => (
-                <li key={index} className="grid gap-2 py-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="min-w-0 flex-1 text-sm font-medium">
-                      {bet.question}
-                    </p>
-                    <Badge variant="secondary">{bet.status}</Badge>
-                  </div>
-                  <p className="text-xs text-muted">
-                    {bet.choice} · {formatBalance.format(bet.amount)} Croins
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-    </div>
-  );
+    <AuditHistory targetId={user.id} initial={initial.audit} />
+  </div>;
 }

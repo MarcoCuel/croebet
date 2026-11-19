@@ -17,6 +17,17 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
     } finally { await pool.end(); }
   });
   assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
+  // Exercise the production SQL with synthetic claims, including UTC/local date differences.
+  for (const [claimed, expected] of [
+    [null, null],
+    ['2026-11-19T01:00:00Z', '2026-11-19T03:00:00.000Z'],
+    ['2026-11-19T03:00:00Z', '2026-11-20T03:00:00.000Z'],
+    ['2026-12-31T23:00:00-03:00', '2027-01-01T03:00:00.000Z'],
+    ['2026-02-28T22:00:00-03:00', '2026-03-01T03:00:00.000Z'],
+  ]) {
+    const adapter = { query: (sql, params) => pool.query(`with wallet_accounts as (select 'account'::text id, 'user'::text user_id, 30 balance), daily_claims as (select 'account'::text account_id, $3::timestamptz claimed_at) ${sql}`, [...params, claimed]) };
+    assert.equal((await readDailyStatus(adapter, 'user')).nextClaimAt, expected);
+  }
   const session = randomUUID().replaceAll('-', '').repeat(2);
   const client = await pool.connect();
   let user;
@@ -43,7 +54,9 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   const winner = requests[race.findIndex(result => result.status === 'fulfilled')];
   const replay = await claimDailyReward(pool, user, session, winner);
   assert.equal(replay.balance, 40); assert.equal(replay.eligible, false);
-  assert.equal(Date.parse(replay.nextClaimAt) - Date.parse(replay.lastClaimAt), 24 * 3600000);
+  const nextLocal = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(replay.nextClaimAt));
+  assert.equal(nextLocal, '00:00');
+  assert.ok(Date.parse(replay.nextClaimAt) > Date.parse(replay.lastClaimAt));
   const entries = (await readTransactions(pool, user, 20, 0)).items;
   assert.deepEqual(entries.map(entry => entry.amount), [10, 30]);
   assert.deepEqual(entries.map(entry => entry.balance), [40, 30]);
@@ -51,7 +64,7 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   await assert.rejects(pool.query('update daily_claims set claimed_at=now() where account_id=$1', [account]));
   await assert.rejects(claimDailyReward(pool, user, 'invalid', randomUUID()), { code: 'UNAUTHENTICATED' });
 
-  // A fixture with an older claim exercises credit after the rolling interval.
+  // A fixture from the previous local day exercises the calendar reset.
   const otherName = `Economy_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
   const other = (await pool.query('insert into users (username, display_name, password_hash) values ($1,$1,$1) returning id', [otherName])).rows[0].id;
   users.push(other);
@@ -61,7 +74,7 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
     await grantInitialBalance(setup, other);
     const otherAccount = (await setup.query('select id from wallet_accounts where user_id=$1', [other])).rows[0].id;
     const receipt = await transferCroinsInTransaction(setup, { scope: 'fixture', idempotencyKey: other, from: issuanceAccountId, to: otherAccount, actorAccountId: otherAccount, amount: 10, reason: 'Resgate diário', reference: 'Fixture' });
-    await setup.query("insert into daily_claims (account_id,request_id,operation_id,claimed_at) values ($1,$2,$3,clock_timestamp()-interval '24 hours 1 second')", [otherAccount, randomUUID(), receipt.operationId]);
+    await setup.query("insert into daily_claims (account_id,request_id,operation_id,claimed_at) values ($1,$2,$3,((clock_timestamp() at time zone 'America/Sao_Paulo')::date::timestamp at time zone 'America/Sao_Paulo')-interval '1 hour')", [otherAccount, randomUUID(), receipt.operationId]);
     await setup.query("insert into sessions (token_hash,user_id,expires_at,idle_expires_at) values ($1,$2,now()+interval '1 day',now()+interval '1 day')", ['b'.repeat(64), other]);
     await setup.query('commit');
   } catch (error) { await setup.query('rollback'); throw error; } finally { setup.release(); }

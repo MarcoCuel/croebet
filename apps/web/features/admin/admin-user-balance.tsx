@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { commandResultSchema } from "@croebet/shared";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { balanceAdjustmentSchema } from "@croebet/shared";
+import { managementRequest } from "@/features/admin/management-api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,10 +17,11 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useDemoSession } from "@/features/auth/session-context";
-import { adjustOwnLocalWallet } from "@/features/betting/betting-storage";
 
-export function AdminUserBalance() {
-  const { username, permissions } = useDemoSession();
+export function AdminUserBalance({ userId }: { userId: string }) {
+  const { permissions, refreshWallet } = useDemoSession();
+  const router = useRouter();
+  const request = useRef<{ payload: string; id: string } | null>(null);
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<"add" | "remove">("add");
   const [pending, setPending] = useState(false);
@@ -63,12 +69,20 @@ export function AdminUserBalance() {
           className="grid gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (pending || !permissions.canManageSite || !username) return;
+            if (pending || !permissions.canManageSite) return;
             const form = event.currentTarget;
-            const amount = Number(new FormData(form).get("amount"));
+            const fields = new FormData(form);
+            const amount = Number(fields.get("amount"));
+            const reason = String(fields.get("reason"));
+            const payload = JSON.stringify([userId, direction, amount, reason]);
+            if (request.current?.payload !== payload) request.current = { payload, id: crypto.randomUUID() };
+            const input = balanceAdjustmentSchema.safeParse({ requestId: request.current.id, amount, direction, reason });
+            if (!input.success) return void toast.error(input.error.issues[0].message);
             setPending(true);
             try {
-              await adjustOwnLocalWallet(username, amount, direction);
+              await managementRequest(`/admin/users/${userId}/adjustments`, commandResultSchema, "POST", input.data);
+              request.current = null;
+              await refreshWallet(); router.refresh();
               form.reset();
               setOpen(false);
               toast.success(
@@ -94,12 +108,13 @@ export function AdminUserBalance() {
               name="amount"
               type="number"
               min={1}
-              max={999999}
+              max={Number.MAX_SAFE_INTEGER}
               step={1}
               required
               disabled={pending}
             />
           </Field>
+          <Field>Motivo<Input name="reason" required minLength={3} maxLength={256} disabled={pending} /></Field>
           <Button type="submit" loading={pending} disabled={pending}>
             {direction === "add" ? "Adicionar Croins" : "Retirar Croins"}
           </Button>

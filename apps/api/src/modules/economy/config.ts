@@ -4,7 +4,7 @@ import { economySchema } from "@croebet/shared";
 export const economy = Object.freeze(economySchema.parse({
   initialBalance: 30,
   dailyReward: 10,
-  dailyCooldownHours: 24,
+  dailyResetTimeZone: "America/Sao_Paulo",
   suggestedBets: [1, 5, 10, 50],
   defaultBet: 5,
 }));

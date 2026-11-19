@@ -18,7 +18,6 @@ test("rotas mantêm conteúdo, imagens, responsividade e conteúdo principal sem
     ["/", "Aposte na"],
     ["/jogos", "Jogos"],
     ["/apostas", "Apostas"],
-    ["/rankings", "Rankings"],
     ["/sobre", "Sobre o Croebet"],
     ["/jogos/roleta", "Rola Rola"],
   ]) {
@@ -350,7 +349,6 @@ test("navbar alterna a home e exibe títulos nas internas", async ({
   for (const [path, title] of [
     ["/jogos", "Jogos"],
     ["/apostas", "Apostas"],
-    ["/rankings", "Rankings"],
     ["/sobre", "Sobre"],
     ["/jogos/roleta", "Roleta Rola Rola"],
   ]) {

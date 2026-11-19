@@ -24,6 +24,7 @@ export type DemoSessionValue = Wallet & {
   daily: DailyStatus | null;
   walletReady: boolean;
   claimingDaily: boolean;
+  refreshAccount: () => Promise<void>;
   refreshWallet: () => Promise<void>;
   dailyClaimed: boolean;
   claimDaily: () => void;

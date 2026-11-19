@@ -64,6 +64,13 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     permissions: { canManageSite: user?.role === "admin" },
     avatar: user?.avatarUrl ?? null,
     balance: daily?.balance ?? 0, transactions: [], predictions: [], lastClaim: daily?.lastClaimAt ?? "",
+    refreshAccount: async () => {
+      const version = ++revision.current;
+      const next = await authRequest("/me");
+      if (version !== revision.current) return;
+      setUser(next); setReady(true);
+      if (!next) setWallet(null);
+    },
     refreshWallet: async () => {
       const accountId = user?.id;
       const version = revision.current;

@@ -1,4 +1,4 @@
-import { pgTable, bigint, bigserial, integer, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, bigint, bigserial, integer, boolean, jsonb, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 // Referência operacional: não contém valores da economia nem usuários demo.
 export const applicationEnvironment = pgTable("application_environment", {
@@ -74,3 +74,41 @@ export const dailyClaims = pgTable("daily_claims", {
   claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("daily_claim_request").on(table.accountId, table.requestId),
   index("daily_claim_account_time").on(table.accountId, table.claimedAt)]);
+
+
+export const coupons = pgTable("coupons", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(),
+  amount: bigint("amount", { mode: "bigint" }).notNull(),
+  limit: bigint("redemption_limit", { mode: "bigint" }),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  paused: boolean("paused").notNull().default(false),
+  version: integer("version").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [check("coupon_code", sql`${table.code} ~ '^[A-Z0-9_-]{3,32}$'`),
+  check("coupon_amount", sql`${table.amount} between 1 and 9007199254740991`),
+  check("coupon_limit", sql`${table.limit} is null or ${table.limit} between 1 and 9007199254740991`),
+  check("coupon_dates", sql`${table.startsAt} is null or ${table.endsAt} is null or ${table.endsAt} > ${table.startsAt}`)]);
+export const couponRedemptions = pgTable("coupon_redemptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  couponId: uuid("coupon_id").notNull().references(() => coupons.id),
+  codeSnapshot: text("code_snapshot").notNull(),
+  accountId: uuid("account_id").notNull().references(() => walletAccounts.id),
+  requestId: uuid("request_id").notNull(),
+  amount: bigint("amount", { mode: "bigint" }).notNull(),
+  operationId: uuid("operation_id").notNull().unique().references(() => walletOperations.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("coupon_account_once").on(table.couponId, table.accountId),
+  uniqueIndex("coupon_request_once").on(table.accountId, table.requestId),
+  index("coupon_redemption_history").on(table.couponId, table.createdAt),
+  check("redemption_amount", sql`${table.amount} between 1 and 9007199254740991`)]);
+export const adminAudit = pgTable("admin_audit", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actorId: uuid("actor_id").notNull(),
+  targetId: uuid("target_id").notNull(),
+  action: text("action").notNull(),
+  reason: text("reason").notNull(),
+  details: jsonb("details").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("admin_audit_target").on(table.targetId, table.createdAt)]);
