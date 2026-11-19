@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createDatabase } from '../../dist/db/client.js';
-import { readWallet, readTransactions, transferCroins } from '../../dist/modules/wallet/service.js';
+import { readWallet, readTransactions, transferCroins, transferCroinsInTransaction } from '../../dist/modules/wallet/service.js';
 
 test('PostgreSQL: carteira, concorrência, idempotência, rollback e histórico imutável', async t => {
   if (!process.env.TEST_DATABASE_URL) throw new Error('Configure TEST_DATABASE_URL com banco isolado migrado e identificado como test.');
@@ -18,6 +18,27 @@ test('PostgreSQL: carteira, concorrência, idempotência, rollback e histórico 
   const pot = (await pool.query("insert into wallet_accounts (kind) values ('pot') returning id")).rows[0].id;
   assert.deepEqual(await readWallet(pool, user), { balance: 0 });
   const grant = { scope: account, idempotencyKey: 'grant', from: source, to: account, actorAccountId: source, amount: 100, reason: 'Test grant', reference: user };
+  // A failed domain action must undo its own records AND the provisional credit.
+  const client = await pool.connect();
+  const rolledBackKey = 'domain-rollback';
+  try {
+    await client.query('begin');
+    const transientUser = (await client.query('insert into users (username, display_name, password_hash) values ($1,$1,$1) returning id', [`Rollback_${randomUUID().replaceAll('-', '').slice(0, 12)}`])).rows[0].id;
+    await transferCroinsInTransaction(client, { ...grant, idempotencyKey: rolledBackKey });
+    assert.equal((await client.query('select balance from wallet_accounts where id=$1', [account])).rows[0].balance, '100');
+    assert.deepEqual(await readWallet(pool, user), { balance: 0 });
+    await assert.rejects(client.query('select 1 / 0'));
+    await client.query('rollback');
+    assert.equal((await pool.query('select id from users where id=$1', [transientUser])).rowCount, 0);
+    assert.equal((await pool.query('select id from wallet_operations where scope=$1 and idempotency_key=$2', [account, rolledBackKey])).rowCount, 0);
+    assert.deepEqual(await readWallet(pool, user), { balance: 0 });
+    // The rolled-back key remains usable; retrying inside a transaction reuses its receipt.
+    await client.query('begin');
+    const first = await transferCroinsInTransaction(client, { ...grant, amount: 1, idempotencyKey: rolledBackKey });
+    const retry = await transferCroinsInTransaction(client, { ...grant, amount: 1, idempotencyKey: rolledBackKey });
+    assert.equal(first.operationId, retry.operationId);
+    await client.query('rollback');
+  } finally { await client.query('rollback'); client.release(); }
   const receipts = await Promise.all([transferCroins(pool, grant), transferCroins(pool, grant)]);
   assert.equal(receipts[0].operationId, receipts[1].operationId);
   assert.equal((await readWallet(pool, user)).balance, 100);
@@ -30,6 +51,11 @@ test('PostgreSQL: carteira, concorrência, idempotência, rollback e histórico 
   const history = await readTransactions(pool, user, 1, 0);
   assert.equal(history.hasMore, true); assert.equal(history.items[0].amount, -80); assert.equal(history.items[0].balance, 20);
   assert.equal((await readTransactions(pool, user, 1, 1)).items[0].amount, 100);
+  const income = await readTransactions(pool, user, 20, 0, 'income');
+  assert.deepEqual(income.items.map(entry => entry.amount), [100]);
+  assert.equal(income.hasMore, false);
+  assert.equal(income.items[0].reference, grant.reference);
+  assert.deepEqual((await readTransactions(pool, user, 20, 0, 'expense')).items.map(entry => entry.amount), [-80]);
   assert.equal((await pool.query('select sum(balance)::text as total from wallet_accounts where id=any($1::uuid[])', [[source, account, pot]])).rows[0].total, '0');
   await assert.rejects(pool.query('update wallet_accounts set balance=999 where id=$1', [account]));
   await assert.rejects(pool.query('update wallet_entries set amount=1 where account_id=$1', [account]));

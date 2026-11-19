@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { InitialSession } from "@/features/auth/initial-session";
 import type { PublicUser } from "@croebet/shared";
@@ -11,6 +12,7 @@ import { authRequest } from "@/features/auth/api";
 // The context's existing name is retained to avoid a visual/component rewrite.
 // Account identity now comes exclusively from the API; local wallets are never loaded.
 export function DemoSessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
+  const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(initialSession.user);
   const [ready, setReady] = useState(initialSession.ready);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
@@ -52,13 +54,13 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     openLogin: () => openAuth("login"), openRegister: () => openAuth("register"),
     signOut: async () => {
       ++revision.current;
-      try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); }
+      try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); router.refresh(); }
       catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível sair."); }
     },
     deleteAccount: async password => {
       ++revision.current;
       await authRequest("/me", "DELETE", { password });
-      ++revision.current; setUser(null);
+      ++revision.current; setUser(null); router.refresh();
     },
     updateDisplayName: async displayName => {
       ++revision.current;
@@ -80,7 +82,7 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     onSignIn={async (username, password) => {
       ++revision.current;
       const next = await authRequest(authMode === "register" ? "/auth/register" : "/auth/login", "POST", { username, password });
-      ++revision.current; setUser(next); setReady(true); setAuthMode(null);
+      ++revision.current; setUser(next); setReady(true); setAuthMode(null); router.refresh();
     }}
     onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
   /></DemoSession.Provider>;

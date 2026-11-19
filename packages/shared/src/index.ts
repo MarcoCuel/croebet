@@ -26,9 +26,10 @@ export const walletSchema = z.object({ balance: croinsSchema }).strict();
 export const transactionSchema = z.object({
   id: z.uuid(), createdAt: z.iso.datetime(), description: z.string(),
   amount: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).refine(value => value !== 0),
-  balance: croinsSchema,
+  balance: croinsSchema, reference: z.string().optional(),
 }).strict();
 export const transactionsQuerySchema = z.object({
+  direction: z.enum(["all", "income", "expense"]).default("all"),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
 }).strict();

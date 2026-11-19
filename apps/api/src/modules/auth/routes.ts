@@ -143,7 +143,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
     const query = transactionsQuerySchema.safeParse(request.query);
     if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
-    return readTransactions(pool, user.id, query.data.limit, query.data.offset);
+    return readTransactions(pool, user.id, query.data.limit, query.data.offset, query.data.direction);
   });
   app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
     const parsed = usernameSchema.safeParse(request.params.username);

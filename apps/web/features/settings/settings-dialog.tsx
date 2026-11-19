@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { AvatarSettings } from "@/features/settings/avatar-settings";
 import { useDemoSession } from "@/features/auth/session-context";
 import { useTheme } from "@/features/theme/theme-provider";
-import { WalletHistory } from "@/features/wallet/wallet-history";
+import Link from "next/link";
 import { formatBalance } from "@/features/wallet/wallet";
 import { cn } from "@/lib/utils";
 
@@ -157,7 +157,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <DeleteAccount onDeleted={onClose} />
           </div>
         )}
-        {section === "Histórico" && <WalletHistory compact />}
+        {section === "Histórico" && <Button asChild variant="secondary"><Link href="/historico" onClick={onClose}>Ver histórico de Croins</Link></Button>}
       </section>
     </>
   );
