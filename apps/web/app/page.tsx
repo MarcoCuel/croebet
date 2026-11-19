@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/features/seo/metadata";
 import { GameGrid } from "@/features/games/game-grid";
 import { HomeBanners } from "@/features/home/home-banners";
 import { PageShell } from "@/components/layout/page-shell";
@@ -15,3 +16,5 @@ export default function Home() {
     </PageShell>
   );
 }
+
+export async function generateMetadata() { return publicMetadata("/"); }

@@ -54,6 +54,8 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 - Publicar página não cria item de menu. Menus principal e rodapé são editados independentemente. Contratos, agendamento e versões estão em [Conteúdo e administração](backend-architecture.md#conteúdo-e-administração).
 - `/carteira` exibe saldo e extrato simples com filtros/paginação, detalhes em modal e datas de São Paulo; sem totais/gráficos extras. Mobile usa o mesmo resgate/modal de cupom do desktop.
 
+- SEO: `features/seo/metadata.ts` compõe título, descrição, canonical e compartilhamento no servidor, sem cache persistente. Campos vazios herdam padrões. Configure `WEB_ORIGIN` (ou `NEXT_PUBLIC_SITE_URL`) no web para URLs absolutas; admin, perfis, carteira e rotas sem SEO público herdam `noindex`.
+
 ## 3D sob demanda
 
 - React Three Fiber é o padrão de novas experiências; não migrar jogos existentes automaticamente. Siga `three/scenes/croin-preview.tsx`: fronteira cliente com `next/dynamic({ ssr: false })`.

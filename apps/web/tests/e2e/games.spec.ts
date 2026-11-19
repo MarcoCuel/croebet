@@ -1,3 +1,4 @@
+import { seoFieldsSchema } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import type { GameRecord } from "@croebet/shared";
@@ -35,7 +36,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  game = { id, slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 }; failure = false;
+  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 }; failure = false;
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const req = route.request(); const result = respond(new URL(req.url()).pathname, req.method(), req.postDataJSON() ?? {});

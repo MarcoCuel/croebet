@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   FileText,
+  Search,
   Ticket,
   LayoutDashboard,
   PlayingCards,
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
 
 const sections = [
+  { id: "seo", label: "SEO", Icon: Search },
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
   { id: "games", label: "Jogos", Icon: PlayingCards },
   { id: "markets", label: "Apostas", Icon: Tickets },

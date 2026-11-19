@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/features/seo/metadata";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Flip7Loader } from "@/features/games/flip7/flip7-loader";
@@ -9,7 +10,7 @@ type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await getPublicGames(slug);
-  return data ? { title: data.items[0] ? `${data.items[0].name} · Croebet` : "Página não encontrada · Croebet" } : {};
+  return data ? data.items[0] ? await publicMetadata(`/jogos/${slug}`, data.items[0].name, data.items[0].seo) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
 }
 export default async function Game({ params }: Props) {
   const { slug } = await params;

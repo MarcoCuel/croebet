@@ -99,6 +99,8 @@ Regras e valores aprovados estão em [CROEBET.md, seção 4.3](../CROEBET.md#43-
 - Apostas: catálogo começa vazio, com pergunta/critério/formato/opções/prazo/status. Regras puras de rateio permanecem como referência; não há persistência nem pagamento local de apostas.
 - Visão geral: períodos 1/7/30 dias no fuso de São Paulo; conta só lançamentos do lado do usuário para não duplicar a emissão. Ativos = contas com movimentação; saldo/contas atuais independem do período. Não agrega partidas ou apostas locais.
 
+- SEO: `/admin/seo` persiste padrões e ajustes de Home/Jogos; páginas e jogos têm campos opcionais próprios. Escrita com versão e auditoria. API pública desativa indexação fora de `APP_ENV=production`; sitemap inclui somente conteúdo público indexável.
+
 ## Próximas integrações
 
 Direção aprovada, ainda não implementada. Não criar estruturas antecipadamente só por constarem aqui.

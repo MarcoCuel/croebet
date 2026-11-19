@@ -1,13 +1,16 @@
+import { defaultSeoSettings, seoFieldsSchema } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import type { SitePageRecord } from "@croebet/shared";
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Admin", displayName: "Admin", role: "admin" };
-const base: SitePageRecord = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "sobre", title: "Sobre", document: [{ tag: "p", children: ["Conteúdo compartilhado"] }], published: true, showInMenu: true, version: 1, createdAt: null, updatedAt: null, publishedAt: null, lastEditedBy: null, status: "published", publishAt: null, authorId: user.id, authorName: user.displayName };
+const base: SitePageRecord = { seo: seoFieldsSchema.parse({}), id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "sobre", title: "Sobre", document: [{ tag: "p", children: ["Conteúdo compartilhado"] }], published: true, showInMenu: true, version: 1, createdAt: null, updatedAt: null, publishedAt: null, lastEditedBy: null, status: "published", publishAt: null, authorId: user.id, authorName: user.displayName };
 let pages: SitePageRecord[] = [];
 let failure = false;
 let api: Server;
 function respond(path: string, method: string, body: Record<string, unknown> = {}, authenticated = true): { status: number; data: unknown } {
+  if (path === "/api/v1/seo") return { status: 200, data: defaultSeoSettings };
+  if (path === "/api/v1/admin/seo") return { status: 200, data: method === "PATCH" ? { ...body, version: Number(body.version) + 1 } : defaultSeoSettings };
   if (path === "/api/v1/me") return { status: 200, data: { user: authenticated ? user : null } };
   if (path === "/api/v1/auth/csrf") return { status: 200, data: { token: "fixture" } };
   if (path === "/api/v1/economy") return { status: 200, data: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1, 5, 10, 50], defaultBet: 5 } };
@@ -181,4 +184,12 @@ test("listagem combina busca e status, move para o lixo e restaura sem publicar"
   await page.getByRole("button", { name: /^Rascunho/ }).click();
   await expect(list.getByRole("link", { name: "Sobre", exact: true })).toBeVisible();
   expect(pages[0].status).toBe("draft"); expect(pages[0].published).toBe(false);
+});
+
+test("SEO permite salvar os padrões e mostra confirmação", async ({ page }) => {
+  await page.goto("/admin/seo");
+  await page.getByLabel("Título SEO", { exact: true }).first().fill("Croebet da comunidade");
+  await page.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByText("SEO salvo.")).toBeVisible();
+  await expect(page.getByLabel("Título SEO", { exact: true }).first()).toHaveValue("Croebet da comunidade");
 });

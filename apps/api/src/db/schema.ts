@@ -1,11 +1,15 @@
 import { pgTable, bigint, bigserial, integer, boolean, jsonb, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+export const seoSettings = pgTable("seo_settings", {
+  id: integer("id").primaryKey(), data: jsonb("data").notNull(), version: integer("version").notNull().default(1),
+}, table => [check("seo_singleton", sql`${table.id} = 1`), check("seo_version_positive", sql`${table.version} > 0`)]);
 export const navigationMenus = pgTable("navigation_menus", {
   location: text("location").primaryKey(),
   items: jsonb("items").notNull(),
   version: integer("version").notNull().default(1),
 }, table => [check("menu_location_valid", sql`${table.location} in ('main','footer')`), check("menu_version_positive", sql`${table.version} > 0`)]);
 export const pages = pgTable("pages", {
+  seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
@@ -136,6 +140,7 @@ export const adminAudit = pgTable("admin_audit", {
 }, table => [index("admin_audit_target").on(table.targetId, table.createdAt)]);
 
 export const games = pgTable("games", {
+  seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
@@ -156,3 +161,23 @@ export const markets = pgTable("markets", {
   endsAt: timestamp("ends_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
 }, table => [check("market_version_positive", sql`${table.version} > 0`), check("market_type_valid", sql`${table.type} in ('binary','choice','number')`), check("market_status_valid", sql`${table.status} in ('draft','open','paused','closed')`)]);
+
+// Shared match lifecycle; each game validates its private state through its driver.
+export const gameMatches = pgTable("game_matches", {
+  id: uuid("id").primaryKey().defaultRandom(), code: text("code").notNull().unique(),
+  gameId: uuid("game_id").notNull().references(() => games.id), gameSlug: text("game_slug").notNull(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  rulesVersion: integer("rules_version").notNull(), version: integer("version").notNull(), status: text("status").notNull(), state: jsonb("state").notNull(),
+  creationRequestId: uuid("creation_request_id").notNull(), creationHash: text("creation_hash").notNull(), creationResponse: jsonb("creation_response").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("match_creation_request").on(table.ownerId, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), check("match_status", sql`${table.status} in ('playing','finished','abandoned')`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
+export const gameMatchPlayers = pgTable("game_match_players", {
+  id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }),
+  seat: integer("seat").notNull(), userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }), controllerId: uuid("controller_id").references(() => users.id, { onDelete: "set null" }), name: text("name").notNull(), kind: text("kind").notNull(),
+}, table => [uniqueIndex("match_seat").on(table.matchId,table.seat), check("match_seat_valid", sql`${table.seat}>=0`),check("match_player_kind",sql`${table.kind} in ('user','guest','bot')`)]);
+export const gameMatchCommands = pgTable("game_match_commands", {
+  id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }), commandId: uuid("command_id").notNull(), payloadHash: text("payload_hash").notNull(), response: jsonb("response").notNull(),
+}, table => [uniqueIndex("match_command_once").on(table.matchId,table.commandId)]);
+export const gameMatchEvents = pgTable("game_match_events", {
+  id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }), version: integer("version").notNull(), event: jsonb("event").notNull(),
+}, table => [uniqueIndex("match_event_version").on(table.matchId,table.version)]);

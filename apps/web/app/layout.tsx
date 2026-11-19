@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/features/seo/metadata";
 import { GameLinksProvider } from "@/features/games/game-links";
 import { getPublicGames } from "@/features/games/server-games";
 import type { Metadata } from "next";
@@ -21,13 +22,10 @@ const inter = localFont({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Croebet — O meu também é Betty",
-  description: "Jogos de sorte, previsões duvidosas e Croins em jogo.",
-  icons: {
-    icon: { url: "/favicon.png", type: "image/png", sizes: "512x512" },
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const metadata = await publicMetadata("/");
+  return { ...metadata, alternates: undefined, robots: { index: false, follow: true }, icons: { icon: { url: "/favicon.png", type: "image/png", sizes: "512x512" } } };
+}
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const apiUrl = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001";

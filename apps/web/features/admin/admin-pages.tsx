@@ -1,4 +1,6 @@
 "use client";
+import { SeoEditor } from "./seo-fields";
+import { seoFieldsSchema } from "@croebet/shared";
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
@@ -44,7 +46,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
     try {
       await managementRequest(`/admin/pages/${page.id}`, sitePageSchema, "PATCH", {
         slug: page.slug, title: page.title, document: page.document, published: false, showInMenu: page.showInMenu,
-        status, publishAt: null, authorId: page.authorId, version: page.version,
+        status, seo: page.seo, publishAt: null, authorId: page.authorId, version: page.version,
       });
       toast.success(status === "trash" ? "Página movida para o lixo." : "Página restaurada como rascunho.");
       router.refresh();
@@ -117,6 +119,7 @@ const dialogTitles: Record<EditorDialog, string> = { status: "Status", publish: 
 
 export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePageRecord | null; authors: PageAuthor[]; currentAuthor: PageAuthor }) {
   const router = useRouter();
+  const [seo, setSeo] = useState(page?.seo ?? seoFieldsSchema.parse({}));
   const [document, setDocument] = useState<RichTextDocument>(() => page?.document ?? []);
   const [title, setTitle] = useState(page?.title ?? "");
   const [customSlug, setCustomSlug] = useState<string | null>(page?.slug ?? null);
@@ -144,7 +147,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
     event.preventDefault();
     if (pending) return;
     if ((statusToSave === "published" || scheduled) && !richTextPlainText(document).trim()) return void toast.error("Escreva o conteúdo da página antes de publicar.");
-    const input = pageWriteSchema.safeParse({ title, slug, document, status: effectiveStatus, publishAt, authorId,
+    const input = pageWriteSchema.safeParse({ title, slug, document, seo, status: effectiveStatus, publishAt, authorId,
       published: effectiveStatus === "published", showInMenu: page?.showInMenu ?? false, version: page?.version ?? 0 });
     if (!input.success) return void toast.error(input.error.issues[0]?.message ?? "Confira os dados da página.");
     setPending("save");
@@ -188,6 +191,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
         <Field>Título<Input name="title" value={title} onChange={event => setTitle(event.target.value)} required maxLength={100} /></Field>
         <RichTextEditor label="Conteúdo principal" initialValue={document} onChange={setDocument} />
       </Card>
+      <SeoEditor value={seo} onChange={setSeo} />
     </form>
     <aside className="grid min-w-0 gap-5 xl:sticky xl:top-[calc(var(--header-height)+1rem)]" aria-label="Configurações da página">
       <Button type="submit" form="page-editor" loading={pending === "save"} disabled={!!pending}>{action}</Button>

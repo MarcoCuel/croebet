@@ -1,3 +1,4 @@
+import { publicMetadata } from "@/features/seo/metadata";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -8,7 +9,7 @@ import { loadPublicPage } from "@/features/pages/api";
 const getPage = cache((slug: string) => loadPublicPage(process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001", slug));
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const result = await getPage((await params).slug);
-  return result.status === "ready" ? { title: result.page.title + " · Croebet" } : result.status === "not-found" ? { title: "Página não encontrada · Croebet" } : {};
+  return result.status === "ready" ? await publicMetadata(`/${result.page.slug}`, result.page.title, result.page.seo) : result.status === "not-found" ? { title: "Página não encontrada · Croebet" } : {};
 }
 export default async function ContentPage({ params }: { params: Promise<{ slug: string }> }) {
   const result = await getPage((await params).slug);

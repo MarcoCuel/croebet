@@ -15,7 +15,11 @@ import { AdminCoupons } from "@/features/admin/admin-coupons";
 import { ManagementUnavailable } from "@/features/admin/management-shared";
 import { adminRoutes } from "@/features/admin/routes";
 
+import { seoSettingsSchema } from "@croebet/shared";
+import { AdminSeo } from "@/features/admin/admin-seo";
+
 const titles = {
+  seo: "SEO",
   overview: "Visão geral",
   games: "Jogos",
   markets: "Apostas",
@@ -48,6 +52,10 @@ export default async function AdminSectionPage({
     ([, href]) => href === `/admin/${section}`,
   );
   if (!entry) notFound();
+  if (section === "seo") {
+    const data = await getManagement("/admin/seo", seoSettingsSchema);
+    return <AdminAccess section="seo" content={data ? <AdminSeo initial={data} /> : <ManagementUnavailable />} />;
+  }
   if (section === "apostas") {
     const data = await getManagement("/admin/markets", catalogMarketsSchema);
     return <AdminAccess section="markets" content={data ? <AdminMarkets markets={data.items} /> : <ManagementUnavailable />} />;

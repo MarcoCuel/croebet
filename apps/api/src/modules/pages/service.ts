@@ -9,7 +9,7 @@ function project(row: Record<string, unknown>) {
   const publishAt = (row.publish_at as Date | null)?.toISOString() ?? null;
   const status = row.status === "scheduled" && publishAt && Date.parse(publishAt) <= Date.now() ? "published" : row.status ?? (row.published ? "published" : "draft");
   return sitePageSchema.parse({ id: row.id, slug: row.slug, title: row.title, document: row.document,
-    published: status === "published", status, publishAt, authorId: row.author_id ?? null, authorName: row.author_name ?? null,
+    seo: row.seo, published: status === "published", status, publishAt, authorId: row.author_id ?? null, authorName: row.author_name ?? null,
     showInMenu: row.show_in_menu, version: row.version,
     createdAt: (row.created_at as Date | null)?.toISOString() ?? null,
     updatedAt: (row.updated_at as Date | null)?.toISOString() ?? null,
@@ -56,7 +56,8 @@ export async function savePage(pool: Pool, actorId: string, hash: string, id: st
     const result = before
       ? await client.query("update pages set slug=$1,title=$2,document=$3,published=$4,show_in_menu=$5,last_edited_by=$6,status=$7,publish_at=$8,author_id=$9,author_name=$10,published_at=$11,updated_at=clock_timestamp(),version=version+1 where id=$12 returning *", [...params, before.id])
       : await client.query("insert into pages (slug,title,document,published,show_in_menu,last_edited_by,status,publish_at,author_id,author_name,published_at,created_at,updated_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,clock_timestamp(),clock_timestamp()) returning *", params);
-    const page = project(result.rows[0]);
+    await client.query("update pages set seo=$1 where id=$2", [JSON.stringify(input.seo ?? {}), result.rows[0].id]);
+    const page = project({ ...result.rows[0], seo: input.seo });
     await audit(client, actorId, page.id, before ? "page.updated" : "page.created", "Edição de página", { before: before ? project(before) : null, after: page });
     return page;
   });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 export * from "./rich-text.js";
 export * from "./pages.js";
+export * from "./seo.js";
 export * from "./menus.js";
 export * from "./icons.js";
 

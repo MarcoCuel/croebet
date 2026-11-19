@@ -16,6 +16,8 @@ import { readPageLinks, readPage, readPages, savePage, deletePage, readPageAutho
 import { menuLocationSchema, menuWriteSchema } from "@croebet/shared";
 import { readNavigation, readMenus, saveMenu } from "../menus/service.ts";
 import { overviewQuerySchema } from "@croebet/shared";
+import { readSeo, saveSeo } from "./seo.ts";
+import { seoSettingsSchema } from "@croebet/shared";
 import { readOverview } from "./overview.ts";
 
 type Options = { pool: Pool; sessionName: string; current: (token: string | undefined) => Promise<{ id: string; role: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
@@ -34,6 +36,15 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       throw error;
     }
   }
+  app.get("/api/v1/seo", async () => { const settings = await readSeo(pool); return { ...settings, index: process.env.APP_ENV === "production" && settings.index }; });
+  app.get("/api/v1/seo/paths", async () => {
+    const settings = await readSeo(pool);
+    if (process.env.APP_ENV !== "production" || !settings.index) return { paths: [] };
+    const [pages, games] = await Promise.all([readPages(pool), readGames(pool)]);
+    return { paths: [...(settings.home.index ? ["/"] : []), ...(settings.games.index ? ["/jogos"] : []), ...pages.items.filter(p => p.published && p.seo.index).map(p => `/${p.slug}`), ...games.items.filter(g => g.seo.index).map(g => `/jogos/${g.slug}`)] };
+  });
+  app.get("/api/v1/admin/seo", (request, reply) => run(request, reply, true, async () => readSeo(pool)));
+  app.patch("/api/v1/admin/seo", (request, reply) => run(request, reply, true, async (actor, hash) => saveSeo(pool, actor.id, hash, seoSettingsSchema.parse(request.body))));
   app.get("/api/v1/admin/overview", (request, reply) => run(request, reply, true, async () => readOverview(pool, overviewQuerySchema.parse(request.query).days)));
   app.get("/api/v1/games", async () => readGames(pool));
   app.get("/api/v1/games/:slug", async (request, reply) => {
