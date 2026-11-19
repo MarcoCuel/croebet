@@ -91,7 +91,7 @@ export async function adjustBalance(pool: Pool, actorId: string, hash: string, t
     const adding = input.direction === "add";
     const receipt = await transferCroinsInTransaction(client, { scope: `adjustment:${actorId}`, idempotencyKey: input.requestId,
       from: adding ? issuanceAccountId : target.id, to: adding ? target.id : issuanceAccountId, actorAccountId: actor.id,
-      amount: input.amount, reason: adding ? "Ajuste administrativo · Crédito" : "Ajuste administrativo · Retirada", reference: input.reason });
+      amount: input.amount, reason: adding ? "Ajuste administrativo · Crédito" : "Ajuste administrativo · Retirada", reference: input.reason || "Ajuste administrativo" });
     await audit(client, actorId, targetId, "wallet.adjustment", input.reason, { requestId: input.requestId, payloadHash, direction: input.direction, amount: input.amount, operationId: receipt.operationId });
   });
 }

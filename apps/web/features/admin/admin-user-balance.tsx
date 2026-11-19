@@ -114,7 +114,7 @@ export function AdminUserBalance({ userId }: { userId: string }) {
               disabled={pending}
             />
           </Field>
-          <Field>Motivo<Input name="reason" required minLength={3} maxLength={256} disabled={pending} /></Field>
+          <Field>Motivo (opcional)<Input name="reason" maxLength={256} disabled={pending} /></Field>
           <Button type="submit" loading={pending} disabled={pending}>
             {direction === "add" ? "Adicionar Croins" : "Retirar Croins"}
           </Button>

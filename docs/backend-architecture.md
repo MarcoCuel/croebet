@@ -257,7 +257,7 @@ As etapas 1–3 tiveram implementação autorizada e iniciada; validar os bloque
 | 2 | Fastify, shared, PostgreSQL e Drizzle | 1 | API inicia isolada; migrations constroem base vazia; Zod valida contratos; resets recusam produção/ambiguidade; seeds somente de referência. |
 | 3 | Cadastro, sessões e permissões | 2; decisão de username/sessões | Senha verificada, unicidade concorrente, cookie/CSRF/CORS e revogação testados. Recuperação só se houver política aprovada. |
 | 4 | Livro de Croins e concessão inicial | 3; valores aprovados | Cadastro/carteira/concessão atômicos; concorrência não permite gasto excessivo; retry não duplica lançamento. |
-| 5 | Perfil, avatar e usuários administrativos | 3–4 | Dados reais substituem fixtures; suspensão revoga acesso; ajustes têm motivo e auditoria; arquivos validados na API. |
+| 5 | Perfil, avatar e usuários administrativos | 3–4 | Dados reais substituem fixtures; suspensão revoga acesso; ajustes têm motivo opcional e auditoria; arquivos validados na API. |
 | 6 | Bônus diário | 4; recompensa aprovada | Uma concessão por usuário/dia de São Paulo, inclusive sob concorrência e retry. |
 | 7 | Cupons e resgates | 4–5 | Editor existente integrado; datas/limites/pausa/uso único/crédito validados juntos; histórico exibe valor concedido. |
 | 8 | Catálogo e páginas | 2–3 | Publicação compartilhada, rascunhos privados e pausa conferida pelo servidor. Seeds de referência reproduzíveis. |
@@ -525,13 +525,13 @@ Migration `0007_lively_psynapse` cria `coupons`, `coupon_redemptions` e `admin_a
 | `GET /api/v1/admin/users?q=&status=all&offset=0&limit=20` | Contas reais com nome/usuário, papel, status, data de cadastro, avatar e saldo. |
 | `GET /api/v1/admin/users/:id` | Dados da conta, primeiras movimentações e registros administrativos. |
 | `GET /api/v1/admin/users/:id/transactions` | Paginação do livro da carteira alvo. |
-| `PATCH /api/v1/admin/users/:id` | Papel/status, motivo obrigatório e estado anterior esperado; alterações obsoletas retornam conflito. |
+| `PATCH /api/v1/admin/users/:id` | Papel/status, motivo opcional e estado anterior esperado; alterações obsoletas retornam conflito. |
 | `POST /api/v1/admin/users/:id/adjustments` | `{ requestId, direction: add|remove, amount, reason }`; saldo, lançamentos e auditoria atômicos. |
 | `GET /api/v1/admin/audit/:id` | Registros paginados por recurso alvo, incluindo autor, motivo e detalhes. |
 | `GET /api/v1/admin/coupons?q=&status=Todos&offset=0&limit=20` | Cupons, status calculado no servidor, totais reais de resgates e distribuição. |
 | `GET /api/v1/admin/coupons/:id` | Configuração, primeiros resgates e auditoria. |
 | `GET /api/v1/admin/coupons/:id/redemptions?q=&offset=0&limit=20` | Resgates paginados e busca por usuário. |
-| `POST /api/v1/admin/coupons` / `PATCH /api/v1/admin/coupons/:id` | Código, valor livre, limite global opcional, datas opcionais, pausa, versão e motivo obrigatório. |
+| `POST /api/v1/admin/coupons` / `PATCH /api/v1/admin/coupons/:id` | Código, valor livre, limite global opcional, datas opcionais, pausa, versão e motivo opcional. |
 | `POST /api/v1/coupons/redeem` | `{ code, requestId }`; crédito e recibo de uso único na mesma transação. |
 
 ### Permissões e auditoria
@@ -548,7 +548,7 @@ Código é normalizado para maiúsculas e único. Valores são inteiros positivo
 
 Cada resgate bloqueia a sessão/usuário, o cupom e as contas do livro. Limites e validade são conferidos após obter os locks econômicos, usando o relógio do PostgreSQL. Unicidade de cupom/carteira e de carteira/requestId é imposta no banco. Duas pessoas não podem consumir a última vaga; duas abas da mesma pessoa não geram dois créditos. Retry com a mesma chave e código retorna estado confirmado sem pagar novamente; reaproveitar a chave para outro código é conflito. Resgate registra código e valor efetivamente concedidos, preservados mesmo se o cupom for editado depois. Editar configuração exige versão atual e não pode reduzir limite abaixo dos resgates já realizados. Os recibos de resgate são imutáveis.
 
-Créditos de cupom e ajustes usam a conta técnica de emissão e o ledger existente; retiradas não podem tornar a carteira negativa, e overflow é recusado. Todos geram lançamentos com saldo resultante e referência. O motivo do ajuste aparece como referência no extrato e também na auditoria. Ajustes são idempotentes por administrador/requestId, com hash do conteúdo para recusar reutilização com outro alvo, valor, direção ou motivo. Auditoria e lançamento confirmam juntos; falha em um desfaz todos. O contexto de saldo e as páginas de histórico são atualizados após confirmação, sem gravação econômica no localStorage.
+Créditos de cupom e ajustes usam a conta técnica de emissão e o ledger existente; retiradas não podem tornar a carteira negativa, e overflow é recusado. Todos geram lançamentos com saldo resultante e referência. O motivo é opcional nos ajustes, nas alterações de permissão/status e na criação/edição de cupons; ausência ou texto em branco é normalizado para uma string vazia na auditoria. Quando informado, o motivo do ajuste aparece como referência no extrato e também na auditoria; sem motivo, a referência é “Ajuste administrativo”. Ajustes são idempotentes por administrador/requestId, com hash do conteúdo para recusar reutilização com outro alvo, valor, direção ou motivo. Auditoria e lançamento confirmam juntos; falha em um desfaz todos. O contexto de saldo e as páginas de histórico são atualizados após confirmação, sem gravação econômica no localStorage.
 
 Validação desta rodada: 163 testes unitários aprovados (35 API, 125 web, três contratos), lint e TypeScript aprovados; builds shared/API e produção web com Webpack aprovados. O build padrão Turbopack foi tentado e encontrou EPERM no processamento CSS ao abrir uma porta. A suíte E2E específica de gestão foi preparada para HTML inicial, permissões, ajustes, criação/resgate de cupom e recuperação de indisponibilidade, mas o servidor não iniciou por EPERM na porta 3100. A nova suíte PostgreSQL cobre corrida pelo último resgate, uso único, edição concorrente, imutabilidade, rollback após crédito, suspensão e duas demissões simultâneas de admin; sua execução ficou bloqueada pela ausência de TEST_DATABASE_URL. Docker recusou acesso ao socket nesta sessão. Não considerar a validação integrada concluída antes de executar essas suítes em banco de teste isolado e navegador.
 

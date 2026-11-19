@@ -64,7 +64,7 @@ function UserPermissions({ user }: { user: AdminUser }) {
     }}>
       <Field>Permissão<Select name="role" defaultValue={user.role} disabled={pending}><option value="user">Usuário</option><option value="admin">Administrador</option></Select></Field>
       <Field>Status<Select name="status" defaultValue={user.status} disabled={pending}><option value="active">Ativo</option><option value="suspended">Suspenso</option></Select></Field>
-      <Field>Motivo<Input name="reason" required minLength={3} maxLength={256} disabled={pending} /></Field>
+      <Field>Motivo (opcional)<Input name="reason" maxLength={256} disabled={pending} /></Field>
       <Button type="submit" loading={pending}>Salvar alterações</Button>
     </form></DialogContent>
   </Dialog>;

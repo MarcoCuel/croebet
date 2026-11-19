@@ -62,7 +62,7 @@ export const couponAmountSchema = z.number().int().positive().max(Number.MAX_SAF
 
 export const roleSchema = z.enum(["user", "admin"]);
 export const userStatusSchema = z.enum(["active", "suspended"]);
-export const reasonSchema = z.string().trim().min(3, "Informe um motivo com pelo menos 3 caracteres.").max(256).regex(/^[^\u0000-\u001f\u007f]+$/u);
+export const reasonSchema = z.string().trim().max(256).regex(/^[^\u0000-\u001f\u007f]*$/u).default("");
 export const adminQuerySchema = z.object({
   q: z.string().trim().max(80).default(""),
   status: z.enum(["all", "active", "suspended"]).default("all"),

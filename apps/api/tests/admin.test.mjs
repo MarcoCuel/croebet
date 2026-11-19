@@ -143,3 +143,38 @@ test('contagens de cupons incluem status vazios e não dependem da página selec
   assert.deepEqual(calls[1][1], ['%CROE%']);
   assert.ok(!calls[1][0].includes('$2'));
 });
+
+test('motivo administrativo aceita ausência, branco e texto curto, preservando limites', () => {
+  const inputs = [
+    [balanceAdjustmentSchema, { requestId, direction: 'add', amount: 7 }],
+    [balanceAdjustmentSchema, { requestId, direction: 'remove', amount: 7 }],
+    [userChangeSchema, { role: 'user', status: 'suspended', expectedRole: 'user', expectedStatus: 'active' }],
+    [couponWriteSchema, { ...coupon, reason: undefined }],
+  ];
+  for (const [schema, input] of inputs) {
+    for (const reason of [undefined, '', '   ']) assert.equal(schema.parse({ ...input, reason }).reason, '');
+    assert.equal(schema.parse({ ...input, reason: ' ok ' }).reason, 'ok');
+    for (const reason of ['a'.repeat(257), 'texto\u0000inválido', null]) assert.equal(schema.safeParse({ ...input, reason }).success, false);
+  }
+});
+
+test('crédito e retirada sem motivo geram lançamento e auditoria na mesma transação', async () => {
+  const { issuanceAccountId } = await import('../dist/modules/economy/config.js');
+  for (const direction of ['add', 'remove']) {
+    const db = database(async sql => {
+      if (sql.startsWith('select id,user_id from wallet_accounts')) return { rows: [{ id: actor, user_id: actor }, { id: target, user_id: target }] };
+      if (sql.startsWith('select id, kind, user_id, balance from wallet_accounts')) return { rows: [
+        { id: issuanceAccountId, kind: 'issuance', user_id: null, balance: '-100' },
+        { id: target, kind: 'user', user_id: target, balance: '30' },
+      ] };
+      return { rows: [] };
+    });
+    await adjustBalance(db.pool, actor, 'hash', target, balanceAdjustmentSchema.parse({ requestId, direction, amount: 7 }));
+    const operation = db.calls.find(([sql]) => sql.startsWith('insert into wallet_operations'));
+    assert.equal(operation[1][6], 'Ajuste administrativo');
+    const audit = db.calls.find(([sql]) => sql.startsWith('insert into admin_audit'));
+    assert.equal(audit[1][3], '');
+    assert.ok(db.calls.some(([sql]) => sql.startsWith('insert into wallet_entries')));
+    assert.ok(db.calls.some(([sql]) => sql === 'commit'));
+  }
+});

@@ -90,16 +90,15 @@ test("alteração de permissão envia motivo e estado esperado ao backend", asyn
   await expect(page.getByText("Equipe de moderação", { exact: true })).toBeVisible();
   expect(lastBody.expectedRole).toBe("user"); expect(lastBody.role).toBe("admin");
 });
-test("ajuste exige motivo e atualiza saldo e movimentações", async ({ page }) => {
+test("ajuste sem motivo atualiza saldo e movimentações", async ({ page }) => {
   await page.goto(`/admin/usuarios/${userId}`);
   await page.getByRole("button", { name: "Ajustar Croins" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Valor em Croins").fill("7");
-  await dialog.getByLabel("Motivo").fill("Correção do saldo");
   await dialog.getByRole("button", { name: "Adicionar Croins", exact: true }).click();
   await expect(page.getByText("Ajuste administrativo · Crédito")).toBeVisible();
   await expect(page.getByText("Saldo: 37", { exact: true })).toBeVisible();
-  expect(lastBody.amount).toBe(7); expect(lastBody.reason).toBe("Correção do saldo"); expect(lastBody.requestId).toEqual(expect.any(String));
+  expect(lastBody.amount).toBe(7); expect(lastBody.reason).toBe(""); expect(lastBody.requestId).toEqual(expect.any(String));
 });
 test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", async ({ page }) => {
   await page.goto("/admin/cupons/novo");
