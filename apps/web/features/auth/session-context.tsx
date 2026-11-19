@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { Prediction } from "@/features/betting/types";
 import type { SessionPermissions } from "@/features/auth/permissions";
+import type { Economy, DailyStatus } from "@croebet/shared";
 import type { Wallet } from "@/features/wallet/wallet";
 
 export type DemoSessionValue = Wallet & {
@@ -19,6 +20,11 @@ export type DemoSessionValue = Wallet & {
   openRegister: () => void;
   signOut: () => void;
   deleteAccount: (password: string) => Promise<void>;
+  economy: Economy | null;
+  daily: DailyStatus | null;
+  walletReady: boolean;
+  claimingDaily: boolean;
+  refreshWallet: () => Promise<void>;
   dailyClaimed: boolean;
   claimDaily: () => void;
   addBalance: (amount: number) => void;

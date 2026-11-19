@@ -96,6 +96,7 @@ export function Topbar({
     username,
     sessionReady,
     balance,
+    walletReady,
     openLogin,
     openRegister,
   } = useDemoSession();
@@ -176,7 +177,7 @@ export function Topbar({
               className="min-h-0 min-w-0 shrink px-0.5 py-0 font-normal text-foreground"
             >
               <Link href="/historico" aria-label="Ver histórico de Croins">
-                <Balance value={balance} />
+                <Balance value={walletReady ? balance : null} />
               </Link>
             </Button>
             <RedeemButton />
@@ -188,7 +189,7 @@ export function Topbar({
               className="min-w-0 shrink px-2 font-normal md:hidden"
             >
               <Link href="/historico" aria-label="Ver histórico de Croins">
-                <Balance value={balance} />
+                <Balance value={walletReady ? balance : null} />
               </Link>
             </Button>
             <div className="hidden md:block">

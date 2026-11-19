@@ -1,5 +1,7 @@
 import { readWallet, readTransactions } from "../wallet/service.ts";
-import { transactionsQuerySchema } from "@croebet/shared";
+import { economy } from "../economy/config.ts";
+import { grantInitialBalance, readDailyStatus, claimDailyReward, RewardError } from "../economy/service.ts";
+import { dailyClaimSchema, transactionsQuerySchema } from "@croebet/shared";
 import { randomUUID } from "node:crypto";
 import { avatarMaxBytes, avatarContentTypes, processAvatar, InvalidAvatar } from "../avatars/image.ts";
 import { avatarUrl, validAvatarKey, type AvatarStorage } from "../avatars/storage.ts";
@@ -133,6 +135,26 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!user && request.cookies[sessionName]) reply.clearCookie(sessionName, cookieOptions);
     return sessionSchema.parse({ user: user ? publicUser(user) : null });
   });
+  app.get("/api/v1/economy", async () => economy);
+  app.get("/api/v1/rewards/daily", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    return readDailyStatus(pool, user.id);
+  });
+  app.post("/api/v1/rewards/daily/claim", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const input = dailyClaimSchema.safeParse(request.body);
+    if (!input.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Pedido de resgate inválido." } });
+    if (!await limit(`daily:${user.id}`, 120)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    try { return await claimDailyReward(pool, user.id, tokenHash(request.cookies[sessionName]!), input.data.requestId); }
+    catch (error) {
+      if (error instanceof RewardError) return reply.code(error.code === "UNAUTHENTICATED" ? 401 : 409).send({ error: {
+        code: error.code, message: error.code === "UNAUTHENTICATED" ? "Entre novamente." : `Aguarde ${economy.dailyCooldownHours} horas desde o último resgate.`,
+      } });
+      throw error;
+    }
+  });
   app.get("/api/v1/me/wallet", async (request, reply) => {
     const user = await current(request.cookies[sessionName]);
     if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
@@ -164,7 +186,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       await client.query("begin");
       const result = await client.query("insert into users (username, display_name, password_hash) values ($1, $1, $2) returning *", [parsed.data.username, password]);
       const user = result.rows[0] as UserRow;
-      await client.query("insert into wallet_accounts (user_id, kind) values ($1, 'user')", [user.id]);
+      await grantInitialBalance(client, user.id);
       // Rotate an existing browser session, never keep a caller-chosen session ID.
       if (request.cookies[sessionName]) await client.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
       const token = await issue(client, user.id);

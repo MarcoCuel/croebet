@@ -1,6 +1,6 @@
 import { formatBalance } from "./wallet";
 
-export function Balance({ value }: { value: number }) {
+export function Balance({ value }: { value: number | null }) {
   return (
     <span className="flex min-w-0 items-center gap-2 tabular-nums">
       <span
@@ -11,7 +11,7 @@ export function Balance({ value }: { value: number }) {
       </span>
       <span className="truncate" aria-live="polite">
         <span className="sr-only">Saldo de </span>
-        {formatBalance.format(value)}{" "}
+        {value === null ? "—" : formatBalance.format(value)}{" "}
         <span className="sr-only">{value === 1 ? "Croin" : "Croins"}</span>
       </span>
     </span>

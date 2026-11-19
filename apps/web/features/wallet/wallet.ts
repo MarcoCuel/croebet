@@ -14,20 +14,13 @@ export type Wallet = {
   predictions: Prediction[];
   lastClaim: string;
 };
-export const dailyReward = 67;
 export const initialWallet: Wallet = {
   transactions: [],
-  balance: 1067,
+  balance: 0,
   predictions: [],
   lastClaim: "",
 };
 export const formatBalance = new Intl.NumberFormat("pt-BR");
-
-export function today() {
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  }).format();
-}
 
 export function isPrediction(value: unknown): value is Prediction {
   if (!value || typeof value !== "object") return false;
@@ -116,18 +109,6 @@ export function removeCroins(wallet: Wallet, amount: number): Wallet {
   )
     return wallet;
   return recordTransaction(wallet, -amount, "Retirada de Croins pelo admin");
-}
-
-export function claimReward(wallet: Wallet, date: string): Wallet {
-  if (
-    wallet.lastClaim === date ||
-    !Number.isSafeInteger(wallet.balance + dailyReward)
-  )
-    return wallet;
-  return {
-    ...recordTransaction(wallet, dailyReward, "Bônus diário"),
-    lastClaim: date,
-  };
 }
 
 export function registerPrediction(

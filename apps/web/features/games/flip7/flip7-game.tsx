@@ -176,7 +176,7 @@ function ParticipantSlot({ index, player, botsOnly, onChange }: { index: number;
 }
 
 function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], options: GameOptions, stake: number) => Promise<void>; initialError: string }) {
-  const { username, balance, openLogin } = useDemoSession();
+  const { username, balance, economy, openLogin } = useDemoSession();
   const [matches, setMatches] = useState<SavedMatch[]>(() => {
     try { return readMatches(); } catch { return []; }
   });
@@ -188,12 +188,13 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
     window.addEventListener("storage", refresh);
     return () => window.removeEventListener("storage", refresh);
   }, []);
-  const pendingMatches = matches.filter(match => match.game.phase !== "over" && (!match.wager || match.wager.username.toLowerCase() === username?.toLowerCase()));
+  const pendingMatches = matches.filter(match => match.game.phase !== "over" && !match.wager);
   const [withCroins, setWithCroins] = useState(false);
-  const [stake, setStake] = useState("50");
+  const [stake, setStake] = useState<string | null>(null);
+  const displayStake = stake ?? (economy ? String(economy.defaultBet) : "");
   const [starting, setStarting] = useState(false);
   const startingRef = useRef(false);
-  const amount = Number(stake);
+  const amount = Number(displayStake);
   const [preferences] = useState(readSetupPreferences);
   const [count, setCount] = useState(preferences.count);
   const [options, setOptions] = useState<GameOptions>({ mode: preferences.mode, brutal: preferences.brutal });
@@ -227,7 +228,11 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
                 <Switch checked={withCroins} onCheckedChange={setWithCroins} />
               </Field>
               {withCroins && <div className="mt-4 space-y-3">
-                <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={stake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
+                <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={displayStake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Valores rápidos">
+                  {(economy?.suggestedBets ?? []).map(value => <Button key={value} size="sm" variant={amount === value ? "outline" : "secondary"} aria-pressed={amount === value} onClick={() => setStake(String(value))}>{value} Croins</Button>)}
+                </div>
+                <p className="text-sm text-muted">Partidas com Croins ainda não estão disponíveis.</p>
                 <dl className="text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-brand tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
                 </dl>
@@ -254,7 +259,7 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
               </div>
               {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
             </div>
-            <Button className="mt-auto w-full" loading={starting} disabled={starting || (!!username && (!ready || !validStake || insufficient))} onClick={async () => {
+            <Button className="mt-auto w-full" loading={starting} disabled={starting || withCroins || (!!username && (!ready || !validStake || insufficient))} onClick={async () => {
               if (!username) openLogin();
               else if (ready && validStake && !insufficient && !startingRef.current) {
                 startingRef.current = true;
@@ -312,7 +317,10 @@ function Flip7Table({ code }: { code: string | null }) {
   const [resultDismissed, setResultDismissed] = useState(false);
   const [resultReady, setResultReady] = useState(false);
   const resultTriggerRef = useRef<HTMLButtonElement>(null);
-  const [restored] = useState(() => code ? currentMatch(code) : { match: null, error: "" });
+  const [restored] = useState(() => {
+    const saved = code ? currentMatch(code) : { match: null, error: "" };
+    return saved.match?.wager ? { match: null, error: "Partidas com Croins ainda não estão disponíveis." } : saved;
+  });
   const [game, setGame] = useState<Game | null>(restored.match?.game ?? null);
   const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(restored.match?.game ?? null));
   const resolvingCardFinished = !!resolvingCard && !game?.forced;
@@ -609,6 +617,7 @@ function Flip7Table({ code }: { code: string | null }) {
   }, [game, resolvingCardFinished, flight, movingCards, exitOpen, send, wagerReady, leaving]);
 
   if (!game) return <SetupScreen initialError={restored.error} onStart={async (setup, options, stake) => {
+    if (stake > 0) { toast.info("Partidas com Croins ainda não estão disponíveis."); return; }
     const next = createGame(setup, Math.floor(Math.random() * 4294967296), options);
     const code = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
     const match: SavedMatch = { version: 1, code, game: next, ...(stake ? { wager: { username: setup[0].name, stake } } : {}) };

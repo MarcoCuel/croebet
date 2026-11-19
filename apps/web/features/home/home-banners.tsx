@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState, type ComponentProps } from "react";
 import { useDemoSession } from "@/features/auth/session-context";
-import { dailyReward } from "@/features/wallet/wallet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heading } from "@/components/shared/heading";
@@ -22,28 +21,19 @@ function Banner({ className, ...props }: ComponentProps<"div">) {
 }
 
 export function HomeBanners() {
-  const { username, openRegister, dailyClaimed, claimDaily } = useDemoSession();
-  const [now, setNow] = useState(() => Date.now());
-
+  const { username, openRegister, economy, daily, claimDaily, claimingDaily, refreshWallet } = useDemoSession();
+  const [clock, setClock] = useState({ snapshot: daily?.serverNow, elapsed: 0 });
+  const elapsed = clock.snapshot === daily?.serverNow ? clock.elapsed : 0;
   useEffect(() => {
-    if (!dailyClaimed) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    if (!daily?.nextClaimAt) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => setClock({ snapshot: daily.serverNow, elapsed: Date.now() - started }), 1000);
     return () => window.clearInterval(timer);
-  }, [dailyClaimed]);
-
-  const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Sao_Paulo",
-    hourCycle: "h23",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(now)).split(":").map(Number);
-  const seconds = 86400 - (time[0] * 3600 + time[1] * 60 + time[2]);
-  const countdown = [
-    Math.floor(seconds / 3600),
-    Math.floor((seconds % 3600) / 60),
-    seconds % 60,
-  ].map((value) => String(value).padStart(2, "0")).join(":");
+  }, [daily]);
+  const seconds = daily?.nextClaimAt ? Math.max(0, Math.ceil((Date.parse(daily.nextClaimAt) - Date.parse(daily.serverNow) - elapsed) / 1000)) : 0;
+  const coolingDown = seconds > 0;
+  const countdown = [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
+    .map(value => String(value).padStart(2, "0")).join(":");
   return (
     <section
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
@@ -74,15 +64,15 @@ export function HomeBanners() {
       </Banner>
       <Banner className="bg-linear-to-b from-reward-start to-reward-end text-foreground">
         <Badge className="tabular-nums">
-          {dailyClaimed ? `Próximo resgate em ${countdown}` : "Disponível"}
+          {!username ? "Entre para resgatar" : !daily ? "Indisponível" : coolingDown ? `Próximo resgate em ${countdown}` : "Disponível"}
         </Badge>
         <div>
           <Heading variant="banner">Resgate diário</Heading>
           <p className="mt-3 text-sm sm:text-base">
-            {dailyReward} Croins por dia
+            {economy ? `${economy.dailyReward} Croins a cada ${economy.dailyCooldownHours} horas` : "Resgate temporariamente indisponível"}
           </p>
-          <Button className="mt-5" onClick={claimDaily} disabled={dailyClaimed}>
-            {dailyClaimed ? "Resgatado hoje" : "Resgatar"}
+          <Button className="mt-5" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
+            {coolingDown ? "Aguarde o próximo resgate" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar"}
           </Button>
         </div>
       </Banner>

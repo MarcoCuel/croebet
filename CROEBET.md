@@ -77,7 +77,14 @@ Quando o usuário perde todos os Croins, deverá **aguardar o próximo bônus di
 
 **Princípio inegociável da proposta atual:** Croins são fictícios; não representam dinheiro, não são comprados por depósito e não podem ser sacados como dinheiro real.
 
-Quantidades, limites, probabilidades, regras de cupons e balanceamento da economia ainda não foram definidos.
+Valores iniciais aprovados em 19 de novembro de 2026:
+
+- Ao criar uma conta: **30 Croins**, registrados como bônus de cadastro.
+- Resgate diário: **10 Croins a cada 24 horas corridas desde o último resgate bem-sucedido**, independentemente do saldo. O primeiro resgate fica disponível após o cadastro; não há teto de saldo nem reinício à meia-noite.
+- Sugestões de aposta: **1, 5, 10 e 50 Croins**, com **5 Croins** como valor padrão. São sugestões, não uma lista obrigatória de valores aceitos.
+- Cupons: valor inteiro positivo escolhido livremente pelo administrador para cada cupom, sem valor padrão ou tabela fixa.
+
+As configurações são centralizadas no backend. Cadastro e resgate devem creditar a carteira e gerar movimentações auditáveis na mesma transação. Probabilidades e demais aspectos de balanceamento continuam sujeitos a definição.
 
 ### 4.4. Rankings e gamificação
 

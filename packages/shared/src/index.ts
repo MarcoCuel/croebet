@@ -34,3 +34,24 @@ export const transactionsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
 }).strict();
 export const transactionsSchema = z.object({ items: z.array(transactionSchema), hasMore: z.boolean() }).strict();
+
+// Shapes only: economic values are owned and served by Fastify.
+export const economySchema = z.object({
+  initialBalance: croinsSchema,
+  dailyReward: croinsSchema,
+  dailyCooldownHours: z.number().int().positive(),
+  suggestedBets: z.array(z.number().int().positive().max(Number.MAX_SAFE_INTEGER)).min(1),
+  defaultBet: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+}).strict().refine(value => value.suggestedBets.includes(value.defaultBet));
+export type Economy = z.infer<typeof economySchema>;
+export const dailyStatusSchema = z.object({
+  balance: croinsSchema,
+  lastClaimAt: z.iso.datetime().nullable(),
+  nextClaimAt: z.iso.datetime().nullable(),
+  eligible: z.boolean(),
+  serverNow: z.iso.datetime(),
+}).strict();
+export type DailyStatus = z.infer<typeof dailyStatusSchema>;
+export const dailyClaimSchema = z.object({ requestId: z.uuid() }).strict();
+// Coupon amounts are chosen per coupon, never drawn from a preset reward.
+export const couponAmountSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);

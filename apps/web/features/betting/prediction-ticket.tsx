@@ -19,12 +19,13 @@ export function PredictionTicket({
   onClose: () => void;
   onReturnFocus: () => void;
 }) {
-  const { balance, placePrediction } = useDemoSession();
+  const { balance, walletReady, economy, placePrediction } = useDemoSession();
   const [saving, setSaving] = useState(false);
-  const [amount, setAmount] = useState("");
-  const stake = Number(amount);
+  const [amount, setAmount] = useState<string | null>(null);
+  const displayAmount = amount ?? (economy ? String(economy.defaultBet) : "");
+  const stake = Number(displayAmount);
   const validStake =
-    Number.isSafeInteger(stake) && stake >= 1 && stake <= balance;
+    walletReady && !!economy && Number.isSafeInteger(stake) && stake >= 1 && stake <= balance;
 
   return (
     <Dialog
@@ -69,7 +70,7 @@ export function PredictionTicket({
               max={balance}
               step="1"
               required
-              value={amount}
+              value={displayAmount}
               placeholder={`Saldo: ${formatBalance.format(balance)} Croins`}
               onChange={(event) => setAmount(event.currentTarget.value)}
             />
@@ -79,7 +80,7 @@ export function PredictionTicket({
             role="group"
             aria-label="Valores rápidos"
           >
-            {[10, 25, 50, 100].map((value) => (
+            {(economy?.suggestedBets ?? []).map((value) => (
               <Button
                 key={value}
                 variant={stake === value ? "outline" : "secondary"}

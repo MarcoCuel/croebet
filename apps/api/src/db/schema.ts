@@ -65,3 +65,12 @@ export const walletEntries = pgTable("wallet_entries", {
 }, table => [uniqueIndex("wallet_entry_account_operation").on(table.operationId, table.accountId),
   index("wallet_entries_account").on(table.accountId),
   check("wallet_entry_amount", sql`${table.amount} != 0 and ${table.amount} between -9007199254740991 and 9007199254740991`)]);
+
+export const dailyClaims = pgTable("daily_claims", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id").notNull().references(() => walletAccounts.id),
+  requestId: uuid("request_id").notNull(),
+  operationId: uuid("operation_id").notNull().unique().references(() => walletOperations.id),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("daily_claim_request").on(table.accountId, table.requestId),
+  index("daily_claim_account_time").on(table.accountId, table.claimedAt)]);

@@ -9,16 +9,6 @@ export type Coupon = {
 };
 const key = "croebet:demo-admin-coupons:v1";
 const event = "croebet:coupons-changed";
-const examples: Coupon[] = [
-  { id: "live", code: "CROELIVE", amount: 100, limit: 100, startsAt: "", endsAt: "", paused: false, redemptions: [
-    { username: "atinha", at: "2026-11-18T19:30", amount: 100 },
-    { username: "marco", at: "2026-11-18T19:25", amount: 100 },
-    { username: "croefan", at: "2026-11-18T19:20", amount: 100 },
-  ] },
-  { id: "volta", code: "VOLTAAMANHA", amount: 50, limit: null, startsAt: "", endsAt: "", paused: true, redemptions: [] },
-  { id: "especial", code: "CROE2027", amount: 250, limit: 50, startsAt: "2027-01-01T00:00", endsAt: "2027-01-02T23:59", paused: false, redemptions: [] },
-  { id: "antigo", code: "LIVEPASSADA", amount: 75, limit: 200, startsAt: "", endsAt: "2026-11-01T23:59", paused: false, redemptions: [] },
-];
 function subscribe(callback: () => void) {
   window.addEventListener("storage", callback);
   window.addEventListener(event, callback);
@@ -28,9 +18,9 @@ function snapshot() { try { return localStorage.getItem(key) ?? ""; } catch { re
 export function useDemoCoupons() {
   const raw = useSyncExternalStore(subscribe, snapshot, () => "");
   const coupons = useMemo<Coupon[]>(() => {
-    if (!raw) return examples;
+    if (!raw) return [];
     try { const value = JSON.parse(raw); if (Array.isArray(value) && value.every((c) => typeof c.id === "string" && typeof c.code === "string" && Number.isSafeInteger(c.amount) && c.amount > 0 && (c.limit === null || Number.isSafeInteger(c.limit) && c.limit > 0) && typeof c.startsAt === "string" && typeof c.endsAt === "string" && typeof c.paused === "boolean" && Array.isArray(c.redemptions) && c.redemptions.every((r: Coupon["redemptions"][number]) => typeof r.username === "string" && typeof r.at === "string" && Number.isSafeInteger(r.amount)))) return value; } catch { /* Ignore invalid demo data. */ }
-    return examples;
+    return [];
   }, [raw]);
   function save(next: Coupon[]) {
     localStorage.setItem(key, JSON.stringify(next));

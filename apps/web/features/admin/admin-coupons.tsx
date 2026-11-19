@@ -1,5 +1,6 @@
 "use client";
 
+import { couponAmountSchema } from "@croebet/shared";
 import { useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
@@ -63,7 +64,7 @@ export function AdminCouponEditor({ id }: { id: string }) {
           const endsAt = String(form.get("endsAt") ?? "");
           if (!/^[A-Z0-9_-]{3,32}$/.test(code)) return void toast.error("Use de 3 a 32 letras, números, hífen ou sublinhado no código.");
           if (coupons.some((c) => c.id !== id && c.code === code)) return void toast.error("Este código já existe.");
-          if (!Number.isSafeInteger(amount) || amount <= 0 || (limit !== null && (!Number.isSafeInteger(limit) || limit < Math.max(1, redemptions.length)))) return void toast.error("Confira o valor e o limite de resgates.");
+          if (!couponAmountSchema.safeParse(amount).success || (limit !== null && (!Number.isSafeInteger(limit) || limit < Math.max(1, redemptions.length)))) return void toast.error("Confira o valor e o limite de resgates.");
           if (startsAt && endsAt && startsAt >= endsAt) return void toast.error("O término deve ser posterior ao início.");
           const next: Coupon = { id: coupon?.id ?? crypto.randomUUID(), code, amount, limit, startsAt, endsAt, paused: form.get("paused") === "on", redemptions };
           try { save(isNew ? [next, ...coupons] : coupons.map((c) => c.id === id ? next : c)); toast.success("Cupom salvo."); router.push(`/admin/cupons/${next.id}`); } catch { toast.error("Não foi possível salvar o cupom neste navegador."); }

@@ -9,8 +9,10 @@ const { createGame, automaticAction, botAction, transition } = await import("../
 const { decodeMatch, readMatch, saveMatch, matchStorageKey } = await import("../features/games/flip7/match-storage.ts");
 const { wagerPayouts } = await import("../features/games/flip7/wager.ts");
 const { startLocalMatch, prepareWagerMatch, saveWagerProgress, leaveLocalMatch } = await import("../features/games/flip7/wager-storage.ts");
-const { initialWallet } = await import("../features/wallet/wallet.ts");
+const { initialWallet: emptyWallet } = await import("../features/wallet/wallet.ts");
 const { readWalletStrict, writeWalletStrict } = await import("../features/auth/session-storage.ts");
+
+const initialWallet = { ...emptyWallet, balance: 1067 }; // Isolated prototype test fixture.
 
 class Storage {
   data = new Map();

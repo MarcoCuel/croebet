@@ -64,7 +64,7 @@ export function SettingsDialog({
 
 function SettingsContent({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<(typeof sections)[number]>("Geral");
-  const { username, displayName, balance, dailyClaimed } =
+  const { username, displayName, balance, walletReady, dailyClaimed } =
     useDemoSession();
   const { theme, setTheme } = useTheme();
   const panelId = useId();
@@ -116,12 +116,12 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <div className="flex flex-wrap justify-between gap-3 py-5">
               <dt className="text-muted">Saldo atual</dt>
               <dd className="tabular-nums">
-                {formatBalance.format(balance)} Croins
+                {walletReady ? formatBalance.format(balance) : "—"} Croins
               </dd>
             </div>
             <div className="flex flex-wrap justify-between gap-3 py-5">
               <dt className="text-muted">Bônus diário</dt>
-              <dd>{dailyClaimed ? "Resgatado hoje" : "Disponível"}</dd>
+              <dd>{!walletReady ? "Indisponível" : dailyClaimed ? "Aguardando próximo resgate" : "Disponível"}</dd>
             </div>
           </dl>
         )}

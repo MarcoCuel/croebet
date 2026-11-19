@@ -4,7 +4,7 @@ import base from "./playwright.config";
 export default defineConfig({
   ...base,
   testIgnore: [],
-  testMatch: ["session-hydration.spec.ts", "profile.spec.ts", "wallet-history.spec.ts"],
+  testMatch: ["session-hydration.spec.ts", "profile.spec.ts", "wallet-history.spec.ts", "economy.spec.ts"],
   webServer: {
     command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",

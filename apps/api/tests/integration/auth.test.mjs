@@ -44,9 +44,12 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal(registered.body.includes("password"), false); assert.equal(registered.cookies.find(c => c.name === "croebet-session").httpOnly, true);
  assert.equal((await request("/api/v1/me")).json().user.username, username);
  const wallet = await request("/api/v1/me/wallet");
- assert.equal(wallet.statusCode, 200); assert.deepEqual(wallet.json(), { balance: 0 });
+ assert.equal(wallet.statusCode, 200); assert.deepEqual(wallet.json(), { balance: 30 });
  const history = await request("/api/v1/me/transactions");
- assert.equal(history.statusCode, 200); assert.deepEqual(history.json(), { items: [], hasMore: false });
+ assert.equal(history.statusCode, 200); assert.equal(history.json().items.length, 1);
+ assert.equal(history.json().items[0].amount, 30);
+ assert.equal(history.json().items[0].balance, 30);
+ assert.equal(history.json().items[0].description, "Bônus de cadastro");
  rateKeys.push(tokenHash(`avatar:${registered.json().user.id}`));
  const photo = await sharp({ create: { width: 100, height: 200, channels: 3, background: "red" } }).png().toBuffer();
  assert.equal((await request("/api/v1/me/avatar", "PUT", Buffer.from("invalid"))).statusCode, 400);

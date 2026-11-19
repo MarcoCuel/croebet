@@ -4,9 +4,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { InitialSession } from "@/features/auth/initial-session";
-import type { PublicUser } from "@croebet/shared";
+import type { Economy, DailyStatus, PublicUser } from "@croebet/shared";
 import { DemoSession } from "@/features/auth/session-context";
 import { AuthDialog } from "@/features/auth/auth-dialog";
+import { loadEconomy, loadDailyStatus, requestDailyClaim } from "@/features/wallet/economy-api";
 import { authRequest } from "@/features/auth/api";
 
 // The context's existing name is retained to avoid a visual/component rewrite.
@@ -14,6 +15,12 @@ import { authRequest } from "@/features/auth/api";
 export function DemoSessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(initialSession.user);
+  const [economy, setEconomy] = useState<Economy | null>(initialSession.economy ?? null);
+  const [wallet, setWallet] = useState<{ userId: string; daily: DailyStatus } | null>(initialSession.user && initialSession.daily ? { userId: initialSession.user.id, daily: initialSession.daily } : null);
+  const [claimingDaily, setClaimingDaily] = useState(false);
+  const pendingClaim = useRef(false);
+  const claimRequest = useRef<{ userId: string; id: string } | null>(null);
+  const daily = wallet?.userId === user?.id ? wallet?.daily ?? null : null;
   const [ready, setReady] = useState(initialSession.ready);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
@@ -24,8 +31,14 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     const refresh = () => {
       clearTimeout(retry);
       const version = ++revision.current;
-      void authRequest("/me").then(next => {
-        if (mounted && revision.current === version) { setUser(next); setReady(true); }
+      void authRequest("/me").then(async next => {
+        const [nextEconomy, nextDaily] = await Promise.all([loadEconomy(), next ? loadDailyStatus() : Promise.resolve(null)]);
+        if (mounted && revision.current === version) {
+          setUser(next); setReady(true);
+          if (nextEconomy) setEconomy(nextEconomy);
+          if (!next) setWallet(null);
+          else if (nextDaily) setWallet({ userId: next.id, daily: nextDaily });
+        }
       }).catch(() => {
         // Retain the confirmed session, or the loading state until a successful retry.
         if (mounted && revision.current === version) retry = setTimeout(refresh, 15000);
@@ -50,17 +63,28 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     sessionReady: ready,
     permissions: { canManageSite: user?.role === "admin" },
     avatar: user?.avatarUrl ?? null,
-    balance: 0, transactions: [], predictions: [], lastClaim: "", dailyClaimed: false,
+    balance: daily?.balance ?? 0, transactions: [], predictions: [], lastClaim: daily?.lastClaimAt ?? "",
+    refreshWallet: async () => {
+      const accountId = user?.id;
+      const version = revision.current;
+      const [nextEconomy, nextDaily] = await Promise.all([loadEconomy(), accountId ? loadDailyStatus() : Promise.resolve(null)]);
+      if (revision.current !== version) return;
+      if (nextEconomy) setEconomy(nextEconomy);
+      if (accountId && nextDaily) setWallet({ userId: accountId, daily: nextDaily });
+      if (!nextEconomy || (accountId && !nextDaily)) toast.error("Carteira temporariamente indisponível.");
+    },
+    economy, daily, walletReady: daily !== null, claimingDaily,
+    dailyClaimed: daily !== null && !daily.eligible,
     openLogin: () => openAuth("login"), openRegister: () => openAuth("register"),
     signOut: async () => {
       ++revision.current;
-      try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); router.refresh(); }
+      try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); setWallet(null); router.refresh(); }
       catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível sair."); }
     },
     deleteAccount: async password => {
       ++revision.current;
       await authRequest("/me", "DELETE", { password });
-      ++revision.current; setUser(null); router.refresh();
+      ++revision.current; setUser(null); setWallet(null); router.refresh();
     },
     updateDisplayName: async displayName => {
       ++revision.current;
@@ -73,7 +97,28 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
       ++revision.current;
       setUser(current => current?.id === accountId && next?.id === accountId ? next : current);
     },
-    claimDaily: unavailable, addBalance: unavailable, clearPredictions: unavailable,
+    claimDaily: async () => {
+      if (!user) { openAuth("login"); return; }
+      if (pendingClaim.current) return;
+      pendingClaim.current = true; setClaimingDaily(true);
+      const accountId = user.id;
+      const version = revision.current;
+      if (claimRequest.current?.userId !== accountId) claimRequest.current = { userId: accountId, id: crypto.randomUUID() };
+      try {
+        const next = await requestDailyClaim(claimRequest.current.id);
+        if (revision.current === version) {
+          setWallet({ userId: accountId, daily: next });
+          claimRequest.current = null;
+          toast.success("Croins resgatados."); router.refresh();
+        }
+      } catch (error) {
+        if (revision.current === version) {
+          toast.error(error instanceof Error ? error.message : "Não foi possível resgatar.");
+          const next = await loadDailyStatus();
+          if (next && revision.current === version) setWallet({ userId: accountId, daily: next });
+        }
+      } finally { pendingClaim.current = false; setClaimingDaily(false); }
+    }, addBalance: unavailable, clearPredictions: unavailable,
     placePrediction: async () => { unavailable(); return false; },
   }}>{children}<AuthDialog
     open={authMode !== null} isRegistering={authMode === "register"}
@@ -82,7 +127,9 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     onSignIn={async (username, password) => {
       ++revision.current;
       const next = await authRequest(authMode === "register" ? "/auth/register" : "/auth/login", "POST", { username, password });
-      ++revision.current; setUser(next); setReady(true); setAuthMode(null); router.refresh();
+      const nextDaily = next ? await loadDailyStatus() : null;
+      ++revision.current; setUser(next); setWallet(next && nextDaily ? { userId: next.id, daily: nextDaily } : null);
+      setReady(true); setAuthMode(null); router.refresh();
     }}
     onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
   /></DemoSession.Provider>;

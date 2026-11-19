@@ -43,6 +43,13 @@
       "when": 1795054625572,
       "tag": "0005_cheerful_arclight",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795062983616,
+      "tag": "0006_common_speedball",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
-import { sessionSchema, type PublicUser } from "@croebet/shared";
+import { sessionSchema, type Economy, type DailyStatus, type PublicUser } from "@croebet/shared";
 
-export type InitialSession = { user: PublicUser | null; ready: boolean };
+export type InitialSession = { user: PublicUser | null; ready: boolean; economy?: Economy | null; daily?: DailyStatus | null };
 
 // Only this projection crosses the Server/Client Component boundary, never cookies.
 export async function loadInitialSession(

@@ -18,7 +18,8 @@ const { readSiteConfig, writeSiteConfig, initialSiteConfig, siteConfigKey } =
   await import("../features/admin/site-storage.ts");
 const { readWalletStrict, writeWalletStrict } =
   await import("../features/auth/session-storage.ts");
-const { initialWallet } = await import("../features/wallet/wallet.ts");
+const { initialWallet: emptyWallet } = await import("../features/wallet/wallet.ts");
+const initialWallet = { ...emptyWallet, balance: 1067 }; // Isolated prototype test fixture.
 const {
   changeLocalMarketStatus,
   creditLocalWallet,

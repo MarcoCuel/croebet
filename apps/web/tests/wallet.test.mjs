@@ -2,13 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   addCroins,
-  claimReward,
-  dailyReward,
-  initialWallet,
+  initialWallet as emptyWallet,
   isPrediction,
   registerPrediction,
 } from "../features/wallet/wallet.ts";
 
+const initialWallet = { ...emptyWallet, balance: 1067 }; // Isolated prototype fixture, not an economic default.
 const prediction = { market: "Mercado", outcome: "Sim", stake: 100, odds: 180 };
 
 test("registrar um palpite desconta o saldo e preserva o histórico sem mutar a carteira", () => {
@@ -45,36 +44,23 @@ test("palpites gerais dispensam odds e preservam carteiras antigas", () => {
   assert.equal(isPrediction(prediction), true);
 });
 
-test("bônus só pode ser resgatado uma vez por dia e libera no dia seguinte", () => {
-  const first = claimReward(initialWallet, "17/11/2026");
-  assert.equal(first.balance, initialWallet.balance + dailyReward);
-  assert.equal(claimReward(first, "17/11/2026"), first);
-  assert.equal(
-    claimReward(first, "18/11/2026").balance,
-    first.balance + dailyReward,
-  );
-});
-
 test("recarga de teste respeita limites e rejeita overflow", () => {
   assert.equal(addCroins(initialWallet, 1).balance, 1068);
   for (const value of [0, -1, 0.5, 1000000, NaN])
     assert.equal(addCroins(initialWallet, value), initialWallet);
   const full = { ...initialWallet, balance: Number.MAX_SAFE_INTEGER };
   assert.equal(addCroins(full, 1), full);
-  assert.equal(claimReward(full, "17/11/2026"), full);
 });
 
 test("histórico registra entradas e saídas com saldo, data e origem sem duplicar rejeições", () => {
   const added = addCroins(initialWallet, 100);
-  const rewarded = claimReward(added, "17/11/2026");
-  const spent = registerPrediction(rewarded, prediction);
-  assert.equal(spent.transactions.length, 3);
-  assert.deepEqual(spent.transactions.map(({ amount }) => amount), [-100, 67, 100]);
-  assert.deepEqual(spent.transactions.map(({ balance }) => balance), [1134, 1234, 1167]);
+  const spent = registerPrediction(added, prediction);
+  assert.equal(spent.transactions.length, 2);
+  assert.deepEqual(spent.transactions.map(({ amount }) => amount), [-100, 100]);
+  assert.deepEqual(spent.transactions.map(({ balance }) => balance), [1067, 1167]);
   assert.match(spent.transactions[0].description, /Mercado.*Sim/);
   assert.ok(spent.transactions.every(({ createdAt }) => Number.isFinite(Date.parse(createdAt))));
-  assert.equal(new Set(spent.transactions.map(({ id }) => id)).size, 3);
-  assert.equal(claimReward(spent, "17/11/2026"), spent);
+  assert.equal(new Set(spent.transactions.map(({ id }) => id)).size, 2);
   assert.equal(addCroins(spent, -1), spent);
   assert.equal(initialWallet.transactions.length, 0);
 });

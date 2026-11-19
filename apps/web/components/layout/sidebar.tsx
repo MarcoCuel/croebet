@@ -23,7 +23,7 @@ export function Sidebar({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const { username, balance, sessionReady } = useDemoSession();
+  const { username, balance, walletReady, sessionReady } = useDemoSession();
   return (
     <>
       <aside
@@ -60,7 +60,7 @@ export function Sidebar({
                   className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
                 >
                   <Link href="/historico" aria-label="Ver histórico de Croins">
-                    <Balance value={balance} />
+                    <Balance value={walletReady ? balance : null} />
                   </Link>
                 </Button>
                 <RedeemButton />
