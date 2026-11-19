@@ -105,3 +105,4 @@ export const commandResultSchema = z.object({ ok: z.literal(true) }).strict();
 export const resourceResultSchema = z.object({ id: z.uuid() }).strict();
 
 export * from "./games.js";
+export * from "./markets.js";

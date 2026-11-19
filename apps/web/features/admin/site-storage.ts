@@ -1,6 +1,5 @@
 import { isRichTextDocument, richTextPlainText } from "@/lib/rich-text";
 import {
-  markets,
   marketStatuses,
   type Market,
 } from "@/features/betting/markets";
@@ -49,7 +48,7 @@ export type SiteConfig = {
   pagesVersion: 1;
 };
 export const initialSiteConfig: SiteConfig = {
-  markets,
+  markets: [],
   about: defaultAbout,
   pages: [{ slug: "sobre", title: "Sobre", document: aboutDocument(defaultAbout), published: true, showInMenu: true }, ...defaultPages],
   pagesVersion: 1,

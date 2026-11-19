@@ -1,8 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AdminMarkets } from "@/features/admin/admin-markets";
-import { AdminMarketEditor } from "@/features/admin/admin-market-editor";
 import { AdminOverview } from "@/features/admin/admin-overview";
 import { adminRoutes, type AdminSection } from "@/features/admin/routes";
 import Link from "next/link";
@@ -33,7 +31,6 @@ const sections = [
 
 export function AdminPanel({
   section = "overview",
-  marketId,
   content,
 }: {
   content?: ReactNode;
@@ -47,8 +44,8 @@ export function AdminPanel({
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
-  if (!ready && !content) return <p role="status">Carregando painel…</p>;
-  if (error && !content) return <Card role="alert">{error}</Card>;
+  if (section === "overview" && !ready && !content) return <p role="status">Carregando painel…</p>;
+  if (section === "overview" && error && !content) return <Card role="alert">{error}</Card>;
 
   return (
     <div className="min-w-0">
@@ -77,13 +74,7 @@ export function AdminPanel({
           aria-label={sections.find((s) => s.id === section)?.label}
         >
           {section === "overview" && <AdminOverview />}
-          {section === "markets" &&
-            (marketId ? (
-              <AdminMarketEditor key={marketId} id={marketId} />
-            ) : (
-              <AdminMarkets />
-            ))}
-          {(section === "games" || section === "menus" || section === "pages" || section === "coupons" || section === "users") && content}
+          {section !== "overview" && content}
         </section>
       </div>
     </div>

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { markets } from "@/features/betting/markets";
+import type { Market } from "@/features/betting/markets";
 
-export function MarketPreviews() {
+export function MarketPreviews({ markets }: { markets: Market[] }) {
   return (
     <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {markets.map((market) => (

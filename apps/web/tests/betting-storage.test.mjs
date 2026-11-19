@@ -14,8 +14,10 @@ registerHooks({
     );
   },
 });
-const { readSiteConfig, writeSiteConfig, initialSiteConfig, siteConfigKey } =
+const { readSiteConfig, writeSiteConfig, initialSiteConfig: emptySiteConfig, siteConfigKey } =
   await import("../features/admin/site-storage.ts");
+const { markets } = await import("./market-fixtures.ts");
+const initialSiteConfig = { ...emptySiteConfig, markets };
 const { readWalletStrict, writeWalletStrict } =
   await import("../features/auth/session-storage.ts");
 const { initialWallet: emptyWallet } = await import("../features/wallet/wallet.ts");

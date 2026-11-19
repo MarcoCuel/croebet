@@ -11,18 +11,17 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { acceptsPredictions } from "@/features/betting/settlement";
 import { type Market } from "@/features/betting/markets";
 import type { Selection } from "@/features/betting/types";
-import { useSiteConfig } from "@/features/admin/site-config";
 import { cn } from "@/lib/utils";
 
 const filters = ["Todas", "Sim ou não", "Opções", "Número"] as const;
 const marketIcons = { atraso: Clock3, peruca: Video, "duracao-live": Timer };
 
 export function MarketList({
-  onSelect,
+  onSelect, markets: catalog = [],
 }: {
   onSelect: (selection: Selection) => void;
+  markets?: Market[];
 }) {
-  const { config } = useSiteConfig();
   const [now, setNow] = useState(0);
   useEffect(() => {
     const tick = () => setNow(Date.now());
@@ -30,7 +29,7 @@ export function MarketList({
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
   }, []);
-  const markets = config.markets.filter((market) =>
+  const markets = catalog.filter((market) =>
     acceptsPredictions(market, now),
   );
   const [minutes, setMinutes] = useState<Record<string, string>>({});

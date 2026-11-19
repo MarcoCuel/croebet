@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MarketList } from "@/features/betting/market-list";
 import { PredictionTicket } from "@/features/betting/prediction-ticket";
+import type { Market } from "@/features/betting/markets";
 import type { Selection } from "@/features/betting/types";
 import { cn } from "@/lib/utils";
 
-export function Predictions({ className }: { className?: string }) {
+export function Predictions({ className, markets = [] }: { className?: string; markets?: Market[] }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const selectionTrigger = useRef<HTMLElement | null>(null);
   const { username, openLogin, predictions, clearPredictions } =
@@ -25,6 +26,7 @@ export function Predictions({ className }: { className?: string }) {
       )}
     >
       <MarketList
+        markets={markets}
         onSelect={(next) => {
           if (!username) {
             openLogin();

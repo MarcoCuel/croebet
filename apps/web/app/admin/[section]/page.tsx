@@ -1,3 +1,5 @@
+import { catalogMarketsSchema } from "@croebet/shared";
+import { AdminMarkets } from "@/features/admin/admin-markets";
 import { gamesSchema } from "@croebet/shared";
 import { AdminGames } from "@/features/admin/admin-games";
 import type { Metadata } from "next";
@@ -47,6 +49,10 @@ export default async function AdminSectionPage({
     ([, href]) => href === `/admin/${section}`,
   );
   if (!entry) notFound();
+  if (section === "apostas") {
+    const data = await getManagement("/admin/markets", catalogMarketsSchema);
+    return <AdminAccess section="markets" content={data ? <AdminMarkets markets={data.items} /> : <ManagementUnavailable />} />;
+  }
   if (section === "jogos") {
     const data = await getManagement("/admin/games", gamesSchema);
     return <AdminAccess section="games" content={data ? <AdminGames games={data.items} /> : <ManagementUnavailable />} />;

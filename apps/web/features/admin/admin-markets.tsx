@@ -6,14 +6,10 @@ import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-h
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
-import { useSiteConfig } from "@/features/admin/site-config";
-import { marketStatuses, type MarketStatus } from "@/features/betting/markets";
-import { useMarketActivities } from "@/features/admin/market-activity";
-import { formatBalance } from "@/features/wallet/wallet";
+import { catalogMarketStatuses as marketStatuses, type CatalogMarket } from "@croebet/shared";
+type MarketStatus = CatalogMarket["status"];
 
-export function AdminMarkets() {
-  const { config } = useSiteConfig();
-  const { activities, error } = useMarketActivities(config.markets);
+export function AdminMarkets({ markets: items }: { markets: CatalogMarket[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<MarketStatus | "all">("all");
   const normalize = (text: string) =>
@@ -21,7 +17,7 @@ export function AdminMarkets() {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
-  const markets = config.markets.filter(
+  const markets = items.filter(
     (m) =>
       (status === "all" || m.status === status) &&
       normalize(m.question).includes(normalize(search.trim())),
@@ -46,7 +42,7 @@ export function AdminMarkets() {
             aria-pressed={status === "all"}
             onClick={() => setStatus("all")}
           >
-            Todas {status === "all" && <AdminFilterCount count={config.markets.length} />}
+            Todas {status === "all" && <AdminFilterCount count={items.length} />}
           </Button>
           {Object.entries(marketStatuses).map(([value, label]) => (
             <Button
@@ -56,17 +52,13 @@ export function AdminMarkets() {
               aria-pressed={status === value}
               onClick={() => setStatus(value as MarketStatus)}
             >
-              {label} {status === value && <AdminFilterCount count={config.markets.filter(market => market.status === value).length} />}
+              {label} {status === value && <AdminFilterCount count={items.filter(market => market.status === value).length} />}
             </Button>
           ))}
         </>}
       />
-      {error ? (
-        <Card role="alert">{error}</Card>
-      ) : (
         <ul className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {markets.map((market) => {
-            const stats = activities.get(market.id);
             return (
               <li key={market.id}>
                 <Card className="flex h-full flex-col gap-4">
@@ -84,25 +76,6 @@ export function AdminMarkets() {
                     )}
                   </div>
                   <h2 className="text-base font-semibold">{market.question}</h2>
-                  <dl className="mt-auto grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <dt className="text-xs text-muted">Croins apostados</dt>
-                      <dd className="mt-1 font-semibold tabular-nums">
-                        {formatBalance.format(stats?.total ?? 0)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs text-muted">Participantes</dt>
-                      <dd className="mt-1 font-semibold">
-                        {stats?.participants ?? 0}
-                      </dd>
-                    </div>
-                  </dl>
-                  {!!stats?.legacyCount && (
-                    <p className="text-xs text-muted">
-                      {stats.legacyCount} registros antigos fora do total
-                    </p>
-                  )}
                   <Button
                     asChild
                     variant="secondary"
@@ -121,8 +94,7 @@ export function AdminMarkets() {
             );
           })}
         </ul>
-      )}
-      {!error && markets.length === 0 && (
+      {markets.length === 0 && (
         <Card className="text-sm text-muted">Nenhuma aposta encontrada.</Card>
       )}
     </div>

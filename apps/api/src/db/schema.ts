@@ -143,3 +143,16 @@ export const games = pgTable("games", {
   imageUrl: text("image_url"),
   version: integer("version").notNull().default(1),
 }, table => [check("game_version_positive", sql`${table.version} > 0`), check("game_slug_supported", sql`${table.slug} in ('flip7')`)]);
+
+// Catálogo administrativo; palpites e liquidações serão integrados antes da abertura pública.
+export const markets = pgTable("markets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  question: text("question").notNull(),
+  criterion: text("criterion").notNull(),
+  type: text("type").notNull(),
+  options: jsonb("options").notNull(),
+  unit: text("unit").notNull(),
+  status: text("status").notNull().default("draft"),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+}, table => [check("market_version_positive", sql`${table.version} > 0`), check("market_type_valid", sql`${table.type} in ('binary','choice','number')`), check("market_status_valid", sql`${table.status} in ('draft','open','paused','closed')`)]);
