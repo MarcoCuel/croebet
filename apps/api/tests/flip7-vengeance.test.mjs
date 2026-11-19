@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { automaticAction, botAction, canStay, createDeck, createGame, numbers, score, targets, transition } from "../features/games/flip7/engine.ts";
-import { cardChoices } from "../features/games/flip7/vengeance.ts";
-import { decodeMatch } from "../features/games/flip7/match-storage.ts";
+import { automaticAction, botAction, canStay, createDeck, createGame, numbers, score, targets, transition } from "../src/modules/games/flip7/engine.ts";
+import { cardChoices } from "../src/modules/games/flip7/vengeance.ts";
+import { validateState } from "../src/modules/games/flip7/state.ts";
 const setup = [{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }, { name: "Bot", kind: "normal" }];
 function fixture(brutal = false) {
   const game = createGame(setup, 42, { mode: "vengeance", brutal });
@@ -16,11 +16,10 @@ function fixture(brutal = false) {
   const stack = (...cards) => { game.deck.push(...cards.map(([type, value]) => take(type, value)).reverse()); };
   return { game, take, hand, stack };
 }
-const snapshot = game => ({ version: 1, code: "ABCDEF123456", game });
 function roundTrip(game) {
-  const loaded = decodeMatch(JSON.stringify(snapshot(game)), "ABCDEF123456");
+  const loaded = validateState(JSON.parse(JSON.stringify(game)));
   assert.ok(loaded, `snapshot: ${JSON.stringify({ pending: game.pending, forced: game.forced, phase: game.phase, turn: game.turn })}`);
-  assert.deepEqual(loaded.game, JSON.parse(JSON.stringify(game)));
+  assert.deepEqual(loaded, JSON.parse(JSON.stringify(game)));
 }
 
 test("Vingança tem 108 cartas com três números especiais substituindo as cópias corretas", () => {
@@ -141,12 +140,12 @@ test("Flip7 Brutal pausa para escolher bônus e só contabiliza uma vez após re
     assert.equal(transition(g, { type: "bonus", target }), g);
   }
 });
-test("partidas legadas continuam Clássico; só Brutal aceita placares negativos", () => {
+test("estado exige modalidade explícita; só Brutal aceita placares negativos", () => {
   const classic = createGame(setup, 42); delete classic.mode; delete classic.brutal;
-  const loaded = decodeMatch(JSON.stringify(snapshot(classic)), "ABCDEF123456"); assert.equal(loaded.game.mode, "classic");
+  const loaded = validateState(JSON.parse(JSON.stringify(classic))); assert.equal(loaded, null);
   for (const brutal of [false, true]) {
     const f = fixture(brutal); f.game.players[0].total = -4;
-    assert.equal(!!decodeMatch(JSON.stringify(snapshot(f.game)), "ABCDEF123456"), brutal);
+    assert.equal(!!validateState(JSON.parse(JSON.stringify(f.game))), brutal);
   }
 });
 test("Vingança e Brutal simulam partidas completas, conservam 108 cartas e retomam cada escolha", () => {
@@ -177,7 +176,7 @@ test("rejeita snapshots Vingança adulterados que poderiam travar escolhas ou mu
   ];
   for (const mutate of mutations) {
     const { game } = fixture(); mutate(game);
-    assert.equal(decodeMatch(JSON.stringify(snapshot(game)), "ABCDEF123456"), null, mutate.toString());
+    assert.equal(validateState(JSON.parse(JSON.stringify(game))), null, mutate.toString());
   }
 });
 test("bots Vingança e Brutal usam só informações públicas e transições preservam a entrada", () => {

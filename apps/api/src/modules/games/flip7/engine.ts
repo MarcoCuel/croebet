@@ -1,11 +1,11 @@
-/** Local Flip7 rules. Classic and Vengeance share cards, persistence and presentation. */
-import type { Action, Game, GameOptions, Setup } from "./types";
+/** Pure Flip7 transitions. Production randomness is injected by the API driver. */
+import type { Action, Game, GameOptions, Setup } from "./types.ts";
 import { createDeck, GOAL, log, numbers, score, shuffle } from "./rules.ts";
 import { vengeanceAction, vengeanceTargets, vengeanceTransition } from "./vengeance.ts";
-export type { Action, Card, Game, GameMode, GameOptions, Player, PlayerKind, Setup } from "./types";
+export type { Action, Card, Game, GameMode, GameOptions, Player, PlayerKind, Setup } from "./types.ts";
 export { canStay, cardLabel, createDeck, GOAL, isNumber, modeLabel, numbers, score } from "./rules.ts";
 
-export function createGame(setup: Setup[], seed = 1, options: Partial<GameOptions> = {}): Game {
+export function createGame(setup: Setup[], seed = 1, options: Partial<GameOptions> = {}, random?: (upper: number) => number): Game {
   if (setup.length < 2 || setup.length > 12 || !setup.some(p => p.kind === "human")) throw new Error("Escolha de 2 a 12 participantes, com ao menos uma pessoa.");
   const game: Game = {
     mode: options.mode ?? "classic", brutal: options.mode === "vengeance" && options.brutal === true,
@@ -13,7 +13,7 @@ export function createGame(setup: Setup[], seed = 1, options: Partial<GameOption
     deck: [], discard: [], turn: 0, round: 1, phase: "playing", seed: (seed >>> 0) || 1,
     pending: null, queue: [], forced: null, lastDraw: null, history: [], log: [{ message: "Partida iniciada." }], flip7: null,
   };
-  game.deck = shuffle(game, createDeck(game.mode));
+  game.deck = shuffle(game, createDeck(game.mode), random);
   return game;
 }
 export function targets(game: Game): number[] {
@@ -49,8 +49,8 @@ function settle(game: Game) {
   }
   advance(game);
 }
-function draw(game: Game, index: number, forced: boolean) {
-  if (!game.deck.length) { game.deck = shuffle(game, game.discard); game.discard = []; }
+function draw(game: Game, index: number, forced: boolean, random?: (upper: number) => number) {
+  if (!game.deck.length) { game.deck = shuffle(game, game.discard, random); game.discard = []; }
   const card = game.deck.pop();
   if (!card) { finish(game); return; }
   game.players[index].hasDrawn = true;
@@ -87,8 +87,8 @@ function draw(game: Game, index: number, forced: boolean) {
     }
   } else player.cards.push(card);
 }
-export function transition(current: Game, action: Action): Game {
-  if (current.mode === "vengeance") return vengeanceTransition(current, action);
+export function transition(current: Game, action: Action, random?: (upper: number) => number): Game {
+  if (current.mode === "vengeance") return vengeanceTransition(current, action, random);
   if (action.type === "cards" || action.type === "bonus") return current;
   if (action.type === "next") {
     if (current.phase !== "summary") return current;
@@ -123,11 +123,11 @@ export function transition(current: Game, action: Action): Game {
     const job = game.forced!;
     job.remaining--;
     if (job.remaining === 0) game.forced = null;
-    draw(game, job.target, true);
+    draw(game, job.target, true, random);
   } else if (action.type === "stay") {
     game.players[game.turn].status = "stayed";
     log(game, `${game.players[game.turn].name} parou com ${score(game.players[game.turn])} pontos.`, game.turn);
-  } else draw(game, game.turn, false);
+  } else draw(game, game.turn, false, random);
   settle(game);
   return game;
 }

@@ -52,7 +52,7 @@ test("resgate com saldo 30 credita 10 e persiste o intervalo após reload", asyn
     await route.fulfill({ json: daily });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Resgatar", exact: true }).click();
+  await page.getByRole("button", { name: "Resgatar 10 Croins", exact: true }).click();
   await expect(page.locator("header [aria-live=polite]").first()).toContainText("40");
   await expect(page.getByRole("button", { name: "Aguarde o próximo resgate" })).toBeDisabled();
   await page.reload();
@@ -76,7 +76,7 @@ test("contador libera o botão na meia-noite de São Paulo", async ({ page }) =>
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Aguarde o próximo resgate' })).toBeDisabled();
   await page.clock.runFor(3000);
-  await expect(page.getByRole('button', { name: 'Resgatar', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Resgatar 10 Croins', exact: true })).toBeEnabled();
 });
 
 test("saldo anima ganhos e perdas, sem repetir o efeito no reload", async ({ page }) => {

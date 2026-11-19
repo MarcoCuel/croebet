@@ -1,9 +1,9 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { fixedMenuPages } from "@croebet/shared";
 
 // HTTP fixtures support both Server Components and browser requests. Account
 // state never comes from localStorage; each spec owns its fixture lifetime.
-export async function startPublicApi(session: () => unknown) {
+export async function startPublicApi(session: () => unknown, handler?: (request: IncomingMessage, response: ServerResponse) => Promise<boolean>) {
   const main = Object.entries(fixedMenuPages).map(([fixed, item], index) => ({
     id: `93089d02-0b34-4b78-9d3e-f2679c190b${60 + index}`,
     ...item, fixed, newTab: false,
@@ -15,10 +15,11 @@ export async function startPublicApi(session: () => unknown) {
     showInMenu: false, version: 1, createdAt: null, updatedAt: null, publishedAt: null, lastEditedBy: null,
   };
   const game = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 };
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
+    if (handler && await handler(request, response)) return;
     const path = new URL(request.url ?? "/", "http://fixture").pathname;
     response.setHeader("content-type", "application/json");
-    const body = path === "/api/v1/me" ? { user: session() }
+    const body = path === "/api/v1/matches" ? { items: [] } : path === "/api/v1/me" ? { user: session() }
       : path === "/api/v1/games" ? { items: [game] }
       : path === "/api/v1/games/flip7" ? game
       : path === "/api/v1/navigation" ? { main, footer: [] }

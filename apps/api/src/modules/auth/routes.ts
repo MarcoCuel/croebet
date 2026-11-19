@@ -1,3 +1,4 @@
+import { matchRoutes } from "../matches/routes.ts";
 import { managementRoutes } from "../admin/routes.ts";
 import { governanceLock, protectLastAdmin, ManagementError } from "../admin/service.ts";
 import { readWallet, readTransactions } from "../wallet/service.ts";
@@ -54,6 +55,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   }
 
   await managementRoutes(app, { pool, current, sessionName, limit });
+  await matchRoutes(app, { pool, current, sessionName, limit });
 
   if (avatarStorage) {
     app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));

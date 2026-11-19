@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { InitialMatches } from "./server-matches";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const Flip7Game = dynamic(() => import("./flip7-game"), {
@@ -8,4 +9,4 @@ const Flip7Game = dynamic(() => import("./flip7-game"), {
   loading: () => <Skeleton className="min-h-96 w-full" aria-label="Carregando Flip7" />,
 });
 
-export function Flip7Loader() { return <Flip7Game />; }
+export function Flip7Loader({ initial }: { initial: InitialMatches }) { return <Flip7Game initial={initial} />; }

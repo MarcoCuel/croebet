@@ -7,4 +7,4 @@ CREATE TABLE "seo_settings" (
 );
 --> statement-breakpoint
 ALTER TABLE "games" ADD COLUMN "seo" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "pages" ADD COLUMN "seo" jsonb DEFAULT '{}'::jsonb NOT NULL;diff --git a/apps/api/drizzle/meta/0015_snapshot.json b/apps/api/drizzle/meta/0015_snapshot.json
+ALTER TABLE "pages" ADD COLUMN "seo" jsonb DEFAULT '{}'::jsonb NOT NULL;

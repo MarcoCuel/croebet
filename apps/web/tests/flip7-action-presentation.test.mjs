@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createGame, transition } from "../features/games/flip7/engine.ts";
+import { createGame, transition } from "../../api/src/modules/games/flip7/engine.ts";
 import { forcedActionPresentation } from "../features/games/flip7/action-presentation.ts";
-import { decodeMatch } from "../features/games/flip7/match-storage.ts";
+import { validateState } from "../../api/src/modules/games/flip7/state.ts";
 
 function scenario(type, draws) {
   const game = createGame([{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }], 42, { mode: "vengeance", brutal: false });
@@ -21,9 +21,9 @@ test("Compre 4 identifica a carta durante todas as compras e restaura sua aprese
     const before = JSON.stringify(game);
     assert.deepEqual(forcedActionPresentation(game), { card, target: 1 });
     assert.equal(JSON.stringify(game), before);
-    const restored = decodeMatch(JSON.stringify({ version: 1, code: "ABCDEF123456", game }), "ABCDEF123456");
+    const restored = validateState(JSON.parse(JSON.stringify(game)));
     assert.ok(restored);
-    assert.deepEqual(forcedActionPresentation(restored.game), { card, target: 1 });
+    assert.deepEqual(forcedActionPresentation(restored), { card, target: 1 });
     game = transition(game, { type: "step" });
   }
   assert.equal(forcedActionPresentation(game), null);

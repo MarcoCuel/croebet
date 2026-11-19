@@ -1,4 +1,5 @@
 import { z } from "zod";
+export * from "./matches.js";
 export * from "./rich-text.js";
 export * from "./pages.js";
 export * from "./seo.js";

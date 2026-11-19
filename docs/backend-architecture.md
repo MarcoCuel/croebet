@@ -9,7 +9,7 @@ Inspeção do código em 19/11/2026. Implementado não significa validado nesta 
 | Conta | Cadastro/login/logout, sessões PostgreSQL, nome, troca de username, exclusão com senha, perfil público e avatar |
 | Economia | Carteira/extrato, bônus de cadastro, resgate diário, cupons e ajustes administrativos transacionais |
 | Administração | Visão geral, usuários/permissões/suspensão, cupons, páginas, menus, catálogo de jogos e catálogo de apostas via API |
-| Jogos | Seed com Flip 7 ativo e sem capa; motor e partidas livres ainda no navegador, sem multiplayer |
+| Jogos | Seed com Flip 7 ativo e sem capa; motor e partidas livres na API/PostgreSQL, com convidados no mesmo dispositivo e bots; sem salas entre contas |
 | Apostas | Apenas catálogo administrativo persistido; sem palpites, apuração ou pagamentos no backend; acesso público desabilitado |
 | Rankings e conquistas | Fora da primeira versão; menus com “Em breve” e rotas redirecionadas ao início |
 
@@ -101,11 +101,43 @@ Regras e valores aprovados estão em [CROEBET.md, seção 4.3](../CROEBET.md#43-
 
 - SEO: `/admin/seo` persiste padrões e ajustes de Home/Jogos; páginas e jogos têm campos opcionais próprios. Escrita com versão e auditoria. API pública desativa indexação fora de `APP_ENV=production`; sitemap inclui somente conteúdo público indexável.
 
+## Base compartilhada dos jogos
+
+A migração do Flip 7 deve estabelecer uma base pequena de partidas reutilizável pelos próximos jogos. Separar infraestrutura de execução e regras específicas; não construir um framework completo antes de existir um segundo uso real.
+
+| Responsabilidade | Compartilhamento previsto |
+| --- | --- |
+| Sessão de conta | Reutilizar autenticação existente, suspensão e revogação. Sessão de login é distinta de partida/sala; reconectar não cria participação nem cobra entrada. |
+| Partidas e participantes | Identidade da partida, jogo/modo/versão de regras, ciclo de vida, vagas vinculadas a contas, versão do estado e datas. Não exigir lobby, turnos ou múltiplos jogadores de todos os jogos. |
+| Comandos | Envelope com partida, `commandId`, `expectedVersion` e ação validada pelo jogo; executor comum autoriza participação, bloqueia, deduplica e persiste. HTTP e Socket.IO chegam ao mesmo executor. |
+| Estado e recuperação | Snapshot privado validado pelo motor, eventos ordenados e projeção por destinatário. O motor define o que cada jogador/espectador pode ver; não enviar o estado inteiro ao cliente. |
+| Resultados e histórico | Registro comum de conclusão/participantes, com resultado validado por jogo. Pontuação e estatísticas são específicas: não exigir pontos de roleta/caça-níqueis nem comparar pontos de jogos diferentes. Pontos, vitória e prêmio em Croins são conceitos separados. |
+| Economia | Reutilizar o livro e seus recibos/transações; entrada, pote, devolução e prêmio vinculados à partida. Motor produz resultado, não altera saldo diretamente. Cada modalidade define financiamento e distribuição antes de habilitar Croins. |
+| Automações | Executor persistente comum para trabalho vencido; motor define bots, compras obrigatórias e próxima decisão. Prazo, controle da decisão e política de desconexão dependem do jogo. |
+| Aleatoriedade e cartas | Fonte aleatória segura/injetável reutilizável. Baralho, reposição, descarte, informação oculta e efeito de comprar pertencem ao jogo; extrair utilitários puros de cartas quando houver segundo uso concreto. |
+
+No backend, separar o catálogo já existente em `modules/games` da execução compartilhada de partidas (módulo `matches`, a criar quando começar a integração). Motores ficam separados por jogo, inicialmente Flip 7 dentro de `games/flip7`, sem dependência de HTTP, Socket.IO, banco ou React. A base chama operações de criação, aplicação de ação, projeção pública, resultado e automação do motor, com tipos próprios; implementar apenas as operações necessárias ao primeiro fluxo. Não criar uma classe-base com regras de turno/pontos/cartas do Flip 7.
+
+“Pedir carta” é uma ação do jogo, transportada pelo envelope comum, não um endpoint genérico que permite retirar qualquer carta de qualquer baralho. No Flip 7 ela pode estourar, ativar proteção ou abrir escolha de alvo; no blackjack terá outras condições e efeitos. Estado privado e payload de ação mantêm schemas Zod específicos/discriminados por jogo, sem `any` ou JSON sem validação. Tipos atuais `Game`, `Card`, `Player` e a fórmula `score` do Flip 7 não são contratos universais.
+
+Sessão e carteira já existem; não recriá-las por jogo. As rotas de partidas reutilizam a consulta de sessão de `modules/auth/routes.ts` e revalidam conta/sessão na transação. Extrair o serviço de sessão ao integrar realtime, preservando essas verificações. Contratos comuns publicados ficam em `shared`, estados privados e motores na API. No frontend, compartilhar transporte, sincronização e componentes visuais comprovadamente comuns; tabuleiro, animações, ações disponíveis e cálculo exibido continuam nas features dos jogos.
+
+Primeiro validar a separação com Flip 7 e cenários de comando duplicado, versão obsoleta, ação de outro participante, estado privado e retomada. Quando o segundo jogo chegar, verificar se o executor o aceita sem ramificações de regras do Flip 7; só então extrair novos helpers realmente comuns. Não importar snapshots locais ou criar tabelas/módulos apenas para antecipar esse desenho.
+
+## Partidas livres integradas
+
+- `modules/matches` executa o ciclo compartilhado; `modules/games/flip7` contém motor, invariantes privadas e driver. `games/cards.ts` fornece embaralhamento puro com RNG injetável; o driver usa `crypto.randomInt`, e testes podem usar seeds determinísticas.
+- Migration `0016_game_matches` cria partidas, participantes, comandos e eventos. Criação usa `requestId`; comandos usam `commandId`/`expectedVersion`. Locks de conta/sessão/partida, recibos e estado confirmam juntos; consultar retry aceito antes de recusar versão antiga. Não importar snapshots do navegador.
+- `/api/v1/matches`: GET lista partidas próprias em andamento; POST cria Flip 7. GET `/:code` retoma partida própria, inclusive finalizada; POST `/:code/commands` aplica decisão humana; POST `/:code/abandon` encerra a partida. Mesmas proteções de sessão/Origin/CSRF da API. Limite de 30 partidas ativas por conta.
+- O primeiro lugar usa a identidade da sessão. Outras pessoas são convidados controlados pelo titular no mesmo dispositivo; nomes digitados não vinculam contas. Bots são controlados pelo servidor. Não há ingresso de outra conta nem salas/espectadores nesta etapa.
+- O executor resolve compras obrigatórias, bots e passagem de rodada na mesma transação, até a próxima decisão humana ou fim. Persiste eventos versionados e não depende de aba aberta para completar regras. HTTP retorna frames públicos para a fila visual GSAP; não há polling nem autorização de regras por animações.
+- Snapshot público inclui quantidade de cartas no baralho, nunca ordem ou seed. Lista/retomada são carregadas no Next pelo servidor. Cliente envia só ações e conserva o ID ao repetir resposta incerta; reload aplica estado confirmado sem repetir comandos. LocalStorage mantém apenas preferências de configuração; Croins seguem bloqueados.
+
 ## Próximas integrações
 
 Direção aprovada, ainda não implementada. Não criar estruturas antecipadamente só por constarem aqui.
 
-1. Transferir o motor do Flip 7 para a API, preservando regras/testes; persistir partidas e expor somente estado público. Baralho, seed e aleatoriedade ficam privados; usar fonte criptográfica, com determinismo injetável nos testes.
+1. Validar [partidas livres integradas](#partidas-livres-integradas) em PostgreSQL isolado e navegador antes de ampliar o ciclo compartilhado.
 2. Implementar salas e comandos Socket.IO + HTTP. Identidade vem da sessão e vínculo com a vaga, nunca de `socket.id` ou código da sala. Comandos usam `commandId` e `expectedVersion`, recibos persistidos e locks. Retry aceito deve retornar o recibo antes de rejeitar versão antiga; persistir antes de ack/broadcast. Validar quem controla cada decisão pendente, que pode diferir do jogador do turno; bots e avanços de regra são comandos internos.
 3. Recuperação por eventos versionados ou snapshot, reautorizando reconexão e assinaturas. Eventos pendentes de despacho, bots e prazos ficam no PostgreSQL, executados no processo Fastify; timers só acordam o executor. Duplicatas são esperadas e deduplicadas; ao assinar, combinar snapshot e eventos sem perder versões. Animações não controlam regras. Revalidar sessão/Origin/CSRF também no Socket.IO; hooks HTTP não protegem seus eventos.
 4. Habilitar Croins em partidas somente com entrada, financiamento do pote, resultado e prêmio autoritativos/transacionais. Financiamento dos bots, lobby, convidados, espectadores, desconexão, timeouts e abandono ainda exigem decisão. Não creditar contribuições simuladas de bots na carteira real.

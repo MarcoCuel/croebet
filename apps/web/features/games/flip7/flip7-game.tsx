@@ -2,7 +2,10 @@
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import type { Match, MatchFrame, MatchCommand, CreateMatch } from "@croebet/shared";
+import type { InitialMatches } from "./server-matches";
+import { createServerMatch, sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
 import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,17 +19,15 @@ import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { withMatchLock, startLocalMatch, leaveLocalMatch } from "./match-actions";
 import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
 import { useSession } from "@/features/auth/session-context";
 import { formatBalance } from "@/features/wallet/wallet";
-import { automaticAction, canStay, cardLabel, createGame, isNumber, modeLabel, score, targets, transition } from "./engine";
-import type { Action, Card, Game, GameOptions, Setup } from "./engine";
+import { canStay, cardLabel, isNumber, modeLabel, score, targets } from "./presentation";
+import type { Action, Card, Game, GameOptions, Setup } from "./presentation";
 import { cardChoices } from "./vengeance";
 import { forcedActionPresentation } from "./action-presentation";
-import { GOAL } from "./engine";
+import { GOAL } from "./presentation";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
-import { matchStorageKey, currentMatch, matchUrl, readMatch, readMatches, saveMatch, type SavedMatch } from "./match-storage";
 
 function Rules({ options }: { options: GameOptions }) {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
@@ -173,20 +174,11 @@ function ParticipantSlot({ index, player, botsOnly, onChange }: { index: number;
   </div>;
 }
 
-function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], options: GameOptions, stake: number) => Promise<void>; initialError: string }) {
+function SetupScreen({ onStart, initialError, matches }: { onStart: (setup: Setup[], options: GameOptions, stake: number) => Promise<void>; initialError: string; matches: Match[] }) {
+  const router = useRouter();
+  const matchUrl = (code: string) => router.push(`/jogos/flip7?partida=${code}`, { scroll: false });
   const { username, balance, economy, openLogin } = useSession();
-  const [matches, setMatches] = useState<SavedMatch[]>(() => {
-    try { return readMatches(); } catch { return []; }
-  });
-  useEffect(() => {
-    const refresh = (event: StorageEvent) => {
-      if (event.key !== matchStorageKey && event.key !== null) return;
-      try { setMatches(readMatches()); } catch { /* Keep the configuration available. */ }
-    };
-    window.addEventListener("storage", refresh);
-    return () => window.removeEventListener("storage", refresh);
-  }, []);
-  const pendingMatches = matches.filter(match => match.game.phase !== "over" && !match.wager);
+  const pendingMatches = matches.filter(match => match.status === "playing");
   const [withCroins, setWithCroins] = useState(false);
   const [stake, setStake] = useState<string | null>(null);
   const displayStake = stake ?? (economy ? String(economy.defaultBet) : "");
@@ -276,20 +268,20 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
           {pendingMatches.map(match => <Surface asChild key={match.code} className="flex min-w-0 flex-col gap-5 p-4 sm:p-5">
             <li>
               <div className="flex items-start justify-between gap-3">
-                <h3 className="min-w-0 text-sm font-semibold">{modeLabel(match.game)}</h3>
-                <Badge variant="secondary" className="shrink-0 font-medium">Rodada {match.game.round}</Badge>
+                <h3 className="min-w-0 text-sm font-semibold">{modeLabel(match.state)}</h3>
+                <Badge variant="secondary" className="shrink-0 font-medium">Rodada {match.state.round}</Badge>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center -space-x-2" aria-label="Participantes">
-                  {match.game.players.slice(0, 5).map((player, index) => <Avatar key={index} className="size-10 backdrop-blur-sm shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={player.name} title={player.name}>
+                  {match.state.players.slice(0, 5).map((player, index) => <Avatar key={index} className="size-10 backdrop-blur-sm shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={player.name} title={player.name}>
                     {player.kind === "human" && <AccountAvatarImage name={player.name} />}
                     <AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
                   </Avatar>)}
-                  {match.game.players.length > 5 && <Avatar className="size-10 backdrop-blur-sm shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={match.game.players.slice(5).map(player => player.name).join(", ")} title={match.game.players.slice(5).map(player => player.name).join(", ")}>
-                    <AvatarFallback>+{match.game.players.length - 5}</AvatarFallback>
+                  {match.state.players.length > 5 && <Avatar className="size-10 backdrop-blur-sm shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={match.state.players.slice(5).map(player => player.name).join(", ")} title={match.state.players.slice(5).map(player => player.name).join(", ")}>
+                    <AvatarFallback>+{match.state.players.length - 5}</AvatarFallback>
                   </Avatar>}
                 </div>
-                <span className="text-xs text-muted">{match.game.players.length} jogadores</span>
+                <span className="text-xs text-muted">{match.state.players.length} jogadores</span>
               </div>
               <Button variant="secondary" size="sm" className="mt-auto w-full" onClick={() => matchUrl(match.code)}>Continuar partida</Button>
             </li>
@@ -303,29 +295,34 @@ function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], opti
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
-export default function Flip7Game() {
-  const code = useSearchParams().get("partida");
-  return <Flip7Table key={code ?? "setup"} code={code} />;
+export default function Flip7Game({ initial }: { initial: InitialMatches }) {
+  const router = useRouter();
+  if (initial.unavailable) return <Surface className="mx-auto max-w-xl space-y-4"><p role="alert">{initial.error}</p><Button onClick={() => router.refresh()}>Tentar novamente</Button></Surface>;
+  return <Flip7Table key={initial.revision} initial={initial} />;
 }
 
-function Flip7Table({ code }: { code: string | null }) {
+function Flip7Table({ initial }: { initial: InitialMatches }) {
+  const router = useRouter();
+  const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
+  const serverMatch = useRef(initial.match);
+  const [creation] = useState(() => createdPresentation(initial.match));
+  useEffect(() => { clearCreatedPresentation(initial.match?.code); }, [initial.match?.code]);
+  const pendingCommand = useRef<MatchCommand | null>(null);
+  const pendingCreate = useRef<CreateMatch | null>(null);
+  const pendingAbandon = useRef<{ commandId: string; expectedVersion: number } | null>(null);
+  const [frames, setFrames] = useState<MatchFrame[]>(creation?.frames ?? []);
+  const [busy, setBusy] = useState(false);
+  const [commandError, setCommandError] = useState("");
   const [exitOpen, setExitOpen] = useState(false);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
   const [resultReady, setResultReady] = useState(false);
   const resultTriggerRef = useRef<HTMLButtonElement>(null);
-  const [restored] = useState(() => {
-    const saved = code ? currentMatch(code) : { match: null, error: "" };
-    return saved.match?.wager ? { match: null, error: "Partidas com Croins ainda não estão disponíveis." } : saved;
-  });
-  const [game, setGame] = useState<Game | null>(restored.match?.game ?? null);
-  const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(restored.match?.game ?? null));
+  const [game, setGame] = useState<Game | null>(creation?.before ?? initial.match?.state ?? null);
+  const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(creation?.before ?? initial.match?.state ?? null));
   const resolvingCardFinished = !!resolvingCard && !game?.forced;
-  const [matchCode, setMatchCode] = useState<string | null>(restored.match?.code ?? null);
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
-  const matchCodeRef = useRef(matchCode);
-  const saveErrorShown = useRef(false);
   const [historyVisible, setHistoryVisible] = useState(true);
   const gameRef = useRef<Game | null>(game);
   const [presentationBefore, setPresentationBefore] = useState<Game | null>(null);
@@ -344,45 +341,9 @@ function Flip7Table({ code }: { code: string | null }) {
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
     return () => window.clearTimeout(timeout);
   }, [game?.phase, resolvingCard, flight, movingCards]);
-  useEffect(() => {
-    if (matchCode) matchUrl(matchCode);
-  }, [matchCode]);
-  useEffect(() => {
-    if (!restored.match) return;
-    const previous = restored.match.game;
-    try { saveSetupPreferences({ count: previous.players.length, mode: previous.mode, brutal: previous.mode === "vengeance" ? previous.brutal : readSetupPreferences().brutal }); }
-    catch { toast.error("Não foi possível salvar as configurações do Flip7.", { id: "flip7-setup-storage" }); }
-  }, [restored]);
-  const persist = useCallback(async (next: Game, code: string) => {
-    try {
-      await withMatchLock(() => {
-        const saved = readMatch(window.localStorage, code);
-        if (saved?.code !== code || saved.wager) throw new Error("A partida mudou em outra aba.");
-        saveMatch({ version: 1, code, game: next });
-      });
-      saveErrorShown.current = false;
-    } catch {
-      if (!saveErrorShown.current) toast.error("Não foi possível salvar a partida. O progresso atual pode ser perdido ao sair.");
-      saveErrorShown.current = true;
-    }
-  }, []);
-  const openMatch = (match: SavedMatch) => {
-    matchCodeRef.current = match.code;
-    gameRef.current = match.game;
-    matchUrl(match.code);
-    setMatchCode(match.code);
-    setGame(match.game);
-  };
-  const send = useCallback(async (action: Action) => {
+  const present = useCallback((action: Action, next: Game) => {
     const current = gameRef.current;
-    if (!current || locked.current || resolvingCardFinished || leavingRef.current) return;
-    const next = transition(current, action);
-    if (next === current) return;
-    if (matchCodeRef.current) {
-      locked.current = true;
-      try { await persist(next, matchCodeRef.current); }
-      finally { locked.current = false; }
-    }
+    if (!current) return;
     setSelectedCards([]);
     setPresentationBefore(current);
     const captureHand = (target: number) => {
@@ -425,12 +386,34 @@ function Flip7Table({ code }: { code: string | null }) {
     setSwapPreview(null);
     gameRef.current = next;
     setGame(next);
-  }, [persist, swapPreview, resolvingCardFinished]);
+  }, [swapPreview]);
+  const send = useCallback(async (action: Action) => {
+    const match = serverMatch.current;
+    if (!match || locked.current || busy || frames.length || resolvingCardFinished) return;
+    if (action.type === "step" || action.type === "next") return;
+    if (pendingCommand.current && JSON.stringify(pendingCommand.current.action) !== JSON.stringify(action)) {
+      toast.error("Confirme a ação pendente ou recarregue a partida."); return;
+    }
+    pendingCommand.current ??= { commandId: crypto.randomUUID(), expectedVersion: match.version, action };
+    locked.current = true; setBusy(true); setCommandError("");
+    try {
+      const response = await sendMatchCommand(match.code, pendingCommand.current);
+      pendingCommand.current = null;
+      serverMatch.current = response.match;
+      setFrames(response.frames);
+    } catch (error) { setCommandError(error instanceof Error ? error.message : "Não foi possível enviar a jogada."); }
+    finally { locked.current = false; setBusy(false); }
+  }, [busy, frames.length, resolvingCardFinished]);
   const leave = async () => {
-    if (!matchCodeRef.current || leavingRef.current || locked.current) return false;
+    if (!serverMatch.current || leavingRef.current || locked.current || frames.length || busy) return false;
     leavingRef.current = true;
     setLeaving(true);
-    try { await leaveLocalMatch(matchCodeRef.current); }
+    try {
+      const match = serverMatch.current;
+      pendingAbandon.current ??= { commandId: crypto.randomUUID(), expectedVersion: match.version };
+      await abandonServerMatch(match.code, pendingAbandon.current.commandId, pendingAbandon.current.expectedVersion);
+      pendingAbandon.current = null;
+    }
     catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível abandonar a partida. Tente novamente."); return false; }
     finally { leavingRef.current = false; setLeaving(false); }
     gameRef.current = null;
@@ -443,8 +426,7 @@ function Flip7Table({ code }: { code: string | null }) {
     setResolvingCard(null);
     setResultDismissed(false);
     setResultReady(false);
-    setMatchCode(null);
-    matchCodeRef.current = null;
+    serverMatch.current = null;
     matchUrl(null);
     return true;
   };
@@ -556,29 +538,29 @@ function Flip7Table({ code }: { code: string | null }) {
   }, [resolvingCard, resolvingCardFinished, flight, movingCards]);
 
   useEffect(() => {
-    if (!game || resolvingCardFinished || flight || movingCards || exitOpen || game.phase === "over" || leaving) return;
-    const action: Action | null = game.phase === "summary" ? { type: "next" } : automaticAction(game);
-    if (!action) return;
-    const initial = action.type === "draw" && !game.players[game.turn].hasDrawn;
-    const timer = setTimeout(() => send(action), game.phase === "summary" ? 1600 : initial ? 60 : game.forced ? 100 : 220);
+    if (!game || resolvingCardFinished || flight || movingCards || exitOpen || leaving || busy || !frames.length) return;
+    const frame = frames[0];
+    const timer = setTimeout(() => {
+      setFrames(previous => previous.slice(1));
+      present(frame.action, frame.state);
+    }, game.phase === "summary" ? 1600 : !game.players[game.turn].hasDrawn ? 60 : 100);
     return () => clearTimeout(timer);
-  }, [game, resolvingCardFinished, flight, movingCards, exitOpen, send, leaving]);
+  }, [game, resolvingCardFinished, flight, movingCards, exitOpen, leaving, busy, frames, present]);
 
-  if (!game) return <SetupScreen initialError={restored.error} onStart={async (setup, options, stake) => {
+  if (!game) return <SetupScreen matches={initial.items} initialError={initial.error} onStart={async (setup, options, stake) => {
     if (stake > 0) { toast.info("Partidas com Croins ainda não estão disponíveis."); return; }
-    const next = createGame(setup, Math.floor(Math.random() * 4294967296), options);
-    const code = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
-    const match: SavedMatch = { version: 1, code, game: next };
-    try { openMatch(await startLocalMatch(match)); }
-    catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a partida.");
-      try { const saved = readMatch(window.localStorage, code); if (saved?.code === code) openMatch(saved); } catch { /* The setup remains available. */ }
-    }
+    const payload = { game: "flip7" as const, setup, options: { ...options, brutal: options.mode === "vengeance" && options.brutal } };
+    if (!pendingCreate.current || JSON.stringify({ ...pendingCreate.current, requestId: undefined }) !== JSON.stringify(payload)) pendingCreate.current = { ...payload, requestId: crypto.randomUUID() };
+    try {
+      const response = await createServerMatch(pendingCreate.current);
+      pendingCreate.current = null;
+      matchUrl(response.match.code);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a partida."); }
   }} />;
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
-  const human = actor.kind === "human";
+  const human = actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
   const validTargets = targets(game);
@@ -635,6 +617,7 @@ function Flip7Table({ code }: { code: string | null }) {
           {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
         </div>
       </div>
+      {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
         <Button variant="secondary" size="icon" className="rounded-full border border-contrast/6 shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight || !!movingCards} onClick={() => setHistoryVisible(visible => !visible)}>
           {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
@@ -644,16 +627,16 @@ function Flip7Table({ code }: { code: string | null }) {
         <div className="min-w-0 pb-32 sm:pb-24">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
-            {game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
+            {game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
-              <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deck.length} cartas no baralho`}>
+              <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deckCount} cartas no baralho`}>
                 <div className="absolute inset-x-[12cqi] top-[12cqi] flex items-start justify-between gap-[6cqi]">
                   <span className="text-[16cqi] leading-tight font-medium">Cartas</span>
                 </div>
                 <svg className="absolute inset-0 size-full font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
-                  <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deck.length > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deck.length}</text>
+                  <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deckCount > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deckCount}</text>
                 </svg>
               </div>
               {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${game.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>

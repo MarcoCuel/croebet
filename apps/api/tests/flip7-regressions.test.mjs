@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { automaticAction, botAction, createDeck, createGame, numbers, score, targets, transition } from "../features/games/flip7/engine.ts";
-import { decodeMatch } from "../features/games/flip7/match-storage.ts";
+import { automaticAction, botAction, createDeck, createGame, numbers, score, targets, transition } from "../src/modules/games/flip7/engine.ts";
+import { validateState } from "../src/modules/games/flip7/state.ts";
 
 const setup = [{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }];
 // Move real cards instead of inventing IDs: every fixture keeps the complete deck.
@@ -145,14 +145,14 @@ test("partidas de 2 a 12 jogadores terminam, preservam cartas, placar e retomada
         const context = `jogadores=${count}, semente=${seed}, passo=${steps}`;
         conserved(game);
         game.players.forEach((p, i) => assert.equal(p.total, game.history.reduce((sum, row) => sum + row[i], 0), context));
-        const saved = decodeMatch(JSON.stringify({ version: 1, code: "ABCDEF123456", game }), "ABCDEF123456");
+        const saved = validateState(JSON.parse(JSON.stringify(game)));
         assert.ok(saved, context);
         const action = game.phase === "summary" ? { type: "next" } : automaticAction(game) ?? botAction(game);
         const before = structuredClone(game);
         const next = transition(game, action);
         assert.deepEqual(game, before, context);
         assert.notEqual(next, game, context);
-        assert.equal(JSON.stringify(transition(saved.game, action)), JSON.stringify(next), context);
+        assert.equal(JSON.stringify(transition(saved, action)), JSON.stringify(next), context);
         game = next;
       }
       assert.equal(game.phase, "over"); conserved(game);

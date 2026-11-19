@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { automaticAction, botAction, createDeck, createGame, numbers, score, targets, transition } from "../features/games/flip7/engine.ts";
+import { automaticAction, botAction, createDeck, createGame, numbers, score, targets, transition } from "../src/modules/games/flip7/engine.ts";
 const setup = [{ name: "Marco", kind: "human" }, { name: "Bot", kind: "normal" }];
 const game = () => createGame(setup, 42);
 const card = (type, value = 0) => ({ id: 999 + value, type, value });

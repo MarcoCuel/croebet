@@ -37,7 +37,7 @@ O projeto está em desenvolvimento; contas, saldos, partidas e demais dados atua
 
 ### 4.1. Jogos
 
-O primeiro jogo é o **Flip 7**, jogável localmente com pessoas no mesmo dispositivo e bots. Seu modo com Croins permanece bloqueado até a integração do motor e da economia no backend. Regras e apresentação estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
+O primeiro jogo é o **Flip 7**, com motor e partidas persistidos no servidor, pessoas no mesmo dispositivo e bots. Salas entre contas ainda não estão implementadas. Seu modo com Croins permanece bloqueado até a integração econômica. Regras e apresentação estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
 
 Haverá outros jogos funcionais, com identidade visual e referências próprias da comunidade. Exemplos previstos:
 

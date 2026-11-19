@@ -23,7 +23,7 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 - `features/auth/server-session.ts` usa `React.cache` por requisição. Sem cookie, confirma visitante; falha da API deixa a sessão indeterminada. Revalidação cliente preserva dados confirmados; falha não confirma logout, saldo zero ou lista vazia.
 - Login, logout e mutações atualizam contexto e Server Components. Skeletons ficam para esperas reais; editor, localStorage e WebGL podem carregar no cliente.
 - `SessionProvider`/`useSession` expõem identidade, permissões e saldo confirmados pela API; não contêm métodos nem carteiras de demonstração. Não reintroduzir fallback de contas/Croins em localStorage.
-- Preferências de tema/painéis e partidas livres do Flip 7 continuam locais. [Limites do jogo](flip7.md#escopo).
+- Preferências de tema/painéis e configuração do Flip 7 continuam locais; partidas e comandos vêm da API. [Limites do jogo](flip7.md#escopo).
 
 ## Componentes e acessibilidade
 
