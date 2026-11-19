@@ -1,5 +1,10 @@
 import { pgTable, bigint, bigserial, integer, boolean, jsonb, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+export const navigationMenus = pgTable("navigation_menus", {
+  location: text("location").primaryKey(),
+  items: jsonb("items").notNull(),
+  version: integer("version").notNull().default(1),
+}, table => [check("menu_location_valid", sql`${table.location} in ('main','footer')`), check("menu_version_positive", sql`${table.version} > 0`)]);
 export const pages = pgTable("pages", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
@@ -8,7 +13,15 @@ export const pages = pgTable("pages", {
   published: boolean("published").notNull().default(false),
   showInMenu: boolean("show_in_menu").notNull().default(false),
   version: integer("version").notNull().default(1),
-}, table => [check("page_version_positive", sql`${table.version} > 0`)]);
+  createdAt: timestamp("created_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  lastEditedBy: text("last_edited_by"),
+  status: text("status").notNull().default("draft"),
+  publishAt: timestamp("publish_at", { withTimezone: true }),
+  authorId: uuid("author_id"),
+  authorName: text("author_name"),
+}, table => [check("page_version_positive", sql`${table.version} > 0`), check("page_status_valid", sql`${table.status} in ('draft','pending','private','scheduled','published')`), check("page_schedule_date", sql`${table.status} <> 'scheduled' or ${table.publishAt} is not null`)]);
 // Referência operacional: não contém valores da economia nem usuários demo.
 export const applicationEnvironment = pgTable("application_environment", {
   id: integer("id").primaryKey(),

@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { AdminAccess } from "@/features/admin/admin-access";
 import { adminQuerySchema, adminUsersSchema, couponsQuerySchema, couponsSchema, pagesSchema } from "@croebet/shared";
 import { AdminPages } from "@/features/admin/admin-pages";
+import { menuAdminSchema } from "@croebet/shared";
+import { AdminMenus } from "@/features/admin/admin-menus";
 import { getManagement } from "@/features/admin/server-management";
 import { AdminUsers } from "@/features/admin/admin-users";
 import { AdminCoupons } from "@/features/admin/admin-coupons";
@@ -16,6 +18,7 @@ const titles = {
   coupons: "Cupons",
   users: "Usuários",
   pages: "Páginas",
+  menus: "Menus",
 } as const;
 
 export async function generateMetadata({
@@ -42,6 +45,10 @@ export default async function AdminSectionPage({
     ([, href]) => href === `/admin/${section}`,
   );
   if (!entry) notFound();
+  if (section === "menus") {
+    const data = await getManagement("/admin/menus", menuAdminSchema);
+    return <AdminAccess section="menus" content={data ? <AdminMenus initial={data} /> : <ManagementUnavailable />} />;
+  }
   if (section === "paginas") {
     const data = await getManagement("/admin/pages", pagesSchema);
     return <AdminAccess section="pages" content={data ? <AdminPages pages={data.items} /> : <ManagementUnavailable />} />;

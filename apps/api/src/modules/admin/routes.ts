@@ -7,8 +7,10 @@ import { tokenHash } from "../auth/security.ts";
 import { readTransactions, WalletError } from "../wallet/service.ts";
 import { ManagementError, readAdminUser, readAdminUsers, readAudit, changeUser, adjustBalance, readCoupon, readCoupons, readRedemptions, saveCoupon } from "./service.ts";
 import { redeemCoupon } from "./redeem.ts";
-import { pageSlugSchema, pageWriteSchema } from "@croebet/shared";
-import { readPageLinks, readPage, readPages, savePage } from "../pages/service.ts";
+import { pageSlugSchema, pageWriteSchema, pageDeleteSchema } from "@croebet/shared";
+import { readPageLinks, readPage, readPages, savePage, deletePage, readPageAuthors } from "../pages/service.ts";
+import { menuLocationSchema, menuWriteSchema } from "@croebet/shared";
+import { readNavigation, readMenus, saveMenu } from "../menus/service.ts";
 
 type Options = { pool: Pool; sessionName: string; current: (token: string | undefined) => Promise<{ id: string; role: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function managementRoutes(app: FastifyInstance, options: Options) {
@@ -27,6 +29,10 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
     }
   }
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as { id: string }).id);
+  app.get("/api/v1/navigation", async () => readNavigation(pool));
+  app.get("/api/v1/admin/menus", (request, reply) => run(request, reply, true, async () => readMenus(pool)));
+  app.patch("/api/v1/admin/menus/:location", (request, reply) => run(request, reply, true, async (actor, hash) => saveMenu(pool, actor.id, hash,
+    menuLocationSchema.parse((request.params as { location: string }).location), menuWriteSchema.parse(request.body))));
   const slug = (request: FastifyRequest) => pageSlugSchema.parse((request.params as { slug: string }).slug);
   app.get("/api/v1/pages", async () => readPageLinks(pool));
   app.get("/api/v1/pages/:slug", async (request, reply) => {
@@ -35,6 +41,8 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
     try { return await readPage(pool, parsed.data); }
     catch (error) { if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } }); throw error; }
   });
+  app.get("/api/v1/admin/page-authors", (request, reply) => run(request, reply, true, async () => readPageAuthors(pool)));
+  app.delete("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async (actor, hash) => deletePage(pool, actor.id, hash, slug(request), pageDeleteSchema.parse(request.body).version)));
   app.get("/api/v1/admin/pages", (request, reply) => run(request, reply, true, async () => readPages(pool)));
   app.get("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async () => readPage(pool, slug(request), true)));
   app.post("/api/v1/admin/pages", (request, reply) => run(request, reply, true, async (actor, hash) => savePage(pool, actor.id, hash, null, pageWriteSchema.parse(request.body))));

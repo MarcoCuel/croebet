@@ -1,19 +1,13 @@
 "use client";
 
-import { Award, PlayingCards, House, Info, Tickets, Trophy } from "lucide-react";
+import { Award, PlayingCards, House, Info, Tickets, Trophy, History, UserRound, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePageLinks } from "@/features/pages/page-links";
+import { useMenus } from "@/features/menus/menu-provider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const links: { href: string; label: string; Icon: typeof House; comingSoon?: boolean }[] = [
-  { href: "/", label: "Início", Icon: House },
-  { href: "/jogos", label: "Jogos", Icon: PlayingCards },
-  { href: "/apostas", label: "Apostas", Icon: Tickets },
-  { href: "/rankings", label: "Rankings", Icon: Trophy, comingSoon: true },
-  { href: "/conquistas", label: "Conquistas", Icon: Award, comingSoon: true },
-];
+const icons = { home: House, games: PlayingCards, betting: Tickets, rankings: Trophy, achievements: Award, history: History, profile: UserRound };
 
 export function MenuLinks({
   onNavigate,
@@ -23,13 +17,14 @@ export function MenuLinks({
   sidebar?: boolean;
 }) {
   const pathname = usePathname();
-  const pages = usePageLinks();
-  const menuLinks: typeof links = [...links, ...(pages ?? []).filter(page => page.showInMenu).map((page) => ({ href: `/${page.slug}`, label: page.title, Icon: Info }))];
+  const menus = useMenus();
+  const menuLinks = (menus?.main ?? []).map(item => ({ ...item, Icon: item.fixed ? icons[item.fixed] : item.href.startsWith("/") ? Info : ExternalLink }));
   return (
     <nav className="grid gap-1.5" aria-label="Navegação principal">
-      {menuLinks.map(({ href, label, Icon, comingSoon }) => comingSoon ? (
+      {!menus && <p role="status" className="px-3 text-sm text-muted">Menu indisponível.</p>}
+      {menuLinks.map(({ id, href, label, Icon, disabled, newTab }) => disabled ? (
         <span
-          key={href}
+          key={id}
           aria-disabled="true"
           title={`${label} — Em breve`}
           className={cn(
@@ -43,8 +38,10 @@ export function MenuLinks({
         </span>
       ) : (
         <Link
-          key={href}
+          key={id}
           href={href}
+          target={newTab ? "_blank" : undefined}
+          rel={newTab ? "noopener noreferrer" : undefined}
           aria-label={label}
           title={label}
           className={cn(

@@ -60,6 +60,7 @@ export function Topbar({
                 "/admin/jogos": "Jogos",
                 "/admin/apostas": "Apostas",
                 "/admin/paginas": "Páginas",
+                "/admin/menus": "Menus",
                 "/admin/usuarios": "Usuários",
               } as Record<string, string>
             )[pathname]

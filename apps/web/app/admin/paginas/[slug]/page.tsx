@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AdminAccess } from "@/features/admin/admin-access";
-import { sitePageSchema } from "@croebet/shared";
+import { sitePageSchema, pageAuthorsSchema } from "@croebet/shared";
 import { getManagement } from "@/features/admin/server-management";
 import { getInitialSession } from "@/features/auth/server-session";
 import { notFound } from "next/navigation";
@@ -17,6 +17,9 @@ export default async function EditPage({ params }: { params: Promise<{ slug: str
   const session = await getInitialSession();
   if (session.ready && session.user?.role !== "admin") notFound();
   if (!session.ready) return <AdminAccess section="pages" content={<ManagementUnavailable />} />;
-  const page = slug === "nova" ? null : await getManagement(`/admin/pages/${encodeURIComponent(slug)}`, sitePageSchema);
-  return <AdminAccess section="pages" content={slug !== "nova" && !page ? <ManagementUnavailable /> : <AdminPageEditor key={page ? `${page.id}:${page.version}` : "nova"} page={page} />} />;
+  const [page, authors] = await Promise.all([
+    slug === "nova" ? null : getManagement(`/admin/pages/${encodeURIComponent(slug)}`, sitePageSchema),
+    getManagement("/admin/page-authors", pageAuthorsSchema),
+  ]);
+  return <AdminAccess section="pages" content={(slug !== "nova" && !page) || !authors || !session.user ? <ManagementUnavailable /> : <AdminPageEditor key={page ? `${page.id}:${page.version}` : "nova"} page={page} authors={authors.items} currentAuthor={session.user} />} />;
 }

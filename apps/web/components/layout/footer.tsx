@@ -2,24 +2,18 @@
 
 import Link from "next/link";
 
-import { usePageLinks } from "@/features/pages/page-links";
+import { useMenus } from "@/features/menus/menu-provider";
 
 export function Footer() {
-  const pages = usePageLinks();
+  const menus = useMenus();
   return (
     <footer className="mx-auto mt-12 flex w-[calc(100%-2*var(--page-gap))] flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t-(length:--border-width-hairline) border-contrast/6 py-6 px-2 text-sm text-muted">
       <nav className="flex flex-wrap gap-4" aria-label="Navegação do rodapé">
-        <Link className="hover:text-foreground" href="/jogos">
-          Jogos
-        </Link>
-        <Link className="hover:text-foreground" href="/apostas">
-          Apostas
-        </Link>
-        {(pages ?? []).map((page) => (
-          <Link key={page.slug} className="hover:text-foreground" href={`/${page.slug}`}>{page.title}</Link>
-        ))}
+        {(menus?.footer ?? []).map(item => item.disabled
+          ? <span key={item.id} aria-disabled="true">{item.label} · Em breve</span>
+          : <Link key={item.id} className="hover:text-foreground" href={item.href} target={item.newTab ? "_blank" : undefined} rel={item.newTab ? "noopener noreferrer" : undefined}>{item.label}</Link>)}
       </nav>
-      {pages === null && <p role="status">Páginas temporariamente indisponíveis.</p>}
+      {menus === null && <p role="status">Menu do rodapé temporariamente indisponível.</p>}
       <p>Croebet · 2026</p>
     </footer>
   );

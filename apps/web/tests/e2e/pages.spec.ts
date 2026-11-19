@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type { SitePageRecord } from "@croebet/shared";
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Admin", displayName: "Admin", role: "admin" };
-const base: SitePageRecord = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "sobre", title: "Sobre", document: [{ tag: "p", children: ["Conteúdo compartilhado"] }], published: true, showInMenu: true, version: 1 };
+const base: SitePageRecord = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "sobre", title: "Sobre", document: [{ tag: "p", children: ["Conteúdo compartilhado"] }], published: true, showInMenu: true, version: 1, createdAt: null, updatedAt: null, publishedAt: null, lastEditedBy: null, status: "published", publishAt: null, authorId: user.id, authorName: user.displayName };
 let pages: SitePageRecord[] = [];
 let failure = false;
 let api: Server;
@@ -14,14 +14,31 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   if (path === "/api/v1/rewards/daily") return { status: 200, data: { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() } };
   if (path.startsWith("/api/v1/admin/") && !authenticated) return { status: 404, data: {} };
   if (failure) return { status: 503, data: {} };
+  if (path === "/api/v1/navigation") {
+    const about = pages.find(page => page.id === base.id && page.published);
+    const items = about ? [{ id: base.id, label: "Sobre", href: `/${about.slug}`, newTab: false, fixed: null, disabled: false }] : [];
+    return { status: 200, data: { main: items, footer: items } };
+  }
   if (path === "/api/v1/pages") return { status: 200, data: { items: pages.filter(p => p.published).map(p => ({ slug: p.slug, title: p.title, showInMenu: p.showInMenu })) } };
+  if (path === "/api/v1/admin/page-authors") return { status: 200, data: { items: [{ id: user.id, username: user.username, displayName: user.displayName }] } };
+  if (path === "/api/v1/admin/pages" && method === "POST") {
+    const now = new Date().toISOString();
+    const created = { ...structuredClone(base), ...body, id: crypto.randomUUID(), version: 1, createdAt: now, updatedAt: now, lastEditedBy: user.username, publishedAt: body.published ? now : null } as SitePageRecord;
+    pages.push(created);
+    return { status: 200, data: created };
+  }
   if (path === "/api/v1/admin/pages") return { status: 200, data: { items: pages } };
   const slug = path.split("/").at(-1);
   const page = pages.find(p => p.slug === slug);
   if (!page || (!path.includes("/admin/") && !page.published)) return { status: 404, data: {} };
+  if (method === "DELETE") {
+    if (body.version !== page.version) return { status: 409, data: { error: { message: "A página foi alterada. Recarregue antes de excluir." } } };
+    pages = pages.filter(item => item.id !== page.id);
+    return { status: 200, data: { ok: true } };
+  }
   if (method === "PATCH") {
     if (body.version !== page.version) return { status: 409, data: { error: { message: "A página foi alterada. Recarregue antes de salvar." } } };
-    Object.assign(page, body, { version: page.version + 1 });
+    Object.assign(page, body, { version: page.version + 1, updatedAt: new Date().toISOString(), lastEditedBy: user.username, publishedAt: body.published && !page.published ? new Date().toISOString() : page.publishedAt });
   }
   return { status: 200, data: page };
 }
@@ -34,7 +51,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  pages = [structuredClone(base), { ...structuredClone(base), id: "93089d02-0b34-4b78-9d3e-f2679c190b5d", slug: "rascunho", title: "Segredo", published: false }]; failure = false;
+  pages = [structuredClone(base), { ...structuredClone(base), id: "93089d02-0b34-4b78-9d3e-f2679c190b5d", slug: "rascunho", title: "Segredo", status: "draft", published: false }]; failure = false;
   await context.addCookies([{ name: "croebet-session", value: "pages-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const request = route.request(); const result = respond(new URL(request.url()).pathname, request.method(), request.postDataJSON() ?? {});
@@ -53,14 +70,14 @@ test("página, menu e rodapé chegam no HTML público sem JavaScript; rascunho f
 test("edição publica para outro navegador e detecta conflito", async ({ page, browser }) => {
   await page.goto("/admin/paginas/sobre");
   await page.getByLabel("Título", { exact: true }).fill("Nossa história");
-  await page.getByRole("button", { name: "Salvar página" }).click();
-  await expect(page).toHaveURL(/\/admin\/paginas$/);
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Página salva.", { exact: true })).toBeVisible();
   const context = await browser.newContext({ javaScriptEnabled: false }); const visitor = await context.newPage();
   await visitor.goto("/sobre"); await expect(visitor).toHaveTitle("Nossa história · Croebet");
-  await expect(visitor.locator("footer").getByRole("link", { name: "Nossa história" })).toBeVisible();
+  await expect(visitor.locator("footer").getByRole("link", { name: "Sobre", exact: true })).toBeVisible();
   await context.close();
   await page.goto("/admin/paginas/sobre"); pages[0].version++;
-  await page.getByRole("button", { name: "Salvar página" }).click();
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("A página foi alterada. Recarregue antes de salvar.")).toBeVisible();
 });
 test("falha do serviço tem tentativa novamente e não vira 404", async ({ page }) => {
@@ -68,4 +85,56 @@ test("falha do serviço tem tentativa novamente e não vira 404", async ({ page 
   await expect(page.getByText("Não foi possível carregar esta página.", { exact: true })).toBeVisible();
   failure = false; await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByText("Conteúdo compartilhado", { exact: true })).toBeVisible();
+});
+
+async function setStatus(page: import("@playwright/test").Page, status: string) {
+  await page.getByRole("button", { name: "Editar status", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Status", { exact: true }).selectOption(status);
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+}
+test("lista vazia, modais, rascunho, publicação e exclusão", async ({ page }) => {
+  pages = [];
+  await page.goto("/admin/paginas");
+  await expect(page.getByText("Nenhuma página criada ainda.")).toBeVisible();
+  await page.getByRole("link", { name: "Nova página", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Excluir página", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Publicar", exact: true })).toBeVisible();
+  await page.getByLabel("Título", { exact: true }).fill("Ajuda");
+  await page.getByRole("button", { name: "Editar slug", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Slug", { exact: true }).fill("ajuda-da-casa");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await page.getByRole("button", { name: "Editar autor", exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel("Autor", { exact: true })).toHaveValue(user.id);
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await setStatus(page, "draft");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/paginas\/ajuda-da-casa$/);
+  await expect(page.getByRole("button", { name: "Excluir página", exact: true })).toBeVisible();
+  expect(pages[0].published).toBe(false);
+  await setStatus(page, "published");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Escreva o conteúdo da página antes de publicar.")).toBeVisible();
+  await page.getByRole("textbox", { name: "Conteúdo principal" }).fill("Como funciona");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByText("Página salva.", { exact: true })).toBeVisible();
+  expect(pages[0].published).toBe(true);
+  await page.getByRole("button", { name: "Excluir página", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Excluir página?", exact: true })).toBeVisible();
+  expect(pages).toHaveLength(1);
+  await page.getByRole("button", { name: "Excluir permanentemente", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/paginas$/);
+  expect(pages).toHaveLength(0);
+});
+test("data futura muda a ação para Agendar e mantém a página privada", async ({ page }) => {
+  await page.goto("/admin/paginas/nova");
+  await page.getByLabel("Título", { exact: true }).fill("Novidades");
+  await page.getByRole("textbox", { name: "Conteúdo principal" }).fill("Em breve");
+  await page.getByRole("button", { name: "Editar publicar", exact: true }).click();
+  await page.getByLabel("Data e hora (Brasília)").fill("2099-12-01T12:00");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await page.getByRole("button", { name: "Agendar", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/paginas\/novidades$/);
+  expect(pages.at(-1)?.status).toBe("scheduled");
+  expect(pages.at(-1)?.published).toBe(false);
+  expect((await page.goto("/novidades"))?.status()).toBe(404);
 });

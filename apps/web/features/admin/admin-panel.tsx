@@ -16,6 +16,7 @@ import {
   PlayingCards,
   Tickets,
   Users,
+  ListTree,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,6 +30,7 @@ const sections = [
   { id: "coupons", label: "Cupons", Icon: Ticket },
   { id: "users", label: "Usuários", Icon: Users },
   { id: "pages", label: "Páginas", Icon: FileText },
+  { id: "menus", label: "Menus", Icon: ListTree },
 ] as const;
 
 export function AdminPanel({
@@ -91,7 +93,7 @@ export function AdminPanel({
             ) : (
               <AdminMarkets />
             ))}
-          {(section === "pages" || section === "coupons" || section === "users") && content}
+          {(section === "menus" || section === "pages" || section === "coupons" || section === "users") && content}
         </section>
       </div>
     </div>

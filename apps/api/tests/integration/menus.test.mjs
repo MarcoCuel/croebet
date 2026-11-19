@@ -1,0 +1,43 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createDatabase } from '../../dist/db/client.js';
+import { readMenus, readNavigation, saveMenu } from '../../dist/modules/menus/service.js';
+test('PostgreSQL: menus independentes, páginas por ID, conflito e rollback da auditoria', async t => {
+  if (!process.env.TEST_DATABASE_URL) throw Error('Configure TEST_DATABASE_URL com banco isolado migrado e identificado como test.');
+  const { pool } = createDatabase(process.env.TEST_DATABASE_URL);
+  let original; let actor; let pageId;
+  t.after(async () => { try {
+    if (original) for (const menu of original.menus) await pool.query('update navigation_menus set items=$1,version=$2 where location=$3', [JSON.stringify(menu.items), menu.version, menu.location]);
+    if (pageId) await pool.query('delete from pages where id=$1', [pageId]);
+    if (actor) await pool.query('delete from users where id=$1', [actor]);
+  } finally { await pool.end(); } });
+  assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
+  original = await readMenus(pool);
+  const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
+  actor = (await pool.query("insert into users (username,display_name,password_hash,role) values ($1,$1,'fixture','admin') returning id", [`Menu_${suffix}`])).rows[0].id;
+  const hash = randomUUID();
+  await pool.query("insert into sessions (token_hash,user_id,expires_at,idle_expires_at) values ($1,$2,now()+interval '1 day',now()+interval '1 day')", [hash, actor]);
+  pageId = (await pool.query("insert into pages (slug,title,document,published) values ($1,'Ajuda','[]',false) returning id", [`menu-${suffix}`])).rows[0].id;
+  const main = original.menus.find(menu => menu.location === 'main');
+  const footer = original.menus.find(menu => menu.location === 'footer');
+  const items = [{ id: randomUUID(), type: 'page', pageId, label: 'Ajuda do site', newTab: false }, { id: randomUUID(), type: 'custom', url: 'https://example.com', label: 'Comunidade', newTab: true }];
+  const races = await Promise.allSettled([1, 2].map(() => saveMenu(pool, actor, hash, 'main', { version: main.version, items })));
+  assert.equal(races.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(races.find(result => result.status === 'rejected').reason.code, 'VERSION_CONFLICT');
+  assert.deepEqual((await readNavigation(pool)).main.map(item => item.label), ['Comunidade']);
+  await pool.query('update pages set published=true,slug=$1 where id=$2', [`novo-${suffix}`, pageId]);
+  const visible = (await readNavigation(pool)).main;
+  assert.deepEqual(visible.map(item => item.label), ['Ajuda do site', 'Comunidade']);
+  assert.equal(visible[0].href, `/novo-${suffix}`);
+  await saveMenu(pool, actor, hash, 'footer', { version: footer.version, items: [] });
+  assert.deepEqual((await readNavigation(pool)).main, visible);
+  const current = (await readMenus(pool)).menus.find(menu => menu.location === 'main');
+  const failingPool = { connect: async () => {
+    const client = await pool.connect();
+    return { query: (sql, params) => sql.startsWith('insert into admin_audit') ? Promise.reject(Error('audit failure')) : client.query(sql, params), release: () => client.release() };
+  } };
+  await assert.rejects(saveMenu(failingPool, actor, hash, 'main', { version: current.version, items: [] }), /audit failure/);
+  assert.deepEqual((await readMenus(pool)).menus.find(menu => menu.location === 'main'), current);
+  await assert.rejects(saveMenu(pool, actor, 'expired', 'main', { version: current.version, items: [] }), { code: 'NOT_FOUND' });
+});

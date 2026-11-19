@@ -7,25 +7,26 @@ import { DemoSessionProvider } from "@/features/auth/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider, useTheme } from "@/features/theme/theme-provider";
-import type { PageLink } from "@croebet/shared";
+import type { PageLink, NavigationData } from "@croebet/shared";
 import { PageLinksProvider } from "@/features/pages/page-links";
+import { MenuProvider } from "@/features/menus/menu-provider";
 
-type ProvidersProps = { children: ReactNode; initialSession: InitialSession; initialPages: PageLink[] | null };
+type ProvidersProps = { children: ReactNode; initialSession: InitialSession; initialPages: PageLink[] | null; initialNavigation: NavigationData | null };
 
-export function Providers({ children, initialSession, initialPages }: ProvidersProps) {
+export function Providers({ children, initialSession, initialPages, initialNavigation }: ProvidersProps) {
   return (
     <ThemeProvider>
-      <AppProviders initialSession={initialSession} initialPages={initialPages}>{children}</AppProviders>
+      <AppProviders initialSession={initialSession} initialPages={initialPages} initialNavigation={initialNavigation}>{children}</AppProviders>
     </ThemeProvider>
   );
 }
 
-function AppProviders({ children, initialSession, initialPages }: ProvidersProps) {
+function AppProviders({ children, initialSession, initialPages, initialNavigation }: ProvidersProps) {
   const { resolvedTheme } = useTheme();
   return (
     <TooltipProvider delayDuration={300}>
       <DemoSessionProvider initialSession={initialSession}>
-        <PageLinksProvider initial={initialPages}><SiteConfigProvider>{children}</SiteConfigProvider></PageLinksProvider>
+        <MenuProvider initial={initialNavigation}><PageLinksProvider initial={initialPages}><SiteConfigProvider>{children}</SiteConfigProvider></PageLinksProvider></MenuProvider>
         <Toaster theme={resolvedTheme} />
       </DemoSessionProvider>
     </TooltipProvider>

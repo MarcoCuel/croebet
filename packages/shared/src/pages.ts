@@ -9,9 +9,20 @@ const fields = {
   slug: pageSlugSchema, title: z.string().trim().min(1).max(100), document: documentSchema,
   published: z.boolean(), showInMenu: z.boolean(),
 };
-export const pageWriteSchema = z.object({ ...fields, version: z.number().int().min(0) }).strict()
-  .refine(page => !page.published || richTextPlainText(page.document).trim().length > 0, "Escreva o conteúdo antes de publicar.");
-export const sitePageSchema = z.object({ ...fields, id: z.uuid(), version: z.number().int().positive() }).strict();
+export const pageStatusSchema = z.enum(["draft", "pending", "private", "scheduled", "published"]);
+export type PageStatus = z.infer<typeof pageStatusSchema>;
+export const pageAuthorsSchema = z.object({ items: z.array(z.object({ id: z.uuid(), username: z.string(), displayName: z.string() }).strict()) }).strict();
+export type PageAuthor = z.infer<typeof pageAuthorsSchema>["items"][number];
+export const pageDeleteSchema = z.object({ version: z.number().int().positive() }).strict();
+export const pageDeleteResultSchema = z.object({ ok: z.literal(true) }).strict();
+export const pageWriteSchema = z.object({ ...fields, version: z.number().int().min(0), status: pageStatusSchema.optional(), publishAt: z.iso.datetime().nullable().optional(), authorId: z.uuid().nullable().optional() }).strict()
+  .refine(page => !(["published", "scheduled"].includes(page.status ?? (page.published ? "published" : "draft"))) || richTextPlainText(page.document).trim().length > 0, "Escreva o conteúdo antes de publicar.")
+  .refine(page => page.status !== "scheduled" || !!page.publishAt, "Escolha uma data futura para agendar a publicação.");
+export const sitePageSchema = z.object({ ...fields, id: z.uuid(), version: z.number().int().positive(),
+  status: pageStatusSchema, publishAt: z.iso.datetime().nullable(), authorId: z.uuid().nullable(), authorName: z.string().nullable(),
+  createdAt: z.iso.datetime().nullable(), updatedAt: z.iso.datetime().nullable(),
+  publishedAt: z.iso.datetime().nullable(), lastEditedBy: z.string().nullable(),
+}).strict();
 export const pagesSchema = z.object({ items: z.array(sitePageSchema) }).strict();
 export const pageLinksSchema = z.object({ items: z.array(z.object({ slug: pageSlugSchema, title: z.string(), showInMenu: z.boolean() }).strict()) }).strict();
 export type SitePageRecord = z.infer<typeof sitePageSchema>;
