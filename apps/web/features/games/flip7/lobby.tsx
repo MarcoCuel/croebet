@@ -39,8 +39,12 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const navigating=useRef(false);
   const leaving=useRef(false);
   const visit=(code:string|null,invite=false)=>{
+    if(!code)navigating.current=false;
+    window.history.replaceState(null,"",code?"/jogos/flip7?partida="+code+(invite?"&convidar=1":""):"/jogos/flip7");
+  };
+  const openMatch=(code:string)=>{
     if(searchParams.get("partida")===code)router.refresh();
-    else router.replace(code?"/jogos/flip7?partida="+code+(invite?"&convidar=1":""):"/jogos/flip7",{scroll:false});
+    else router.replace("/jogos/flip7?partida="+code,{scroll:false});
   };
   useEffect(()=>{try{saveSetupPreferences({count:capacity,...options});}catch{/* Preferences are optional. */}},[capacity,options]);
   function acceptLobby(next:Lobby){
@@ -55,8 +59,8 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       acceptLobby(next.room);return;
     }
     navigating.current=true;
-    if(next.room.status==="abandoned"){visit(null);return;}
-    rememberStart(next);visit(next.room.code);
+    if(next.room.status==="abandoned"){setRoom(null);setDirectory(current=>({...current,current:null}));visit(null);return;}
+    rememberStart(next);openMatch(next.room.code);
   }
   function acceptDirectory(next:LobbyList){
     setDirectory(next);
@@ -148,13 +152,13 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
           const person=seats[i];
-          const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || !room.onlineUserIds.includes(person.userId));
+          const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || (person.userId!==userId && !room.onlineUserIds.includes(person.userId)));
           const preview=!room && i===0;
           const name=person?.username ?? (preview?username ?? "Você":null);
           const isHost=(person && person.userId===room?.hostId) || preview;
           const next=i===occupied;
           const placeholder=<UserRound className="size-6 text-muted" aria-hidden="true"/>;
-          return <li key={person?.userId ?? "seat-"+i} className={cn("relative flex min-w-0 flex-col items-center gap-2",waiting && "opacity-40")}>
+          return <li key={person?.userId ?? (preview?userId:undefined) ?? "seat-"+i} className={cn("relative flex min-w-0 flex-col items-center gap-2",waiting && "opacity-40")}>
             <div className="relative">
               {name?<Avatar className="size-16"><AvatarImage src={person?.avatarUrl ?? (preview?avatar ?? undefined:undefined)}/><AvatarFallback className="text-lg">{name[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
                 :next && (!room || host)?<Button variant="ghost" size="icon" className="size-16 rounded-full! border border-dashed border-field-border p-0" aria-label="Convidar jogadores" disabled={busy || (!!room && !connected)} onClick={async()=>{
@@ -170,7 +174,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
           </li>;
         })}
       </ul>
-      {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))router.replace("/jogos/flip7?partida="+room.code,{scroll:false});}}/>}
+      {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="space-y-3">
         {!room?<Button className="w-full" loading={busy} disabled={!!directory.current} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
@@ -200,6 +204,6 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
         })}</ul>}
       </>}
     </section>
-    {initial.items.length>0 && <Card className="space-y-4 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="divide-y divide-contrast/6">{initial.items.map(match=><li key={match.code} className="flex flex-wrap items-center justify-between gap-3 py-3"><span className="text-sm">{modeLabel(match.options)} · Rodada {match.state.round} · {match.participants.length} jogadores</span><Button size="sm" variant="secondary" onClick={()=>visit(match.code)}>Continuar partida</Button></li>)}</ul></Card>}
+    {initial.items.length>0 && <Card className="space-y-4 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="divide-y divide-contrast/6">{initial.items.map(match=><li key={match.code} className="flex flex-wrap items-center justify-between gap-3 py-3"><span className="text-sm">{modeLabel(match.options)} · Rodada {match.state.round} · {match.participants.length} jogadores</span><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}>Continuar partida</Button></li>)}</ul></Card>}
   </div>;
 }
