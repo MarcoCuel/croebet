@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -17,24 +18,87 @@ import { managementRequest } from "@/features/admin/management-api";
 import { adminDate } from "@/features/admin/management-shared";
 import { richTextPlainText, type RichTextDocument } from "@/lib/rich-text";
 
-const statusLabels: Record<PageStatus, string> = { draft: "Rascunho", pending: "Pendente", private: "Privada", scheduled: "Agendada", published: "Publicada" };
+const statusLabels: Record<PageStatus, string> = { draft: "Rascunho", pending: "Pendente", private: "Privada", scheduled: "Agendada", published: "Publicada", trash: "No lixo" };
+
+type PageFilter = "all" | PageStatus;
+const normalizeSearch = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
 export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
-  return <Card>
-    {pages.length ? <ul className="divide-y divide-contrast/6">
-      {pages.map(page => <li key={page.id} className="flex flex-wrap items-center gap-4 py-4 first:pt-0 last:pb-0">
-        <div className="min-w-0 flex-1">
-          <Link className="break-words font-semibold hover:underline" href={`/admin/paginas/${page.slug}`}>{page.title}</Link>
-          <p className="mt-1 break-all text-sm text-muted">/{page.slug}</p>
-        </div>
-        <Badge variant={page.published ? "default" : "secondary"}>{statusLabels[page.status]}</Badge>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="secondary" size="sm"><Link href={`/admin/paginas/${page.slug}`} aria-label={`Editar ${page.title}`}>Editar</Link></Button>
-          {page.published && <Button asChild variant="ghost" size="sm"><Link href={`/${page.slug}`} aria-label={`Ver ${page.title}`}>Ver página</Link></Button>}
-        </div>
-      </li>)}
-    </ul> : <p className="text-sm text-muted">Nenhuma página criada ainda.</p>}
-  </Card>;
+  const router = useRouter();
+  const [filter, setFilter] = useState<PageFilter>("all");
+  const [search, setSearch] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<SitePageRecord | null>(null);
+  const filters: { value: PageFilter; label: string }[] = [
+    { value: "all", label: "Todos" }, { value: "published", label: "Publicado" }, { value: "draft", label: "Rascunho" },
+    ...(["pending", "private", "scheduled"] as const).filter(status => pages.some(page => page.status === status)).map(value => ({ value, label: statusLabels[value] })),
+    { value: "trash", label: "Lixo" },
+  ];
+  const matchesFilter = (page: SitePageRecord, value: PageFilter) => value === "all" ? page.status !== "trash" : page.status === value;
+  const visible = pages.filter(page => matchesFilter(page, filter) && normalizeSearch(`${page.title} ${page.slug}`).includes(normalizeSearch(search.trim())))
+    .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
+  async function changeStatus(page: SitePageRecord, status: "trash" | "draft") {
+    if (pending) return;
+    setPending(page.id);
+    try {
+      await managementRequest(`/admin/pages/${page.slug}`, sitePageSchema, "PATCH", {
+        slug: page.slug, title: page.title, document: page.document, published: false, showInMenu: page.showInMenu,
+        status, publishAt: null, authorId: page.authorId, version: page.version,
+      });
+      toast.success(status === "trash" ? "Página movida para o lixo." : "Página restaurada como rascunho.");
+      router.refresh();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar a página."); }
+    finally { setPending(null); }
+  }
+  return <div className="grid min-w-0 gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+      <nav aria-label="Filtrar páginas por status" className="flex flex-wrap gap-1">
+        {filters.map(({ value, label }) => <Button key={value} size="sm" variant={filter === value ? "secondary" : "ghost"} aria-current={filter === value ? "page" : undefined} onClick={() => setFilter(value)}>
+          {label} <span className="text-muted tabular-nums">({pages.filter(page => matchesFilter(page, value)).length})</span>
+        </Button>)}
+      </nav>
+      <div className="w-full sm:w-72"><SearchInput value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar páginas…" aria-label="Buscar páginas" /></div>
+    </div>
+    <Card>
+      {visible.length ? <ul aria-label="Páginas" className="divide-y divide-contrast/6">
+        {visible.map(page => <li key={page.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 py-4 first:pt-0 last:pb-0">
+          <div className="min-w-0 flex-1 basis-48">
+            <div className="flex flex-wrap items-center gap-2">
+              {page.status === "trash" ? <span className="break-words font-semibold">{page.title}</span> : <Link className="break-words font-semibold hover:underline" href={`/admin/paginas/${page.slug}`}>{page.title}</Link>}
+              <Badge variant={page.published ? "default" : "secondary"}>{statusLabels[page.status]}</Badge>
+            </div>
+            <p className="mt-1 break-all text-sm text-muted">/{page.slug}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {page.status === "trash" ? <>
+              <Button variant="secondary" size="sm" disabled={!!pending} loading={pending === page.id} onClick={() => changeStatus(page, "draft")}>Restaurar</Button>
+              <Button variant="outline" size="sm" disabled={!!pending} onClick={() => setDeleting(page)}>Excluir permanentemente</Button>
+            </> : <>
+              <Button asChild variant="secondary" size="sm"><Link href={`/admin/paginas/${page.slug}`} aria-label={`Editar ${page.title}`}>Editar</Link></Button>
+              <Button variant="outline" size="sm" disabled={!!pending} loading={pending === page.id} onClick={() => changeStatus(page, "trash")} aria-label={`Mover ${page.title} para o lixo`}>Lixo</Button>
+              {page.published && <Button asChild variant="ghost" size="sm"><Link href={`/${page.slug}`} aria-label={`Ver ${page.title}`}>Ver página</Link></Button>}
+            </>}
+          </div>
+        </li>)}
+      </ul> : <p className="text-sm text-muted">{!pages.length ? "Nenhuma página criada ainda." : "Nenhuma página encontrada."}</p>}
+    </Card>
+    <p className="text-xs text-muted" aria-live="polite">{visible.length} {visible.length === 1 ? "página" : "páginas"}</p>
+    <Dialog open={!!deleting} onOpenChange={open => { if (!open && !pending) setDeleting(null); }}>
+      <DialogContent aria-describedby={undefined} onEscapeKeyDown={event => { if (pending) event.preventDefault(); }} onPointerDownOutside={event => { if (pending) event.preventDefault(); }}>
+        <DialogTitle>Excluir página permanentemente?</DialogTitle>
+        <p className="mt-4 text-sm text-muted">A página “{deleting?.title}” será excluída permanentemente.</p>
+        <Button variant="destructive" className="mt-5 w-full" loading={!!pending} onClick={async () => {
+          if (!deleting || pending) return;
+          setPending(deleting.id);
+          try {
+            await managementRequest(`/admin/pages/${deleting.slug}`, pageDeleteResultSchema, "DELETE", { version: deleting.version });
+            toast.success("Página excluída."); setDeleting(null); router.refresh();
+          } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível excluir a página."); }
+          finally { setPending(null); }
+        }}>Excluir permanentemente</Button>
+      </DialogContent>
+    </Dialog>
+  </div>;
 }
 
 function SettingRow({ label, children, onClick, disabled }: { label: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
@@ -51,7 +115,7 @@ function titleSlug(value: string) {
 }
 
 type EditorDialog = "status" | "publish" | "slug" | "author" | "delete";
-const dialogTitles: Record<EditorDialog, string> = { status: "Status", publish: "Publicar", slug: "Slug", author: "Autor", delete: "Excluir página?" };
+const dialogTitles: Record<EditorDialog, string> = { status: "Status", publish: "Publicar", slug: "Slug", author: "Autor", delete: "Mover página para o lixo?" };
 
 export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePageRecord | null; authors: PageAuthor[]; currentAuthor: PageAuthor }) {
   const router = useRouter();
@@ -138,23 +202,23 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
           <SettingRow label="Slug" onClick={() => setDialog("slug")} disabled={!!pending}>{slug || "Definir slug"}</SettingRow>
           <SettingRow label="Autor" onClick={() => setDialog("author")} disabled={!!pending}>{authorName}</SettingRow>
         </dl>
-        {page && <Button variant="outline" className="mt-3 w-full" onClick={() => setDialog("delete")} disabled={!!pending}>Excluir página</Button>}
+        {page && <Button variant="outline" className="mt-3 w-full" onClick={() => setDialog("delete")} disabled={!!pending}>Mover para o lixo</Button>}
       </Card>
     </aside>
     <Dialog open={dialog !== null} onOpenChange={open => { if (!open && !pending) setDialog(null); }}>
       <DialogContent aria-describedby={undefined} onEscapeKeyDown={event => { if (pending) event.preventDefault(); }} onPointerDownOutside={event => { if (pending) event.preventDefault(); }}>
         <DialogTitle>{dialog ? dialogTitles[dialog] : "Configurações"}</DialogTitle>
         {dialog === "delete" ? <div className="mt-5 grid gap-5">
-          <p className="text-sm text-muted">A página “{page?.title}” será excluída permanentemente.</p>
+          <p className="text-sm text-muted">A página “{page?.title}” será movida para o lixo.</p>
           <Button variant="destructive" loading={pending === "delete"} onClick={async () => {
             if (!page || pending) return;
             setPending("delete");
             try {
-              await managementRequest(`/admin/pages/${page.slug}`, pageDeleteResultSchema, "DELETE", { version: page.version });
-              toast.success("Página excluída."); setDialog(null); router.push("/admin/paginas"); router.refresh();
+              await managementRequest(`/admin/pages/${page.slug}`, sitePageSchema, "PATCH", { slug: page.slug, title: page.title, document: page.document, published: false, showInMenu: page.showInMenu, status: "trash", publishAt: null, authorId: page.authorId, version: page.version });
+              toast.success("Página movida para o lixo."); setDialog(null); router.push("/admin/paginas"); router.refresh();
             } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível excluir a página."); }
             finally { setPending(null); }
-          }}>Excluir permanentemente</Button>
+          }}>Mover para o lixo</Button>
         </div> : <form key={dialog} className="mt-5 grid gap-5" onSubmit={apply}>
           {dialog === "status" && <Field>Status<Select name="status" defaultValue={status}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>}
           {dialog === "slug" && <Field>Slug<Input name="slug" defaultValue={slug} required maxLength={100} pattern="[a-z0-9]+(-[a-z0-9]+)*" /></Field>}

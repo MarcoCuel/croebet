@@ -85,6 +85,13 @@
       "when": 1795067941386,
       "tag": "0011_perpetual_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795069238300,
+      "tag": "0012_zippy_blockbuster",
+      "breakpoints": true
     }
   ]
 }

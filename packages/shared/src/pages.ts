@@ -9,7 +9,7 @@ const fields = {
   slug: pageSlugSchema, title: z.string().trim().min(1).max(100), document: documentSchema,
   published: z.boolean(), showInMenu: z.boolean(),
 };
-export const pageStatusSchema = z.enum(["draft", "pending", "private", "scheduled", "published"]);
+export const pageStatusSchema = z.enum(["draft", "pending", "private", "scheduled", "published", "trash"]);
 export type PageStatus = z.infer<typeof pageStatusSchema>;
 export const pageAuthorsSchema = z.object({ items: z.array(z.object({ id: z.uuid(), username: z.string(), displayName: z.string() }).strict()) }).strict();
 export type PageAuthor = z.infer<typeof pageAuthorsSchema>["items"][number];

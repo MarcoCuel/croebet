@@ -1,0 +1,2 @@
+ALTER TABLE "pages" DROP CONSTRAINT "page_status_valid";--> statement-breakpoint
+ALTER TABLE "pages" ADD CONSTRAINT "page_status_valid" CHECK ("pages"."status" in ('draft','pending','private','scheduled','published','trash'));

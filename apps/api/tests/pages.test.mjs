@@ -51,7 +51,7 @@ test('página expõe autoria e datas confirmadas, preservando ausência de hist�
 test('agendamento exige data e conteúdo; estados editoriais e autor são validados', () => {
   assert.equal(pageWriteSchema.safeParse({ ...input, status: 'scheduled', publishAt: null }).success, false);
   assert.equal(pageWriteSchema.safeParse({ ...input, status: 'scheduled', publishAt: '2099-01-01T12:00:00Z', document: [] }).success, false);
-  for (const status of ['draft', 'pending', 'private']) assert.equal(pageWriteSchema.safeParse({ ...input, status, published: false, document: [] }).success, true);
+  for (const status of ['draft', 'pending', 'private', 'trash']) assert.equal(pageWriteSchema.safeParse({ ...input, status, published: false, document: [] }).success, true);
   assert.equal(pageWriteSchema.safeParse({ ...input, status: 'unknown' }).success, false);
   assert.equal(pageWriteSchema.safeParse({ ...input, authorId: 'username' }).success, false);
 });
@@ -95,4 +95,10 @@ test('exclusão verifica versão, registra auditoria e confirma junto com a remo
   assert.ok(valid.calls.some(call => call.sql.startsWith('delete from pages')));
   assert.ok(valid.calls.some(call => call.params?.includes('page.deleted')));
   assert.equal(valid.calls.at(-1).sql, 'commit');
+});
+
+test('lixeira permanece privada mesmo com um agendamento vencido', async () => {
+  const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'ajuda', title: 'Ajuda', document: input.document, published: false, show_in_menu: true, status: 'trash', version: 2, publish_at: new Date('2020-01-01T12:00:00Z') };
+  const page = await readPage({ query: async () => ({ rows: [row] }) }, 'ajuda', true);
+  assert.equal(page.status, 'trash'); assert.equal(page.published, false);
 });

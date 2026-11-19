@@ -41,7 +41,7 @@ test('PostgreSQL: publicação, unicidade, edição concorrente e auditoria de p
   await pool.query("update pages set publish_at='2020-01-01T12:00:00Z' where id=$1", [scheduled.id]);
   assert.equal((await readPage(pool, renamed.slug)).published, true);
   assert.equal((await readPageLinks(pool)).items.some(page => page.slug === renamed.slug), true);
-  for (const status of ['private', 'pending', 'draft']) {
+  for (const status of ['private', 'pending', 'trash', 'draft']) {
     const current = await readPage(pool, renamed.slug, true);
     await savePage(pool, actor, hash, renamed.slug, { ...input, slug: renamed.slug, status, version: current.version });
     await assert.rejects(readPage(pool, renamed.slug), { code: 'NOT_FOUND' });

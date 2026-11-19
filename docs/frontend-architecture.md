@@ -144,7 +144,9 @@ O primeiro jogo funcional foi integrado em `/jogos/flip7`. Seu módulo em `featu
 
 ### Editor visual das páginas
 
-A seção Páginas do admin usa um editor compartilhado WYSIWYG com títulos, subtítulos, negrito, itálico, listas e desfazer/refazer. A edição nativa preserva seleção e histórico de desfazer; os comandos ficam no primitive `RichTextEditor`. O texto colado entra sem formatação externa. O conteúdo é salvo como árvore de texto e tags permitidas (`pages[].document`), validada antes da persistência e renderizada com React sem HTML arbitrário. Conteúdo antigo continua válido e é convertido ao abrir o editor; o layout anterior permanece até a primeira gravação visual. A dependência de bibliotecas de editor não pôde ser instalada neste ambiente; a implementação utiliza as capacidades nativas do navegador.
+A seção Páginas do admin usa BlockNote (`@blocknote/core`, `@blocknote/react` e `@blocknote/ariakit`, versão 0.57.0) no primitive `RichTextEditor`. O editor é carregado por importação dinâmica sem SSR, apenas na administração, com menus em português e tema baseado nos tokens do projeto. A edição oferece parágrafos, títulos de níveis 1–3, listas, citações, negrito, itálico e sublinhado, além de desfazer/refazer e organização em blocos. O menu `/` e a barra flutuante substituem a barra fixa anterior. O schema restringe recursos ao contrato atual das páginas; `lib/blocknote-content.ts` faz a conversão síncrona de blocos para a árvore validada de texto/tags sem interpretar HTML. O conteúdo público continua renderizado no servidor com React; não carrega BlockNote. Esta troca não exige migration.
+
+A instalação das novas dependências ficou pendente nesta sessão por falha de DNS ao acessar registry.npmjs.org. Execute `pnpm install` no ambiente local para resolver e atualizar o lockfile; TypeScript/build do frontend só poderão ser concluídos após essa instalação.
 
 ### Acesso administrativo e integração futura
 

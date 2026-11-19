@@ -21,7 +21,7 @@ export const pages = pgTable("pages", {
   publishAt: timestamp("publish_at", { withTimezone: true }),
   authorId: uuid("author_id"),
   authorName: text("author_name"),
-}, table => [check("page_version_positive", sql`${table.version} > 0`), check("page_status_valid", sql`${table.status} in ('draft','pending','private','scheduled','published')`), check("page_schedule_date", sql`${table.status} <> 'scheduled' or ${table.publishAt} is not null`)]);
+}, table => [check("page_version_positive", sql`${table.version} > 0`), check("page_status_valid", sql`${table.status} in ('draft','pending','private','scheduled','published','trash')`), check("page_schedule_date", sql`${table.status} <> 'scheduled' or ${table.publishAt} is not null`)]);
 // Referência operacional: não contém valores da economia nem usuários demo.
 export const applicationEnvironment = pgTable("application_environment", {
   id: integer("id").primaryKey(),
