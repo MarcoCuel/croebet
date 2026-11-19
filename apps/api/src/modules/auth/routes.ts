@@ -1,3 +1,5 @@
+import { readWallet, readTransactions } from "../wallet/service.ts";
+import { transactionsQuerySchema } from "@croebet/shared";
 import { randomUUID } from "node:crypto";
 import { avatarMaxBytes, avatarContentTypes, processAvatar, InvalidAvatar } from "../avatars/image.ts";
 import { avatarUrl, validAvatarKey, type AvatarStorage } from "../avatars/storage.ts";
@@ -131,6 +133,18 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!user && request.cookies[sessionName]) reply.clearCookie(sessionName, cookieOptions);
     return sessionSchema.parse({ user: user ? publicUser(user) : null });
   });
+  app.get("/api/v1/me/wallet", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    return readWallet(pool, user.id);
+  });
+  app.get("/api/v1/me/transactions", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const query = transactionsQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
+    return readTransactions(pool, user.id, query.data.limit, query.data.offset);
+  });
   app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
     const parsed = usernameSchema.safeParse(request.params.username);
     if (parsed.success) {
@@ -150,6 +164,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       await client.query("begin");
       const result = await client.query("insert into users (username, display_name, password_hash) values ($1, $1, $2) returning *", [parsed.data.username, password]);
       const user = result.rows[0] as UserRow;
+      await client.query("insert into wallet_accounts (user_id, kind) values ($1, 'user')", [user.id]);
       // Rotate an existing browser session, never keep a caller-chosen session ID.
       if (request.cookies[sessionName]) await client.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
       const token = await issue(client, user.id);

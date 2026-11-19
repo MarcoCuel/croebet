@@ -1,0 +1,42 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createDatabase } from '../../dist/db/client.js';
+import { readWallet, readTransactions, transferCroins } from '../../dist/modules/wallet/service.js';
+
+test('PostgreSQL: carteira, concorrência, idempotência, rollback e histórico imutável', async t => {
+  if (!process.env.TEST_DATABASE_URL) throw new Error('Configure TEST_DATABASE_URL com banco isolado migrado e identificado como test.');
+  const { pool } = createDatabase(process.env.TEST_DATABASE_URL);
+  let user;
+  t.after(async () => { try { if (user) await pool.query('delete from users where id=$1', [user]); } finally { await pool.end(); } });
+  assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
+  const username = `Wallet_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+  user = (await pool.query('insert into users (username, display_name, password_hash) values ($1,$1,$1) returning id', [username])).rows[0].id;
+  // Ledger survives account deletion; test records remain only in the isolated test database.
+  const account = (await pool.query("insert into wallet_accounts (user_id,kind) values ($1,'user') returning id", [user])).rows[0].id;
+  const source = (await pool.query("insert into wallet_accounts (kind) values ('issuance') returning id")).rows[0].id;
+  const pot = (await pool.query("insert into wallet_accounts (kind) values ('pot') returning id")).rows[0].id;
+  assert.deepEqual(await readWallet(pool, user), { balance: 0 });
+  const grant = { scope: account, idempotencyKey: 'grant', from: source, to: account, actorAccountId: source, amount: 100, reason: 'Test grant', reference: user };
+  const receipts = await Promise.all([transferCroins(pool, grant), transferCroins(pool, grant)]);
+  assert.equal(receipts[0].operationId, receipts[1].operationId);
+  assert.equal((await readWallet(pool, user)).balance, 100);
+  await assert.rejects(transferCroins(pool, { ...grant, amount: 101 }), { code: 'IDEMPOTENCY_CONFLICT' });
+  const spend = { ...grant, from: account, to: pot, actorAccountId: account, amount: 80 };
+  const races = await Promise.allSettled(['one', 'two'].map(idempotencyKey => transferCroins(pool, { ...spend, idempotencyKey })));
+  assert.equal(races.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(races.find(result => result.status === 'rejected').reason.code, 'INSUFFICIENT_FUNDS');
+  assert.equal((await readWallet(pool, user)).balance, 20);
+  const history = await readTransactions(pool, user, 1, 0);
+  assert.equal(history.hasMore, true); assert.equal(history.items[0].amount, -80); assert.equal(history.items[0].balance, 20);
+  assert.equal((await readTransactions(pool, user, 1, 1)).items[0].amount, 100);
+  assert.equal((await pool.query('select sum(balance)::text as total from wallet_accounts where id=any($1::uuid[])', [[source, account, pot]])).rows[0].total, '0');
+  await assert.rejects(pool.query('update wallet_accounts set balance=999 where id=$1', [account]));
+  await assert.rejects(pool.query('update wallet_entries set amount=1 where account_id=$1', [account]));
+  await assert.rejects(pool.query('delete from wallet_operations where id=$1', [receipts[0].operationId]));
+  await assert.rejects(pool.query(`insert into wallet_operations (scope,idempotency_key,payload_hash,actor_account_id,reason,reference) values ($1,'empty','hash',$2,'test','test')`, [account, source]));
+  assert.equal((await readWallet(pool, user)).balance, 20);
+  await pool.query('delete from users where id=$1', [user]);
+  assert.equal((await pool.query('select user_id, balance from wallet_accounts where id=$1', [account])).rows[0].user_id, null);
+  await assert.rejects(transferCroins(pool, { ...grant, idempotencyKey: 'after-delete' }), { code: 'ACCOUNT_UNAVAILABLE' });
+});

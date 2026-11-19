@@ -43,6 +43,10 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal(stored.rows[0].display_name, username);
  assert.equal(registered.body.includes("password"), false); assert.equal(registered.cookies.find(c => c.name === "croebet-session").httpOnly, true);
  assert.equal((await request("/api/v1/me")).json().user.username, username);
+ const wallet = await request("/api/v1/me/wallet");
+ assert.equal(wallet.statusCode, 200); assert.deepEqual(wallet.json(), { balance: 0 });
+ const history = await request("/api/v1/me/transactions");
+ assert.equal(history.statusCode, 200); assert.deepEqual(history.json(), { items: [], hasMore: false });
  rateKeys.push(tokenHash(`avatar:${registered.json().user.id}`));
  const photo = await sharp({ create: { width: 100, height: 200, channels: 3, background: "red" } }).png().toBuffer();
  assert.equal((await request("/api/v1/me/avatar", "PUT", Buffer.from("invalid"))).statusCode, 400);
@@ -110,6 +114,7 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  await pool.query("update users set status='suspended' where username=$1", [username]);
  assert.equal((await request("/api/v1/me")).json().user, null);
  assert.equal((await request("/api/v1/auth/login", "POST", { username, password })).statusCode, 401);
+ assert.equal((await request("/api/v1/me/wallet")).statusCode, 401);
 
  await pool.query("update users set status='active' where id=$1", [registered.json().user.id]);
  await request("/api/v1/auth/login", "POST", { username, password });

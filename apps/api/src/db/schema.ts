@@ -1,4 +1,4 @@
-import { pgTable, integer, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, bigint, bigserial, integer, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 // Referência operacional: não contém valores da economia nem usuários demo.
 export const applicationEnvironment = pgTable("application_environment", {
@@ -35,3 +35,33 @@ export const avatarCleanup = pgTable("avatar_cleanup", {
   key: text("key").primaryKey(),
   deleteAfter: timestamp("delete_after", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// A deleted user leaves an unlinked account so immutable economic history survives.
+export const walletAccounts = pgTable("wallet_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").unique().references(() => users.id, { onDelete: "set null" }),
+  kind: text("kind").notNull(),
+  balance: bigint("balance", { mode: "bigint" }).notNull().default(sql`0`),
+}, table => [check("wallet_account_kind", sql`${table.kind} in ('user','issuance','house','pot')`),
+  check("wallet_balance_range", sql`${table.balance} between -9007199254740991 and 9007199254740991 and (${table.kind} = 'issuance' or ${table.balance} >= 0)`),
+  check("wallet_user_kind", sql`${table.userId} is null or ${table.kind} = 'user'`)]);
+export const walletOperations = pgTable("wallet_operations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  scope: text("scope").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  actorAccountId: uuid("actor_account_id").notNull().references(() => walletAccounts.id),
+  reason: text("reason").notNull(),
+  reference: text("reference").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("wallet_operation_idempotency").on(table.scope, table.idempotencyKey)]);
+export const walletEntries = pgTable("wallet_entries", {
+  sequence: bigserial("sequence", { mode: "bigint" }).notNull().unique(),
+  id: uuid("id").primaryKey().defaultRandom(),
+  operationId: uuid("operation_id").notNull().references(() => walletOperations.id),
+  accountId: uuid("account_id").notNull().references(() => walletAccounts.id),
+  amount: bigint("amount", { mode: "bigint" }).notNull(),
+  balance: bigint("balance", { mode: "bigint" }).notNull(),
+}, table => [uniqueIndex("wallet_entry_account_operation").on(table.operationId, table.accountId),
+  index("wallet_entries_account").on(table.accountId),
+  check("wallet_entry_amount", sql`${table.amount} != 0 and ${table.amount} between -9007199254740991 and 9007199254740991`)]);
