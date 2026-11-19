@@ -5,6 +5,7 @@ import type { SessionPermissions } from "@/features/auth/permissions";
 import type { Economy, DailyStatus } from "@croebet/shared";
 
 export type SessionValue = {
+  userId: string | null;
   balance: number;
   username: string | null;
   displayName: string | null;

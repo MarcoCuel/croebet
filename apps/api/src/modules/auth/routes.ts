@@ -55,7 +55,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   }
 
   await managementRoutes(app, { pool, current, sessionName, limit });
-  await matchRoutes(app, { pool, current, sessionName, limit });
+  await matchRoutes(app, { pool, current, sessionName, limit, origin: config.WEB_ORIGIN });
 
   if (avatarStorage) {
     app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
@@ -249,6 +249,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       await protectLastAdmin(client, locked.rows[0], { role: "user", status: "suspended" });
       await client.query("delete from sessions where user_id = $1", [user.id]);
       if (locked.rows[0].avatar_key) await client.query("insert into avatar_cleanup (key) values ($1) on conflict do nothing", [locked.rows[0].avatar_key]);
+      await client.query("delete from game_matches where created_by=$1 or owner_id=$1 or id in (select match_id from game_match_players where user_id=$1)", [user.id]);
       await client.query("delete from users where id = $1", [user.id]);
       await client.query("commit");
       reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions);

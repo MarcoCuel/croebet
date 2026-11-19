@@ -3,7 +3,7 @@ import { fixedMenuPages } from "@croebet/shared";
 
 // HTTP fixtures support both Server Components and browser requests. Account
 // state never comes from localStorage; each spec owns its fixture lifetime.
-export async function startPublicApi(session: () => unknown, handler?: (request: IncomingMessage, response: ServerResponse) => Promise<boolean>) {
+export async function startPublicApi(session: (request: IncomingMessage) => unknown, handler?: (request: IncomingMessage, response: ServerResponse) => Promise<boolean>) {
   const main = Object.entries(fixedMenuPages).map(([fixed, item], index) => ({
     id: `93089d02-0b34-4b78-9d3e-f2679c190b${60 + index}`,
     ...item, fixed, newTab: false,
@@ -19,7 +19,7 @@ export async function startPublicApi(session: () => unknown, handler?: (request:
     if (handler && await handler(request, response)) return;
     const path = new URL(request.url ?? "/", "http://fixture").pathname;
     response.setHeader("content-type", "application/json");
-    const body = path === "/api/v1/matches" ? { items: [] } : path === "/api/v1/me" ? { user: session() }
+    const body = path === "/api/v1/matches" ? { items: [] } : path === "/api/v1/me" ? { user: session(request) }
       : path === "/api/v1/games" ? { items: [game] }
       : path === "/api/v1/games/flip7" ? game
       : path === "/api/v1/navigation" ? { main, footer: [] }
@@ -32,5 +32,5 @@ export async function startPublicApi(session: () => unknown, handler?: (request:
     response.end(JSON.stringify(body));
   });
   await new Promise<void>((resolve,reject) => { server.once("error",reject); server.listen(3201,"127.0.0.1",resolve); });
-  return () => new Promise<void>((resolve,reject) => server.close(error => error ? reject(error) : resolve()));
+  return () => new Promise<void>((resolve,reject) => { server.closeAllConnections(); server.close(error => error ? reject(error) : resolve()); });
 }

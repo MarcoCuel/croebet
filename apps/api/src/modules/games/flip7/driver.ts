@@ -1,10 +1,11 @@
 import { randomInt } from "node:crypto";
-import { flip7ViewSchema, type Flip7View, type CreateMatch } from "@croebet/shared";
+import { flip7ViewSchema, type Flip7View } from "@croebet/shared";
+import type { Setup, GameOptions } from "./types.ts";
 import type { GameDriver } from "../../matches/driver.ts";
 import { createGame, transition, automaticAction, type Game, type Action } from "./engine.ts";
 import { validateState } from "./state.ts";
 
-export const flip7Driver: GameDriver<Game, Flip7View, CreateMatch, Action> = {
+export const flip7Driver: GameDriver<Game, Flip7View, { setup: Setup[]; options: GameOptions }, Action> = {
   rulesVersion: 1,
   create(input, username) {
     return createGame(input.setup.map((player, seat) => seat === 0 ? { name: username, kind: "human" } : player), 1, input.options, randomInt);

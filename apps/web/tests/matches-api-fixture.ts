@@ -1,57 +1,86 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createMatchSchema, matchCommandSchema, matchResultSchema, type Match } from "@croebet/shared";
+import { randomUUID } from "node:crypto";
+import { createMatchSchema, matchCommandSchema, matchResultSchema, type Room, type MatchFrame, type MatchParticipant } from "@croebet/shared";
 import { flip7Driver } from "../../api/src/modules/games/flip7/driver";
 import { createGame, type Game } from "../../api/src/modules/games/flip7/engine";
 import { execute } from "../../api/src/modules/matches/execution";
 
+export const matchUsers=[{id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",username:"Marco",displayName:"Marco",role:"user"},{id:"93089d02-0b34-4b78-9d3e-f2679c190b5d",username:"Beto",displayName:"Beto",role:"user"}];
+export const fixtureUser=(req:IncomingMessage)=>matchUsers[req.headers.cookie?.includes("game-fixture-beto")?1:0];
 export function matchesFixture() {
-  const states = new Map<string, { match: Match; privateState: Game }>();
-  const receipts = new Map<string, unknown>();
-  const commands: unknown[] = [];
-  let failAfterCommit = false;
-  return {
-    commands, states,
-    failNextResponse() { failAfterCommit = true; },
-    async handler(request: IncomingMessage, response: ServerResponse) {
-      const path = new URL(request.url ?? "/", "http://fixture").pathname;
-      if (!path.startsWith("/api/v1/matches") && path !== "/api/v1/auth/csrf") return false;
-      response.setHeader("content-type", "application/json");
-      const send = (body: unknown, status = 200) => { response.statusCode = status; response.end(JSON.stringify(body)); return true; };
-      if (path === "/api/v1/auth/csrf") return send({ token: "test-csrf" });
-      if (request.method === "GET" && path === "/api/v1/matches") return send({ items: [...states.values()].map(item => item.match).filter(match => match.status === "playing") });
-      const code = path.split("/")[4];
-      if (request.method === "GET") return states.has(code) ? send(states.get(code)!.match) : send({ error: { message: "Partida não encontrada." } },404);
-      let raw = "";
-      for await (const chunk of request) raw += String(chunk);
-      const body = JSON.parse(raw);
-      if (path === "/api/v1/matches") {
-        const input = createMatchSchema.parse(body);
-        if (receipts.has(input.requestId)) return send(receipts.get(input.requestId));
-        const game = createGame(input.setup,42,input.options);
-        // Known initial cards make UI assertions deterministic without exposing the deck.
-        for (const value of [11,10]) {
-          const index = game.deck.findIndex(card => card.type === "number" && card.value === value);
-          game.deck.push(...game.deck.splice(index,1));
-        }
-        const result = execute(flip7Driver,game,1);
-        const code = (states.size+1).toString(16).padStart(12,"0").toUpperCase();
-        const match: Match = { id: crypto.randomUUID(), code, game: "flip7", rulesVersion: 1, version: result.version, status: result.status, state: flip7Driver.project(result.state) };
-        states.set(code,{ match, privateState: result.state });
-        const reply = matchResultSchema.parse({ match, before: result.before, frames: result.frames });
-        receipts.set(input.requestId,reply); return send(reply);
-      }
-      const saved = states.get(code);
-      if (!saved) return send({ error: { message: "Partida não encontrada." } },404);
-      commands.push(body);
-      if (receipts.has(body.commandId)) return send(receipts.get(body.commandId));
-      if (body.expectedVersion !== saved.match.version) return send({ error: { message: "A partida mudou. Recarregue para continuar." } },409);
-      const result = path.endsWith("/abandon") ? { state: saved.privateState, before: saved.match.state, frames: [], version: saved.match.version+1, status: "abandoned" as const } : execute(flip7Driver,saved.privateState,saved.match.version,matchCommandSchema.parse(body).action);
-      saved.privateState = result.state;
-      saved.match = { ...saved.match, version: result.version, status: result.status, state: flip7Driver.project(result.state) };
-      const reply = matchResultSchema.parse({ match: saved.match, before: result.before, frames: result.frames });
-      receipts.set(body.commandId,reply);
-      if (failAfterCommit) { failAfterCommit = false; return send({ error: { message: "Resposta indisponível." } },503); }
-      return send(reply);
-    },
-  };
+  const states=new Map<string,{room:Room;privateState?:Game;frames:MatchFrame[]}>();
+  const receipts=new Map<string,unknown>();
+  const commands:unknown[]=[];
+  const streams=new Set<{response:ServerResponse;code:string|null;actor:string;version:number}>();
+  let failAfterCommit=false;
+  const directory=()=>({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="lobby")});
+  function notify(){for(const stream of streams){
+    if(!stream.code){stream.response.write(`event: lobbies\ndata: ${JSON.stringify(directory())}\n\n`);continue;}
+    const saved=states.get(stream.code);if(!saved || saved.room.version<=stream.version)continue;
+    if(saved.room.status!=="lobby" && !saved.room.participants.some(p=>p.userId===stream.actor)){stream.response.end();continue;}
+    const frames=saved.frames.filter(f=>f.version>stream.version);
+    const reset=!frames.length || frames[0].version!==stream.version+1;
+    stream.response.write(`event: room\ndata: ${JSON.stringify({room:saved.room,frames:reset?[]:frames,reset})}\n\n`);stream.version=saved.room.version;
+  }}
+  return {commands,states,failNextResponse(){failAfterCommit=true;},async handler(request:IncomingMessage,response:ServerResponse){
+    const url=new URL(request.url ?? "/","http://fixture"),path=url.pathname;
+    if(!path.startsWith("/api/v1/matches") && path!=="/api/v1/auth/csrf")return false;
+    const actor=fixtureUser(request);
+    response.setHeader("content-type","application/json");
+    const send=(body:unknown,status=200)=>{response.statusCode=status;response.end(JSON.stringify(body));return true;};
+    if(path==="/api/v1/auth/csrf")return send({token:"test-csrf"});
+    if(path==="/api/v1/matches/live"){
+      response.writeHead(200,{"content-type":"text/event-stream","cache-control":"no-cache","connection":"keep-alive"});
+      response.flushHeaders();
+      const code=url.searchParams.get("code"),version=Number(url.searchParams.get("afterVersion") ?? 0);
+      const stream={response,code,actor:actor.id,version};streams.add(stream);response.on("close",()=>streams.delete(stream));
+      const saved=code?states.get(code):null;
+      if(saved)response.write(`event: room\ndata: ${JSON.stringify({room:saved.room,frames:saved.frames.filter(f=>f.version>version),reset:false})}\n\n`);
+      else response.write(`event: lobbies\ndata: ${JSON.stringify(directory())}\n\n`);
+      return true;
+    }
+    if(path==="/api/v1/matches/lobbies")return send(directory());
+    if(request.method==="GET" && path==="/api/v1/matches")return send({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor.id))});
+    const code=path.split("/")[4];
+    if(request.method==="GET")return states.has(code)?send(states.get(code)!.room):send({error:{message:"Sala não encontrada."}},404);
+    let raw="";for await(const chunk of request)raw+=String(chunk);const body=JSON.parse(raw);
+    const key=`${actor.id}:${body.commandId ?? body.requestId}`;
+    if(receipts.has(key))return send(receipts.get(key));
+    const person=(seat:number):MatchParticipant=>({userId:actor.id,username:actor.username,displayName:actor.displayName,avatarUrl:null,seat});
+    if(path==="/api/v1/matches"){
+      const input=createMatchSchema.parse(body),code=(states.size+1).toString(16).padStart(12,"0").toUpperCase();
+      const room:Room={id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
+      states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
+    }
+    const saved=states.get(code);if(!saved)return send({error:{message:"Sala não encontrada."}},404);
+    if(path.endsWith("/join")){
+      if(saved.room.status!=="lobby" || saved.room.participants.length>=saved.room.capacity)return send({error:{message:"Sala indisponível."}},409);
+      if(!saved.room.participants.some(p=>p.userId===actor.id))saved.room={...saved.room,version:saved.room.version+1,participants:[...saved.room.participants,person(saved.room.participants.length)]};
+      receipts.set(key,saved.room);notify();return send(saved.room);
+    }
+    if(path.endsWith("/leave")){
+      const people=saved.room.participants.filter(p=>p.userId!==actor.id);
+      saved.room={...saved.room,version:saved.room.version+1,participants:people,hostId:people[0]?.userId ?? actor.id};
+      receipts.set(key,saved.room);notify();return send(saved.room);
+    }
+    if(path.endsWith("/start")){
+      if(saved.room.hostId!==actor.id || saved.room.participants.length<2)return send({error:{message:"Aguarde mais jogadores."}},409);
+      const game=createGame(saved.room.participants.map(p=>({name:p.username,kind:"human" as const})),42,saved.room.options);
+      for(const value of [11,10]){const index=game.deck.findIndex(c=>c.type==="number" && c.value===value);game.deck.push(...game.deck.splice(index,1));}
+      const version=saved.room.version+1,result=execute(flip7Driver,game,version);
+      saved.privateState=result.state;saved.frames.push({action:{type:"start"},state:result.before,version},...result.frames);
+      saved.room={...saved.room,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
+      receipts.set(key,saved.room);notify();return send(saved.room);
+    }
+    if(saved.room.status==="lobby" || !saved.privateState)return send({error:{message:"A partida não começou."}},409);
+    commands.push(body);
+    if(body.expectedVersion!==saved.room.version)return send({error:{message:"A partida mudou."}},409);
+    const seat=saved.privateState.bonusChoice ?? saved.privateState.pending?.source ?? saved.privateState.turn;
+    if(!path.endsWith("/abandon") && saved.room.participants.find(p=>p.userId===actor.id)?.seat!==seat)return send({error:{message:"Aguarde sua vez."}},403);
+    const result=path.endsWith("/abandon")?{state:saved.privateState,before:saved.room.state,frames:[],version:saved.room.version+1,status:"abandoned" as const}:execute(flip7Driver,saved.privateState,saved.room.version,matchCommandSchema.parse(body).action);
+    saved.privateState=result.state;saved.frames.push(...result.frames);saved.room={...saved.room,version:result.version,status:result.status,state:flip7Driver.project(result.state)};
+    const reply=matchResultSchema.parse({match:saved.room,before:result.before,frames:result.frames});receipts.set(key,reply);
+    if(failAfterCommit){failAfterCommit=false;return send({error:{message:"Resposta indisponível."}},503);}
+    notify();return send(reply);
+  }};
 }

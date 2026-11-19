@@ -3,31 +3,25 @@
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
 import { useRouter } from "next/navigation";
-import type { Match, MatchFrame, MatchCommand, CreateMatch } from "@croebet/shared";
+import type { MatchFrame, MatchCommand, RoomSync, MatchParticipant } from "@croebet/shared";
 import type { InitialMatches } from "./server-matches";
-import { createServerMatch, sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
+import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
-import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X, UserRound } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card as Surface } from "@/components/ui/card";
-import { Heading } from "@/components/shared/heading";
-import { Input } from "@/components/ui/input";
-import { Field } from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
-import { Select } from "@/components/ui/select";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
 import { useSession } from "@/features/auth/session-context";
-import { formatBalance } from "@/features/wallet/wallet";
 import { canStay, cardLabel, isNumber, modeLabel, score, targets } from "./presentation";
-import type { Action, Card, Game, GameOptions, Setup } from "./presentation";
+import type { Action, Card, Game, GameOptions } from "./presentation";
 import { cardChoices } from "./vengeance";
 import { forcedActionPresentation } from "./action-presentation";
+import { LobbyScreen } from "./lobby";
+import { useMatchLive } from "./live";
 import { GOAL } from "./presentation";
-import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
 
 function Rules({ options }: { options: GameOptions }) {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
@@ -128,169 +122,15 @@ function PlayingCard({ card, flipped = false, compact = false, fluid = false, si
   );
 }
 
-function GameLog({ game }: { game: Game }) {
+function GameLog({ game, participants }: { game: Game; participants: MatchParticipant[] }) {
   return <ol className="space-y-3">{game.log.map((entry, i) => {
     const player = entry.player !== undefined ? game.players[entry.player] : null;
     return <li key={i} className="flex items-center gap-2 border-b border-contrast/6 pb-3 last:border-0">
-      {player && <Avatar className="size-7" aria-hidden="true">{player.kind === "human" && <AccountAvatarImage name={player.name} />}<AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
+      {player && <Avatar className="size-7" aria-hidden="true"><AvatarImage src={participants.find(person=>person.seat===entry.player)?.avatarUrl ?? undefined} /><AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
       <span className="min-w-0 flex-1 break-words">{entry.message}</span>
       {entry.card && <PlayingCard card={entry.card} compact />}
     </li>;
   })}</ol>;
-}
-
-function ParticipantForm({ player, botsOnly, onSave, onRemove }: { player: Setup | null; botsOnly: boolean; onSave: (player: Setup) => void; onRemove: () => void }) {
-  const [name, setName] = useState(player?.name ?? "");
-  const [kind, setKind] = useState<"human" | "normal">(botsOnly ? "normal" : player?.kind === "human" || !player ? "human" : "normal");
-  return <form className="mt-5 space-y-4" onSubmit={event => {
-    event.preventDefault();
-    if (name.trim()) onSave({ name: name.trim(), kind });
-  }}>
-    <Field>Nome<Input value={name} onChange={event => setName(event.target.value)} maxLength={24} required autoComplete="off" /></Field>
-    {!botsOnly && <Field>Tipo<Select value={kind} onChange={event => setKind(event.target.value as "human" | "normal")}><option value="human">Pessoa</option><option value="normal">Bot</option></Select></Field>}
-    <div className="flex flex-wrap justify-end gap-2 pt-2">
-      {player && !botsOnly && <Button variant="ghost" className="mr-auto" onClick={onRemove}>Remover</Button>}
-      <DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose>
-      <Button type="submit" disabled={!name.trim()}>{player ? "Salvar" : "Adicionar"}</Button>
-    </div>
-  </form>;
-}
-
-function ParticipantSlot({ index, player, botsOnly, onChange }: { index: number; player: Setup | null; botsOnly: boolean; onChange: (player: Setup | null) => void }) {
-  const [open, setOpen] = useState(false);
-  return <div className="flex min-w-0 flex-col items-center gap-2">
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className={cn("size-16 aspect-square overflow-hidden rounded-full! border border-dashed border-field-border p-0", player && "border-solid")} aria-label={player ? `Editar ${player.name}` : `Adicionar jogador ${index + 1}`}>
-          {player ? <Avatar className="size-full" aria-hidden="true">{player.kind === "human" && <AccountAvatarImage name={player.name} />}<AvatarFallback className="text-lg">{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar> : <Plus className="size-6" aria-hidden="true" />}
-        </Button>
-      </DialogTrigger>
-      <DialogContent aria-describedby={undefined}>
-        <DialogTitle>{player ? "Editar jogador" : "Adicionar jogador"}</DialogTitle>
-        <ParticipantForm player={player} botsOnly={botsOnly} onSave={value => { onChange(value); setOpen(false); }} onRemove={() => { onChange(null); setOpen(false); }} />
-      </DialogContent>
-    </Dialog>
-    <span className={cn("w-full truncate text-center text-xs font-medium", !player && "text-muted")} title={player?.name}>{player?.name ?? "Disponível"}</span>
-  </div>;
-}
-
-function SetupScreen({ onStart, initialError, matches }: { onStart: (setup: Setup[], options: GameOptions, stake: number) => Promise<void>; initialError: string; matches: Match[] }) {
-  const router = useRouter();
-  const matchUrl = (code: string) => router.push(`/jogos/flip7?partida=${code}`, { scroll: false });
-  const { username, balance, economy, openLogin } = useSession();
-  const pendingMatches = matches.filter(match => match.status === "playing");
-  const [withCroins, setWithCroins] = useState(false);
-  const [stake, setStake] = useState<string | null>(null);
-  const displayStake = stake ?? (economy ? String(economy.defaultBet) : "");
-  const [starting, setStarting] = useState(false);
-  const startingRef = useRef(false);
-  const amount = Number(displayStake);
-  const [preferences] = useState(readSetupPreferences);
-  const [count, setCount] = useState(preferences.count);
-  const [options, setOptions] = useState<GameOptions>({ mode: preferences.mode, brutal: preferences.brutal });
-  useEffect(() => {
-    try { saveSetupPreferences({ count, ...options }); }
-    catch { toast.error("Não foi possível salvar as configurações do Flip7.", { id: "flip7-setup-storage" }); }
-  }, [count, options]);
-  const [opponents, setOpponents] = useState<(Setup | null)[]>(Array(11).fill(null));
-  const selected = opponents.slice(0, count - 1).map((player, i) => withCroins ? { name: player?.name ?? `Bot ${i + 1}`, kind: "normal" as const } : player);
-  const ready = selected.every(player => player !== null);
-  const validStake = !withCroins || (Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(amount * count));
-  const insufficient = withCroins && validStake && !!username && amount > balance;
-  return (
-    <div className="mx-auto grid w-full max-w-5xl items-start gap-6 py-6 sm:py-12 lg:grid-cols-2">
-      <Surface asChild>
-        <section aria-label="Opções da partida">
-          <fieldset disabled={starting} className="min-w-0 space-y-4">
-            <Field className="min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
-              Versão
-              <Select aria-label="Versão do Flip7" value={options.mode} onChange={event => setOptions(previous => ({ ...previous, mode: event.target.value as GameOptions["mode"] }))}>
-                <option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option>
-              </Select>
-            </Field>
-            {options.mode === "vengeance" && <Field className="min-w-0 grid-cols-[1fr_auto] items-center gap-4 text-sm">
-              Modo Brutal
-              <Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal => setOptions(previous => ({ ...previous, brutal }))} />
-            </Field>}
-            <Surface className="bg-background p-4 sm:p-4">
-              <Field className="grid-cols-[1fr_auto] items-center gap-4 text-base">
-                Jogar com Croins
-                <Switch checked={withCroins} onCheckedChange={setWithCroins} />
-              </Field>
-              {withCroins && <div className="mt-4 space-y-3">
-                <Field>Entrada por jogador<Input type="number" inputMode="numeric" min={1} step={1} value={displayStake} onChange={event => setStake(event.target.value)} aria-invalid={!validStake || insufficient} /></Field>
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Valores rápidos">
-                  {(economy?.suggestedBets ?? []).map(value => <Button key={value} size="sm" variant={amount === value ? "outline" : "secondary"} aria-pressed={amount === value} onClick={() => setStake(String(value))}>{value} Croins</Button>)}
-                </div>
-                <p className="text-sm text-muted">Partidas com Croins ainda não estão disponíveis.</p>
-                <dl className="text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2"><dt className="text-muted">Pote total</dt><dd className="font-semibold text-brand tabular-nums">{validStake ? formatBalance.format(amount * count) : "—"} Croins</dd></div>
-                </dl>
-                {(!validStake || insufficient) && <p role="alert" className="text-sm text-destructive">{insufficient ? "Saldo insuficiente para pagar a entrada." : "Informe uma entrada inteira maior que zero."}</p>}
-              </div>}
-            </Surface>
-            <Rules options={options} />
-          </fieldset>
-        </section>
-      </Surface>
-      <Surface asChild>
-        <section aria-label="Jogadores da partida">
-          <fieldset disabled={starting} className="flex min-w-0 flex-col gap-6">
-            <Field className="min-w-0 items-center gap-2 text-base sm:grid-cols-[1fr_auto] sm:gap-4">
-              Número de jogadores
-              <Select aria-label="Número de jogadores" value={count} onChange={event => setCount(Number(event.target.value))}>
-                {Array.from({ length: 11 }, (_, i) => i + 2).map(value => <option key={value} value={value}>{value}</option>)}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5" aria-label="Lugares da partida">
-              <div className="flex min-w-0 flex-col items-center gap-2">
-                <Avatar className="size-16" aria-hidden="true">{username && <AccountAvatarImage name={username} />}<AvatarFallback className="text-lg">{username ? Array.from(username)[0]?.toLocaleUpperCase("pt-BR") : <UserRound className="size-6" />}</AvatarFallback></Avatar>
-                <span className="w-full truncate text-center text-xs font-medium text-brand" title={username ?? "Sua conta"}>{username ?? "Sua conta"}</span>
-              </div>
-              {selected.map((player, i) => <ParticipantSlot key={`${i}-${withCroins}`} index={i + 1} player={player} botsOnly={withCroins} onChange={value => setOpponents(previous => previous.map((entry, j) => i === j ? value : entry))} />)}
-            </div>
-            <Button className="mt-auto w-full" loading={starting} disabled={starting || withCroins || (!!username && (!ready || !validStake || insufficient))} onClick={async () => {
-              if (!username) openLogin();
-              else if (ready && validStake && !insufficient && !startingRef.current) {
-                startingRef.current = true;
-                setStarting(true);
-                try { await onStart([{ name: username, kind: "human" }, ...selected.filter((player): player is Setup => player !== null)], options, withCroins ? amount : 0); }
-                finally { startingRef.current = false; setStarting(false); }
-              }
-            }}>{username ? withCroins && validStake ? `Pagar ${formatBalance.format(amount)} Croins e jogar` : "Começar partida" : "Entrar para jogar"}</Button>
-          </fieldset>
-        </section>
-      </Surface>
-      {initialError && <p role="alert" className="text-sm text-destructive lg:col-span-2">{initialError}</p>}
-      {pendingMatches.length > 0 && <aside className="min-w-0 lg:col-span-2" aria-label="Partidas em andamento">
-        <Heading variant="section">Partidas em andamento</Heading>
-        <ul className="mt-5 grid gap-4 xl:grid-cols-2">
-          {pendingMatches.map(match => <Surface asChild key={match.code} className="flex min-w-0 flex-col gap-5 p-4 sm:p-5">
-            <li>
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="min-w-0 text-sm font-semibold">{modeLabel(match.state)}</h3>
-                <Badge variant="secondary" className="shrink-0 font-medium">Rodada {match.state.round}</Badge>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center -space-x-2" aria-label="Participantes">
-                  {match.state.players.slice(0, 5).map((player, index) => <Avatar key={index} className="size-10 backdrop-blur-sm shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={player.name} title={player.name}>
-                    {player.kind === "human" && <AccountAvatarImage name={player.name} />}
-                    <AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
-                  </Avatar>)}
-                  {match.state.players.length > 5 && <Avatar className="size-10 backdrop-blur-sm shadow-[0_0_0_0.125rem_var(--color-surface)]" role="img" aria-label={match.state.players.slice(5).map(player => player.name).join(", ")} title={match.state.players.slice(5).map(player => player.name).join(", ")}>
-                    <AvatarFallback>+{match.state.players.length - 5}</AvatarFallback>
-                  </Avatar>}
-                </div>
-                <span className="text-xs text-muted">{match.state.players.length} jogadores</span>
-              </div>
-              <Button variant="secondary" size="sm" className="mt-auto w-full" onClick={() => matchUrl(match.code)}>Continuar partida</Button>
-            </li>
-          </Surface>)}
-        </ul>
-      </aside>}
-
-    </div>
-  );
 }
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
@@ -298,17 +138,27 @@ type CardMovement = { card: Card; target: number | null; origin: { left: number;
 export default function Flip7Game({ initial }: { initial: InitialMatches }) {
   const router = useRouter();
   if (initial.unavailable) return <Surface className="mx-auto max-w-xl space-y-4"><p role="alert">{initial.error}</p><Button onClick={() => router.refresh()}>Tentar novamente</Button></Surface>;
+  if (!initial.match) return <LobbyScreen key={initial.revision} initial={initial} rules={options=><Rules options={options}/>}/>;
   return <Flip7Table key={initial.revision} initial={initial} />;
 }
 
 function Flip7Table({ initial }: { initial: InitialMatches }) {
   const router = useRouter();
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
+  const {userId}=useSession();
   const serverMatch = useRef(initial.match);
+  const receivedVersion=useRef(initial.match?.version ?? 0);
+  const incoming=useRef<RoomSync|null>(null);
+  const [liveRevision,setLiveRevision]=useState(0);
+  const connected=useMatchLive(initial.match?.code,initial.match?.version ?? 0,true,sync=>{
+    if(sync.room.version<=receivedVersion.current)return;
+    const prior=incoming.current;
+    incoming.current=prior && !sync.reset ? {...sync,frames:[...prior.frames,...sync.frames.filter(frame=>frame.version>prior.room.version)],reset:prior.reset} : sync;
+    setLiveRevision(n=>n+1);
+  },()=>{},message=>{toast.error(message);router.push("/jogos/flip7");router.refresh();});
   const [creation] = useState(() => createdPresentation(initial.match));
   useEffect(() => { clearCreatedPresentation(initial.match?.code); }, [initial.match?.code]);
   const pendingCommand = useRef<MatchCommand | null>(null);
-  const pendingCreate = useRef<CreateMatch | null>(null);
   const pendingAbandon = useRef<{ commandId: string; expectedVersion: number } | null>(null);
   const [frames, setFrames] = useState<MatchFrame[]>(creation?.frames ?? []);
   const [busy, setBusy] = useState(false);
@@ -389,8 +239,8 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   }, [swapPreview]);
   const send = useCallback(async (action: Action) => {
     const match = serverMatch.current;
-    if (!match || locked.current || busy || frames.length || resolvingCardFinished) return;
-    if (action.type === "step" || action.type === "next") return;
+    if (!match || !connected || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || frames.length || resolvingCardFinished) return;
+    if (action.type === "step" || action.type === "next" || action.type === "start") return;
     if (pendingCommand.current && JSON.stringify(pendingCommand.current.action) !== JSON.stringify(action)) {
       toast.error("Confirme a ação pendente ou recarregue a partida."); return;
     }
@@ -399,11 +249,14 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     try {
       const response = await sendMatchCommand(match.code, pendingCommand.current);
       pendingCommand.current = null;
-      serverMatch.current = response.match;
-      setFrames(response.frames);
+      if(response.match.version>receivedVersion.current){
+        receivedVersion.current=response.match.version;
+        serverMatch.current = response.match;
+        setFrames(response.frames);
+      }
     } catch (error) { setCommandError(error instanceof Error ? error.message : "Não foi possível enviar a jogada."); }
     finally { locked.current = false; setBusy(false); }
-  }, [busy, frames.length, resolvingCardFinished]);
+  }, [busy, connected, frames.length, resolvingCardFinished]);
   const leave = async () => {
     if (!serverMatch.current || leavingRef.current || locked.current || frames.length || busy) return false;
     leavingRef.current = true;
@@ -547,20 +400,27 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     return () => clearTimeout(timer);
   }, [game, resolvingCardFinished, flight, movingCards, exitOpen, leaving, busy, frames, present]);
 
-  if (!game) return <SetupScreen matches={initial.items} initialError={initial.error} onStart={async (setup, options, stake) => {
-    if (stake > 0) { toast.info("Partidas com Croins ainda não estão disponíveis."); return; }
-    const payload = { game: "flip7" as const, setup, options: { ...options, brutal: options.mode === "vengeance" && options.brutal } };
-    if (!pendingCreate.current || JSON.stringify({ ...pendingCreate.current, requestId: undefined }) !== JSON.stringify(payload)) pendingCreate.current = { ...payload, requestId: crypto.randomUUID() };
-    try {
-      const response = await createServerMatch(pendingCreate.current);
-      pendingCreate.current = null;
-      matchUrl(response.match.code);
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a partida."); }
-  }} />;
+  useEffect(()=>{
+    const sync=incoming.current;
+    if(!sync || busy || frames.length || flight || movingCards || resolvingCardFinished || locked.current)return;
+    incoming.current=null;
+    if(sync.room.version<=receivedVersion.current)return;
+    if(sync.room.status==="lobby")return;
+    if(sync.room.status==="abandoned"){toast.info("A partida foi encerrada.");router.push("/jogos/flip7");router.refresh();return;}
+    // Fill a gap from persisted events. Large gaps reload a confirmed snapshot.
+    const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
+    const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
+    if(!complete){router.refresh();return;}
+    receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
+    pendingCommand.current=null;setCommandError("");setFrames(fresh);
+  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router]);
+
+  if (!game) return null;
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
-  const human = actor.kind === "human" && !busy && !frames.length && !commandError;
+  const ownSeat=initial.match?.participants.find(person=>person.userId===userId)?.seat;
+  const human = connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
   const validTargets = targets(game);
@@ -617,7 +477,8 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
           {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
         </div>
       </div>
-      {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
+      {!connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
+          {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
         <Button variant="secondary" size="icon" className="rounded-full border border-contrast/6 shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight || !!movingCards} onClick={() => setHistoryVisible(visible => !visible)}>
           {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
@@ -647,7 +508,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {visibleGame.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
-                  {player.kind === "human" && <AccountAvatarImage name={player.name} />}
+                  <AvatarImage src={initial.match?.participants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
                   <AvatarFallback className="text-sm">
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
                   </AvatarFallback>
@@ -716,7 +577,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
           <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:sticky @[60rem]:top-[calc(var(--header-height)+1rem)] @[60rem]:w-56 @[60rem]:self-start", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
             {/* Reserve a 1rem gap above and below the panel; padding scrolls with its content. */}
             <div className="max-h-[max(0rem,calc(100dvh-var(--header-height)-2rem))] overflow-y-auto rounded-panel bg-surface p-4 text-xs leading-relaxed text-muted" data-lenis-prevent>
-              <GameLog game={visibleGame} />
+              <GameLog game={visibleGame} participants={initial.match?.participants ?? []} />
             </div>
           </aside>
         </div>
@@ -743,7 +604,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">A partida será encerrada e o progresso será perdido.</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">A partida será encerrada para todos os participantes.</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
             <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {

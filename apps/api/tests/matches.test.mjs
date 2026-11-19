@@ -9,16 +9,17 @@ import { createGame, botAction } from "../dist/modules/games/flip7/engine.js";
 import { execute } from "../dist/modules/matches/execution.js";
 
 const setup = [{ name: "Impostor", kind: "human" }, { name: "Bot", kind: "normal" }];
-const input = { requestId: randomUUID(), game: "flip7", setup, options: { mode: "classic", brutal: false } };
+const input = { requestId: randomUUID(), game: "flip7", capacity:6, options: { mode: "classic", brutal: false } };
 test("contratos não aceitam estado do cliente, seed, Croins, comandos internos ou cartas duplicadas", () => {
   assert.ok(createMatchSchema.safeParse(input).success);
-  for (const extra of [{ seed: 1 }, { stake: 5 }, { state: {} }]) assert.equal(createMatchSchema.safeParse({ ...input, ...extra }).success,false);
+  for (const capacity of [1,13,2.5]) assert.equal(createMatchSchema.safeParse({...input,capacity}).success,false);
+  for (const extra of [{ seed: 1 }, { stake: 5 }, { state: {} }, {setup}]) assert.equal(createMatchSchema.safeParse({ ...input, ...extra }).success,false);
   for (const action of [{ type: "step" },{ type: "next" },{ type: "cards", cards: [1,1] },{ type: "draw", card: 10 }]) assert.equal(matchCommandSchema.safeParse({ commandId: randomUUID(), expectedVersion: 1, action }).success,false);
 });
 test("driver usa nome da conta, RNG seguro e projeção sem seed/baralho em todos os frames", () => {
-  const first = flip7Driver.create(input,"Marco");
+  const first = flip7Driver.create({setup,options:input.options},"Marco");
   assert.equal(first.players[0].name,"Marco");
-  assert.notDeepEqual(first.deck,flip7Driver.create(input,"Marco").deck);
+  assert.notDeepEqual(first.deck,flip7Driver.create({setup,options:input.options},"Marco").deck);
   const result = execute(flip7Driver,first,1);
   assert.ok(result.frames.length > 0);
   assert.equal(flip7Driver.automatic(result.state),null);

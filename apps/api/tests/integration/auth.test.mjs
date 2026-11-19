@@ -128,7 +128,10 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal((await request("/api/v1/me", "DELETE", { password }, "https://evil.example")).statusCode, 403);
  assert.equal((await request("/api/v1/me", "DELETE", { password: "errada" })).statusCode, 401);
  assert.equal((await request("/api/v1/me")).json().user.id, registered.json().user.id);
+ const pendingLobby=await request("/api/v1/matches","POST",{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"classic",brutal:false}});
+ assert.equal(pendingLobby.statusCode,200);
  assert.equal((await request("/api/v1/me", "DELETE", { password })).statusCode, 204);
+ assert.equal((await pool.query("select id from game_matches where id=$1",[pendingLobby.json().id])).rowCount,0);
  assert.equal((await request(deletedAvatar.json().user.avatarUrl)).statusCode, 404);
  await cleanupAvatars(pool, avatarStorage, "test"); assert.equal(avatarFiles.size, 0);
  assert.equal((await request("/api/v1/me")).json().user, null);

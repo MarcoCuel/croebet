@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Jogo em `/jogos/flip7`, de 2 a 12 participantes, com pessoas no mesmo dispositivo e bots opcionais. A conta conectada controla a partida e ocupa o primeiro lugar; outras pessoas são convidados locais, sem vínculo com contas. Motor e partidas ficam na API/PostgreSQL. Não há salas entre contas; Croins permanecem bloqueados. Pontos não viram Croins nem atualizam rankings/conquistas.
+Jogo em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots permanecem no motor para testes, desativados no fluxo público. Motor e partidas ficam na API/PostgreSQL; Croins permanecem bloqueados. Pontos não viram Croins nem atualizam rankings/conquistas.
 
 A execução segue a [base compartilhada dos jogos](backend-architecture.md#base-compartilhada-dos-jogos), com regras específicas do Flip 7. Não há importação de snapshots locais. [Operação e contratos](backend-architecture.md#partidas-livres-integradas).
 
@@ -11,9 +11,9 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 | Destino | Responsabilidade |
 | --- | --- |
 | `apps/api/src/modules/games/flip7/` | Motor puro, regras, bots, invariantes privadas e driver com RNG seguro |
-| `apps/api/src/modules/matches/` | Executor compartilhado, transações, comandos idempotentes, eventos e HTTP |
+| `apps/api/src/modules/matches/` | Executor compartilhado, transações, comandos idempotentes, eventos, HTTP e sincronização SSE |
 | `packages/shared/src/matches.ts` | Contratos públicos de criação, decisões, snapshots e frames; sem ordem do baralho/seed |
-| `apps/web/features/games/flip7/` | Configuração, loaders HTTP, projeções visuais, mesa, histórico e animações; sem execução de jogadas |
+| `apps/web/features/games/flip7/` | Lobby, configuração, loaders HTTP, sincronização SSE, projeções visuais, mesa, histórico e animações; sem execução de jogadas |
 
 ## Clássico
 
@@ -35,16 +35,16 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 
 ## Persistência e navegação
 
-- Código de 12 caracteres em `?partida=CODIGO`, resolvido pela API somente para o titular. Lista/retomada carregadas no servidor; indisponibilidade é distinta de ausência. Sem sessão, iniciar usa o login existente.
-- Configuração continua disponível com partidas em andamento; lista só as não finalizadas. Navegar/recarregar preserva partidas. Abandonar encerra apenas a escolhida; Jogar novamente mantém resultado final acessível pela URL.
+- Código de 12 caracteres em `?partida=CODIGO`. Contas autenticadas veem lobbies abertos; após o início, somente participantes acessam a mesa. Listagem/retomada carregadas no servidor; indisponibilidade é distinta de ausência. Sem sessão, criar usa o login existente.
+- Lobbies abertos atualizam ao vivo e mostram ocupação/limite. Entrar/sair só é permitido antes do início; ao sair, o host passa para quem entrou primeiro depois dele. Última saída fecha a sala. Navegar, desconectar ou recarregar mantém a participação; não há substituição por bot nem timeout automático. Durante o jogo, Abandonar encerra a partida para todos, com confirmação explícita. Jogar novamente volta à criação de lobby e mantém o resultado anterior.
 - Estado e automações confirmam no banco antes da apresentação. Respostas incluem frames de ações já aplicadas para a fila visual. Reload usa o estado confirmado sem repetir compras nem importar animações antigas.
-- Decisão humana usa ID de comando e versão esperada. Resposta incerta permite repetir o mesmo ID; conflito exige recarregar. Não enviar `step`, `next`, seed, pontuação ou snapshot para autorizar jogadas.
-- Preferências em `croebet:flip7:setup`: modalidade, Brutal e quantidade de lugares; sem nomes/tipos. Fallback: Clássico, dois lugares, sem Brutal. Não ler nem converter partidas do localStorage; todos os lugares selecionados devem estar preenchidos.
+- Decisão humana usa ID de comando e versão esperada. Resposta incerta permite repetir o mesmo ID; atualizações remotas recuperam eventos ordenados ou snapshot. Não enviar `step`, `next`, seed, pontuação ou snapshot para autorizar jogadas.
+- Preferências em `croebet:flip7:setup`: modalidade, Brutal e limite de lugares; sem nomes/tipos. Fallback: Clássico, dois lugares, sem Brutal. Não ler nem converter partidas do localStorage; não é necessário preencher todas as vagas para iniciar.
 
 ## Apresentação
 
 - Baralho/status/ações no topo; mãos em linhas por participante, números e modificadores dimensionados pelo container. Histórico lateral em telas largas, abaixo no mobile, com controle para esconder. Avatar ativo usa box-shadow de 2px com transição; fundo permanece igual.
-- Primeira compra de cada pessoa na rodada é automática. Zero automatiza compras na ordem normal dos turnos, pausando para decisões; remover Zero restaura Comprar/Parar. Bots e compras forçadas aguardam entrega visual, sem compras sobrepostas.
+- Primeira compra de cada pessoa na rodada é automática. Zero automatiza compras na ordem normal dos turnos, pausando para decisões; remover Zero restaura Comprar/Parar. Compras forçadas aguardam entrega visual, sem compras sobrepostas.
 - Snapshot confirma primeiro; apresentação mantém status/pontos anteriores durante a viagem e revela estouro/resultado na chegada. Cartas estouradas viram para o verso, sem vazar valores em tooltip/nome acessível. Ações pendentes/enfileiradas ficam visíveis junto ao baralho.
 - Congelar/Compre 3 seguem permanência do Clássico. Compre 4/Só mais uma ficam visíveis durante o efeito e saem após a última entrega, com pausa visual de 0,5s; próxima ação/resultado aguardam a saída.
 - Troca/roubo/descartes têm animação entre mãos/baralho. Passar no Vingança deita a primeira carta numérica e o primeiro modificador; isso não impede ações posteriores.
@@ -52,10 +52,10 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 
 ## Economia pendente
 
-Direção do modo com Croins: mesma entrada por lugar, vencedores dividem pote, empates rateados em inteiros e sobras pela ordem dos lugares; não gerar transações de valor zero. Financiamento dos bots e regras definitivas de abandono/recuperação precisam de aprovação antes de habilitar. Não transportar contribuições simuladas, recibos ou carteira do protótipo para a API.
+Direção do modo com Croins: mesma entrada por lugar, vencedores dividem pote, empates rateados em inteiros e sobras pela ordem dos lugares; não gerar transações de valor zero. Regras econômicas de desconexão, abandono e devolução precisam ser definidas antes de habilitar. Não transportar contribuições simuladas, recibos ou carteira do protótipo para a API.
 
 ## Referências e verificação
 
 - Referência da adaptação clássica: [implementação analisada em 17/11/2026](https://flip-7-618523404455.us-west1.run.app/), que credita Eric Olsen (jogo), Dirk Aporius e Google AI Studio (implementação), com cabeçalhos SPDX Apache-2.0 nos módulos consultados. Não incorporamos scripts remotos, proxy ou service worker dessa referência.
 - Vingança: [manual The Op, Edition 1](https://cdn.shopify.com/s/files/1/0611/3958/3198/files/26_FLIP_7_VENGEANCE_RULES_C.pdf?v=1770853610) e [FAQ oficial](https://theop.games/pages/flip-7-wav-faqs). As escolhas diretas de ações acima são decisões específicas da Croebet.
-- Testes atuais: `apps/api/tests/flip7*.test.mjs` para regras, bots e conservação; testes de matches para contratos, executor, autorização, transações e retries; testes web para preferências/apresentação e E2E de criação, comandos, resposta perdida, retomada e bloqueio de Croins. Comandos em [Validação](backend-architecture.md#validação). Não preservar testes exclusivos de formatos descartados ao substituir persistência.
+- Testes atuais: `apps/api/tests/flip7*.test.mjs` para regras, bots e conservação; testes de matches para contratos, executor, autorização, transações e retries; testes web para preferências/apresentação e E2E com duas contas para lobby, início com vagas livres, turnos, host, resposta perdida, retomada e ausência de bots/Croins. Comandos em [Validação](backend-architecture.md#validação). Não preservar testes exclusivos de formatos descartados ao substituir persistência.

@@ -1,97 +1,182 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { matchSchema, matchResultSchema, matchListSchema, type CreateMatch, type MatchCommand, type Match, type MatchFrame } from "@croebet/shared";
+import { lobbySchema, lobbyListSchema, lobbyActionResultSchema, roomSyncSchema, matchSchema, matchResultSchema, matchListSchema, flip7OptionsSchema, type CreateMatch, type MatchCommand, type MatchFrame, type MatchParticipant, type Room } from "@croebet/shared";
 import { flip7Driver as driver } from "../games/flip7/driver.ts";
+import { avatarUrl } from "../avatars/storage.ts";
 import { execute } from "./execution.ts";
 
 export class MatchError extends Error {
-  constructor(publicCode: string, status: number, message: string) { super(message); this.code = publicCode; this.status = status; }
-  code: string;
-  status: number;
+  code: string; status: number;
+  constructor(code: string, status: number, message: string) { super(message); this.code=code; this.status=status; }
 }
-type Row = { id: string; code: string; game_slug: "flip7"; rules_version: number; version: number; status: Match["status"]; state: unknown };
+type Row = { id: string; code: string; game_id: string; game_slug: "flip7"; owner_id: string; capacity: number; options: unknown; rules_version: number; version: number; status: Room["status"]; state: unknown };
+type ParticipantRow = { match_id: string; user_id: string; username: string; display_name: string; avatar_key: string | null; seat: number };
+type Client = Pool | PoolClient;
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-function view(row: Row): Match {
-  if (row.rules_version !== driver.rulesVersion) throw new MatchError("RULES_VERSION", 409, "Versão de regras indisponível.");
-  return matchSchema.parse({ id: row.id, code: row.code, game: row.game_slug, rulesVersion: row.rules_version, version: row.version, status: row.status, state: driver.project(driver.parse(row.state)) });
+async function participants(client: Client, ids: string[]) {
+  const result = new Map<string,MatchParticipant[]>();
+  if (!ids.length) return result;
+  const rows = await client.query<ParticipantRow>(`select p.match_id,p.user_id,p.seat,u.username,u.display_name,u.avatar_key from game_match_players p join users u on u.id=p.user_id where p.match_id=any($1::uuid[]) order by p.match_id,p.joined_at,p.seat`,[ids]);
+  for (const row of rows.rows) {
+    const list=result.get(row.match_id) ?? [];
+    list.push({ userId:row.user_id,username:row.username,displayName:row.display_name,avatarUrl:avatarUrl(row.avatar_key),seat:row.seat });
+    result.set(row.match_id,list);
+  }
+  return result;
+}
+function view(row: Row, members: MatchParticipant[]): Room {
+  if (row.rules_version!==driver.rulesVersion) throw new MatchError("RULES_VERSION",409,"Versão de regras indisponível.");
+  const common={ id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:flip7OptionsSchema.parse(row.options),participants:members };
+  return row.status==="lobby" ? lobbySchema.parse({ ...common,status:"lobby",state:null }) : matchSchema.parse({ ...common,status:row.status,state:driver.project(driver.parse(row.state)) });
 }
 async function transaction<T>(pool: Pool, actor: string, sessionHash: string, action: (client: PoolClient, username: string) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
+  const client=await pool.connect();
   try {
     await client.query("begin");
-    const user = await client.query(`select u.username from users u join sessions s on s.user_id=u.id
-      where u.id=$1 and s.token_hash=$2 and u.status='active'
-      and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp() for update of u,s`, [actor, sessionHash]);
-    if (!user.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
-    const result = await action(client, user.rows[0].username);
-    await client.query("commit");
-    return result;
-  } catch (error) {
+    const user=await client.query(`select u.username from users u join sessions s on s.user_id=u.id where u.id=$1 and s.token_hash=$2 and u.status='active' and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp() for update of u,s`,[actor,sessionHash]);
+    if (!user.rows[0]) throw new MatchError("UNAUTHENTICATED",401,"Entre novamente.");
+    const result=await action(client,user.rows[0].username);
+    await client.query("commit"); return result;
+  } catch(error) {
     await client.query("rollback");
-    if (error instanceof Error && error.message === "ILLEGAL_ACTION") throw new MatchError("ILLEGAL_ACTION", 409, "Esta ação não está disponível agora.");
+    if(error instanceof Error && error.message==="ILLEGAL_ACTION") throw new MatchError("ILLEGAL_ACTION",409,"Esta ação não está disponível agora.");
     throw error;
   } finally { client.release(); }
 }
+async function read<T>(pool: Pool, action: (client: PoolClient) => Promise<T>) {
+  const client=await pool.connect();
+  try { await client.query("begin isolation level repeatable read read only"); const result=await action(client); await client.query("commit"); return result; }
+  catch(error) { await client.query("rollback"); throw error; } finally { client.release(); }
+}
+export async function listLobbies(pool: Pool) {
+  return read(pool,async client => {
+    const result=await client.query<Row>(`select m.* from game_matches m join games g on g.id=m.game_id where m.status='lobby' and g.enabled=true order by m.created_at desc,m.id limit 100`);
+    const people=await participants(client,result.rows.map(row=>row.id));
+    return lobbyListSchema.parse({ items:result.rows.map(row=>view(row,people.get(row.id) ?? [])) });
+  });
+}
 export async function listMatches(pool: Pool, actor: string) {
-  const rows = await pool.query("select * from game_matches where owner_id=$1 and status='playing' order by updated_at desc,id limit 30", [actor]);
-  return matchListSchema.parse({ items: rows.rows.map(view) });
+  return read(pool,async client=>{
+    const rows=await client.query<Row>(`select m.* from game_matches m where m.status='playing' and exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1) order by m.updated_at desc,m.id limit 30`,[actor]);
+    const people=await participants(client,rows.rows.map(row=>row.id));
+    return matchListSchema.parse({ items:rows.rows.map(row=>view(row,people.get(row.id) ?? [])) });
+  });
+}
+export async function getRoomSync(pool: Pool, actor: string, code: string, afterVersion=0) {
+  return read(pool,async client=>{
+    const found=await client.query<Row>("select * from game_matches where code=$1",[code]); const row=found.rows[0];
+    if(!row || (row.status==="abandoned" && row.state===null)) throw new MatchError("NOT_FOUND",404,"Sala encerrada ou não encontrada.");
+    const people=(await participants(client,[row.id])).get(row.id) ?? [];
+    if(row.status!=="lobby" && !people.some(person=>person.userId===actor)) throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
+    const room=view(row,people);
+    if(room.status==="lobby" || afterVersion===0 || afterVersion>row.version) return roomSyncSchema.parse({ room,frames:[],reset:true });
+    const events=await client.query<{ event: unknown }>("select event from game_match_events where match_id=$1 and version>$2 and version<=$3 order by version limit 1001",[row.id,afterVersion,row.version]);
+    const frames=events.rows.map(event=>event.event);
+    const parsed=roomSyncSchema.parse({ room,frames,reset:false });
+    const continuous=parsed.frames.every((frame,index)=>frame.version===afterVersion+index+1) && afterVersion+parsed.frames.length===row.version && parsed.frames.length<=1000;
+    return continuous ? parsed : roomSyncSchema.parse({ room,frames:[],reset:true });
+  });
 }
 export async function getMatch(pool: Pool, actor: string, code: string) {
-  const result = await pool.query("select * from game_matches where owner_id=$1 and code=$2 and status<>'abandoned'", [actor, code]);
-  if (!result.rows[0]) throw new MatchError("NOT_FOUND", 404, "Partida não encontrada.");
-  return view(result.rows[0]);
+  const room=(await getRoomSync(pool,actor,code)).room;
+  if(room.status==="abandoned")throw new MatchError("NOT_FOUND",404,"Partida encerrada.");
+  return room;
 }
 export async function createMatch(pool: Pool, actor: string, sessionHash: string, input: CreateMatch) {
-  return transaction(pool, actor, sessionHash, async (client, username) => {
-    const payloadHash = hash(input);
-    const previous = await client.query("select creation_hash,creation_response from game_matches where owner_id=$1 and creation_request_id=$2", [actor, input.requestId]);
-    if (previous.rows[0]) {
-      if (previous.rows[0].creation_hash !== payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT", 409, "Este pedido já foi usado com outra configuração.");
-      return matchResultSchema.parse(previous.rows[0].creation_response);
+  return transaction(pool,actor,sessionHash,async(client,username)=>{
+    const payloadHash=hash(input);
+    const previous=await client.query("select creation_hash,creation_response from game_matches where created_by=$1 and creation_request_id=$2",[actor,input.requestId]);
+    if(previous.rows[0]) {
+      if(previous.rows[0].creation_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Este pedido já foi usado com outra configuração.");
+      return lobbySchema.parse(previous.rows[0].creation_response);
     }
-    const active = await client.query("select count(*)::int as total from game_matches where owner_id=$1 and status='playing'", [actor]);
-    if (active.rows[0].total >= 30) throw new MatchError("MATCH_LIMIT", 409, "Conclua ou abandone uma partida antes de começar outra.");
-    const catalog = await client.query("select id from games where slug=$1 and enabled=true for share", [input.game]);
-    if (!catalog.rows[0]) throw new MatchError("NOT_FOUND", 404, "Jogo indisponível.");
-    const result = execute(driver, driver.create(input, username), 1);
-    const row: Row = { id: randomUUID(), code: randomBytes(6).toString("hex").toUpperCase(), game_slug: input.game, rules_version: driver.rulesVersion, version: result.version, status: result.status, state: result.state };
-    const response = matchResultSchema.parse({ match: view(row), before: result.before, frames: result.frames });
-    await client.query(`insert into game_matches (id,code,game_id,game_slug,owner_id,rules_version,version,status,state,creation_request_id,creation_hash,creation_response)
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [row.id,row.code,catalog.rows[0].id,input.game,actor,row.rules_version,row.version,row.status,JSON.stringify(row.state),input.requestId,payloadHash,JSON.stringify(response)]);
-    for (const [seat, player] of result.state.players.entries()) await client.query(`insert into game_match_players (match_id,seat,user_id,controller_id,name,kind) values ($1,$2,$3,$4,$5,$6)`, [row.id,seat,seat === 0 ? actor : null,player.kind === "human" ? actor : null,player.name,seat === 0 ? "user" : player.kind === "human" ? "guest" : "bot"]);
-    await recordFrames(client, row.id, response.frames);
+    const active=await client.query("select count(*)::int as total from game_matches where owner_id=$1 and status in ('playing','lobby')",[actor]);
+    if(active.rows[0].total>=30) throw new MatchError("MATCH_LIMIT",409,"Encerre uma sala antes de criar outra.");
+    const catalog=await client.query("select id from games where slug=$1 and enabled=true for share",[input.game]);
+    if(!catalog.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
+    const id=randomUUID(),code=randomBytes(6).toString("hex").toUpperCase();
+    const account=await client.query("select display_name,avatar_key from users where id=$1",[actor]);
+    const host={ userId:actor,username,displayName:account.rows[0].display_name,avatarUrl:avatarUrl(account.rows[0].avatar_key),seat:0 };
+    const response=lobbySchema.parse({ id,code,game:input.game,rulesVersion:driver.rulesVersion,version:1,status:"lobby",state:null,hostId:actor,capacity:input.capacity,options:input.options,participants:[host] });
+    await client.query(`insert into game_matches(id,code,game_id,game_slug,owner_id,created_by,rules_version,version,status,state,capacity,options,creation_request_id,creation_hash,creation_response) values($1,$2,$3,$4,$5,$5,$6,1,'lobby',null,$7,$8,$9,$10,$11)`,[id,code,catalog.rows[0].id,input.game,actor,driver.rulesVersion,input.capacity,JSON.stringify(input.options),input.requestId,payloadHash,JSON.stringify(response)]);
+    await client.query("insert into game_match_players(match_id,seat,user_id,controller_id,name,kind) values($1,0,$2,$2,$3,'user')",[id,actor,username]);
     return response;
   });
 }
-async function recordFrames(client: PoolClient, matchId: string, frames: MatchFrame[]) {
-  // These are public presentation events; the private deck remains only in state.
-  for (const frame of frames) {
-    await client.query("insert into game_match_events (match_id,version,event) values ($1,$2,$3)", [matchId,frame.version,JSON.stringify(frame)]);
-  }
+async function recordFrames(client: PoolClient, id: string, frames: MatchFrame[]) {
+  for(const frame of frames) await client.query("insert into game_match_events(match_id,version,event) values($1,$2,$3)",[id,frame.version,JSON.stringify(frame)]);
 }
-export async function commandMatch(pool: Pool, actor: string, sessionHash: string, code: string, input: MatchCommand | { commandId: string; expectedVersion: number }, abandon = false) {
-  return transaction(pool, actor, sessionHash, async client => {
-    const found = await client.query("select * from game_matches where owner_id=$1 and code=$2 for update", [actor,code]);
-    const row = found.rows[0] as Row | undefined;
-    if (!row) throw new MatchError("NOT_FOUND", 404, "Partida não encontrada.");
-    const payloadHash = hash({ abandon, input });
-    // An accepted retry returns its receipt even if its expectedVersion is now old.
-    const previous = await client.query("select payload_hash,response from game_match_commands where match_id=$1 and command_id=$2", [row.id,input.commandId]);
-    if (previous.rows[0]) {
-      if (previous.rows[0].payload_hash !== payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT", 409, "Este comando já foi usado para outra ação.");
-      return matchResultSchema.parse(previous.rows[0].response);
+export async function lobbyAction(pool: Pool, actor: string, sessionHash: string, code: string, kind: "join"|"leave"|"start", input: {commandId:string;expectedVersion?:number}) {
+  return transaction(pool,actor,sessionHash,async(client)=>{
+    const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]); const row=found.rows[0];
+    if(!row) throw new MatchError("NOT_FOUND",404,"Sala não encontrada.");
+    const payloadHash=hash({actor,kind,input});
+    const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
+    if(receipt.rows[0]) { if(receipt.rows[0].payload_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado."); return lobbyActionResultSchema.parse(receipt.rows[0].response); }
+    if(row.status!=="lobby") throw new MatchError("LOBBY_CLOSED",409,"Esta sala não está mais aberta.");
+    await client.query("delete from game_match_players where match_id=$1 and user_id is null",[row.id]);
+    let people=(await participants(client,[row.id])).get(row.id) ?? [];
+    const member=people.find(person=>person.userId===actor);
+    if(kind==="join") {
+      const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
+      if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
+      if(!member) {
+        if(people.length>=row.capacity) throw new MatchError("LOBBY_FULL",409,"Esta sala está lotada.");
+        const seat=Array.from({length:row.capacity},(_,i)=>i).find(index=>!people.some(person=>person.seat===index))!;
+        await client.query("insert into game_match_players(match_id,seat,user_id,controller_id,name,kind) select $1,$2,id,id,username,'user' from users where id=$3",[row.id,seat,actor]);
+        row.version++;
+      }
+    } else if(kind==="leave") {
+      if(!member) throw new MatchError("NOT_FOUND",404,"Você não está nesta sala.");
+      await client.query("delete from game_match_players where match_id=$1 and user_id=$2",[row.id,actor]);
+      people=people.filter(person=>person.userId!==actor); row.version++;
+      if(!people.length) row.status="abandoned";
+      else if(row.owner_id===actor) row.owner_id=people[0].userId;
+    } else {
+      if(row.owner_id!==actor) throw new MatchError("HOST_ONLY",403,"Somente o host pode iniciar a partida.");
+      if(row.version!==input.expectedVersion) throw new MatchError("VERSION_CONFLICT",409,"A sala mudou. Confira os participantes e tente novamente.");
+      if(people.length<2) throw new MatchError("NOT_ENOUGH_PLAYERS",409,"Aguarde pelo menos mais uma pessoa.");
+      const ready=await client.query("select count(*)::int as total from game_match_players p join users u on u.id=p.user_id and u.status='active' where p.match_id=$1",[row.id]);
+      if(ready.rows[0].total!==people.length) throw new MatchError("PLAYER_UNAVAILABLE",409,"Há um participante indisponível nesta sala.");
+      const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
+      if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
+      await client.query("update game_match_players set seat=seat+100 where match_id=$1",[row.id]);
+      for(const [index,person] of people.entries()) { await client.query("update game_match_players set seat=$3 where match_id=$1 and user_id=$2",[row.id,person.userId,index]); person.seat=index; }
+      const result=execute(driver,driver.create({setup:people.map(person=>({name:person.username,kind:"human"})),options:flip7OptionsSchema.parse(row.options)},people[0].username),row.version+1);
+      row.state=result.state; row.version=result.version; row.status=result.status;
+      await recordFrames(client,row.id,[{action:{type:"start"},state:result.before,version:result.frames[0]?.version ? result.frames[0].version-1 : row.version},...result.frames]);
     }
-    if (row.version !== input.expectedVersion || row.status !== "playing") throw new MatchError("VERSION_CONFLICT", 409, "A partida mudou. Recarregue para continuar.");
-    if (!abandon) {
-      const enabled = await client.query("select 1 from games g join game_matches m on m.game_id=g.id where m.id=$1 and g.enabled=true for share of g", [row.id]);
-      if (!enabled.rows[0]) throw new MatchError("NOT_FOUND", 404, "Jogo indisponível.");
+    await client.query("update game_matches set owner_id=$2,version=$3,status=$4,state=$5,updated_at=clock_timestamp() where id=$1",[row.id,row.owner_id,row.version,row.status,row.state===null?null:JSON.stringify(row.state)]);
+    const currentPeople=(await participants(client,[row.id])).get(row.id) ?? [];
+    const response=row.status==="abandoned" ? {code:row.code,status:"closed"} : view(row,currentPeople);
+    await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
+    return response;
+  });
+}
+export async function commandMatch(pool: Pool, actor: string, sessionHash: string, code: string, input: MatchCommand | {commandId:string;expectedVersion:number}, abandon=false) {
+  return transaction(pool,actor,sessionHash,async client=>{
+    const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]); const row=found.rows[0];
+    if(!row) throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
+    const people=(await participants(client,[row.id])).get(row.id) ?? [];
+    const member=people.find(person=>person.userId===actor);
+    if(!member) throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
+    const payloadHash=hash({actor,abandon,input});
+    const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
+    if(receipt.rows[0]) { if(receipt.rows[0].payload_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado."); return matchResultSchema.parse(receipt.rows[0].response); }
+    if(row.version!==input.expectedVersion || row.status!=="playing") throw new MatchError("VERSION_CONFLICT",409,"A partida mudou. Sincronize para continuar.");
+    const state=driver.parse(row.state);
+    if(!abandon) {
+      const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
+      if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
+      const decision=state.bonusChoice ?? state.pending?.source ?? state.turn;
+      if(member.seat!==decision) throw new MatchError("NOT_YOUR_TURN",403,"Aguarde sua vez.");
     }
-    const state = driver.parse(row.state);
-    const result = abandon ? { state, before: driver.project(state), frames: [], version: row.version + 1, status: "abandoned" as const } : execute(driver, state, row.version, "action" in input ? input.action : undefined);
-    const response = matchResultSchema.parse({ match: view({ ...row, ...result }), before: result.before, frames: result.frames });
-    await client.query("update game_matches set state=$2,version=$3,status=$4,updated_at=clock_timestamp() where id=$1", [row.id,JSON.stringify(result.state),result.version,result.status]);
+    const result=abandon ? {state,before:driver.project(state),frames:[],version:row.version+1,status:"abandoned" as const} : execute(driver,state,row.version,"action" in input?input.action:undefined);
+    const match=matchSchema.parse(view({...row,...result},people));
+    const response=matchResultSchema.parse({match,before:result.before,frames:result.frames});
+    await client.query("update game_matches set state=$2,version=$3,status=$4,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(result.state),result.version,result.status]);
     await recordFrames(client,row.id,response.frames);
-    await client.query("insert into game_match_commands (match_id,command_id,payload_hash,response) values ($1,$2,$3,$4)", [row.id,input.commandId,payloadHash,JSON.stringify(response)]);
+    await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
     return response;
   });
 }

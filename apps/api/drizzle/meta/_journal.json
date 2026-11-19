@@ -120,6 +120,13 @@
       "when": 1795120636143,
       "tag": "0016_game_matches",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795122972953,
+      "tag": "0017_multiplayer_lobbies",
+      "breakpoints": true
     }
   ]
 }

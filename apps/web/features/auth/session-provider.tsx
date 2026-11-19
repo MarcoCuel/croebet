@@ -51,6 +51,7 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
     setAuthMode(mode);
   }
   return <SessionContext.Provider value={{
+    userId: user?.id ?? null,
     username: user?.username ?? null,
     displayName: user?.displayName ?? null,
     usernameChangeAvailableAt: user?.usernameChangeAvailableAt ?? null,
