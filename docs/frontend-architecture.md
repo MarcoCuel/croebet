@@ -6,7 +6,7 @@
 
 A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Lucide, GSAP e Lenis. A organização atual separa UI, layout e features, com primitives compartilhados e validação por ESLint, TypeScript, testes Node e Playwright. O frontend está em `apps/web`, preservando relações entre pastas e o alias `@/`.
 
-O Flip 7 já é jogável localmente; os outros jogos exibem “Em breve”. Autenticação, carteiras e administração continuam como protótipos locais, sem backend. A integração preservará componentes, metadata, imagens, textos, rotas, GSAP e Lenis; os dados mockados poderão ser descartados.
+O Flip 7 já é jogável localmente; os outros jogos exibem “Em breve”. A autenticação agora usa endpoints do Fastify, com execução real ainda pendente das dependências e do banco; carteiras e demais domínios aguardam integração. A integração preservará componentes, metadata, imagens, textos, rotas, GSAP e Lenis; os dados mockados poderão ser descartados.
 
 ## Organização e dependências
 
@@ -81,6 +81,8 @@ Se um modal for aberto por um método compartilhado, preserve a referência do c
 Componentes já necessários e disponíveis: Button, Input, Field, Dialog/drawer, DropdownMenu, Tooltip, Card, Badge, Avatar, Skeleton e Sonner. Textarea, Select, Checkbox, RadioGroup e Tabs ficam adiados porque nenhuma tela atual os utiliza. Adicione-os no mesmo padrão quando uma funcionalidade precisar, sem instalar componentes especulativos.
 
 ## Estado atual da demonstração
+
+> As descrições locais abaixo documentam o protótipo anterior à integração. O provider atual de identidade consulta Fastify e não carrega carteiras ou sessões demo; consultar o estado atualizado em [backend-architecture.md](backend-architecture.md). Não transportar compatibilidade histórica desses formatos para a API.
 
 `DemoSessionProvider` coordena a sessão e um reducer de carteira. A persistência começa após a leitura inicial do navegador para não substituir dados existentes pelo saldo padrão. As chaves de localStorage foram mantidas; a carteira agora inclui `transactions`, uma lista de movimentações com identificador, data ISO, descrição, valor com sinal e saldo resultante. Carteiras antigas recebem uma lista vazia sem alterar saldo, bônus ou palpites. Entradas inválidas do histórico são descartadas sem apagar a carteira; dados corrompidos são descartados com fallback em memória. As regras puras de carteira rejeitam valores fracionários, saldo insuficiente e overflow. O bônus diário utiliza `America/Sao_Paulo`.
 

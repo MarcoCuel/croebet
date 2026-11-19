@@ -1,0 +1,109 @@
+import type { FastifyPluginAsync } from "fastify";
+import cookie from "@fastify/cookie";
+import { hash, verify, argon2id } from "argon2";
+import type { Pool, PoolClient } from "pg";
+import { registerSchema, loginSchema, profileSchema, publicUserSchema, sessionSchema } from "@croebet/shared";
+import type { readConfig } from "../../config.ts";
+import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
+
+type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string };
+const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, role: row.role });
+const passwordHash = (password: string) => hash(password, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
+let dummyHash: Promise<string> | undefined;
+export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig> }> = async (app, { pool, config }) => {
+  await app.register(cookie);
+  const secure = config.APP_ENV === "production";
+  const sessionName = secure ? "__Host-croebet-session" : "croebet-session";
+  const csrfName = secure ? "__Host-croebet-csrf" : "croebet-csrf";
+  const cookieOptions = { httpOnly: true, secure, sameSite: "lax" as const, path: "/" };
+  app.addHook("onRequest", async (_request, reply) => { reply.header("Cache-Control", "no-store"); });
+  app.addHook("preHandler", async (request, reply) => {
+    if (["POST", "PATCH", "DELETE", "PUT"].includes(request.method)) {
+      if (request.headers.origin !== config.WEB_ORIGIN || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
+        return reply.code(403).send({ error: { code: "CSRF_INVALID", message: "Atualize a página e tente novamente." } });
+    }
+    const identity = await pool.query("select environment from application_environment where id = 1");
+    if (identity.rows[0]?.environment !== config.APP_ENV) return reply.code(503).send({ error: { code: "UNAVAILABLE", message: "Serviço indisponível." } });
+  });
+  async function limit(key: string, maximum: number) {
+    const result = await pool.query(`insert into auth_rate_limits (key, window_start, attempts) values ($1, date_trunc('hour', now()), 1)
+      on conflict (key) do update set attempts = case when auth_rate_limits.window_start = date_trunc('hour', now()) then auth_rate_limits.attempts + 1 else 1 end,
+      window_start = date_trunc('hour', now()) returning attempts`, [tokenHash(key)]);
+    return result.rows[0].attempts <= maximum;
+  }
+  async function current(token: string | undefined): Promise<UserRow | null> {
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const result = await pool.query(`update sessions s set idle_expires_at = least(s.expires_at, now() + interval '7 days') from users u
+      where s.token_hash = $1 and s.user_id = u.id and u.status = 'active' and s.expires_at > now() and s.idle_expires_at > now()
+      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash`, [tokenHash(token)]);
+    return result.rows[0] ?? null;
+  }
+  async function issue(client: PoolClient, userId: string) {
+    const token = newToken();
+    await client.query("insert into sessions (token_hash, user_id, expires_at, idle_expires_at) values ($1, $2, now() + interval '30 days', now() + interval '7 days')", [tokenHash(token), userId]);
+    return token;
+  }
+  app.get("/api/v1/auth/csrf", async (request, reply) => {
+    const nonce = newToken(); reply.setCookie(csrfName, nonce, { ...cookieOptions, maxAge: 3600 });
+    return { token: csrfToken(config.CSRF_SECRET, nonce, request.cookies[sessionName] ?? "") };
+  });
+  app.get("/api/v1/me", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user && request.cookies[sessionName]) reply.clearCookie(sessionName, cookieOptions);
+    return sessionSchema.parse({ user: user ? publicUser(user) : null });
+  });
+  app.post("/api/v1/auth/register", async (request, reply) => {
+    if (!await limit(`register:${request.ip}`, 10)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    const parsed = registerSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: parsed.error.issues[0].message } });
+    const password = await passwordHash(parsed.data.password);
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const result = await client.query("insert into users (username, display_name, password_hash) values ($1, $1, $2) returning *", [parsed.data.username, password]);
+      const user = result.rows[0] as UserRow;
+      // Rotate an existing browser session, never keep a caller-chosen session ID.
+      if (request.cookies[sessionName]) await client.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
+      const token = await issue(client, user.id);
+      await client.query("commit");
+      reply.setCookie(sessionName, token, { ...cookieOptions, maxAge: 30 * 86400 });
+      return reply.code(201).send(sessionSchema.parse({ user: publicUser(user) }));
+    } catch (error) {
+      await client.query("rollback");
+      if (error && typeof error === "object" && "code" in error && error.code === "23505") return reply.code(409).send({ error: { code: "USERNAME_TAKEN", message: "Este nome de usuário já está em uso." } });
+      throw error;
+    } finally { client.release(); }
+  });
+  app.post("/api/v1/auth/login", async (request, reply) => {
+    if (!await limit(`login-ip:${request.ip}`, 60)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    const parsed = loginSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Confira usuário e senha." } });
+    if (!await limit(`login-user:${parsed.data.username}`, 15)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    const found = await pool.query("select * from users where username = $1", [parsed.data.username]);
+    const user = found.rows[0] as UserRow | undefined;
+    const valid = await verify(user?.password_hash ?? await (dummyHash ??= passwordHash(newToken())), parsed.data.password);
+    if (!valid || !user || user.status !== "active") return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Usuário ou senha inválidos." } });
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const active = await client.query("select status from users where id = $1 for update", [user.id]);
+      if (active.rows[0]?.status !== "active") { await client.query("rollback"); return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Usuário ou senha inválidos." } }); }
+      if (request.cookies[sessionName]) await client.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
+      const token = await issue(client, user.id); await client.query("commit");
+      reply.setCookie(sessionName, token, { ...cookieOptions, maxAge: 30 * 86400 });
+      return sessionSchema.parse({ user: publicUser(user) });
+    } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
+  });
+  app.post("/api/v1/auth/logout", async (request, reply) => {
+    if (request.cookies[sessionName]) await pool.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
+    reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions); return reply.code(204).send();
+  });
+  app.patch("/api/v1/me/profile", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const data = profileSchema.safeParse(request.body);
+    if (!data.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Informe um nome de 1 a 40 caracteres." } });
+    await pool.query("update users set display_name = $1 where id = $2 and status = 'active'", [data.data.displayName, user.id]);
+    return sessionSchema.parse({ user: { ...publicUser(user), displayName: data.data.displayName } });
+  });
+};

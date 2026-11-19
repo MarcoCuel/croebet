@@ -2,211 +2,64 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { readAvatar, persistAvatar } from "@/features/auth/avatar-storage";
-import { demoPermissions } from "@/features/auth/permissions";
+import type { PublicUser } from "@croebet/shared";
 import { DemoSession } from "@/features/auth/session-context";
 import { AuthDialog } from "@/features/auth/auth-dialog";
-import {
-  persistUsername,
-  readUsername,
-  readWallet,
-  writeWalletStrict,
-} from "@/features/auth/session-storage";
-import {
-  commitWallet,
-  placeLocalPrediction,
-} from "@/features/betting/betting-storage";
-import {
-  readDisplayName,
-  persistDisplayName,
-} from "@/features/auth/profile-storage";
-import { demoDataEvent, announceDemoData } from "@/lib/demo-storage";
-import {
-  addCroins,
-  claimReward,
-  dailyReward,
-  initialWallet,
-  today,
-  type Wallet,
-} from "@/features/wallet/wallet";
+import { authRequest } from "@/features/auth/api";
 
-type SessionState = {
-  username: string | null;
-  displayName: string | null;
-  wallet: Wallet;
-  avatar: string | null;
-  ready: boolean;
-};
+// The context's existing name is retained to avoid a visual/component rewrite.
+// Account identity now comes exclusively from the API; local wallets are never loaded.
 export function DemoSessionProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<SessionState>({
-    username: null,
-    displayName: null,
-    wallet: initialWallet,
-    avatar: null,
-    ready: false,
-  });
+  const [user, setUser] = useState<PublicUser | null>(null);
+  const [ready, setReady] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
-  const [date, setDate] = useState("");
-  const authTrigger = useRef<HTMLElement | null>(null);
-  const { username, wallet } = state;
-  const permissions = demoPermissions(
-    username,
-    process.env.NEXT_PUBLIC_DEMO_ADMIN_USERS,
-    process.env.NODE_ENV === "development",
-  );
-  function loadSession(name: string | null) {
-    const wallet = name ? readWallet(name) : initialWallet;
-    if (name)
-      try {
-        if (!localStorage.getItem(`croebet:demo-wallet:${name.toLowerCase()}`))
-          writeWalletStrict(name, wallet);
-      } catch {
-        toast.error("Não foi possível preparar a carteira neste navegador.");
-      }
-    return {
-      username: name,
-      displayName: name ? readDisplayName(name) : null,
-      wallet,
-      avatar: name ? readAvatar(name) : null,
-      ready: true,
-    };
-  }
+  const trigger = useRef<HTMLElement | null>(null);
+  const revision = useRef(0);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState(loadSession(readUsername()));
-    setDate(today());
-    const timer = window.setInterval(() => setDate(today()), 1000);
-    return () => window.clearInterval(timer);
+    let mounted = true;
+    const refresh = () => {
+      const version = ++revision.current;
+      void authRequest("/me").then(next => { if (mounted && revision.current === version) setUser(next); })
+        .catch(() => { /* Keep the last confirmed identity; never fall back to local data. */ })
+        .finally(() => { if (mounted) setReady(true); });
+    };
+    refresh(); window.addEventListener("focus", refresh);
+    return () => { mounted = false; window.removeEventListener("focus", refresh); };
   }, []);
-  useEffect(() => {
-    function refresh(event: Event) {
-      if (
-        event instanceof StorageEvent &&
-        event.key === "croebet:demo-username"
-      ) {
-        setState(loadSession(readUsername()));
-        return;
-      }
-      if (username)
-        setState((current) => ({
-          ...current,
-          wallet: readWallet(username),
-          displayName: readDisplayName(username),
-        }));
-    }
-    window.addEventListener(demoDataEvent, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener(demoDataEvent, refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, [username]);
   function openAuth(mode: "login" | "register") {
-    authTrigger.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+    trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAuthMode(mode);
   }
-  function signIn(name: string | null) {
-    persistUsername(name);
-    setState(loadSession(name));
-    setAuthMode(null);
-  }
-  async function mutate(update: (wallet: Wallet) => Wallet) {
-    if (!username) return false;
-    try {
-      return await commitWallet(username, update);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível atualizar a carteira.",
-      );
-      return false;
-    }
-  }
-  async function claimDaily() {
-    if (!username) {
-      openAuth("login");
-      return;
-    }
-    const claimDate = today();
-    setDate(claimDate);
-    if (await mutate((wallet) => claimReward(wallet, claimDate)))
-      toast.success(`${dailyReward} Croins resgatados.`);
-  }
-  return (
-    <DemoSession.Provider
-      value={{
-        username,
-        displayName: state.displayName,
-        updateDisplayName: (value) => {
-          if (
-            !username ||
-            readUsername()?.toLowerCase() !== username.toLowerCase()
-          )
-            throw new Error("A sessão mudou. Atualize a página.");
-          const displayName = persistDisplayName(username, value);
-          setState((current) => ({ ...current, displayName }));
-          announceDemoData();
-        },
-        sessionReady: state.ready,
-        permissions,
-        avatar: state.avatar,
-        updateAvatar: (avatar) => {
-          if (!username) return;
-          persistAvatar(username, avatar);
-          setState((s) => ({ ...s, avatar }));
-        },
-        ...wallet,
-        openLogin: () => openAuth("login"),
-        openRegister: () => openAuth("register"),
-        signOut: () => signIn(null),
-        dailyClaimed: Boolean(username && wallet.lastClaim === date),
-        claimDaily,
-        addBalance: (amount) => {
-          if (permissions.canManageSite)
-            void mutate((wallet) => addCroins(wallet, amount));
-        },
-        clearPredictions: () => {
-          if (process.env.NODE_ENV === "development")
-            void mutate((wallet) => ({
-              ...wallet,
-              predictions: wallet.predictions.filter((p) => p.id),
-            }));
-        },
-        placePrediction: async (prediction) => {
-          if (!username) return false;
-          try {
-            return await placeLocalPrediction(username, prediction);
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : "Não foi possível registrar a aposta.",
-            );
-            return false;
-          }
-        },
-      }}
-    >
-      {children}
-      <AuthDialog
-        open={authMode !== null}
-        isRegistering={authMode === "register"}
-        onOpenChange={(open) => {
-          if (!open) setAuthMode(null);
-        }}
-        setIsRegistering={(register) =>
-          setAuthMode(register ? "register" : "login")
-        }
-        onSignIn={signIn}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          authTrigger.current?.focus();
-        }}
-      />
-    </DemoSession.Provider>
-  );
+  const unavailable = () => { toast.info("Este recurso ainda não está disponível."); };
+  return <DemoSession.Provider value={{
+    username: user?.username ?? null,
+    displayName: user?.displayName ?? null,
+    sessionReady: ready,
+    permissions: { canManageSite: user?.role === "admin" },
+    avatar: null,
+    balance: 0, transactions: [], predictions: [], lastClaim: "", dailyClaimed: false,
+    openLogin: () => openAuth("login"), openRegister: () => openAuth("register"),
+    signOut: async () => {
+      ++revision.current;
+      try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); }
+      catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível sair."); }
+    },
+    updateDisplayName: async displayName => {
+      ++revision.current;
+      const next = await authRequest("/me/profile", "PATCH", { displayName }); ++revision.current; setUser(next);
+    },
+    updateAvatar: () => { throw new Error("O envio de avatar estará disponível após a integração de arquivos."); },
+    claimDaily: unavailable, addBalance: unavailable, clearPredictions: unavailable,
+    placePrediction: async () => { unavailable(); return false; },
+  }}>{children}<AuthDialog
+    open={authMode !== null} isRegistering={authMode === "register"}
+    onOpenChange={open => { if (!open) setAuthMode(null); }}
+    setIsRegistering={value => setAuthMode(value ? "register" : "login")}
+    onSignIn={async (username, password) => {
+      ++revision.current;
+      const next = await authRequest(authMode === "register" ? "/auth/register" : "/auth/login", "POST", { username, password });
+      ++revision.current; setUser(next); setReady(true); setAuthMode(null);
+    }}
+    onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
+  /></DemoSession.Provider>;
 }

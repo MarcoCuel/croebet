@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { healthSchema, readinessSchema } from "@croebet/shared";
 export function createApp(checkDatabase: () => Promise<void>, logger = false) {
-  const app = Fastify({ logger, bodyLimit: 65536, requestTimeout: 10000 });
+  const app = Fastify({ logger: logger ? { redact: ["req.headers.cookie", "req.headers.authorization", "req.headers.x-csrf-token"] } : false, bodyLimit: 65536, requestTimeout: 10000 });
   app.get("/api/v1/health", async () => healthSchema.parse({ status: "ok", service: "croebet-api" }));
   app.get("/api/v1/health/ready", async (_request, reply) => {
     try { await checkDatabase(); return readinessSchema.parse({ status: "ready" }); }

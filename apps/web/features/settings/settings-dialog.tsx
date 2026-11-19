@@ -170,13 +170,16 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
 function AccountIdentity() {
   const { username, displayName, updateDisplayName } = useDemoSession();
   const [name, setName] = useState(displayName ?? "");
+  const [saving, setSaving] = useState(false);
   return (
     <form
       className="grid gap-4"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
+        if (saving) return;
+        setSaving(true);
         try {
-          updateDisplayName(name);
+          await updateDisplayName(name);
           setName(name.trim());
           toast.success("Nome atualizado.");
         } catch (error) {
@@ -185,7 +188,7 @@ function AccountIdentity() {
               ? error.message
               : "Não foi possível salvar o nome.",
           );
-        }
+        } finally { setSaving(false); }
       }}
     >
       <Field className="font-normal text-muted">
@@ -211,7 +214,8 @@ function AccountIdentity() {
         type="submit"
         size="sm"
         className="justify-self-start"
-        disabled={name.trim() === displayName}
+        loading={saving}
+        disabled={saving || name.trim() === displayName}
       >
         Salvar
       </Button>

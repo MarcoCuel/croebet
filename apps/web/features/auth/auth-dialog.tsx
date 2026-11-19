@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -21,9 +23,10 @@ export function AuthDialog({
   onOpenChange: (open: boolean) => void;
   isRegistering: boolean;
   setIsRegistering: (registering: boolean) => void;
-  onSignIn: (username: string) => void;
+  onSignIn: (username: string, password: string) => Promise<void>;
   onCloseAutoFocus: (event: Event) => void;
 }) {
+  const [pending, setPending] = useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -36,7 +39,7 @@ export function AuthDialog({
         <form
           className="mt-5 grid gap-4"
           key={String(isRegistering)}
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             const field = event.currentTarget.elements.namedItem(
               "username",
@@ -47,7 +50,12 @@ export function AuthDialog({
               field.reportValidity();
               return;
             }
-            onSignIn(name);
+            if (pending) return;
+            const password = String(new FormData(event.currentTarget).get("password") ?? "");
+            setPending(true);
+            try { await onSignIn(name, password); }
+            catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível entrar."); }
+            finally { setPending(false); }
           }}
         >
           <Field>
@@ -55,19 +63,23 @@ export function AuthDialog({
             <Input
               name="username"
               autoComplete="username"
+              minLength={3}
+              maxLength={24}
+              disabled={pending}
               required
               onInput={(event) => event.currentTarget.setCustomValidity("")}
             />
           </Field>
           <Field>
             Senha
-            <Input type="password" autoComplete="off" required />
+            <Input name="password" type="password" autoComplete={isRegistering ? "new-password" : "current-password"} minLength={isRegistering ? 15 : 1} maxLength={128} disabled={pending} required />
           </Field>
-          <Button className="mt-1" type="submit">
+          <Button className="mt-1" type="submit" loading={pending}>
             {isRegistering ? "Criar conta" : "Entrar"}
           </Button>
         </form>
         <Button
+          disabled={pending}
           variant="secondary"
           className="mt-3 w-full"
           onClick={() => setIsRegistering(!isRegistering)}

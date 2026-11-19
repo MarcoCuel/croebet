@@ -6,12 +6,16 @@ const postgresUrl = z.string().refine(value => {
 const configSchema = z.object({
   APP_ENV: z.enum(["development", "test", "production"]),
   DATABASE_URL: postgresUrl,
+  WEB_ORIGIN: z.url().default("http://localhost:3000"),
+  CSRF_SECRET: z.string().min(32),
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
 });
 export function readConfig(env: NodeJS.ProcessEnv = process.env) {
   const result = configSchema.safeParse(env);
   if (!result.success) throw new Error(`Configuração inválida: ${result.error.issues.map(i => i.path.join(".")).join(", ")}`);
+  const origin = new URL(result.data.WEB_ORIGIN);
+  if (origin.origin !== result.data.WEB_ORIGIN || (result.data.APP_ENV === "production" && origin.protocol !== "https:")) throw new Error("WEB_ORIGIN deve ser uma origem exata; produção exige HTTPS.");
   return result.data;
 }
 
