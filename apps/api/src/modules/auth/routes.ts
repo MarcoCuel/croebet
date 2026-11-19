@@ -2,12 +2,12 @@ import type { FastifyPluginAsync } from "fastify";
 import cookie from "@fastify/cookie";
 import { hash, verify, argon2id } from "argon2";
 import type { Pool, PoolClient } from "pg";
-import { registerSchema, loginSchema, profileSchema, publicUserSchema, sessionSchema } from "@croebet/shared";
+import { registerSchema, changeUsernameSchema, loginSchema, profileSchema, publicUserSchema, sessionSchema } from "@croebet/shared";
 import type { readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
 
-type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string };
-const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, role: row.role });
+type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null };
+const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
 const passwordHash = (password: string) => hash(password, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
 let dummyHash: Promise<string> | undefined;
 export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig> }> = async (app, { pool, config }) => {
@@ -35,7 +35,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
     const result = await pool.query(`update sessions s set idle_expires_at = least(s.expires_at, now() + interval '7 days') from users u
       where s.token_hash = $1 and s.user_id = u.id and u.status = 'active' and s.expires_at > now() and s.idle_expires_at > now()
-      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash`, [tokenHash(token)]);
+      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash, u.username_changed_at`, [tokenHash(token)]);
     return result.rows[0] ?? null;
   }
   async function issue(client: PoolClient, userId: string) {
@@ -78,8 +78,9 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!await limit(`login-ip:${request.ip}`, 60)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Confira usuário e senha." } });
-    if (!await limit(`login-user:${parsed.data.username}`, 15)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
-    const found = await pool.query("select * from users where username = $1", [parsed.data.username]);
+    const usernameLookup = parsed.data.username.toLowerCase();
+    if (!await limit(`login-user:${usernameLookup}`, 15)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    const found = await pool.query("select * from users where lower(username) = $1", [usernameLookup]);
     const user = found.rows[0] as UserRow | undefined;
     const valid = await verify(user?.password_hash ?? await (dummyHash ??= passwordHash(newToken())), parsed.data.password);
     if (!valid || !user || user.status !== "active") return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Usuário ou senha inválidos." } });
@@ -97,6 +98,34 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   app.post("/api/v1/auth/logout", async (request, reply) => {
     if (request.cookies[sessionName]) await pool.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
     reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions); return reply.code(204).send();
+  });
+  app.patch("/api/v1/me/username", async (request, reply) => {
+    const token = request.cookies[sessionName];
+    if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const data = changeUsernameSchema.safeParse(request.body);
+    if (!data.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: data.error.issues[0].message } });
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const locked = await client.query(`select u.* from users u join sessions s on s.user_id = u.id
+        where s.token_hash = $1 and u.status = 'active' and s.expires_at > clock_timestamp()
+        and s.idle_expires_at > clock_timestamp() for update of u, s`, [tokenHash(token)]);
+      const user = locked.rows[0] as UserRow | undefined;
+      if (!user) { await client.query("rollback"); return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } }); }
+      if (user.username === data.data.username) { await client.query("commit"); return sessionSchema.parse({ user: publicUser(user) }); }
+      const updated = await client.query(`update users set username = $1, username_changed_at = clock_timestamp()
+        where id = $2 and (username_changed_at is null or username_changed_at + interval '720 hours' <= clock_timestamp()) returning *`, [data.data.username, user.id]);
+      if (!updated.rows[0]) {
+        await client.query("rollback");
+        return reply.code(409).send({ error: { code: "USERNAME_CHANGE_COOLDOWN", message: "Você pode alterar seu usuário apenas uma vez a cada 30 dias." }, usernameChangeAvailableAt: publicUser(user).usernameChangeAvailableAt });
+      }
+      await client.query("commit");
+      return sessionSchema.parse({ user: publicUser(updated.rows[0]) });
+    } catch (error) {
+      await client.query("rollback");
+      if (error && typeof error === "object" && "code" in error && error.code === "23505") return reply.code(409).send({ error: { code: "USERNAME_TAKEN", message: "Este nome de usuário já está em uso." } });
+      throw error;
+    } finally { client.release(); }
   });
   app.patch("/api/v1/me/profile", async (request, reply) => {
     const user = await current(request.cookies[sessionName]);

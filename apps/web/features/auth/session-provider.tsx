@@ -34,6 +34,11 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
   return <DemoSession.Provider value={{
     username: user?.username ?? null,
     displayName: user?.displayName ?? null,
+    usernameChangeAvailableAt: user?.usernameChangeAvailableAt ?? null,
+    updateUsername: async username => {
+      ++revision.current;
+      const next = await authRequest("/me/username", "PATCH", { username }); ++revision.current; setUser(next);
+    },
     sessionReady: ready,
     permissions: { canManageSite: user?.role === "admin" },
     avatar: null,

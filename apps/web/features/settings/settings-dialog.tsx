@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Monitor, Moon, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -148,6 +148,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
           <div className="grid gap-6">
             <AvatarSettings />
             <AccountIdentity key={username} />
+            <AccountUsername key={`username-${username}`} />
             <div className="border-t border-contrast/6 pt-6">
               <Button
                 variant="secondary"
@@ -168,7 +169,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
 }
 
 function AccountIdentity() {
-  const { username, displayName, updateDisplayName } = useDemoSession();
+  const { displayName, updateDisplayName } = useDemoSession();
   const [name, setName] = useState(displayName ?? "");
   const [saving, setSaving] = useState(false);
   return (
@@ -201,15 +202,6 @@ function AccountIdentity() {
           autoComplete="nickname"
         />
       </Field>
-      <Field className="font-normal text-muted">
-        Nome de usuário
-        <Input
-          value={username ?? ""}
-          readOnly
-          autoComplete="username"
-          className="text-sm"
-        />
-      </Field>
       <Button
         type="submit"
         size="sm"
@@ -221,4 +213,36 @@ function AccountIdentity() {
       </Button>
     </form>
   );
+}
+
+function AccountUsername() {
+  const { username, usernameChangeAvailableAt, updateUsername } = useDemoSession();
+  const [value, setValue] = useState(username ?? "");
+  const [saving, setSaving] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!usernameChangeAvailableAt) return;
+    const remaining = new Date(usernameChangeAvailableAt).getTime() - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(remaining, 2147483647));
+    return () => window.clearTimeout(timer);
+  }, [usernameChangeAvailableAt, now]);
+  const blocked = !!usernameChangeAvailableAt && new Date(usernameChangeAvailableAt).getTime() > now;
+  const availabilityId = useId();
+  return <form className="grid gap-4" onSubmit={async event => {
+    event.preventDefault();
+    if (saving || blocked || value.trim() === username) return;
+    setSaving(true);
+    try { await updateUsername(value); toast.success("Usuário atualizado."); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar o usuário."); }
+    finally { setSaving(false); }
+  }}>
+    <Field className="font-normal text-muted">
+      Nome de usuário
+      <Input value={value} onChange={event => setValue(event.target.value)} minLength={3} maxLength={24} required
+        autoComplete="username" disabled={saving || blocked} aria-describedby={blocked ? availabilityId : undefined} />
+    </Field>
+    {blocked && usernameChangeAvailableAt && <p id={availabilityId} className="text-sm text-muted">Você poderá alterar seu usuário novamente em {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(usernameChangeAvailableAt))}.</p>}
+    <Button type="submit" size="sm" className="justify-self-start" loading={saving} disabled={saving || blocked || value.trim() === username}>Salvar usuário</Button>
+  </form>;
 }

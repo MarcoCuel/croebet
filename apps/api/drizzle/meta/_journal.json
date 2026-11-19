@@ -15,6 +15,20 @@
       "when": 1795032000001,
       "tag": "0001_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795048709040,
+      "tag": "0002_preserve_username_case",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795049090204,
+      "tag": "0003_username_change_cooldown",
+      "breakpoints": true
     }
   ]
 }

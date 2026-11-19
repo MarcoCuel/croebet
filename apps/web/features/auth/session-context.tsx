@@ -8,6 +8,8 @@ import type { Wallet } from "@/features/wallet/wallet";
 export type DemoSessionValue = Wallet & {
   username: string | null;
   displayName: string | null;
+  usernameChangeAvailableAt: string | null;
+  updateUsername: (username: string) => Promise<void>;
   updateDisplayName: (name: string) => Promise<void>;
   sessionReady: boolean;
   permissions: SessionPermissions;
