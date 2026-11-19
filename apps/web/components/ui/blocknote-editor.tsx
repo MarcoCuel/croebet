@@ -52,7 +52,7 @@ export function BlockNoteEditor({ initialValue, onChange, label }: RichTextEdito
     editor={editor}
     theme="dark"
     style={theme}
-    className="rounded-panel py-5 [&_.bn-editor]:min-h-[32rem] [&_.bn-editor]:px-10 [&_.bn-editor]:outline-none"
+    className="rounded-panel [&_.bn-editor]:min-h-[32rem] [&_.bn-editor]:px-10 [&_.bn-editor]:outline-none"
     data-lenis-prevent
     formattingToolbar={false}
     onChange={() => onChange(fromEditorBlocks(editor.document))}

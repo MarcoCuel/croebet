@@ -100,7 +100,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
 }
 
 function SettingRow({ label, children, onClick, disabled }: { label: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
-  return <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-start gap-3 text-sm">
+  return <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 text-sm">
     <dt className="py-2 text-muted">{label}</dt>
     <dd className="min-w-0"><Button variant="link" className="h-auto min-h-11 w-full justify-start px-0 py-2 text-left whitespace-normal break-words" aria-label={`Editar ${label.toLowerCase()}`} onClick={onClick} disabled={disabled}>{children}</Button></dd>
   </div>;
@@ -189,7 +189,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
         <RichTextEditor label="Conteúdo principal" initialValue={document} onChange={setDocument} />
       </Card>
     </form>
-    <aside className="grid min-w-0 gap-5" aria-label="Configurações da página">
+    <aside className="grid min-w-0 gap-5 xl:sticky xl:top-[calc(var(--header-height)+1rem)]" aria-label="Configurações da página">
       <Button type="submit" form="page-editor" loading={pending === "save"} disabled={!!pending}>{action}</Button>
       <Card className="grid gap-5">
         <h2 className="break-words font-semibold">{title || "Nova página"}</h2>
