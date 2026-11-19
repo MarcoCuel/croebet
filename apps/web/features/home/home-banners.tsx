@@ -66,10 +66,10 @@ export function HomeBanners() {
         <div>
           <Heading variant="banner">Resgate diário</Heading>
           <p className="mt-3 text-sm sm:text-base">
-            {economy ? `${economy.dailyReward} Croins por dia. Renova à meia-noite de São Paulo.` : "Resgate temporariamente indisponível"}
+            Ganhe <strong>10 Croins</strong> grátis a cada 24 horas. <br/>Volte todos os dias para resgatar!
           </p>
           <Button className="mt-5" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
-            {coolingDown ? "Aguarde o próximo resgate" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar"}
+            {coolingDown ? "Aguarde o próximo resgate" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar 10 Croins"}
           </Button>
         </div>
       </Banner>
