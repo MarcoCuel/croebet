@@ -48,6 +48,8 @@ A lista é indicativa; não significa que todos já estejam implementados.
 
 ### 4.2. Apostas
 
+As apostas em eventos ficam fora da primeira versão e estão temporariamente desabilitadas para o público. O menu exibe “Em breve”, a home apresenta apenas jogos e o acesso direto a `/apostas` redireciona ao início. A implementação administrativa permanece disponível para preparação e futura reativação.
+
 Além dos jogos de cassino, haverá uma área de **apostas em acontecimentos ou eventos**. As apostas poderão envolver situações da comunidade, lives e outros temas escolhidos pelos responsáveis.
 
 - Criação e gerenciamento das apostas: comunidade, organizadores e moderadores, de acordo com as permissões que vierem a ser definidas.

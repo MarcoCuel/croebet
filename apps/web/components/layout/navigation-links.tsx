@@ -26,7 +26,7 @@ export function MenuLinks({
           aria-disabled="true"
           title={`${label} — Em breve`}
           className={cn(
-            "flex min-h-10 items-center gap-3 rounded-panel px-3 text-sm text-muted",
+            "flex min-h-10 items-center gap-3 rounded-panel px-3 text-sm text-muted hover:bg-contrast/10 hover:text-foreground",
             sidebar && "@max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:px-0",
           )}
         >

@@ -42,7 +42,7 @@ export function HomeBanners() {
       <Banner className="bg-brand">
         <Heading asChild variant="banner">
           <h1>
-            Aposte na
+            Jogue na
             <br />
             Croebet
           </h1>
@@ -51,9 +51,6 @@ export function HomeBanners() {
           <div className="flex flex-wrap gap-3">
             <Button asChild>
               <Link href="/jogos">Ver jogos</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/apostas">Ver apostas</Link>
             </Button>
           </div>
         ) : (

@@ -13,7 +13,6 @@ import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
 import { useGameLinks } from "@/features/games/game-links";
-import { useHomeSection } from "@/features/home/home-section";
 import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
 import { usePageLinks } from "@/features/pages/page-links";
@@ -28,8 +27,6 @@ export function Topbar({
   const pathname = usePathname();
   const games = useGameLinks();
   const pages = usePageLinks() ?? [];
-  const { section, setSection } = useHomeSection();
-  const isBets = section === "bets";
   const { permissions } = useDemoSession();
   const pageAction = permissions.canManageSite
     ? ({
@@ -130,7 +127,7 @@ export function Topbar({
             <MatchBackButton pathname={pathname} backLink={backLink} />
           </Suspense>
         )}
-        {isInternalPage ? (
+        {isInternalPage && (
           <>
             <span className="truncate text-sm font-medium md:text-base">
               {pageTitle}
@@ -141,30 +138,6 @@ export function Topbar({
               </Button>
             )}
           </>
-        ) : (
-          <nav
-            className="hidden items-center gap-1 rounded-panel bg-contrast/6 p-1.5 md:flex"
-            aria-label="Seções da Croebet"
-          >
-            <Button
-              variant={isBets ? "ghost" : "default"}
-              size="sm"
-              className={cn("text-sm", isBets && "font-normal")}
-              aria-pressed={!isBets}
-              onClick={() => setSection("casino")}
-            >
-              Jogos
-            </Button>
-            <Button
-              variant={isBets ? "default" : "ghost"}
-              size="sm"
-              className={cn("text-sm", !isBets && "font-normal")}
-              aria-pressed={isBets}
-              onClick={() => setSection("bets")}
-            >
-              Apostas
-            </Button>
-          </nav>
         )}
       </div>
       {!sessionReady ? (

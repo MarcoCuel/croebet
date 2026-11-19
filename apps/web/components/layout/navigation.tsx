@@ -9,7 +9,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { HomeSectionProvider } from "@/features/home/home-section";
 import { Sidebar } from "./sidebar";
 import { PageBackProvider } from "./page-back";
 import { Topbar } from "./topbar";
@@ -45,63 +44,61 @@ export function Navigation({ children }: { children: ReactNode }) {
 
   return (
     <PageBackProvider>
-      <HomeSectionProvider>
-        <div
-          className="group/navigation [--sidebar-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)]"
-          data-sidebar={sidebar}
+      <div
+        className="group/navigation [--sidebar-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)]"
+        data-sidebar={sidebar}
+      >
+        <a
+          href="#page-content"
+          className="sr-only z-50 rounded-lg bg-surface p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
         >
-          <a
-            href="#page-content"
-            className="sr-only z-50 rounded-lg bg-surface p-3 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
-          >
-            Pular para o conteúdo
-          </a>
-          <Sidebar expanded={sidebar === "expanded"} onToggle={toggleSidebar} />
-          <Topbar
-            key={pathname}
-            mobileMenuOpen={mobileMenuOpen}
-            onOpenMenu={() => {
-              menuTrigger.current =
-                document.activeElement instanceof HTMLElement
-                  ? document.activeElement
-                  : null;
-              setMobileMenuOpen(true);
+          Pular para o conteúdo
+        </a>
+        <Sidebar expanded={sidebar === "expanded"} onToggle={toggleSidebar} />
+        <Topbar
+          key={pathname}
+          mobileMenuOpen={mobileMenuOpen}
+          onOpenMenu={() => {
+            menuTrigger.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+            setMobileMenuOpen(true);
+          }}
+        />
+        <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <DialogContent
+            variant="drawer"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              menuTrigger.current?.focus();
             }}
-          />
-          <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-            <DialogContent
-              variant="drawer"
-              onCloseAutoFocus={(event) => {
-                event.preventDefault();
-                menuTrigger.current?.focus();
-              }}
-            >
-              <DialogTitle className="sr-only">Menu da Croebet</DialogTitle>
-              <DialogDescription className="sr-only">
-                Navegue pelas seções da Croebet.
-              </DialogDescription>
-              <div className="flex min-h-full flex-col gap-5">
-                <Link
-                  className={brandLinkClass}
-                  href="/"
-                  aria-label="Croebet, início"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Wordmark />
-                </Link>
-                <MenuLinks onNavigate={() => setMobileMenuOpen(false)} />
-              </div>
-            </DialogContent>
-          </Dialog>
-          <div
-            className="flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pt-(--header-height) transition-[padding-left] duration-300 ease-in-out motion-reduce:transition-none"
-            id="page-content"
-            tabIndex={-1}
           >
-            {children}
-          </div>
+            <DialogTitle className="sr-only">Menu da Croebet</DialogTitle>
+            <DialogDescription className="sr-only">
+              Navegue pelas seções da Croebet.
+            </DialogDescription>
+            <div className="flex min-h-full flex-col gap-5">
+              <Link
+                className={brandLinkClass}
+                href="/"
+                aria-label="Croebet, início"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Wordmark />
+              </Link>
+              <MenuLinks onNavigate={() => setMobileMenuOpen(false)} />
+            </div>
+          </DialogContent>
+        </Dialog>
+        <div
+          className="flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pt-(--header-height) transition-[padding-left] duration-300 ease-in-out motion-reduce:transition-none"
+          id="page-content"
+          tabIndex={-1}
+        >
+          {children}
         </div>
-      </HomeSectionProvider>
+      </div>
     </PageBackProvider>
   );
 }
