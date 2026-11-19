@@ -54,9 +54,15 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       if (!validAvatarKey(key)) return reply.code(404).send();
       const used = await pool.query("select 1 from users where avatar_key = $1 and status = 'active'", [key]);
       if (!used.rows.length) return reply.code(404).send();
+      // Every upload has a new immutable UUID key. Revalidate ownership even on cache hits.
+      const etag = `"${key}"`;
+      const cacheHeaders = { "Cache-Control": "private, no-cache", ETag: etag, "X-Content-Type-Options": "nosniff" };
+      const validators = request.headers["if-none-match"]?.split(",").map(value => value.trim());
+      if (validators?.some(value => value === "*" || value.replace(/^W\//, "") === etag))
+        return reply.headers(cacheHeaders).code(304).send();
       try {
         const image = await avatarStorage.get(key);
-        return reply.type("image/webp").header("X-Content-Type-Options", "nosniff").send(image);
+        return reply.type("image/webp").headers(cacheHeaders).send(image);
       } catch {
         return reply.code(503).send({ error: { code: "AVATAR_UNAVAILABLE", message: "Foto temporariamente indisponível." } });
       }

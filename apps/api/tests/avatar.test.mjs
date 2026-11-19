@@ -152,3 +152,50 @@ test("limite de upload por conta impede novas decodificações após vinte tenta
   }
   assert.equal(f.files.size, 0);
 });
+
+test("avatar revalida cache sem ler arquivo novamente e invalida fotos removidas ou suspensas", async t => {
+  const f = await fixture(t);
+  const upload = async () => f.app.inject({ method: "PUT", url: "/api/v1/me/avatar", cookies: f.cookies, headers: f.headers, payload: await image() });
+  const url = (await upload()).json().user.avatarUrl;
+  let reads = 0;
+  const originalGet = f.storage.get;
+  f.storage.get = async key => { reads++; return originalGet(key); };
+  const first = await f.app.inject(url);
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.headers["cache-control"], "private, no-cache");
+  const etag = first.headers.etag;
+  assert.ok(etag);
+  for (const value of [etag, `W/${etag}`, `"other", W/${etag}`, "*"]) {
+    const hit = await f.app.inject({ url, headers: { "if-none-match": value } });
+    assert.equal(hit.statusCode, 304); assert.equal(hit.body, "");
+    assert.equal(hit.headers.etag, etag);
+    assert.equal(hit.headers["cache-control"], "private, no-cache");
+  }
+  assert.equal(reads, 1);
+  const miss = await f.app.inject({ url, headers: { "if-none-match": '"other"' } });
+  assert.equal(miss.statusCode, 200); assert.deepEqual(miss.rawPayload, first.rawPayload);
+  assert.equal(reads, 2);
+  f.setActive(false);
+  const suspended = await f.app.inject({ url, headers: { "if-none-match": etag } });
+  assert.equal(suspended.statusCode, 404); assert.equal(suspended.headers["cache-control"], "no-store");
+  f.setActive(true);
+  const replacement = await upload();
+  assert.notEqual(replacement.json().user.avatarUrl, url);
+  assert.equal((await f.app.inject({ url, headers: { "if-none-match": etag } })).statusCode, 404);
+  const nextUrl = replacement.json().user.avatarUrl;
+  const next = await f.app.inject(nextUrl);
+  assert.notEqual(next.headers.etag, etag);
+  await f.app.inject({ method: "DELETE", url: "/api/v1/me/avatar", cookies: f.cookies, headers: f.headers });
+  assert.equal((await f.app.inject({ url: nextUrl, headers: { "if-none-match": next.headers.etag } })).statusCode, 404);
+  assert.equal((await f.app.inject({ url: "/api/v1/me", cookies: f.cookies })).headers["cache-control"], "no-store");
+});
+
+test("avatar indisponível no armazenamento não recebe cache reutilizável", async t => {
+  const f = await fixture(t);
+  const result = await f.app.inject({ method: "PUT", url: "/api/v1/me/avatar", cookies: f.cookies, headers: f.headers, payload: await image() });
+  f.files.clear();
+  const response = await f.app.inject(result.json().user.avatarUrl);
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.headers["cache-control"], "no-store");
+  assert.equal(response.headers.etag, undefined);
+});

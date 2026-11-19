@@ -13,6 +13,11 @@ test.beforeAll(async () => {
   api = createServer((request, response) => {
     response.setHeader("content-type", "application/json");
     response.setHeader("cache-control", "no-store");
+    if (request.url?.startsWith("/api/v1/avatars/")) {
+      response.setHeader("content-type", "image/png");
+      response.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=", "base64"));
+      return;
+    }
     if (request.url === "/api/v1/me") {
       response.end(JSON.stringify({ user: sessionActive ? { ...user, avatarUrl: storedAvatar } : null }));
       return;
@@ -130,10 +135,15 @@ test.describe("perfil na primeira renderização", () => {
   test("perfil público e redirecionamentos já funcionam sem JavaScript", async ({ page, context }) => {
     sessionActive = false;
     await context.clearCookies();
+    storedAvatar = "/api/v1/avatars/93089d02-0b34-4b78-9d3e-f2679c190b5b.webp";
     await page.goto("/perfil/TONHO");
     await expect(page).toHaveURL(/\/perfil\/Tonho$/);
     await expect(page.getByRole("heading", { name: user.displayName })).toBeVisible();
     await expect(page.getByText("Carregando perfil…", { exact: true })).toHaveCount(0);
+    await expect(page.locator(`head link[rel="preload"][as="image"][href="${storedAvatar}"]`)).toHaveCount(1);
+    await expect(page.locator("main img[data-slot=avatar-image]")).toHaveAttribute("src", storedAvatar);
+    await expect(page.locator("main img[data-slot=avatar-image]")).toBeVisible();
+    await expect(page.locator("main [data-slot=avatar-fallback]")).toBeHidden();
     await page.reload();
     await expect(page.getByText("@Tonho", { exact: true })).toBeVisible();
     profileStatus = 404;
@@ -147,4 +157,18 @@ test.describe("perfil na primeira renderização", () => {
     await expect(page.getByRole("heading", { name: user.displayName })).toBeVisible();
     await expect(page.getByText("Carregando perfil…", { exact: true })).toHaveCount(0);
   });
+});
+
+
+test("avatar com erro mostra fallback e uma nova foto volta a aparecer", async ({ page }) => {
+  storedAvatar = "/api/v1/avatars/93089d02-0b34-4b78-9d3e-f2679c190b5b.webp";
+  await page.route("**/api/v1/avatars/*", route => route.fulfill({ status: 404 }));
+  await page.goto("/perfil/Tonho");
+  await expect(page.locator("main [data-slot=avatar-fallback]")).toBeVisible();
+  await expect(page.locator("main img")).toBeHidden();
+  await page.unroute("**/api/v1/avatars/*");
+  storedAvatar = "/api/v1/avatars/93089d02-0b34-4b78-9d3e-f2679c190b5c.webp";
+  await page.reload();
+  await expect(page.locator("main img")).toBeVisible();
+  await expect(page.locator("main [data-slot=avatar-fallback]")).toBeHidden();
 });

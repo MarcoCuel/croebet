@@ -4,6 +4,7 @@ import { extendTailwindMerge } from "tailwind-merge";
 const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
+      rounded: [{ rounded: ["panel"] }],
       "font-size": [
         { text: ["display", "section", "banner", "cover", "wordmark", "auth-title"] },
       ],

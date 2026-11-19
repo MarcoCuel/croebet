@@ -24,7 +24,7 @@ export function AvatarSettings({ variant = "settings" }: { variant?: "settings" 
           aria-label="Alterar foto de perfil"
           loading={saving}
           onClick={() => input.current?.click()}
-          className="absolute -top-2 -right-2 rounded-full opacity-0 transition-opacity group-hover/avatar:opacity-100 group-focus-within/avatar:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
+          className="absolute -top-3 -right-3 rounded-full backdrop-blur-sm opacity-0 transition-opacity group-hover/avatar:opacity-100 group-focus-within/avatar:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100"
         >
           <Pencil className="size-4" aria-hidden="true" />
         </Button>
