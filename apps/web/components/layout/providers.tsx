@@ -2,7 +2,6 @@
 
 import type { InitialSession } from "@/features/auth/initial-session";
 import type { ReactNode } from "react";
-import { SiteConfigProvider } from "@/features/admin/site-config";
 import { DemoSessionProvider } from "@/features/auth/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -26,7 +25,7 @@ function AppProviders({ children, initialSession, initialPages, initialNavigatio
   return (
     <TooltipProvider delayDuration={300}>
       <DemoSessionProvider initialSession={initialSession}>
-        <MenuProvider initial={initialNavigation}><PageLinksProvider initial={initialPages}><SiteConfigProvider>{children}</SiteConfigProvider></PageLinksProvider></MenuProvider>
+        <MenuProvider initial={initialNavigation}><PageLinksProvider initial={initialPages}>{children}</PageLinksProvider></MenuProvider>
         <Toaster theme={resolvedTheme} />
       </DemoSessionProvider>
     </TooltipProvider>

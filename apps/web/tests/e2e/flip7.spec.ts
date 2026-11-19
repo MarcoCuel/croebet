@@ -1,23 +1,30 @@
+import { startPublicApi } from "../public-api-fixture";
 import { expect, test, type Page } from "@playwright/test";
 import { automaticAction, botAction, createGame, transition } from "../../features/games/flip7/engine";
 import type { Card, Game, GameOptions } from "../../features/games/flip7/engine";
+
+let closeApi: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { closeApi = await startPublicApi(() => ({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Marco", displayName: "Marco", role: "user" })); });
+test.afterAll(async () => { await closeApi?.(); });
+
+test.beforeEach(async ({ context, page }) => {
+  await context.addCookies([{ name: "croebet-session", value: "game-fixture", url: "http://127.0.0.1:3100" }]);
+  const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Marco", displayName: "Marco", role: "user" };
+  await page.route("**/api/v1/me", route => route.fulfill({ json: { user } }));
+  await page.route("**/api/v1/economy", route => route.fulfill({ json: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1,5,10,50], defaultBet: 5 } }));
+  await page.route("**/api/v1/rewards/daily", route => route.fulfill({ json: { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() } }));
+});
 
 test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessíveis", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/jogos");
   await page.locator('a[href="/jogos/flip7"]').click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Flip7");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Flip 7");
   await page.getByRole("button", { name: "Regras", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("200");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Regras", exact: true })).toBeFocused();
-  await page.getByRole("button", { name: "Entrar para jogar", exact: true }).click();
-  const login = page.getByRole("dialog");
-  await login.getByLabel("Nome de usuário").fill("Marco");
-  await login.getByLabel("Senha", { exact: true }).fill("senha-de-teste");
-  await login.getByRole("button", { name: "Entrar", exact: true }).click();
-  await expect(login).not.toBeVisible();
   await expect(page.getByRole("combobox", { name: "Tipo do participante 1" })).toHaveCount(0);
   await expect(page.locator('[data-slot="input"]')).toHaveCount(0);
   await page.getByRole("combobox", { name: "Número de jogadores" }).selectOption("4");
@@ -107,7 +114,6 @@ test("configuração divide opções e jogadores, com partidas em andamento abai
   finished.game.players.forEach(player => { player.status = "stayed"; player.total = 200; });
   finished.game.history = [[200, 200]];
   await page.evaluate(matches => {
-    localStorage.setItem("croebet:demo-username", "Marco");
     localStorage.setItem("croebet:flip7:match", JSON.stringify({ version: 2, matches }));
   }, [...active, finished]);
   await page.reload();
@@ -128,8 +134,11 @@ test("configuração divide opções e jogadores, com partidas em andamento abai
   expect(listBox!.y).toBeGreaterThanOrEqual(Math.max(optionsBox!.y + optionsBox!.height, playersBox!.y + playersBox!.height));
   if (isMobile) expect(playersBox!.y).toBeGreaterThan(optionsBox!.y);
   else expect(playersBox!.x).toBeGreaterThan(optionsBox!.x);
-  await page.getByRole("switch", { name: "Jogar com Croins", exact: true }).check();
-  await page.getByRole("button", { name: "Pagar 50 Croins e jogar", exact: true }).click();
+  await page.getByRole("button", { name: "Adicionar jogador 2", exact: true }).click();
+  const participant = page.getByRole("dialog");
+  await participant.getByLabel("Nome", { exact: true }).fill("Pessoa");
+  await participant.getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page.getByRole("button", { name: "Começar partida", exact: true }).click();
   await expect(page.getByRole("region", { name: "Mesa de Flip7", exact: true })).toBeVisible();
   const newCode = new URL(page.url()).searchParams.get("partida")!;
   expect([...active, finished].some(match => match.code === newCode)).toBe(false);
@@ -384,8 +393,6 @@ test("voltar de uma partida finalizada abre a página do Flip7 e preserva o resu
 
 test("configuração seleciona Vingança e Brutal e adapta as regras", async ({ page }) => {
   await page.goto("/jogos/flip7");
-  await page.evaluate(() => localStorage.setItem("croebet:demo-username", "Marco"));
-  await page.reload();
   await expect(page.getByRole("switch", { name: "Modo Brutal" })).toHaveCount(0);
   await page.getByRole("combobox", { name: "Versão do Flip7" }).selectOption("vengeance");
   const brutalSwitch = page.getByRole("switch", { name: "Modo Brutal" });

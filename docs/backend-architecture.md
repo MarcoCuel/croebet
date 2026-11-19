@@ -1,5 +1,17 @@
 # Arquitetura da primeira versão funcional
 
+## Visão geral integrada — 19/11/2026
+
+`GET /api/v1/admin/overview?days=1|7|30` exige sessão ativa e papel administrativo, conforme as demais consultas de gestão. Parâmetros extras e períodos não previstos são recusados. O contrato público é validado em `packages/shared/src/overview.ts`; nenhuma migration ou seed adicional é necessária.
+
+Uma única consulta PostgreSQL produz um snapshot consistente de totais, gráfico diário, resgates e listas recentes. O período começa à meia-noite de America/Sao_Paulo, incluindo hoje, e termina no instante da consulta. Dias sem atividade são preenchidos com zeros. O saldo atual e o total de contas independem do filtro; saldo considera carteiras vinculadas a usuários existentes, inclusive suspensos. Participantes ativos são contas existentes com movimentação no período, não acessos ao site.
+
+Movimentações contam exclusivamente o lado das carteiras `kind=user` no livro: a contrapartida de emissão/casa/pote nunca duplica contagens ou totais. Histórico de carteiras de contas excluídas continua nos fluxos e aparece como Conta removida, sem link. Bônus de cadastro, diários, cupons e ajustes são classificados pelo escopo estável da operação, não pelo texto do motivo. Ajustes são líquidos; totais de entradas/saídas são separados. Agregados que excedem inteiros seguros são recusados pelo contrato em vez de exibir valores imprecisos. Apostas e partidas não integradas não entram no resumo.
+
+O Next carrega o resumo no servidor com cookie de sessão e no-store. Os filtros são links que consultam a API novamente, sem dependência de armazenamento local; indisponibilidade é distinta de base vazia. A montagem global do provider antigo de configuração local foi removida. A suíte antiga que simulava contas, carteiras, permissões e liquidação no navegador foi removida; regras puras e persistência atual de partidas livres continuam cobertas.
+
+Validação desta entrega: lint dos três pacotes, TypeScript, builds de shared/API e 165 testes unitários aprovados (96 web, 66 API e três contratos). Build web de produção com Turbopack aprovado com Node 22.22.0. Os wrappers pnpm foram tentados e bloqueados pelo cache Corepack; foram usados os executáveis locais. Com Node 24.18.0, o build ficou sem concluir após o fallback do Next para childProcesses e foi interrompido. O E2E da Visão geral foi tentado, mas não iniciou por listen EPERM na porta 3100. O teste PostgreSQL de agregação, fuso, contrapartidas e contas removidas não executou por ausência de TEST_DATABASE_URL. Não houve migrations, seeds ou resets.
+
 ## Verificação de contas e economia — 19/11/2026
 
 Nova execução sobre o código atual: lint aprovado nas três aplicações/pacotes; TypeScript e compilação de shared/API aprovados; TypeScript web aprovado após corrigir o esquema do BlockNote e o conversor de conteúdo. O editor mantém os tipos internos obrigatórios de texto/link; links recebidos são convertidos para texto com formatação, sem destinos de hyperlink no contrato público. Teste de regressão cobre essa conversão. Total de 186 testes unitários aprovados (131 web, 52 API e três contratos).

@@ -194,9 +194,11 @@ A sessão separa `displayName` de `username`. Configurações → Conta permite 
 
 ### Visão geral administrativa
 
-`features/admin/admin-overview.tsx` substitui as contagens de catálogo por um resumo operacional. Os filtros Hoje, 7 dias e 30 dias usam dias de calendário em `America/Sao_Paulo`. O resumo agrega carteiras locais validadas, sem incluir os perfis de exemplo da listagem de usuários: participantes com movimentações ou palpites, palpites identificados, volume apostado, bônus diários, ajustes manuais líquidos e movimentações recentes. O saldo é atual e não muda com o período. Palpites antigos sem identificação ou data não entram nas séries temporais; suas carteiras são preservadas.
+`/admin` consulta `/api/v1/admin/overview?days=1|7|30` pelo servidor, com sessão encaminhada e sem cache. Os links Hoje, 7 dias e 30 dias atualizam a URL e consultam novamente a API; o painel já vem no HTML inicial. Falha de leitura usa o componente de indisponibilidade e nova tentativa, sem preencher números com zeros fictícios.
 
-As pendências de apuração e pagamento independem do período e levam à interna da aposta, priorizando pagamentos. O gráfico de palpites e as apostas mais movimentadas acompanham o filtro. A leitura é atualizada pelo `revision` do provider, incluindo eventos entre abas e a atualização periódica existente. Falhas de leitura exibem erro sem apresentar totais parciais. Histórico global de acessos, cadastros, partidas e resultado da casa permanece indisponível; o painel não estima esses dados nem trata o volume do rateio como receita da casa.
+A estrutura visual apresenta contas cadastradas, participantes com movimentação no período, número de movimentações e saldo atual das carteiras vinculadas. O gráfico mostra movimentações por dia; as demais seções exibem resgates diários/cupons, cadastros recentes, circulação de Croins por origem e últimas movimentações. Os cálculos e limites temporais pertencem ao Fastify/PostgreSQL. Não há dados de apostas ou partidas locais no resumo. O provider de configuração do protótipo deixou de ser montado globalmente.
+
+Os testes de contas, permissões, carteiras, pagamentos e administração simulados no localStorage foram removidos. Foram preservados os testes puros de regras e os de persistência atual das partidas livres do Flip 7; as verificações de interface usam contratos HTTP. O resumo possui cenários de HTML sem JavaScript, filtros, indisponibilidade, base vazia e autorização.
 
 ## Cupons administrativos (protótipo visual)
 

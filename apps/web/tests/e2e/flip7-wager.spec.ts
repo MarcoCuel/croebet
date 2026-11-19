@@ -1,5 +1,10 @@
+import { startPublicApi } from "../public-api-fixture";
 import { expect, test } from "@playwright/test";
 import { createGame } from "../../features/games/flip7/engine";
+
+let closeApi: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { closeApi = await startPublicApi(() => ({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Marco", displayName: "Marco", role: "user" })); });
+test.afterAll(async () => { await closeApi?.(); });
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Marco", displayName: "Marco", role: "user" };
 const economy = { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 50], defaultBet: 5 };
@@ -36,11 +41,9 @@ test("retomada de partida econômica do protótipo não credita nem debita a car
   ], 42) };
   await page.addInitScript(saved => {
     localStorage.setItem("croebet:flip7:match", JSON.stringify(saved));
-    localStorage.setItem("croebet:demo-wallet:marco", JSON.stringify({ balance: 999, transactions: [], predictions: [], lastClaim: "" }));
   }, match);
   await page.goto("/jogos/flip7?partida=ABCDEF123456");
   await expect(page.getByRole("alert")).toContainText("Partidas com Croins ainda não estão disponíveis.");
   await expect(page.getByRole("region", { name: "Mesa de Flip7" })).toHaveCount(0);
-  const wallet = await page.evaluate(() => JSON.parse(localStorage.getItem("croebet:demo-wallet:marco")!));
-  expect(wallet.balance).toBe(999); expect(wallet.transactions).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem("croebet:demo-wallet:marco"))).toBeNull();
 });

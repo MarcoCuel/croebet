@@ -1,30 +1,89 @@
+import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
+import type { AdminOverviewData } from "@croebet/shared";
 
-test("visão geral filtra registros, mantém saldo atual e abre pendências", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("croebet:demo-username", "AdminTeste");
-    const createdAt = new Date(Date.now() - 2 * 86400000).toISOString();
-    localStorage.setItem("croebet:demo-wallet:adminteste", JSON.stringify({
-      balance: 321, lastClaim: "", predictions: [{ id: "overview-bet", marketId: "peruca", market: "Ela vai começar a live de peruca?", outcome: "Sim", stake: 250, username: "adminteste", createdAt }],
-      transactions: [{ id: "overview-bonus", description: "Bônus diário", amount: 67, balance: 321, createdAt }],
-    }));
+const id = "93089d02-0b34-4b78-9d3e-f2679c190b5b";
+let api: Server;
+let role = "admin";
+let unavailable = false;
+let empty = false;
+function overview(days: 1 | 7 | 30): AdminOverviewData {
+  const movements = empty ? 0 : days === 1 ? 1 : 3;
+  return {
+    days, generatedAt: "2026-11-19T15:00:00.000Z",
+    totals: { users: empty ? 0 : 2, activeUsers: empty ? 0 : 1, movements, balance: empty ? 0 : 37 },
+    rewards: { dailyClaims: empty || days === 1 ? 0 : 1, couponRedemptions: empty ? 0 : 1 },
+    circulation: { registration: 0, daily: empty || days === 1 ? 0 : 10, coupons: empty ? 0 : 7, adjustments: 0, credits: empty ? 0 : 7, debits: 0 },
+    buckets: Array.from({ length: days }, (_, index) => ({ day: new Date(Date.UTC(2026,10,19-days+index+1)).toISOString().slice(0,10), movements: index === days - 1 ? movements : 0, credits: index === days - 1 && !empty ? 7 : 0, debits: 0 })),
+    recentUsers: empty ? [] : [{ id, username: "Tonho", createdAt: "2026-11-19T04:00:00.000Z" }],
+    transactions: empty ? [] : [{ id, userId: id, username: "Tonho", description: "Cupom resgatado", amount: 7, createdAt: "2026-11-19T04:00:00.000Z" }],
+  };
+}
+function respond(url: string) {
+  const parsed = new URL(url, "http://api");
+  if (parsed.pathname === "/api/v1/me") return { user: { id, username: "Marco", displayName: "Marco", role } };
+  if (parsed.pathname === "/api/v1/economy") return { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1,5,10,50], defaultBet: 5 };
+  if (parsed.pathname === "/api/v1/rewards/daily") return { balance: 37, lastClaimAt: null, nextClaimAt: null, eligible: true, serverNow: "2026-11-19T15:00:00.000Z" };
+  if (parsed.pathname === "/api/v1/admin/overview") return overview(Number(parsed.searchParams.get("days") ?? 7) as 1 | 7 | 30);
+  return { items: [] };
+}
+test.beforeAll(async () => {
+  api = createServer((request, response) => {
+    response.setHeader("content-type", "application/json");
+    if (request.url?.startsWith("/api/v1/admin/overview") && (unavailable || role !== "admin")) {
+      response.statusCode = role !== "admin" ? 404 : 503; response.end("{}"); return;
+    }
+    response.end(JSON.stringify(respond(request.url ?? "/")));
   });
+  await new Promise<void>((resolve,reject) => { api.once("error",reject); api.listen(3201,"127.0.0.1",resolve); });
+});
+test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.beforeEach(async ({ context, page }) => {
+  role = "admin"; unavailable = false; empty = false;
+  await context.addCookies([{ name: "croebet-session", value: "overview-fixture", url: "http://127.0.0.1:3100" }]);
+  await page.route("**/api/v1/**", route => route.fulfill({ json: respond(route.request().url()) }));
+});
+test("visão geral está no HTML inicial sem JavaScript ou contas locais", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  await context.addCookies([{ name: "croebet-session", value: "overview-fixture", url: "http://127.0.0.1:3100" }]);
+  const page = await context.newPage(); await page.goto("/admin");
+  const panel = page.getByRole("region", { name: "Visão geral" });
+  await expect(panel.getByText("Saldo dos usuários", { exact: true })).toBeVisible();
+  await expect(panel.getByText("37", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Cupom resgatado", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Carregando painel…")).toHaveCount(0);
+  await context.close();
+});
+test("períodos consultam a API e preservam o saldo atual após reload", async ({ page }) => {
   await page.goto("/admin");
-  const overview = page.getByRole("region", { name: "Visão geral" });
-  await expect(overview.getByText("Páginas editáveis")).toHaveCount(0);
-  await expect(overview.getByRole("img", { name: /250 Croins/ })).toBeVisible();
-  await expect(overview.getByText("Bônus diário", { exact: true })).toBeVisible();
-  await overview.getByRole("button", { name: "Hoje", exact: true }).click();
-  await expect(overview.getByText("Nenhum palpite registrado neste período.")).toBeVisible();
-  await expect(overview.getByText("321", { exact: true })).toBeVisible();
-  await expect(overview.getByText("Bônus diário", { exact: true })).toHaveCount(0);
-  await overview.getByRole("button", { name: "30 dias", exact: true }).click();
-  await expect(overview.getByText("Bônus diário", { exact: true })).toBeVisible();
-  await page.goto("/admin/apostas/atraso");
-  await page.getByRole("button", { name: "Encerrar apostas", exact: true }).click();
-  await page.locator('[aria-label="Confirmar ação"]').getByRole("button", { name: "Confirmar encerramento", exact: true }).click();
-  await page.goto("/admin");
-  await expect(overview.getByText("Aguardando resultado", { exact: true })).toBeVisible();
-  await overview.getByRole("link", { name: /Quantos minutos a live vai atrasar/ }).click();
-  await expect(page).toHaveURL("/admin/apostas/atraso");
+  const panel = page.getByRole("region", { name: "Visão geral" });
+  await expect(panel.getByRole("img")).toHaveAccessibleName(/3 movimentações/);
+  await page.getByRole("link", { name: "Hoje", exact: true }).click();
+  await expect(page).toHaveURL(/days=1/);
+  await expect(panel.getByRole("img")).toHaveAccessibleName(/1 movimentações/);
+  await expect(panel.getByText("37", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "30 dias", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("link", { name: "30 dias", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(panel.getByText("37", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+test("falha da API oferece nova tentativa sem inventar um painel zerado", async ({ page }) => {
+  unavailable = true; await page.goto("/admin");
+  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar estes dados.");
+  await expect(page.getByText("Saldo dos usuários", { exact: true })).toHaveCount(0);
+  unavailable = false; await page.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(page.getByText("Saldo dos usuários", { exact: true })).toBeVisible();
+});
+test("base vazia confirmada mostra zeros e filtros continuam disponíveis", async ({ page }) => {
+  empty = true; await page.goto("/admin");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Nenhum cadastro neste período.")).toBeVisible();
+  await expect(page.getByRole("img")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "7 dias", exact: true })).toBeVisible();
+});
+test("conta comum não recebe a visão geral administrativa", async ({ page }) => {
+  role = "user"; await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "404", exact: true })).toBeVisible();
+  await expect(page.getByText("Saldo dos usuários", { exact: true })).toHaveCount(0);
 });

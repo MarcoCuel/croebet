@@ -106,8 +106,15 @@ test('rotas administrativas escondem recursos de visitantes e usuários comuns e
   await app.register(authRoutes, { pool, config: { APP_ENV: 'test', WEB_ORIGIN: 'http://localhost:3000', CSRF_SECRET: 'x'.repeat(40) } });
   for (const currentRole of [null, 'user']) {
     role = currentRole;
-    for (const path of ['/api/v1/admin/users', '/api/v1/admin/coupons', `/api/v1/admin/users/${target}`, `/api/v1/admin/audit/${target}`]) assert.equal((await app.inject({ url: path, cookies: { 'croebet-session': 'a'.repeat(43) } })).statusCode, 404);
+    for (const path of ['/api/v1/admin/overview', '/api/v1/admin/users', '/api/v1/admin/coupons', `/api/v1/admin/users/${target}`, `/api/v1/admin/audit/${target}`]) assert.equal((await app.inject({ url: path, cookies: { 'croebet-session': 'a'.repeat(43) } })).statusCode, 404);
   }
+  role = 'admin';
+  for (const url of ['/api/v1/admin/overview?days=2', '/api/v1/admin/overview?days=7&userId=outro']) {
+    const response = await app.inject({ url, cookies: { 'croebet-session': 'a'.repeat(43) } });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.headers['cache-control'], 'no-store');
+  }
+  role = 'user';
   assert.equal((await app.inject({ url: '/api/v1/coupons/redeem', method: 'POST', payload: { code: 'CROE', requestId } })).statusCode, 403);
   const session = 'a'.repeat(43);
   const csrf = await app.inject({ url: '/api/v1/auth/csrf', cookies: { 'croebet-session': session } });

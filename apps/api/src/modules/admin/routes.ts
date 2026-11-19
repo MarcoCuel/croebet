@@ -15,6 +15,8 @@ import { pageSlugSchema, pageWriteSchema, pageDeleteSchema } from "@croebet/shar
 import { readPageLinks, readPage, readPages, savePage, deletePage, readPageAuthors } from "../pages/service.ts";
 import { menuLocationSchema, menuWriteSchema } from "@croebet/shared";
 import { readNavigation, readMenus, saveMenu } from "../menus/service.ts";
+import { overviewQuerySchema } from "@croebet/shared";
+import { readOverview } from "./overview.ts";
 
 type Options = { pool: Pool; sessionName: string; current: (token: string | undefined) => Promise<{ id: string; role: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function managementRoutes(app: FastifyInstance, options: Options) {
@@ -32,6 +34,7 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       throw error;
     }
   }
+  app.get("/api/v1/admin/overview", (request, reply) => run(request, reply, true, async () => readOverview(pool, overviewQuerySchema.parse(request.query).days)));
   app.get("/api/v1/games", async () => readGames(pool));
   app.get("/api/v1/games/:slug", async (request, reply) => {
     const parsed = gameSlugSchema.safeParse((request.params as { slug: string }).slug);

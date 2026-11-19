@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AdminOverview } from "@/features/admin/admin-overview";
 import { adminRoutes, type AdminSection } from "@/features/admin/routes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,9 +14,7 @@ import {
   ListTree,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { useDemoSession } from "@/features/auth/session-context";
-import { useSiteConfig } from "@/features/admin/site-config";
 
 const sections = [
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
@@ -40,12 +37,9 @@ export function AdminPanel({
   userId?: string;
   couponId?: string;
 }) {
-  const { ready, error } = useSiteConfig();
   const { sessionReady, permissions } = useDemoSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
-  if (section === "overview" && !ready && !content) return <p role="status">Carregando painel…</p>;
-  if (section === "overview" && error && !content) return <Card role="alert">{error}</Card>;
 
   return (
     <div className="min-w-0">
@@ -73,8 +67,7 @@ export function AdminPanel({
           className="min-w-0"
           aria-label={sections.find((s) => s.id === section)?.label}
         >
-          {section === "overview" && <AdminOverview />}
-          {section !== "overview" && content}
+          {content}
         </section>
       </div>
     </div>
