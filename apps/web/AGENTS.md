@@ -1,3 +1,7 @@
+# Frontend
+
+Para alterações de interface, consulte apenas as seções relevantes de [../../docs/frontend-architecture.md](../../docs/frontend-architecture.md): organização, dados iniciais/sessão, componentes, estilos, administração ou 3D. As regras gerais estão no `AGENTS.md` da raiz.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

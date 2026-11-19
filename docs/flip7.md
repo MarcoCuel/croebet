@@ -1,139 +1,65 @@
-# Flip7 local
+# Flip 7
 
-> Este documento descreve regras e apresentação do protótipo atual. A execução autoritativa no Fastify, Socket.IO, recuperação após reinícios e o roadmap estão em [backend-architecture.md](backend-architecture.md). Salvamentos e recibos locais são descartáveis; não há requisito de importar partidas ou preservar formatos antigos na primeira versão funcional. As descrições de compatibilidade abaixo registram o código existente, sem obrigar a nova implementação.
+## Escopo
 
-## Referência analisada
+Jogo em `/jogos/flip7`, de 2 a 12 participantes, com pessoas no mesmo dispositivo e bots opcionais. Conta conectada ocupa o primeiro lugar; sem sessão, iniciar abre o login. Não há salas online. Só partidas livres estão habilitadas: início e retomada com Croins estão bloqueados até a integração econômica da API. Pontos não viram Croins nem atualizam rankings/conquistas.
 
-URL: https://flip-7-618523404455.us-west1.run.app/ — analisada em 17/11/2026.
+O motor é local, puro e determinístico a partir da seed; não é autoridade para a carteira. Snapshots e formatos antigos são descartáveis, sem obrigação de migração. Direção de integração em [Próximas integrações](backend-architecture.md#próximas-integrações).
 
-O HTML público contém um import map com módulos JavaScript embutidos em data URLs. Foram lidos o baralho, regras, ações, gerenciador de partidas, tela de configuração e estratégias dos bots. A referência credita o jogo a Eric Olsen e a implementação a Dirk Aporius e Google AI Studio; módulos consultados contêm cabeçalho SPDX Apache-2.0.
+## Mapa do código
 
-As regras e os bots são executados no navegador. As dependências React e fontes da referência são carregadas de CDNs, e o documento registra um service worker. Não foi confirmado o funcionamento offline desse service worker. O proxy de API presente no HTML não é necessário para a lógica local de partidas analisada.
+Caminhos relativos a `apps/web/features/games/flip7`:
 
-## Implementação na Croebet
+| Arquivo | Responsabilidade |
+| --- | --- |
+| `types.ts`, `rules.ts` | Estado, baralhos, pontuação e nomes |
+| `engine.ts`, `vengeance.ts` | Transições, ações e decisões dos bots |
+| `match-storage.ts`, `setup-storage.ts` | Partidas por código e preferências locais |
+| `flip7-game.tsx`, `action-presentation.ts` | Configuração, mesa, histórico e coordenação visual |
+| `flip7-loader.tsx` | Carregamento dinâmico restrito à página do jogo |
+| `wager.ts`, `wager-storage.ts` | Rateio puro e integração econômica antiga, desabilitada; não usar para carteira real |
 
-A adaptação reimplementa o jogo em TypeScript e React com os primitives existentes, textos em português e integração ao catálogo. Nenhum script remoto, proxy ou service worker da referência é executado ou incorporado. A arte do catálogo é um SVG local criado para esta integração.
+## Clássico
 
-- `features/games/flip7/engine.ts`: estado e transições independentes de React, DOM, autenticação ou carteira.
-- `features/games/flip7/match-storage.ts`: snapshot versionado, validação e persistência local de múltiplas partidas por código.
-- `features/games/flip7/flip7-game.tsx`: configuração, mesa, cartas, regras, histórico de rodadas e timer cancelável dos bots/compras forçadas.
-- `features/games/flip7/flip7-loader.tsx`: fronteira cliente com carregamento dinâmico exclusivo da página do jogo.
-- `app/jogos/[slug]/page.tsx`: composição da plataforma; mantém o comportamento dos demais jogos.
+- Baralho de 94 cartas: um 0, N cópias de cada número N de 1 a 12, +2/+4/+6/+8/+10, ×2 e três de cada ação (Congelar, Compre 3 e Segunda chance).
+- Comprar ou parar após obter número. Repetir número estoura e zera a rodada; Segunda chance descarta proteção e repetida, mantendo a primeira. Sete números distintos encerram a rodada com +15. ×2 dobra só a soma numérica, antes dos bônus.
+- Congelar/Compre 3 escolhem participante ativo, inclusive quem comprou. Ações encontradas em Compre 3 aguardam a sequência; estouro cancela as ações dessa pessoa. Segunda chance extra fora da sequência pode ser doada a ativo sem proteção; dentro da sequência é descartada.
+- Congelar/Compre 3 resolvidos permanecem na mão até a próxima rodada, sem pontuar. Todas as cartas são conservadas entre mãos/baralho/descarte/filas; só reembaralhar descartes quando faltar baralho.
+- Ao fim da rodada em que alguém atinge 200, maior total vence; empates mantêm todos os líderes. Bots usam somente informações públicas, sem consultar ordem do baralho.
 
-O jogo recebe ações e devolve um novo estado sem alterar o anterior. O embaralhamento usa uma semente aleatória criada no navegador ao iniciar, com transições determinísticas para testes e compatibilidade com verificações do React. Não é um gerador adequado a apostas controladas por servidor.
+## Vingança e Brutal
 
-## Modalidade e regras
+- “A vingança nunca é plena” usa 108 cartas: 92 numéricas, seis modificadores e dez ações. Há números 1–13, Zero, 7 de merda e 13 da sorte (estes substituem uma cópia comum de 7/13); modificadores −2/−4/−6/−8/−10 e ÷2; duas de cada ação Só mais uma!, Compre 4, Roubar, Trocar e Descartar.
+- Zero obriga comprar e zera a pontuação, exceto no Flip 7. 7 de merda descarta as outras cartas e efeitos já recebidos na sequência forçada. 13 da sorte permite segundo 13, ambos contando para o Flip 7.
+- Pontuação: somar números, dividir por dois arredondando para baixo, subtrair modificadores e aplicar bônus. Vingança comum limita o resultado a zero. Brutal permite negativos e modificadores novos sobre base zero de quem estourou; cartas já estouradas continuam fora de jogo.
+- Completar Flip 7 no Brutal pausa para escolher ganhar +15 ou tirar 15 de outro participante, inclusive estourado. Escolher o próprio participante aplica +15. Contabilizar rodada só após resolver essa escolha.
+- Compre 4 adia ações/modificadores na ordem comprada. Estouro durante as compras cancela efeitos ainda presos à sequência; estouro em Só mais uma! posterior não cancela efeitos já liberados. Compra forçada interrompe no estouro/Flip 7. Pessoas que pararam continuam elegíveis aos efeitos sem voltar à atividade.
+- Roubar/Descartar: quem comprou seleciona diretamente uma carta, sem escolher destinatário nem confirmar. Roubar usa outra mão; Descartar aceita própria mão ou outra não estourada.
+- Trocar: quem comprou seleciona cartas de duas pessoas diferentes; prévia reversível com Confirmar/Cancelar. Só confirmar muda o motor/snapshot; troca pode estourar ambas as pessoas. Ações usadas são descartadas.
 
-De 2 a 12 participantes, com pelo menos uma pessoa e bots opcionais em três níveis. A referência permite de 2 a 4; doze é uma extensão da adaptação. Pessoas compartilham o dispositivo; não existem salas ou multiplayer online.
+## Persistência e navegação
 
-Baralho de 94 cartas: um 0; N cópias de cada número N entre 1 e 12; bônus +2/+4/+6/+8/+10; um ×2; três cartas de cada ação (Congelar, Compre 3 e Segunda chance).
+- Cada partida tem código de 12 caracteres e URL `?partida=CODIGO`, válido somente neste navegador/origem. `croebet:flip7:match` guarda a coleção; validar estrutura, alvos e conservação do baralho antes de retomar.
+- Salvar estado antes da animação/jogada apresentada para evitar compra repetida no reload. Persistir escolhas de ação e automações pendentes; prévia de troca é visual e pode ser refeita após recarregar.
+- Configuração continua disponível enquanto existem partidas; lista só as não finalizadas. Navegar/recarregar preserva partidas. Abandonar remove apenas o código escolhido e volta à configuração do Flip 7.
+- Jogar novamente volta à configuração e mantém resultado/classificação na URL da partida finalizada. Retomar fim abre novamente o resultado; fechar o diálogo permite consultar a mesa.
+- Preferências em `croebet:flip7:setup`: modalidade, Brutal e quantidade de lugares; sem nomes/tipos. Fallback: Clássico, dois lugares, sem Brutal. Reduzir/aumentar lugares na configuração preserva participantes temporariamente ocultos; todos os lugares selecionados devem estar preenchidos.
 
-Cada turno permite uma compra ou parar após obter uma carta numérica. Repetir um número estoura. Segunda chance descarta automaticamente a proteção e a carta repetida, preservando a primeira. Sete números diferentes encerram imediatamente a rodada e somam 15 pontos extras. ×2 dobra apenas os números. O maior total vence na rodada em que alguém chega a 200; empate mantém todos os vencedores.
+## Apresentação
 
-Ações de Congelar/Compre 3 permitem escolher qualquer participante ativo, inclusive quem comprou a carta. Ações compradas durante Compre 3 ficam em fila até concluir a sequência; estourar descarta as ações dessa pessoa. Uma segunda chance adicional fora de uma sequência pode ser doada a outra pessoa ativa sem proteção; durante uma sequência ela é descartada, seguindo a referência.
+- Baralho/status/ações no topo; mãos em linhas por participante, números e modificadores dimensionados pelo container. Histórico lateral em telas largas, abaixo no mobile, com controle para esconder. Avatar ativo usa box-shadow de 2px com transição; fundo permanece igual.
+- Primeira compra de cada pessoa na rodada é automática. Zero automatiza compras na ordem normal dos turnos, pausando para decisões; remover Zero restaura Comprar/Parar. Bots e compras forçadas aguardam entrega visual, sem compras sobrepostas.
+- Snapshot confirma primeiro; apresentação mantém status/pontos anteriores durante a viagem e revela estouro/resultado na chegada. Cartas estouradas viram para o verso, sem vazar valores em tooltip/nome acessível. Ações pendentes/enfileiradas ficam visíveis junto ao baralho.
+- Congelar/Compre 3 seguem permanência do Clássico. Compre 4/Só mais uma ficam visíveis durante o efeito e saem após a última entrega, com pausa visual de 0,5s; próxima ação/resultado aguardam a saída.
+- Troca/roubo/descartes têm animação entre mãos/baralho. Passar no Vingança deita a primeira carta numérica e o primeiro modificador; isso não impede ações posteriores.
+- Próxima rodada automática após animações e resumo de 1,6s. Cancelar timers ao desmontar, abrir saída ou mudar estado; fim da partida não avança. Respeitar movimento reduzido em deslocamentos, rotações e pausas. Durações finas ficam no código, sem tabela duplicada aqui.
 
-Congelar e Compre 3 resolvidos ficam na mão do destinatário, sem somar pontos, e vão ao descarte somente ao preparar a próxima rodada. Cartas consumidas por segunda chance ou ações canceladas vão ao descarte. Isso corrige um problema identificado no original, que removia algumas dessas cartas sem devolvê-las ao descarte. Cartas são conservadas entre rodadas, e descartes só são embaralhados ao esgotar o baralho. Bots usam informações públicas, sem consultar a ordem escondida do baralho; estratégias foram reimplementadas.
+## Economia pendente
 
-## Limites atuais
+Direção do modo com Croins: mesma entrada por lugar, vencedores dividem pote, empates rateados em inteiros e sobras pela ordem dos lugares; não gerar transações de valor zero. Financiamento dos bots e regras definitivas de abandono/recuperação precisam de aprovação antes de habilitar. Não transportar contribuições simuladas, recibos ou carteira do protótipo para a API.
 
-Cada partida recebe um código aleatório de 12 caracteres e uma URL com `?partida=CODIGO`. A chave `croebet:flip7:match` do localStorage armazena uma coleção versionada de partidas, cada uma com seu código. O formato antigo de uma partida é lido e migrado ao salvar, sem perder seu progresso. O estado completo é salvo antes de renderizar cada jogada, incluindo automações e escolhas de alvo. O snapshot tem versão e validação estrutural, índices e conservação das 94 cartas. Falhas de gravação apresentam feedback sem interromper o jogo.
+## Referências e verificação
 
-Recarregar a URL com `?partida=CODIGO` retoma somente aquela partida. `/jogos/flip7` mantém a configuração sempre disponível em dois cards: versão, modo Brutal, Croins e regras à esquerda; quantidade de jogadores, participantes e botão de iniciar à direita. As partidas em andamento aparecem abaixo dos dois cards, com modo, quantidade de jogadores, rodada, participantes e Continuar partida. No mobile, os cards de configuração ficam empilhados, seguidos pelas partidas em andamento. Partidas finalizadas não aparecem na lista nem bloqueiam novas partidas; seu resultado permanece acessível pela URL original. É possível iniciar várias partidas sem substituir as anteriores. Dentro da partida, o botão de voltar leva a `/jogos/flip7`; na página inicial do jogo, leva a `/jogos`. Navegar não abandona partidas nem abre confirmação. Somente Abandonar remove o código correspondente, preservando todas as outras partidas. Jogar novamente volta à configuração sem excluir a partida finalizada; seu resultado continua acessível pela URL original. A retomada restaura o resultado da última jogada; compras automáticas pendentes continuam normalmente. Dados inválidos ou incompatíveis exibem erro na configuração.
-
-Os códigos identificam partidas salvas somente neste navegador e origem; não são credenciais ou salas online. Limpar os dados do site remove as partidas; outro dispositivo não consegue recuperá-las. A aplicação precisa carregar seus arquivos inicialmente; esta integração não adiciona suporte PWA/offline ao site. Depois de carregado, o motor não depende de requisições para jogar.
-
-Pontos do Flip7 não são convertidos em Croins e não atualizam rankings/conquistas globais. O modo opcional com entrada em Croins usa o resultado final para distribuir o pote, conforme a seção abaixo. Para um futuro modo online com economia compartilhada, regras, aleatoriedade, turnos e resultados deverão ser validados no backend.
-
-## Validação
-
-`tests/flip7.test.mjs` cobre baralho, pontuação, estouros, proteção, ações em fila, alvos, término e rotação de rodadas. Simulações com 80 sementes conferem conservação/identidade das 94 cartas e término das partidas.
-
-`tests/flip7-storage.test.mjs` verifica snapshots e a próxima transição em partidas completas, incluindo ações pendentes, compras forçadas, resumo e fim; também cobre o salvamento por código e migração do formato antigo, dados corrompidos/incompatíveis e falhas de gravação. O E2E inclui reload, URL, navegação sem abandono e retomada explícita ao reabrir a página do jogo.
-
-`tests/e2e/flip7.spec.ts` cobre entrada pelo catálogo, configuração, regras e foco, turnos locais, confirmação de nova partida e overflow em desktop/mobile. A execução depende de Chrome e permissão para abrir a porta local do servidor Playwright.
-
-Validação desta implementação: lint, TypeScript, 17 testes e build de produção aprovados (build com Node 22.22.0). A tentativa de executar a suíte E2E foi bloqueada antes de abrir o navegador: `listen EPERM 127.0.0.1:3100`. Não houve validação visual automatizada nesta sessão.
-
-## Interface mínima
-
-Configuração compacta com quantidade de jogadores e nomes sem edição. O primeiro participante é sempre a conta conectada, como pessoa, sem seletor; os seletores de tipo aparecem do segundo participante em diante. Sem sessão, o botão principal abre o login existente antes de permitir iniciar a partida. A sessão é lida somente na configuração; o motor continua independente dela. O topo reúne baralho, última carta comprada e Comprar/Parar. As mãos ficam em colunas abaixo, com modificadores antes dos números; o histórico de jogadas e totais aparece na lateral em containers largos e abaixo no mobile. Cartas escuras têm número colorido, marca superior e nome; especiais usam cores próprias. O turno é indicado pela borda do participante. Regras ficam apenas na configuração inicial. A partida tem controles para copiar o código e esconder/mostrar o histórico; ao esconder, o espaço lateral é liberado para as mãos. As regras do motor e a economia não mudam.
-
-## Animações de compra e estouro
-
-A carta em trânsito sai de trás do baralho, é revelada ao lado dele e percorre a mesa até o espaço reservado na mão do destinatário. A interface usa uma timeline GSAP cancelável, coordenadas medidas após o layout e um bloqueio síncrono de ações para impedir compras sobrepostas. Bots e Compre 3 aguardam o movimento terminar. Cartas de ação e segunda chance consumida usam um espaço temporário na mão durante a animação. A última carta não fica duplicada ao lado do baralho.
-
-Após a chegada de uma carta que causa estouro, todas as cartas da mão giram em 3D para o verso, sem valores no nome acessível ou tooltip. O verso permanece até a próxima rodada. Preferência por movimento reduzido remove os deslocamentos e a rotação. A timeline é cancelada ao sair da partida ou desmontar o jogo.
-
-## Faixa de status
-
-A mesa usa fundo transparente. Status contextual e ações ficam na faixa superior; Comprar/Parar aparecem somente no turno de uma pessoa, sem compra em andamento ou ação especial pendente. O resumo de usuários e totais ocupa a faixa junto ao baralho. A lateral contém apenas o histórico. Durante o movimento da carta, o status informa o destinatário antes de anunciar o próximo turno.
-
-A primeira compra de cada participante em cada rodada é automática, mantendo a animação e aguardando escolhas humanas de cartas especiais. O motor marca a compra realizada mesmo quando a carta de ação não permanece na mão, evitando compras automáticas repetidas. O marcador é reiniciado na próxima rodada.
-
-Ritmo de compra: saída de 0,12s, revelação de 0,02s na primeira compra ou 0,65s nas seguintes, deslocamento até a mão de 0,2s. Não há espera após a chegada; a próxima jogada é liberada enquanto uma eventual virada por estouro acontece. A distribuição inicial começa após 60ms e as automações seguintes usam intervalos curtos.
-
-As cartas de ação pendentes e enfileiradas ficam visíveis ao lado do baralho, com área adicional reservada para a próxima revelação. A animação de uma ação termina nesse local, sem passar pela mão. Ações encontradas em Compre 3 permanecem no topo durante as compras seguintes; só somem ao resolver o alvo ou ao serem descartadas por estouro/fim da rodada.
-
-As mãos usam uma grade de linha única para números e outra para modificadores. Ambas compartilham a mesma largura proporcional de carta, limitada pelo tamanho original. Unidades de container escalam texto, ícones, cantos e verso junto das cartas. A animação de entrega também reduz a carta até a largura final da mão.
-
-## Configuração por vagas
-
-O seletor define de 2 a 12 lugares. A conta conectada ocupa o primeiro lugar fixo. Os demais aparecem como Disponível; o botão + abre um diálogo com Nome e Tipo (Pessoa ou Bot). Bots adicionados usam a estratégia média. Lugares preenchidos permitem editar ou remover o participante pelo mesmo diálogo. É preciso preencher todos os lugares selecionados antes de começar. Diminuir e aumentar a quantidade preserva as configurações dos lugares temporariamente ocultos.
-
-## Vingança e modo Brutal
-
-A configuração permite escolher Clássico ou A vingança nunca é plena. Brutal é uma opção exclusiva do Vingança. A mesa identifica a modalidade; regras, bots, alvos e pontuação seguem a opção salva na partida. A adaptação mantém de 2 a 12 pessoas em todos os modos.
-
-Referências oficiais consultadas:
-
-- [Manual da The Op, Ruleset Edition 1](https://cdn.shopify.com/s/files/1/0611/3958/3198/files/26_FLIP_7_VENGEANCE_RULES_C.pdf?v=1770853610).
-- [FAQ oficial de Vingança](https://theop.games/pages/flip-7-wav-faqs).
-
-`types.ts` descreve o estado e as ações. `rules.ts` compartilha baralhos, nomes, embaralhamento, classificação numérica e pontuação. `engine.ts` preserva as transições do Clássico e encaminha Vingança a `vengeance.ts`.
-
-Vingança usa 108 cartas: 92 numéricas, seis modificadores e dez ações. O 7 de merda e o 13 da sorte substituem uma cópia comum desses valores; O Zero completa os números. O Zero obriga comprar e zera a pontuação, exceto no Flip7; o 7 de merda descarta as outras cartas e os efeitos já recebidos na sequência forçada; o 13 da sorte permite um segundo 13, ambos contando para o Flip7. Modificadores são −2/−4/−6/−8/−10 e ÷2. As ações são Só mais uma!, Compre 4, Roubar, Trocar e Descartar, com duas cópias cada. Ações usadas são descartadas nesta edição.
-
-Quem compra uma ação escolhe quem irá resolvê-la. Em Roubar/Trocar/Descartar, o destinatário seleciona cartas da mesa, com teclado ou ponteiro; Trocar exige cartas de pessoas diferentes e pode estourar ambas. Pessoas que pararam continuam elegíveis e resolvem efeitos sem voltar à atividade. Compre 4 adia ações e modificadores, mantendo ordem de compra. A fila distingue efeitos ainda pertencentes à sequência daqueles já liberados: estourar durante as quatro compras cancela os primeiros; estourar depois em Só mais uma! não apaga os outros efeitos já liberados, conforme a FAQ. Compras forçadas interrompem no estouro ou no Flip7.
-
-A pontuação soma números, divide por dois arredondando para baixo, subtrai modificadores e só então adiciona o bônus. Vingança padrão limita o resultado a zero. Brutal permite valores negativos e modificadores em pessoas estouradas. `bustedCards` identifica as cartas viradas e fora de jogo; novos modificadores recebidos depois do estouro ficam abertos e são contabilizados sobre base zero. Completar Flip7 no Brutal pausa para escolher +15 ou −15 para outro participante, inclusive estourado; a rodada é contabilizada uma única vez, após escolher.
-
-A persistência conserva a chave e a versão existentes. Snapshots anteriores sem modalidade são interpretados como Clássico. A validação usa o baralho da modalidade, aceita pontos negativos somente no Brutal e confere alvos, escolha do bônus, sequências forçadas, identidade e conservação das 94/108 cartas. A seleção das duas cartas de uma troca é visual e pode ser refeita após reload. Selecionar a segunda carta anima uma prévia local da troca, sem alterar o motor, o histórico ou o snapshot. Cancelar anima as cartas de volta; Confirmar efetiva a ação sem repetir a animação local. Apenas a ação confirmada deverá ser transmitida quando houver multiplayer online. Roubar e Descartar também exigem confirmar a carta selecionada. Descartar explicita quem decide e permite selecionar cartas da própria mão ou de outros participantes; Cancelar mantém todas as cartas. Na primeira etapa, o rótulo explicita quem vai roubar e receber a carta; na segunda, o participante seleciona a carta de outra pessoa. O histórico identifica quem roubou e quem perdeu a carta. Os demais estados de escolha são persistidos.
-
-Animações GSAP movimentam cartas roubadas/trocadas entre mãos e cartas descartadas até o baralho. O 7 de merda aguarda chegar antes de descartar as cartas anteriores. Automações aguardam as animações e respeitam movimento reduzido.
-
-`tests/flip7-vengeance.test.mjs` cobre as novas regras, filas encadeadas, negativos, escolha do bônus, compatibilidade de salvamento, dados adulterados e decisões dos bots sem acessar ordem do baralho. Simulações de Vingança e Brutal com 2, 3, 6 e 12 participantes verificam conservação das cartas e retomada em cada transição. Os cenários de navegador cobrem configuração, seleção por teclado, roubo/troca com animação, Zero, modificadores após estouro e reload durante a escolha do bônus.
-
-A apresentação mantém status, pontuação, destaque de turno e histórico anteriores enquanto uma carta viaja. Estouro e virada das cartas são apresentados na chegada à mão; controles de fim da rodada aguardam o término da entrega. Roubo e troca também aguardam a transferência para apresentar o resultado. O snapshot continua sendo salvo antes da animação, para não repetir uma compra ao recarregar.
-
-### Escolha direta de Roubar e Descartar
-
-Por decisão de interação da Croebet, quem compra Roubar ou Descartar resolve a ação diretamente: um clique na carta executa o efeito e anima a transferência ou o descarte. Não há escolha prévia de participante nem confirmação nessas duas ações. Roubar usa cartas de outras mãos; Descartar permite cartas próprias e de outros jogadores que não estouraram. Somente Trocar mantém a prévia reversível e Confirmar/Cancelar. Ações em fila seguem o mesmo fluxo ao serem liberadas. Snapshots antigos dessas ações são normalizados para a escolha direta ao retomar.
-
-No Vingança, passar deita com rotação de 90 graus a primeira carta numérica e o primeiro modificador de cada mão. A transformação cabe na área da carta e respeita movimento reduzido. A indicação deriva do status salvo, permanece após reload e não impede roubo, troca ou descarte. Cartas estouradas continuam usando o verso.
-
-O Zero automatiza a compra na vez do seu portador, preservando a ordem de turnos. A interface aguarda a chegada de cada carta e pausa para escolhas de ação; Comprar/Parar ficam ocultos enquanto o Zero torna a compra obrigatória. Remover o Zero restaura a escolha normal. Reload retoma a automação sem repetir compras já salvas.
-
-A passagem de rodada é automática: após concluir entregas e transferências, o resumo fica visível por 1,6 segundo e a interface envia `next`. O timer é cancelado ao desmontar, ao abrir a confirmação de saída ou ao mudar o estado. Retomar um resumo após reload também inicia a próxima rodada automaticamente. Partidas encerradas mantêm Jogar novamente e não avançam.
-
-Trocar também vai diretamente à seleção de cartas, sem etapa de escolher participante. Quem compra a ação controla a prévia e a confirmação; snapshots antigos de Trocar são normalizados para esse fluxo, inclusive ações enfileiradas.
-
-O fim da partida abre um diálogo após as animações, com vencedores (incluindo empates) e classificação completa por pontuação decrescente. Pontos negativos são exibidos normalmente. Fechar/Escape permite consultar a mesa; Ver resultado reabre o diálogo. Jogar novamente volta à configuração e preserva o snapshot completo, a classificação e a URL da partida finalizada. Retomar uma partida encerrada reabre o resultado.
-
-A configuração mantém modo, opção Brutal e quantidade de lugares na chave independente `croebet:flip7:setup`. Mudanças são salvas na própria tela, permanecendo após navegação, reload, abandono e Jogar novamente. Partidas existentes fornecem a configuração inicial ao migrar. Dados inválidos ou armazenamento indisponível usam Clássico, dois lugares e Brutal desativado. Nomes e tipos dos participantes não são persistidos nessa preferência.
-
-## Entrada em Croins e pote contra bots
-
-A configuração oferece Jogar com Croins, desativado por padrão. Ao ativar, os demais lugares são preenchidos automaticamente por bots médios; seus nomes continuam editáveis e a quantidade segue de 2 a 12. O modo livre mantém participantes locais e bots. A entrada deve ser um inteiro positivo e caber no saldo. O botão informa o débito antes de começar; saldo e pote (entrada × participantes) aparecem na configuração. Clássico, Vingança e Brutal usam o mesmo modelo.
-
-Somente a pessoa conectada paga da carteira; a contribuição dos bots é simulada. O vencedor recebe todo o pote, incluindo a própria entrada. Empates dividem o pote igualmente entre todos os líderes, inclusive bots; sobras inteiras vão aos vencedores em ordem de lugar. Bots não possuem carteira. A mesa mostra o pote; o resultado mostra entrada, pote, prêmio, resultado líquido e a parcela de cada vencedor. Sem vitória da pessoa, não há crédito nem transação de valor zero. O histórico da carteira registra Entrada e Prêmio com o código da partida.
-
-`wager.ts` mantém validação e rateio puros. `SavedMatch.wager` é opcional e vincula titular e entrada ao código; salvamentos antigos continuam livres. `wager-storage.ts` usa o bloqueio global da demonstração e relê sessão, partida e carteira. O snapshot inicial é salvo antes de debitar; se a gravação da carteira falhar, permanece uma intenção recuperável. A retomada confirma a entrada uma única vez antes de liberar jogadas. Cada jogada com Croins precisa ser salva antes de aparecer; falhas pausam a interação para tentar novamente ou recarregar. Uma aba antiga não pode sobrescrever uma jogada já salva em outra.
-
-Débito e prêmio usam IDs determinísticos no próprio histórico da carteira. O crédito e seu recibo são uma única gravação; reload, reabertura do resultado, chamadas concorrentes e falha ao remover o snapshot não repetem pagamento. Pagamentos com falha podem ser tentados novamente; Jogar novamente fica bloqueado até concluir o resultado, e abandonar uma partida encerrada também tenta concluir o prêmio antes de remover o salvamento. Abandonar em andamento perde a entrada; navegar ou recarregar preserva a partida. Trocar de conta pausa a partida com Croins até o titular retornar.
-
-`tests/flip7-wager.test.mjs` cobre entrada, retomada, todos os modos, vitória de bot, empate, sobras, saldo, titular, conservação da carteira, abandono, concorrência e falhas de gravação no débito e no prêmio. `tests/e2e/flip7-wager.spec.ts` cobre configuração, bots, saldo insuficiente, retomada, decisão final com vitória/empate/derrota, reabertura/reload do resultado e histórico em desktop/mobile.
-
-
-### Apresentação das compras forçadas
-
-Em Vingança, Compre 4 e Só mais uma permanecem visíveis na mão do destinatário durante todo o efeito. Após a última entrega (incluindo a parada ou o estouro), há uma pausa de 0,5 segundo antes da animação de descarte. A próxima ação e o resultado aguardam essa saída; movimento reduzido elimina a pausa e a animação. Essa retenção pertence apenas à apresentação, sem alterar pontuação, baralho ou snapshot do motor. Ao retomar uma compra forçada após reload, a carta visual é recuperada pelo histórico validado da partida. Congelar e Compre 3 do Clássico continuam seguindo suas regras de permanência na mão.
+- Referência da adaptação clássica: [implementação analisada em 17/11/2026](https://flip-7-618523404455.us-west1.run.app/), que credita Eric Olsen (jogo), Dirk Aporius e Google AI Studio (implementação), com cabeçalhos SPDX Apache-2.0 nos módulos consultados. Não incorporamos scripts remotos, proxy ou service worker dessa referência.
+- Vingança: [manual The Op, Edition 1](https://cdn.shopify.com/s/files/1/0611/3958/3198/files/26_FLIP_7_VENGEANCE_RULES_C.pdf?v=1770853610) e [FAQ oficial](https://theop.games/pages/flip-7-wav-faqs). As escolhas diretas de ações acima são decisões específicas da Croebet.
+- Testes atuais: `apps/web/tests/flip7*.test.mjs` para motor, conservação, bots, retomada e apresentação; `apps/web/tests/e2e/flip7*.spec.ts` para configuração/interação/reload e bloqueio de Croins. Comandos em [Validação](backend-architecture.md#validação). Não preservar testes exclusivos de formatos descartados ao substituir persistência.

@@ -1,8 +1,8 @@
 # Croebet — Conceito, identidade e direção do projeto
 
 > Documento de referência para produto, design e conteúdo.
-> Atualizado em 17 de novembro de 2026.
-> Referência central para **o que é a Croebet, sua identidade, linguagem, moeda e direção de produto**. As convenções de desenvolvimento ficam no `AGENTS.md`; os detalhes da implementação atual, em `docs/frontend-architecture.md`.
+> Referência de **produto, identidade, linguagem, moeda e direção das funcionalidades**, revisada em 19 de novembro de 2026.
+> Consulte apenas o assunto da tarefa: seções 3–4 (conta, escopo e economia), 5–8 (marca e textos), 9 (conteúdo), 10–11 (futuro e questões abertas). Estado técnico e ambiente em [docs/backend-architecture.md](docs/backend-architecture.md); convenções em [AGENTS.md](AGENTS.md).
 
 ## 1. Resumo do projeto
 
@@ -33,11 +33,13 @@ A crítica não é necessariamente aos jogos de azar em si: o ponto principal é
 
 ## 4. Funcionamento da plataforma
 
-Esta seção descreve a direção do produto. Recursos e valores usados no protótipo de demonstração não confirmam regras finais de economia nem significam que as funcionalidades previstas já estejam disponíveis.
+O projeto está em desenvolvimento; contas, saldos, partidas e demais dados atuais podem ser descartados e recriados. As regras aprovadas abaixo orientam o produto, mas recursos futuros não devem ser apresentados como disponíveis. A implementação existente está resumida em [Estado atual](docs/backend-architecture.md#estado-atual).
 
 ### 4.1. Jogos
 
-Haverá jogos reais e funcionais, com identidade visual e referências próprias da comunidade. Exemplos previstos:
+O primeiro jogo é o **Flip 7**, jogável localmente com pessoas no mesmo dispositivo e bots. Seu modo com Croins permanece bloqueado até a integração do motor e da economia no backend. Regras e apresentação estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
+
+Haverá outros jogos funcionais, com identidade visual e referências próprias da comunidade. Exemplos previstos:
 
 - Caça-níqueis;
 - Roleta;
@@ -54,15 +56,15 @@ Além dos jogos de cassino, haverá uma área de **apostas em acontecimentos ou 
 
 - Criação e gerenciamento das apostas: comunidade, organizadores e moderadores, de acordo com as permissões que vierem a ser definidas.
 - Os usuários fazem suas apostas com Croins.
-- Critérios do protótipo estão descritos abaixo; a operação de produção ainda depende da integração e dos controles do backend.
+- O catálogo administrativo já é persistido pelo backend e começa vazio. Palpites, apuração e pagamentos ainda não estão integrados; as regras abaixo orientam essa futura implementação.
 
-#### Regras aprovadas para o protótipo administrativo
+#### Regras aprovadas para a futura operação das apostas
 
 - Apostas passam por rascunho, abertura, pausa, encerramento, apuração e pagamento. Cancelamentos devolvem os Croins após confirmação da liquidação.
 - O total apostado é rateado entre os palpites vencedores proporcionalmente ao valor apostado, sem taxa da casa e incluindo a aposta inicial no crédito. Sobras de arredondamento são distribuídas de maneira determinística.
 - Para apostas numéricas, vale o acerto exato. Sem vencedores, os participantes recebem de volta o valor apostado.
 - Regras e opções não mudam após o primeiro palpite. Encerrar entradas, definir resultado e pagar são etapas distintas; apuração e pagamentos precisam ser verificáveis e não podem gerar créditos duplicados.
-- Esta implementação usa contas locais do navegador. Palpites antigos sem identificação suficiente são preservados fora da liquidação automática; a operação global depende da integração com o backend.
+- O código local antigo de liquidação é apenas referência. Não preservar nem importar seus palpites ou carteiras; a operação futura será autorizada e transacional no backend.
 
 ### 4.3. Croins: economia fictícia
 
@@ -84,7 +86,7 @@ Valores iniciais aprovados em 19 de novembro de 2026:
 - Ao criar uma conta: **30 Croins**, registrados como bônus de cadastro.
 - Resgate diário: **10 Croins uma vez por dia, com liberação à meia-noite no fuso America/Sao_Paulo**, independentemente do saldo. O primeiro resgate fica disponível após o cadastro; não há teto de saldo. Resgatar às 22h permite novo resgate à 1h do dia seguinte.
 - Sugestões de aposta: **1, 5, 10 e 50 Croins**, com **5 Croins** como valor padrão. São sugestões, não uma lista obrigatória de valores aceitos.
-- Cupons: valor inteiro positivo escolhido livremente pelo administrador para cada cupom, sem valor padrão ou tabela fixa.
+- Cupons: código definido pelo administrador, valor inteiro positivo escolhido por cupom, sem valor padrão ou tabela fixa. Um resgate por conta, limite global opcional, pausa e início/término opcionais; sem datas, validade indefinida. Edições não alteram os valores já concedidos.
 
 As configurações são centralizadas no backend. Cadastro e resgate devem creditar a carteira e gerar movimentações auditáveis na mesma transação. Probabilidades e demais aspectos de balanceamento continuam sujeitos a definição.
 
@@ -172,6 +174,8 @@ Porém, o misticismo é **uma referência secundária**. A piada principal sempr
 
 ## 8. Exemplos de linguagem (referências, não textos obrigatórios)
 
+Exemplos de tom, não um catálogo de recursos disponíveis. Ajuste-os ao escopo atual e à orientação da seção 6: referências explícitas a dinheiro fictício pertencem ao contexto editorial do Sobre, sem avisos repetidos nos fluxos.
+
 ### Hero — direção editorial
 
 O título deve apresentar a Croebet como uma casa de apostas com atitude; não começar com “Bem-vindo” e não depender do nome da marca, que já aparece na identidade visual.
@@ -230,10 +234,11 @@ A acidez deve ser calibrada conforme o contexto: mensagens de erro e regras prec
 
 ## 11. Pontos ainda abertos
 
-- Valores de saldo inicial e bônus diário;
-- Limites e validade dos cupons;
-- Regras específicas, probabilidades e equilíbrio dos jogos;
-- Tipos de aposta, cálculo de resultados e permissões da moderação;
+- Balanceamento futuro da economia; valores iniciais e cupons já foram definidos na seção 4.3;
+- Financiamento das entradas dos bots em partidas com Croins;
+- Regras de novos jogos, probabilidades e equilíbrio; Flip 7 já tem regras documentadas;
+- Permissões adicionais da moderação; formatos e rateio das apostas seguem a seção 4.2;
+- Recuperação de conta sem e-mail, lobby, convidados, espectadores, desconexão, timeouts e abandono online;
 - Critérios e periodicidade dos rankings;
 - Lista e requisitos de emblemas/conquistas;
 - Política de contas, abuso e múltiplos cadastros;

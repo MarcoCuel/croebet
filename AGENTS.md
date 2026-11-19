@@ -1,71 +1,34 @@
-# Convenções da Croebet
+# Desenvolvimento da Croebet
 
-## Referências e responsabilidades
+## Contexto
 
-- Este arquivo define como desenvolver e manter o código. Conceito, identidade, linguagem, moeda, economia e direção das funcionalidades têm como referência `CROEBET.md`; consulte-o antes de alterar conteúdo, design ou funcionalidades e não replique suas definições aqui.
-- `docs/frontend-architecture.md` detalha a implementação atual e traz exemplos de componentes, composição e cenas 3D. Detalhes do protótipo não devem ser tratados como decisões definitivas de produto.
-- `docs/backend-architecture.md` é a referência das decisões técnicas aprovadas, da política de dados por ambiente e do roadmap da primeira versão funcional. Atualize esse documento quando uma decisão arquitetural for aprovada ou alterada; não mantenha planos concorrentes nos demais arquivos.
-- Preserve `CROEBET.md`. Não exclua, substitua ou reduza esse documento durante refatorações, limpezas ou reorganizações. Sua remoção exige uma solicitação explícita do usuário.
+- Projeto em desenvolvimento, sem dados de produção a preservar. Contas, saldos, partidas, cupons e históricos atuais são descartáveis; podem ser limpos e recriados quando a tarefa exigir.
+- Não crie importadores de mocks/localStorage, compatibilidade com formatos antigos, aliases ou redirecionamentos para endereços substituídos apenas para preservar o protótipo. Migrations de schema e seeds continuam necessários para reproduzir uma base vazia; podem ser consolidados neste estágio.
+- Use as proteções existentes de ambiente/destino nos comandos de reset. Dados descartáveis não dispensam autorização, validação, atomicidade e idempotência dos fluxos implementados.
+- Preserve funcionalidades, regras aprovadas e apresentação existente; refatorar não autoriza redesign nem expansão de escopo.
 
-## Stack e arquitetura
+## Consulta por assunto
 
-- Next.js App Router, React, TypeScript, Tailwind CSS 4, GSAP e Lenis. Preserve a stack e as funcionalidades existentes.
-- A arquitetura aprovada separa Next.js e Fastify em um monorepo pnpm, com PostgreSQL, Drizzle + `pg`, Zod e Socket.IO + HTTP. O frontend está em `apps/web`; os caminhos de frontend abaixo são relativos a essa aplicação. A base do backend está em `apps/api` e os contratos públicos em `packages/shared`; consulte o estado de validação em `docs/backend-architecture.md`. Regras de negócio, autenticação, permissões, banco e execução dos jogos pertencem ao Fastify; o frontend não acessa o banco nem serviços internos da API.
-- `app/`: rotas, metadata e composição de páginas. Use Server Components por padrão.
-- Dados necessários à primeira exibição de páginas integradas à API devem ser carregados no servidor, pelos endpoints HTTP do Fastify, e passados às menores fronteiras cliente. Não renderize primeiro um estado vazio/deslogado nem busque o conteúdo inicial em `useEffect`. Revalidações e interações posteriores podem acontecer no cliente sem apagar dados confirmados. Diferencie ausência de dados de falhas do serviço; reserve skeletons para esperas reais e recursos exclusivos do navegador. Redirecionamentos que dependem dos dados iniciais também devem ocorrer no servidor. Consulte `docs/backend-architecture.md` para os detalhes de sessão, contratos e cache.
-- `components/ui/`: primitives do design system, no padrão shadcn/ui, com Radix UI para interação acessível.
-- `components/layout/`: navegação, sidebar, topbar, rodapé, providers e estrutura de página.
-- `components/shared/`: componentes visuais reutilizáveis do produto, independentes de estado de domínio.
-- `features/<domínio>/`: componentes, tipos, estado, regras e persistência de cada funcionalidade.
-- `lib/`: utilitários sem dependência de features. Importe `cn` de `@/lib/utils`.
-- `three/`: experiências 3D opcionais, separadas por canvas, cenas, modelos, materiais, iluminação e controles.
-- Crie `hooks`, `types` e `styles` apenas quando houver conteúdo realmente compartilhado. Evite pastas vazias, barrels e abstrações especulativas.
-- Use o alias `@/` nos imports entre diretórios. Client Components devem ser as menores fronteiras interativas necessárias; passe conteúdo do servidor como `children`.
-- O provider de sessão é exclusivo da demonstração local. Não é autenticação de produção. Dados, chaves e formatos do protótipo são descartáveis: não crie importadores ou compatibilidade histórica para substituí-los. Preserve a interface visual e os fluxos, não os dados mockados. Resets de desenvolvimento/teste precisam ser explicitamente bloqueados contra destinos de produção, conforme `docs/backend-architecture.md`.
+Leia somente a seção necessária: localize títulos com `rg -n '^##' arquivo.md` e consulte o trecho. Não carregue toda a documentação por padrão.
 
-## Design system
+| Quando | Referência |
+| --- | --- |
+| Produto, textos, identidade ou economia | [CROEBET.md](CROEBET.md), seções 3–4 (conta/funcionalidades), 5–8 (marca/textos) e 10–11 (futuro) |
+| Ambiente, comandos, API, banco ou próximas integrações | [docs/backend-architecture.md](docs/backend-architecture.md), pela seção correspondente |
+| Componentes, estilos, carregamento inicial ou 3D | [docs/frontend-architecture.md](docs/frontend-architecture.md), pela seção correspondente |
+| Regras ou apresentação do Flip 7 | [docs/flip7.md](docs/flip7.md) |
 
-- Antes de criar uma solução específica, procure e reutilize um componente em `components/ui` ou `components/shared`.
-- Campos de busca usam `SearchInput` de `components/ui/search-input.tsx`, que já compõe o ícone e o estilo padrão sem borda aparente. Não recrie essa composição nas páginas.
-- Use `Button` para controles e CTAs, `Input` e `Field` para formulários, `Card` para superfícies, `Dialog` para modais e drawers, `DropdownMenu` para menus, `Tooltip` para dicas e `toast` de `sonner` para feedback.
-- Links com aparência de botão usam `<Button asChild><Link ... /></Button>`. Não aninhe botões e links.
-- Não use tags `button`, `input`, `textarea` ou `select` diretamente fora de `components/ui`. O lint aplica essa regra às páginas e aos componentes de produto.
-- Adicione novos primitives como Textarea, Select, Checkbox, RadioGroup e Tabs somente quando uma funcionalidade os utilizar. Use Radix e composição shadcn para interações complexas; não instale a biblioteca inteira.
-- Defina variantes reutilizáveis com `class-variance-authority`. Use `cn()` com `clsx` e `tailwind-merge` para combinar classes e permitir overrides.
-- `Button`: variantes `default`, `secondary`, `outline`, `ghost`, `destructive`, `link`; tamanhos `default`, `sm`, `lg`, `icon`, `icon-sm`. Use `loading` e `disabled` nos botões de ação.
-- Campos e botões padrão têm altura mínima de 2.75rem. Altura mínima permite quebra de linha e ampliação de fonte.
-- Estados de teclado alteram apenas a borda dos controles. Sem focus rings ou bordas coloridas decorativas em modais e dropdowns.
-- Modais de formulário devem conter apenas título, campos com labels e botões. Não adicione descrições, ícones decorativos ou textos auxiliares permanentes; apresente feedback de validação quando necessário. Sem descrição, use `aria-describedby={undefined}` no `DialogContent`.
-- Preserve o gradiente e a sombra interna dos controles primários e da Croin. Respeite `prefers-reduced-motion`.
-- Preserve o layout, imagens, textos, animações e comportamento existentes; uma refatoração não autoriza redesign.
+O código descreve o que existe; a documentação registra decisões e limites. Uma decisão ainda não implementada deve ser marcada como pendente, não descartada. Preserve o documento de produto da raiz; não o exclua nem substitua por um resumo durante limpezas.
 
-## Estilos e tokens
+## Responsabilidades
 
-- Use Tailwind CSS nos próprios componentes. Não crie classes globais `.button`, `.input`, `.card`, `.modal` ou equivalentes, nem regras CSS para componentes de layout.
-- `app/globals.css` contém somente o import Tailwind, tokens `@theme`, variáveis fundamentais e estilos globais de base.
-- Cores, tipografia fluida, espaçamentos especiais, bordas, raios, sombras e gradientes são tokens. Utilize a escala Tailwind para os demais espaçamentos.
-- Implemente a cor principal definida em `CROEBET.md` no token `--color-brand`. Use `brand` no logo e nos botões primários. Não espalhe hexadecimais em TSX, inclusive materiais 3D.
-- Use `rem` nas dimensões próprias, preferindo passos de 0.25rem; preserve proporções de arte e tamanhos fluidos quando necessários ao design existente. Viewports e proporções de imagem podem usar porcentagens, `vw`, `dvh` e `cqi`.
-- Consultas de container da sidebar ficam nas classes Tailwind do componente, sem seletores globais acoplados ao DOM.
+- Monorepo pnpm: `apps/web` (Next.js App Router/React), `apps/api` (Fastify) e `packages/shared` (contratos Zod). Preserve a stack; versões e scripts estão nos respectivos `package.json`.
+- Regras de negócio, autenticação, permissões e persistência pertencem à API. Next consulta endpoints HTTP; não importa serviços internos nem acessa o banco. O motor local do Flip 7 é uma integração pendente, sem autoridade sobre Croins.
+- `shared` não depende de frameworks, banco, segredos ou módulos internos das aplicações. Crie módulos e abstrações somente quando utilizados.
 
-## Acessibilidade e ícones
+## Validação e manutenção
 
-- Use Lucide (`lucide-react`). Importe apenas os ícones utilizados com imports nomeados, tanto em Server Components quanto em Client Components.
-- Preserve o estilo de contorno padrão do Lucide; tamanho e cor via Tailwind. Marque ícones decorativos com `aria-hidden` e dê nome acessível aos botões de ícone.
-- Mantenha labels, títulos e descrições de diálogos, foco inicial, fechamento por Escape, retorno do foco e navegação por teclado. Prefira os mecanismos do Radix a implementações manuais.
-- Use `data-lenis-prevent` em portais com rolagem própria. Não duplique controle global de scroll ou focus traps.
-
-## 3D
-
-- React Three Fiber é o padrão para novas experiências. Não migre jogos existentes automaticamente.
-- Carregue cenas com `next/dynamic({ ssr: false })` em uma fronteira cliente. Siga o exemplo em `three/scenes/croin-preview.tsx`.
-- Não importe o renderer 3D no layout, nos providers ou nos componentes UI. Não monte Canvas global e não inicie loops antes de a experiência ser solicitada.
-- Use `SceneCanvas`, `frameloop="demand"`, DPR limitado, Suspense e fallback para falta de WebGL ou erro. Não adicione `useFrame` sem animação real.
-- Evite setState por frame. Se precisar animar, atualize refs e invalide apenas quando necessário; modelos e materiais devem ter ownership e descarte claros.
-- Leia a cor da marca do token CSS. Reutilize luzes, controles e modelos de `three/`, sem regras de domínio nos primitives.
-
-## Validação
-
-- Preserve as regras de produto e valide os contratos atuais ao refatorar. Formatos de persistência descartáveis podem ser substituídos sem adaptadores antigos; contratos publicados e dados reais de produção exigem compatibilidade e preservação. Consulte `docs/backend-architecture.md` para a política por ambiente.
-- Execute `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm build`. Para mudanças interativas, execute `pnpm test:e2e` com Chrome instalado.
-- Não ignore erros de TypeScript/build nem desative regras globalmente para fazer a validação passar.
+- Código: execute `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm build`. Interações: acrescente o E2E pertinente. Banco/transações: integração em banco `test`. Preparação em [Validação](docs/backend-architecture.md#validação).
+- Documentação apenas: confira links, caminhos, consistência com o código e `git diff --check`; não exige repetir suítes funcionais.
+- Não ignore erros nem desative regras globalmente para passar checks. Relate o que executou, falhas e impedimentos reais da rodada.
+- Atualize a seção responsável pela mudança, substituindo o texto obsoleto. Não acrescente diário de entregas, contagens de testes, relatos de permissões do executor, cópias de contratos ou planos concorrentes. Prefira referências ao código e links entre documentos; crie outro documento somente se os existentes não comportarem o assunto.
