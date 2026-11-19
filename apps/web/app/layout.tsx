@@ -6,6 +6,7 @@ import "./globals.css";
 import { Motion } from "@/components/layout/motion";
 import { Navigation } from "@/components/layout/navigation";
 import { Providers } from "@/components/layout/providers";
+import { getInitialSession } from "@/features/auth/server-session";
 import { Footer } from "@/components/layout/footer";
 
 const inter = localFont({
@@ -24,7 +25,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const initialSession = await getInitialSession();
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -32,7 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="bg-background font-sans text-base text-foreground">
         <Motion />
-        <Providers>
+        <Providers initialSession={initialSession}>
           <Navigation>
             {children}
             <Footer />

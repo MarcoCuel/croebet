@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import type { InitialSession } from "@/features/auth/initial-session";
 import type { PublicUser } from "@croebet/shared";
 import { DemoSession } from "@/features/auth/session-context";
 import { AuthDialog } from "@/features/auth/auth-dialog";
@@ -9,22 +10,27 @@ import { authRequest } from "@/features/auth/api";
 
 // The context's existing name is retained to avoid a visual/component rewrite.
 // Account identity now comes exclusively from the API; local wallets are never loaded.
-export function DemoSessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<PublicUser | null>(null);
-  const [ready, setReady] = useState(false);
+export function DemoSessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
+  const [user, setUser] = useState<PublicUser | null>(initialSession.user);
+  const [ready, setReady] = useState(initialSession.ready);
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const revision = useRef(0);
   useEffect(() => {
     let mounted = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => {
+      clearTimeout(retry);
       const version = ++revision.current;
-      void authRequest("/me").then(next => { if (mounted && revision.current === version) setUser(next); })
-        .catch(() => { /* Keep the last confirmed identity; never fall back to local data. */ })
-        .finally(() => { if (mounted) setReady(true); });
+      void authRequest("/me").then(next => {
+        if (mounted && revision.current === version) { setUser(next); setReady(true); }
+      }).catch(() => {
+        // Retain the confirmed session, or the loading state until a successful retry.
+        if (mounted && revision.current === version) retry = setTimeout(refresh, 15000);
+      });
     };
     refresh(); window.addEventListener("focus", refresh);
-    return () => { mounted = false; window.removeEventListener("focus", refresh); };
+    return () => { mounted = false; clearTimeout(retry); window.removeEventListener("focus", refresh); };
   }, []);
   function openAuth(mode: "login" | "register") {
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;

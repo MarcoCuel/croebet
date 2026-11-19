@@ -94,6 +94,7 @@ export function Topbar({
         : { href: "/", label: "Voltar para o início" };
   const {
     username,
+    sessionReady,
     balance,
     openLogin,
     openRegister,
@@ -164,7 +165,9 @@ export function Topbar({
           </nav>
         )}
       </div>
-      {username ? (
+      {!sessionReady ? (
+        <div role="status" aria-label="Carregando conta" className="col-start-3 h-11 w-36 justify-self-end rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
+      ) : username ? (
         <>
           <div className="hidden items-center gap-2 rounded-panel bg-contrast/6 p-1.5 md:flex">
             <Button

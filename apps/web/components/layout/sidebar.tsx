@@ -23,7 +23,7 @@ export function Sidebar({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const { username, balance } = useDemoSession();
+  const { username, balance, sessionReady } = useDemoSession();
   return (
     <>
       <aside
@@ -49,7 +49,9 @@ export function Sidebar({
           <div className="min-h-0 overflow-y-auto">
             <MenuLinks sidebar />
           </div>
-          {username ? (
+          {!sessionReady ? (
+            <div role="status" aria-label="Carregando conta" className="h-28 rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
+          ) : username ? (
             <div className="-mx-3 @max-[8rem]/sidebar:hidden">
               <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-contrast/6 p-2">
                 <Button
