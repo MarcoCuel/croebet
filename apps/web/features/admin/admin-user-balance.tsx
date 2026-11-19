@@ -16,10 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 export function AdminUserBalance({ userId }: { userId: string }) {
-  const { permissions, refreshWallet } = useDemoSession();
+  const { permissions, refreshWallet } = useSession();
   const router = useRouter();
   const request = useRef<{ payload: string; id: string } | null>(null);
   const [open, setOpen] = useState(false);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ComponentProps } from "react";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Heading } from "@/components/shared/heading";
@@ -21,7 +21,7 @@ function Banner({ className, ...props }: ComponentProps<"div">) {
 }
 
 export function HomeBanners() {
-  const { username, openRegister, economy, daily, claimDaily, claimingDaily, refreshWallet } = useDemoSession();
+  const { username, openRegister, economy, daily, claimDaily, claimingDaily, refreshWallet } = useSession();
   const [clock, setClock] = useState({ snapshot: daily?.serverNow, elapsed: 0 });
   const elapsed = clock.snapshot === daily?.serverNow ? clock.elapsed : 0;
   useEffect(() => {

@@ -18,7 +18,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatBalance } from "@/features/wallet/wallet";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { AdminUserBalance } from "@/features/admin/admin-user-balance";
 import { managementRequest } from "@/features/admin/management-api";
 import { adminDate, AuditHistory, ManagementSearch, ListPagination, listHref, type ListQuery } from "@/features/admin/management-shared";
@@ -50,7 +50,7 @@ function UserPermissions({ user }: { user: AdminUser }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const router = useRouter();
-  const { refreshAccount } = useDemoSession();
+  const { refreshAccount } = useSession();
   return <Dialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }}><DialogTrigger asChild><Button variant="secondary">Editar permissão e status</Button></DialogTrigger>
     <DialogContent aria-describedby={undefined}><DialogTitle>Permissão e status</DialogTitle><form className="mt-5 grid gap-4" onSubmit={async event => {
       event.preventDefault(); if (pending) return;

@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRef, useState } from "react";
 import { SettingsDialog } from "@/features/settings/settings-dialog";
-import { useDemoSession } from "./session-context";
+import { useSession } from "./session-context";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/features/theme/theme-provider";
 
@@ -38,7 +38,7 @@ export function AccountMenu({
   name: string;
   sidebar?: boolean;
 }) {
-  const { signOut, avatar, permissions, displayName, username } = useDemoSession();
+  const { signOut, avatar, permissions, displayName, username } = useSession();
   const visibleName = displayName ?? name;
   const { theme, setTheme } = useTheme();
   const trigger = useRef<HTMLButtonElement>(null);

@@ -3,11 +3,11 @@
 import type { PublicProfile } from "@croebet/shared";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { AvatarSettings } from "@/features/settings/avatar-settings";
 
 export function ProfileView({ profile }: { profile: PublicProfile }) {
-  const { username: currentUsername } = useDemoSession();
+  const { username: currentUsername } = useSession();
 
   return (
     <section className="mx-auto flex max-w-3xl flex-col items-center py-12 text-center sm:py-16">

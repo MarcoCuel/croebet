@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { InitialSession } from "@/features/auth/initial-session";
 import type { Economy, DailyStatus, PublicUser } from "@croebet/shared";
-import { DemoSession } from "@/features/auth/session-context";
+import { SessionContext } from "@/features/auth/session-context";
 import { AuthDialog } from "@/features/auth/auth-dialog";
 import { loadEconomy, loadDailyStatus, requestDailyClaim } from "@/features/wallet/economy-api";
 import { authRequest } from "@/features/auth/api";
 
-// The context's existing name is retained to avoid a visual/component rewrite.
 // Account identity now comes exclusively from the API; local wallets are never loaded.
-export function DemoSessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
+export function SessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(initialSession.user);
   const [economy, setEconomy] = useState<Economy | null>(initialSession.economy ?? null);
@@ -51,8 +50,7 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAuthMode(mode);
   }
-  const unavailable = () => { toast.info("Este recurso ainda não está disponível."); };
-  return <DemoSession.Provider value={{
+  return <SessionContext.Provider value={{
     username: user?.username ?? null,
     displayName: user?.displayName ?? null,
     usernameChangeAvailableAt: user?.usernameChangeAvailableAt ?? null,
@@ -63,7 +61,7 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
     sessionReady: ready,
     permissions: { canManageSite: user?.role === "admin" },
     avatar: user?.avatarUrl ?? null,
-    balance: daily?.balance ?? 0, transactions: [], predictions: [], lastClaim: daily?.lastClaimAt ?? "",
+    balance: daily?.balance ?? 0,
     refreshAccount: async () => {
       const version = ++revision.current;
       const next = await authRequest("/me");
@@ -125,8 +123,7 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
           if (next && revision.current === version) setWallet({ userId: accountId, daily: next });
         }
       } finally { pendingClaim.current = false; setClaimingDaily(false); }
-    }, addBalance: unavailable, clearPredictions: unavailable,
-    placePrediction: async () => { unavailable(); return false; },
+    },
   }}>{children}<AuthDialog
     open={authMode !== null} isRegistering={authMode === "register"}
     onOpenChange={open => { if (!open) setAuthMode(null); }}
@@ -139,5 +136,5 @@ export function DemoSessionProvider({ children, initialSession }: { children: Re
       setReady(true); setAuthMode(null); router.refresh();
     }}
     onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
-  /></DemoSession.Provider>;
+  /></SessionContext.Provider>;
 }

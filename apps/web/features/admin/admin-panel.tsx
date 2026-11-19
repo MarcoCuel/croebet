@@ -14,7 +14,7 @@ import {
   ListTree,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 const sections = [
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
@@ -37,7 +37,7 @@ export function AdminPanel({
   userId?: string;
   couponId?: string;
 }) {
-  const { sessionReady, permissions } = useDemoSession();
+  const { sessionReady, permissions } = useSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
 

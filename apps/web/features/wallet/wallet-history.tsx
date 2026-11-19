@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight, Gift, History, RotateCcw, Ticket, Trophy } from "lucide-react";
 import { transactionsSchema } from "@croebet/shared";
 import { toast } from "sonner";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -47,7 +47,7 @@ const filters = [
 export function WalletHistory({ initial, direction, now }: {
   initial: WalletData; direction: "all" | "income" | "expense"; now: string;
 }) {
-  const { username, sessionReady, openLogin, balance, walletReady } = useDemoSession();
+  const { username, sessionReady, openLogin, balance, walletReady } = useSession();
   const [owner] = useState(username);
   const router = useRouter();
   const [history, setHistory] = useState(initial.status === "ready" ? initial.history : { items: [], hasMore: false });

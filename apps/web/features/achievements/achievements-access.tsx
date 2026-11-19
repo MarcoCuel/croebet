@@ -2,10 +2,10 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 export function AchievementsAccess({ children }: { children: ReactNode }) {
-  const { sessionReady, username } = useDemoSession();
+  const { sessionReady, username } = useSession();
   const router = useRouter();
 
   useEffect(() => {

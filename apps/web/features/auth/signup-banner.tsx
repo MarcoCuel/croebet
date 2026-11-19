@@ -2,11 +2,11 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { CroinBanner } from "@/three/scenes/croin-banner";
 
 export function SignupBanner() {
-  const { openRegister, openLogin } = useDemoSession();
+  const { openRegister, openLogin } = useSession();
 
   return (
     <div className="shrink-0 @max-[8rem]/sidebar:hidden">

@@ -17,7 +17,7 @@ Caminhos relativos a `apps/web/features/games/flip7`:
 | `match-storage.ts`, `setup-storage.ts` | Partidas por código e preferências locais |
 | `flip7-game.tsx`, `action-presentation.ts` | Configuração, mesa, histórico e coordenação visual |
 | `flip7-loader.tsx` | Carregamento dinâmico restrito à página do jogo |
-| `wager.ts`, `wager-storage.ts` | Rateio puro e integração econômica antiga, desabilitada; não usar para carteira real |
+| `match-actions.ts`, `wager.ts` | Escritas protegidas das partidas livres e regras puras de validação/rateio; sem carteira local |
 
 ## Clássico
 

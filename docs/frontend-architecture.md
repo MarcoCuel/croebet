@@ -22,8 +22,8 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 - Reutilize os loaders `server-*` dos domínios. `API_INTERNAL_URL` é exclusivo do servidor; encaminhe somente o cookie de sessão necessário, sem enviar tokens nas props. Dados pessoais usam `no-store`, sem cache compartilhado.
 - `features/auth/server-session.ts` usa `React.cache` por requisição. Sem cookie, confirma visitante; falha da API deixa a sessão indeterminada. Revalidação cliente preserva dados confirmados; falha não confirma logout, saldo zero ou lista vazia.
 - Login, logout e mutações atualizam contexto e Server Components. Skeletons ficam para esperas reais; editor, localStorage e WebGL podem carregar no cliente.
-- `DemoSessionProvider`/`useDemoSession` ainda são nomes do código, mas identidade, permissões e carteira atuais vêm da API. Não são autenticação local. Não reintroduzir fallback de contas/Croins em localStorage.
-- Preferências de tema/painéis e partidas livres do Flip 7 continuam locais. Helpers antigos de demonstração ainda presentes não são uma API para novos fluxos. [Limites do jogo](flip7.md#escopo).
+- `SessionProvider`/`useSession` expõem identidade, permissões e saldo confirmados pela API; não contêm métodos nem carteiras de demonstração. Não reintroduzir fallback de contas/Croins em localStorage.
+- Preferências de tema/painéis e partidas livres do Flip 7 continuam locais. [Limites do jogo](flip7.md#escopo).
 
 ## Componentes e acessibilidade
 

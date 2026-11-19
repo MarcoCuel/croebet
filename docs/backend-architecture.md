@@ -96,7 +96,7 @@ Regras e valores aprovados estão em [CROEBET.md, seção 4.3](../CROEBET.md#43-
 - Menus `main` e `footer` independentes, planos e ordenados. Destinos: página fixa, UUID de página criada ou URL validada. Publicação não adiciona item ao menu; referências por UUID acompanham o slug. Destinos não públicos são omitidos. `showInMenu` ainda existe no contrato de páginas, mas não determina a navegação.
 - Ícone de menu é opcional, validado pelo catálogo Lucide; sem escolha, sem ícone. API resolve apenas os vetores dos ícones escolhidos. Ao atualizar `lucide-react`, execute `node scripts/sync-lucide-icons.mjs`; não enviar vetores arbitrários na escrita.
 - Jogos: painel edita nome, ativação e URL/caminho de capa dos jogos implementados; não cria motores por slug arbitrário. Público recebe somente ativos; pausados respondem 404. Sem capa cadastrada, placeholder.
-- Apostas: catálogo começa vazio, com pergunta/critério/formato/opções/prazo/status. Código antigo de liquidação local não opera os registros reais e não deve ser reativado como fonte econômica.
+- Apostas: catálogo começa vazio, com pergunta/critério/formato/opções/prazo/status. Regras puras de rateio permanecem como referência; não há persistência nem pagamento local de apostas.
 - Visão geral: períodos 1/7/30 dias no fuso de São Paulo; conta só lançamentos do lado do usuário para não duplicar a emissão. Ativos = contas com movimentação; saldo/contas atuais independem do período. Não agrega partidas ou apostas locais.
 
 ## Próximas integrações

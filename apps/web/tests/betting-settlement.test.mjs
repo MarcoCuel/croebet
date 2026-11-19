@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   acceptsPredictions,
-  applySettlement,
   isSettlement,
   makeSettlement,
   transitionMarket,
@@ -28,12 +27,6 @@ const entry = (id, username, outcome, stake) => ({
   stake,
   createdAt: date,
   status: "pending",
-});
-const wallet = (predictions) => ({
-  balance: 100,
-  lastClaim: "",
-  transactions: [],
-  predictions,
 });
 const plan = (entries) => makeSettlement(market, entries, "Sim", "plan", date);
 
@@ -130,91 +123,6 @@ test("aposta numérica exige inteiro exato e aceita zero sem aproximação", () 
   assert.equal(
     makeSettlement(numeric, entries, "24 minutos", "num", date).kind,
     "refund",
-  );
-});
-
-test("carteira recebe um único crédito e recibo por liquidação mesmo com vários palpites", () => {
-  const entries = [
-    entry("a", "Ana", "Sim", 1),
-    entry("b", "Ana", "Não", 1),
-    entry("c", "Beto", "Não", 1),
-  ];
-  const result = plan(entries);
-  const original = wallet(entries.slice(0, 2));
-  const paid = applySettlement(original, "ana", result);
-  assert.equal(paid.balance, 103);
-  assert.equal(paid.transactions.length, 1);
-  assert.equal(paid.transactions[0].amount, 3);
-  assert.deepEqual(
-    paid.predictions.map((p) => p.status),
-    ["won", "lost"],
-  );
-  assert.equal(applySettlement(paid, "Ana", result), paid);
-  assert.equal(original.balance, 100);
-  assert.equal(original.transactions.length, 0);
-});
-
-test("perdedores recebem recibo no palpite sem criar uma movimentação de zero Croins", () => {
-  const entries = [entry("a", "Ana", "Sim", 1), entry("b", "Beto", "Não", 1)];
-  const result = plan(entries);
-  const paid = applySettlement(wallet([entries[1]]), "Beto", result);
-  assert.equal(paid.balance, 100);
-  assert.equal(paid.transactions.length, 0);
-  assert.equal(paid.predictions[0].status, "lost");
-  assert.equal(applySettlement(paid, "Beto", result), paid);
-});
-
-test("devolução registra crédito específico e preserva palpites antigos", () => {
-  const entries = [entry("a", "Ana", "Não", 10)];
-  const result = plan(entries);
-  const old = { market: "Antiga", outcome: "Sim", stake: 5 };
-  const paid = applySettlement(wallet([...entries, old]), "Ana", result);
-  assert.equal(paid.balance, 110);
-  assert.equal(paid.predictions[0].status, "refunded");
-  assert.deepEqual(paid.predictions[1], old);
-  assert.match(paid.transactions[0].description, /Devolução/);
-});
-
-test("retomada de lote não paga novamente contas já concluídas", () => {
-  const entries = [
-    entry("a", "Ana", "Sim", 1),
-    entry("b", "Beto", "Sim", 1),
-    entry("c", "Caio", "Não", 1),
-  ];
-  const result = plan(entries);
-  const first = applySettlement(wallet([entries[0]]), "Ana", result);
-  const second = applySettlement(wallet([entries[1]]), "Beto", result);
-  assert.equal(applySettlement(first, "Ana", result), first);
-  assert.equal(applySettlement(second, "Beto", result), second);
-  assert.equal(
-    first.transactions[0].amount + second.transactions[0].amount,
-    result.total,
-  );
-});
-
-test("overflow, palpite ausente e recibos incoerentes bloqueiam o crédito sem mutar", () => {
-  const e = entry("a", "Ana", "Sim", 1);
-  const result = plan([e]);
-  const full = { ...wallet([e]), balance: Number.MAX_SAFE_INTEGER };
-  assert.throws(() => applySettlement(full, "Ana", result), /limite/);
-  assert.equal(full.predictions[0].status, "pending");
-  assert.throws(
-    () => applySettlement(wallet([]), "Ana", result),
-    /não encontrado/,
-  );
-  const paid = applySettlement(wallet([e]), "Ana", result);
-  assert.throws(
-    () => applySettlement({ ...paid, transactions: [] }, "Ana", result),
-    /inconsistentes/,
-  );
-  assert.throws(
-    () =>
-      applySettlement(
-        { ...paid, predictions: [{ ...paid.predictions[0], payout: 99 }] },
-        "Ana",
-        result,
-      ),
-    /inconsistentes/,
   );
 });
 

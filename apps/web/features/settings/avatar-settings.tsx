@@ -6,10 +6,10 @@ import { Pencil } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 export function AvatarSettings({ variant = "settings" }: { variant?: "settings" | "profile" }) {
-  const { displayName, avatar, updateAvatar } = useDemoSession();
+  const { displayName, avatar, updateAvatar } = useSession();
   const input = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   // Ignore a pending image if this account section unmounts during decoding.

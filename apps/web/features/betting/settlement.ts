@@ -1,6 +1,5 @@
 import type { Market, MarketStatus, Settlement } from "./markets.ts";
 import type { IdentifiedPrediction } from "./types.ts";
-import type { Wallet } from "../wallet/wallet.ts";
 
 export function acceptsPredictions(market: Market, now = Date.now()) {
   return (
@@ -118,100 +117,6 @@ export function makeSettlement(
 }
 
 /** Apply an account's entire allocation and receipt in one wallet write. */
-export function applySettlement(
-  wallet: Wallet,
-  username: string,
-  plan: Settlement,
-): Wallet {
-  if (!isSettlement(plan)) throw new Error("Plano de liquidação inválido.");
-  const mine = plan.allocations.filter(
-    (a) => a.username.toLowerCase() === username.toLowerCase(),
-  );
-  if (!mine.length) return wallet;
-  const entries = mine.map((a) => {
-    const prediction = wallet.predictions.find((p) => p.id === a.predictionId);
-    if (
-      !prediction ||
-      prediction.marketId !== plan.marketId ||
-      wallet.predictions.filter((p) => p.id === a.predictionId).length !== 1 ||
-      prediction.username?.toLowerCase() !== username.toLowerCase()
-    )
-      throw new Error(`Palpite não encontrado para ${username}.`);
-    if (prediction.settlementId && prediction.settlementId !== plan.id)
-      throw new Error("Este palpite já pertence a outra liquidação.");
-    return { allocation: a, prediction };
-  });
-  const pending = entries.filter((e) => !e.prediction.settlementId);
-  if (!pending.length) {
-    const expected = mine.reduce((sum, a) => sum + a.amount, 0);
-    const receipt = wallet.transactions.find(
-      (t) => t.id === `settlement:${plan.id}:${username.toLowerCase()}`,
-    );
-    if (
-      entries.some(
-        ({ allocation, prediction }) =>
-          prediction.payout !== allocation.amount ||
-          prediction.status !==
-            (plan.kind === "refund"
-              ? "refunded"
-              : allocation.amount > 0
-                ? "won"
-                : "lost"),
-      ) ||
-      (expected > 0 && receipt?.amount !== expected)
-    )
-      throw new Error("Recibo e palpites pagos estão inconsistentes.");
-    return wallet;
-  }
-  if (pending.length !== entries.length)
-    throw new Error("Recibos de pagamento inconsistentes nesta carteira.");
-  const amount = pending.reduce((sum, e) => sum + e.allocation.amount, 0);
-  if (
-    !Number.isSafeInteger(amount) ||
-    !Number.isSafeInteger(wallet.balance + amount)
-  )
-    throw new Error(`O saldo de ${username} ultrapassaria o limite permitido.`);
-  const txId = `settlement:${plan.id}:${username.toLowerCase()}`;
-  if (wallet.transactions.some((t) => t.id === txId))
-    throw new Error(
-      "Recibo de pagamento já existente sem atualização dos palpites.",
-    );
-  const balance = wallet.balance + amount;
-  return {
-    ...wallet,
-    balance,
-    predictions: wallet.predictions.map((p) => {
-      const allocation = mine.find((a) => a.predictionId === p.id);
-      return allocation
-        ? {
-            ...p,
-            settlementId: plan.id,
-            payout: allocation.amount,
-            status:
-              plan.kind === "refund"
-                ? "refunded"
-                : allocation.amount > 0
-                  ? "won"
-                  : "lost",
-          }
-        : p;
-    }),
-    transactions:
-      amount > 0
-        ? [
-            {
-              id: txId,
-              createdAt: plan.createdAt,
-              amount,
-              balance,
-              description: `${plan.kind === "refund" ? "Devolução de aposta" : "Prêmio de aposta"} · ${entries[0].prediction.market}`,
-            },
-            ...wallet.transactions,
-          ]
-        : wallet.transactions,
-  };
-}
-
 export function isSettlement(value: unknown): value is Settlement {
   if (!value || typeof value !== "object") return false;
   const s = value as Settlement;

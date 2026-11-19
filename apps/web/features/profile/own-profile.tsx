@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 export function OwnProfile() {
-  const { username, sessionReady, openLogin } = useDemoSession();
+  const { username, sessionReady, openLogin } = useSession();
   const router = useRouter();
   useEffect(() => {
     if (username) router.replace(`/perfil/${encodeURIComponent(username)}`);

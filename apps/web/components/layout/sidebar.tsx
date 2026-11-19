@@ -2,7 +2,7 @@
 
 import { PanelLeft } from "lucide-react";
 import Link from "next/link";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
 import { SignupBanner } from "@/features/auth/signup-banner";
 import { Balance } from "@/features/wallet/balance";
@@ -23,7 +23,7 @@ export function Sidebar({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const { username, balance, walletReady, sessionReady } = useDemoSession();
+  const { username, balance, walletReady, sessionReady } = useSession();
   return (
     <>
       <aside

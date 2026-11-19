@@ -4,7 +4,7 @@ import { ChevronLeft, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
 import { Balance } from "@/features/wallet/balance";
 import { RedeemButton } from "@/features/wallet/redeem-button";
@@ -27,7 +27,7 @@ export function Topbar({
   const pathname = usePathname();
   const games = useGameLinks();
   const pages = usePageLinks() ?? [];
-  const { permissions } = useDemoSession();
+  const { permissions } = useSession();
   const pageAction = permissions.canManageSite
     ? ({
         [adminRoutes.coupons]: { href: "/admin/cupons/novo", label: "Novo cupom" },
@@ -97,7 +97,7 @@ export function Topbar({
     walletReady,
     openLogin,
     openRegister,
-  } = useDemoSession();
+  } = useSession();
   return (
     <header className="fixed top-0 right-0 left-(--sidebar-width) z-20 flex h-(--header-height) items-center justify-between gap-2 bg-background px-(--page-gap) transition-[left,padding-left] duration-300 ease-in-out motion-reduce:transition-none md:group-data-[sidebar=collapsed]/navigation:pl-16 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
       <div className="flex min-w-0 items-center gap-2">

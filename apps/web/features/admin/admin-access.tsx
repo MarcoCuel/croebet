@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { AdminSection } from "@/features/admin/routes";
 import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 // Do not mount the administration UI or load its bundle before authorization.
 const AdminPanel = dynamic(() =>
@@ -26,7 +26,7 @@ export function AdminAccess({
   userId?: string;
   couponId?: string;
 }) {
-  const { sessionReady, permissions } = useDemoSession();
+  const { sessionReady, permissions } = useSession();
   if (!sessionReady) return null;
   if (!permissions.canManageSite) notFound();
   return (

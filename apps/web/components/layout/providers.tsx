@@ -2,7 +2,7 @@
 
 import type { InitialSession } from "@/features/auth/initial-session";
 import type { ReactNode } from "react";
-import { DemoSessionProvider } from "@/features/auth/session-provider";
+import { SessionProvider } from "@/features/auth/session-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider, useTheme } from "@/features/theme/theme-provider";
@@ -24,10 +24,10 @@ function AppProviders({ children, initialSession, initialPages, initialNavigatio
   const { resolvedTheme } = useTheme();
   return (
     <TooltipProvider delayDuration={300}>
-      <DemoSessionProvider initialSession={initialSession}>
+      <SessionProvider initialSession={initialSession}>
         <MenuProvider initial={initialNavigation}><PageLinksProvider initial={initialPages}>{children}</PageLinksProvider></MenuProvider>
         <Toaster theme={resolvedTheme} />
-      </DemoSessionProvider>
+      </SessionProvider>
     </TooltipProvider>
   );
 }

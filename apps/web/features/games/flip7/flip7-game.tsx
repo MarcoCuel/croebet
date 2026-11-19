@@ -16,9 +16,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { withDemoLock } from "@/lib/demo-storage";
+import { withMatchLock, startLocalMatch, leaveLocalMatch } from "./match-actions";
 import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { formatBalance } from "@/features/wallet/wallet";
 import { automaticAction, canStay, cardLabel, createGame, isNumber, modeLabel, score, targets, transition } from "./engine";
 import type { Action, Card, Game, GameOptions, Setup } from "./engine";
@@ -27,8 +27,6 @@ import { forcedActionPresentation } from "./action-presentation";
 import { GOAL } from "./engine";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
 import { matchStorageKey, currentMatch, matchUrl, readMatch, readMatches, saveMatch, type SavedMatch } from "./match-storage";
-import { leaveLocalMatch, prepareWagerMatch, saveWagerProgress, startLocalMatch } from "./wager-storage";
-import { wagerPayouts, type Wager } from "./wager";
 
 function Rules({ options }: { options: GameOptions }) {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
@@ -176,7 +174,7 @@ function ParticipantSlot({ index, player, botsOnly, onChange }: { index: number;
 }
 
 function SetupScreen({ onStart, initialError }: { onStart: (setup: Setup[], options: GameOptions, stake: number) => Promise<void>; initialError: string }) {
-  const { username, balance, economy, openLogin } = useDemoSession();
+  const { username, balance, economy, openLogin } = useSession();
   const [matches, setMatches] = useState<SavedMatch[]>(() => {
     try { return readMatches(); } catch { return []; }
   });
@@ -311,7 +309,6 @@ export default function Flip7Game() {
 }
 
 function Flip7Table({ code }: { code: string | null }) {
-  const { username, sessionReady, openLogin } = useDemoSession();
   const [exitOpen, setExitOpen] = useState(false);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
@@ -325,15 +322,8 @@ function Flip7Table({ code }: { code: string | null }) {
   const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(restored.match?.game ?? null));
   const resolvingCardFinished = !!resolvingCard && !game?.forced;
   const [matchCode, setMatchCode] = useState<string | null>(restored.match?.code ?? null);
-  const [wager, setWager] = useState<Wager | undefined>(restored.match?.wager);
-  const [payment, setPayment] = useState<{ code: string; phase: Game["phase"] } | null>(null);
-  const [paymentError, setPaymentError] = useState("");
-  const [paymentAttempt, setPaymentAttempt] = useState(0);
-  const [externalChange, setExternalChange] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
-  const ownsWager = !wager || wager.username.toLowerCase() === username?.toLowerCase();
-  const wagerReady = !wager || (ownsWager && payment?.code === matchCode && (game?.phase !== "over" || payment.phase === "over") && !paymentError && !externalChange);
   const matchCodeRef = useRef(matchCode);
   const saveErrorShown = useRef(false);
   const [historyVisible, setHistoryVisible] = useState(true);
@@ -350,30 +340,6 @@ function Flip7Table({ code }: { code: string | null }) {
   const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
   useEffect(() => {
-    if (!wager) return;
-    const changed = (event: StorageEvent) => {
-      if (event.key !== matchStorageKey && event.key !== null) return;
-      try {
-        const saved = readMatch(window.localStorage, matchCode ?? undefined);
-        if (!saved || JSON.stringify(saved.game) !== JSON.stringify(gameRef.current) || JSON.stringify(saved.wager) !== JSON.stringify(wager)) setExternalChange(true);
-      } catch { setExternalChange(true); }
-    };
-    window.addEventListener("storage", changed);
-    return () => window.removeEventListener("storage", changed);
-  }, [wager, matchCode]);
-  useEffect(() => {
-    if (!wager || !matchCode || !sessionReady || !ownsWager) return;
-    let cancelled = false;
-    const phase = game?.phase;
-    if (!phase) return;
-    prepareWagerMatch(matchCode).then(() => {
-      if (!cancelled) { setPayment({ code: matchCode, phase }); setPaymentError(""); }
-    }).catch(error => {
-      if (!cancelled) setPaymentError(error instanceof Error ? error.message : "Não foi possível confirmar a aposta.");
-    });
-    return () => { cancelled = true; };
-  }, [wager, matchCode, game?.phase, sessionReady, ownsWager, paymentAttempt]);
-  useEffect(() => {
     if (game?.phase !== "over" || resolvingCard || flight || movingCards) return;
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
     return () => window.clearTimeout(timeout);
@@ -389,7 +355,7 @@ function Flip7Table({ code }: { code: string | null }) {
   }, [restored]);
   const persist = useCallback(async (next: Game, code: string) => {
     try {
-      await withDemoLock(() => {
+      await withMatchLock(() => {
         const saved = readMatch(window.localStorage, code);
         if (saved?.code !== code || saved.wager) throw new Error("A partida mudou em outra aba.");
         saveMatch({ version: 1, code, game: next });
@@ -405,28 +371,14 @@ function Flip7Table({ code }: { code: string | null }) {
     gameRef.current = match.game;
     matchUrl(match.code);
     setMatchCode(match.code);
-    setWager(match.wager);
-    setPayment(null);
-    setPaymentError("");
-    setExternalChange(false);
     setGame(match.game);
   };
   const send = useCallback(async (action: Action) => {
     const current = gameRef.current;
-    if (!current || locked.current || resolvingCardFinished || !wagerReady || leavingRef.current) return;
+    if (!current || locked.current || resolvingCardFinished || leavingRef.current) return;
     const next = transition(current, action);
     if (next === current) return;
-    if (wager && matchCodeRef.current) {
-      locked.current = true;
-      try { await saveWagerProgress(matchCodeRef.current, current, next); }
-      catch (error) {
-        const message = error instanceof Error ? error.message : "Não foi possível salvar a jogada. Tente novamente.";
-        toast.error(message);
-        setPaymentError(message);
-        return;
-      } finally { locked.current = false; }
-    }
-    if (!wager && matchCodeRef.current) {
+    if (matchCodeRef.current) {
       locked.current = true;
       try { await persist(next, matchCodeRef.current); }
       finally { locked.current = false; }
@@ -473,7 +425,7 @@ function Flip7Table({ code }: { code: string | null }) {
     setSwapPreview(null);
     gameRef.current = next;
     setGame(next);
-  }, [persist, swapPreview, wager, wagerReady, resolvingCardFinished]);
+  }, [persist, swapPreview, resolvingCardFinished]);
   const leave = async () => {
     if (!matchCodeRef.current || leavingRef.current || locked.current) return false;
     leavingRef.current = true;
@@ -492,10 +444,6 @@ function Flip7Table({ code }: { code: string | null }) {
     setResultDismissed(false);
     setResultReady(false);
     setMatchCode(null);
-    setWager(undefined);
-    setPayment(null);
-    setPaymentError("");
-    setExternalChange(false);
     matchCodeRef.current = null;
     matchUrl(null);
     return true;
@@ -608,34 +556,25 @@ function Flip7Table({ code }: { code: string | null }) {
   }, [resolvingCard, resolvingCardFinished, flight, movingCards]);
 
   useEffect(() => {
-    if (!game || resolvingCardFinished || flight || movingCards || exitOpen || game.phase === "over" || !wagerReady || leaving) return;
+    if (!game || resolvingCardFinished || flight || movingCards || exitOpen || game.phase === "over" || leaving) return;
     const action: Action | null = game.phase === "summary" ? { type: "next" } : automaticAction(game);
     if (!action) return;
     const initial = action.type === "draw" && !game.players[game.turn].hasDrawn;
     const timer = setTimeout(() => send(action), game.phase === "summary" ? 1600 : initial ? 60 : game.forced ? 100 : 220);
     return () => clearTimeout(timer);
-  }, [game, resolvingCardFinished, flight, movingCards, exitOpen, send, wagerReady, leaving]);
+  }, [game, resolvingCardFinished, flight, movingCards, exitOpen, send, leaving]);
 
   if (!game) return <SetupScreen initialError={restored.error} onStart={async (setup, options, stake) => {
     if (stake > 0) { toast.info("Partidas com Croins ainda não estão disponíveis."); return; }
     const next = createGame(setup, Math.floor(Math.random() * 4294967296), options);
     const code = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
-    const match: SavedMatch = { version: 1, code, game: next, ...(stake ? { wager: { username: setup[0].name, stake } } : {}) };
+    const match: SavedMatch = { version: 1, code, game: next };
     try { openMatch(await startLocalMatch(match)); }
     catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível iniciar a partida.");
-      // A failed wallet write leaves the saved intent available for retry, without a second entry.
       try { const saved = readMatch(window.localStorage, code); if (saved?.code === code) openMatch(saved); } catch { /* The setup remains available. */ }
     }
   }} />;
-  if (wager && externalChange) return <Surface className="mx-auto max-w-xl space-y-4"><h2 className="font-semibold">Partida atualizada em outra aba</h2><p className="text-sm text-muted">Recarregue para continuar do último estado salvo.</p><Button onClick={() => window.location.reload()}>Recarregar partida</Button></Surface>;
-  if (wager && (!ownsWager || !wagerReady) && game.phase !== "over") return <Surface className="mx-auto max-w-xl space-y-4">
-    <h2 className="font-semibold">Partida com Croins</h2>
-    <p role={paymentError ? "alert" : "status"} className="text-sm text-muted">{!ownsWager ? `Entre como ${wager.username} para retomar esta partida.` : paymentError || "Confirmando sua entrada…"}</p>
-    {!username && <Button onClick={openLogin}>Entrar para continuar</Button>}
-    {ownsWager && paymentError && <div className="flex flex-wrap gap-2"><Button onClick={() => setPaymentAttempt(value => value + 1)}>Tentar novamente</Button><Button variant="secondary" onClick={() => window.location.reload()}>Recarregar partida</Button><Button variant="secondary" loading={leaving} onClick={() => setExitOpen(true)}>Abandonar partida</Button></div>}
-    <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}><DialogContent><DialogTitle>Abandonar partida?</DialogTitle><DialogDescription>A entrada de {formatBalance.format(wager.stake)} Croins não será devolvida se já tiver sido paga.</DialogDescription><div className="mt-6 flex justify-end gap-2"><DialogClose asChild><Button variant="secondary">Cancelar</Button></DialogClose><Button variant="destructive" loading={leaving} onClick={async () => { if (await leave()) setExitOpen(false); }}>Abandonar partida</Button></div></DialogContent></Dialog>
-  </Surface>;
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
@@ -646,7 +585,6 @@ function Flip7Table({ code }: { code: string | null }) {
   const maxScore = Math.max(...game.players.map(player => player.total));
   const winners = game.players.filter(player => player.total === maxScore);
   const standings = [...game.players].sort((a, b) => b.total - a.total);
-  const payouts = wager && game.phase === "over" ? wagerPayouts(game, wager.stake) : null;
   const actionLabel = game.pending ? cardLabel(game.pending.card) : "";
   const choices = cardChoices(game);
   const selectingCards = !resolvingCardFinished && !flight && !movingCards && human && game.pending?.resolving && game.pending.card.type === "swap";
@@ -706,7 +644,6 @@ function Flip7Table({ code }: { code: string | null }) {
         <div className="min-w-0 pb-32 sm:pb-24">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
-            {wager && <span className="text-sm text-muted">Pote <strong className="font-semibold text-brand tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</strong></span>}
             {game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
@@ -807,39 +744,26 @@ function Flip7Table({ code }: { code: string | null }) {
           <DialogDescription className="mt-3 text-lg font-semibold text-brand">
             {winners.map(player => player.name).join(" e ")} {winners.length > 1 ? "venceram" : "venceu"}!
           </DialogDescription>
-          {wager && payouts && <div className="mt-4 space-y-3 rounded-lg bg-contrast/6 p-4 text-sm" aria-label="Resultado em Croins">
-            <dl className="grid grid-cols-2 gap-3">
-              <div><dt className="text-muted">Sua entrada</dt><dd className="font-medium tabular-nums">{formatBalance.format(wager.stake)} Croins</dd></div>
-              <div><dt className="text-muted">Pote total</dt><dd className="font-medium tabular-nums">{formatBalance.format(wager.stake * game.players.length)} Croins</dd></div>
-              <div><dt className="text-muted">Seu prêmio</dt><dd className="font-medium tabular-nums">{formatBalance.format(payouts[0])} Croins</dd></div>
-              <div><dt className="text-muted">Seu resultado</dt><dd className={cn("font-semibold tabular-nums", payouts[0] > wager.stake ? "text-brand" : "text-muted")}>{payouts[0] > wager.stake ? "+" : ""}{formatBalance.format(payouts[0] - wager.stake)} Croins</dd></div>
-            </dl>
-            {!wagerReady && <p role={paymentError ? "alert" : "status"} className="text-muted">{!ownsWager ? `Entre como ${wager.username} para concluir a partida.` : paymentError || "Confirmando o resultado em Croins…"}</p>}
-            {!username && <Button size="sm" onClick={openLogin}>Entrar para continuar</Button>}
-            {ownsWager && paymentError && <Button size="sm" onClick={() => setPaymentAttempt(value => value + 1)}>Tentar pagamento novamente</Button>}
-            {wagerReady && payouts[0] > 0 && <p role="status" className="text-muted">Prêmio creditado no seu saldo.</p>}
-          </div>}
           <ol aria-label="Classificação final" className="mt-5 max-h-[50dvh] space-y-2 overflow-y-auto" data-lenis-prevent>
             {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-contrast/6 p-3 text-sm", player.total === maxScore && "bg-selected")}>
               <span className="w-6 shrink-0 text-muted tabular-nums">{standings.findIndex(p => p.total === player.total) + 1}º</span>
               <span className="min-w-0 flex-1 break-words font-medium">{player.name}</span>
-              {payouts && payouts[game.players.indexOf(player)] > 0 && <span className="text-xs font-medium text-brand tabular-nums">{formatBalance.format(payouts[game.players.indexOf(player)])} Croins</span>}
               <span className="shrink-0 font-semibold tabular-nums">{player.total} pts</span>
             </li>)}
           </ol>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Fechar</Button></DialogClose>
-            <Button disabled={!wagerReady || leaving} onClick={() => matchUrl(null)}>Jogar novamente</Button>
+            <Button disabled={leaving} onClick={() => matchUrl(null)}>Jogar novamente</Button>
           </div>
         </DialogContent>
       </Dialog>
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">{wager && game.phase !== "over" ? `A partida será encerrada e sua entrada de ${formatBalance.format(wager.stake)} Croins não será devolvida.` : "A partida será encerrada e o progresso será perdido."}</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">A partida será encerrada e o progresso será perdido.</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
-            <Button variant="destructive" loading={leaving} disabled={leaving || !ownsWager} onClick={async () => {
+            <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {
               if (exitOpen && await leave()) {
                 setExitOpen(false);
               }

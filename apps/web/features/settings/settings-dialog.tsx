@@ -16,7 +16,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { AvatarSettings } from "@/features/settings/avatar-settings";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 import { useTheme } from "@/features/theme/theme-provider";
 import Link from "next/link";
 import { BalanceValue } from "@/features/wallet/balance";
@@ -65,7 +65,7 @@ export function SettingsDialog({
 function SettingsContent({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<(typeof sections)[number]>("Geral");
   const { username, displayName, balance, walletReady, dailyClaimed } =
-    useDemoSession();
+    useSession();
   const { theme, setTheme } = useTheme();
   const panelId = useId();
 
@@ -189,7 +189,7 @@ function AccountEditRow({ label, value, children, open, onOpenChange }: {
 }
 
 function AccountIdentity() {
-  const { displayName, updateDisplayName } = useDemoSession();
+  const { displayName, updateDisplayName } = useSession();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(displayName ?? "");
   const [saving, setSaving] = useState(false);
@@ -219,7 +219,7 @@ function AccountIdentity() {
 }
 
 function AccountUsername() {
-  const { username, usernameChangeAvailableAt, updateUsername } = useDemoSession();
+  const { username, usernameChangeAvailableAt, updateUsername } = useSession();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(username ?? "");
   const [saving, setSaving] = useState(false);
@@ -259,7 +259,7 @@ function AccountUsername() {
 }
 
 function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
-  const { deleteAccount } = useDemoSession();
+  const { deleteAccount } = useSession();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);

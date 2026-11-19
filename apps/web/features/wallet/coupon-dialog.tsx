@@ -10,12 +10,12 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { managementRequest } from "@/features/admin/management-api";
-import { useDemoSession } from "@/features/auth/session-context";
+import { useSession } from "@/features/auth/session-context";
 
 export function CouponDialog({ onRedeemed }: { onRedeemed: () => void }) {
   const [pending, setPending] = useState(false);
   const request = useRef<{ code: string; id: string } | null>(null);
-  const { refreshWallet } = useDemoSession();
+  const { refreshWallet } = useSession();
   const router = useRouter();
   return <DialogContent aria-describedby={undefined}><DialogTitle>Resgatar cupom</DialogTitle>
     <form className="mt-5 grid gap-4" onSubmit={async event => {
