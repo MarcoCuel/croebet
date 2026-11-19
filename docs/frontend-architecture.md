@@ -8,6 +8,10 @@ A aplicação utiliza Next.js App Router, React 19, TypeScript, Tailwind 4, Luci
 
 O Flip 7 já é jogável localmente; os outros jogos exibem “Em breve”. A autenticação agora usa endpoints do Fastify, com execução real ainda pendente das dependências e do banco; carteiras e demais domínios aguardam integração. A integração preservará componentes, metadata, imagens, textos, rotas, GSAP e Lenis; os dados mockados poderão ser descartados.
 
+## Carregamento inicial
+
+Páginas integradas à API recebem seus dados iniciais no servidor; Client Components ficam responsáveis pelas interações e atualizações posteriores. Evite iniciar o conteúdo vazio e carregá-lo em `useEffect`. A decisão de arquitetura, as políticas de cache e as exceções estão em [backend-architecture.md](backend-architecture.md#padrão-de-carregamento-inicial-de-páginas--18112026). No perfil, a rota consulta o endpoint público e passa `profile` pronto para `ProfileView`; `ProfileUnavailable` permite repetir a consulta com `router.refresh()`.
+
 ## Organização e dependências
 
 | Diretório           | Responsabilidade                                                   |
