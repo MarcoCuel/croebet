@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field } from "@/components/ui/field";
 import {
   Dialog,
@@ -70,10 +71,10 @@ export function AuthDialog({
               onInput={(event) => event.currentTarget.setCustomValidity("")}
             />
           </Field>
-          <Field>
-            Senha
-            <Input name="password" type="password" autoComplete={isRegistering ? "new-password" : "current-password"} minLength={isRegistering ? 15 : 1} maxLength={128} disabled={pending} required />
-          </Field>
+          <div className="grid gap-1.5">
+            <Field htmlFor="auth-password">Senha</Field>
+            <PasswordInput id="auth-password" name="password" autoComplete={isRegistering ? "new-password" : "current-password"} minLength={isRegistering ? 15 : 1} maxLength={128} disabled={pending} required />
+          </div>
           <Button className="mt-1" type="submit" loading={pending}>
             {isRegistering ? "Criar conta" : "Entrar"}
           </Button>
