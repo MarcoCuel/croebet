@@ -10,6 +10,7 @@ export const applicationEnvironment = pgTable("application_environment", {
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   username: text("username").notNull(),
+  avatarKey: text("avatar_key"),
   usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
   displayName: text("display_name").notNull(),
   passwordHash: text("password_hash").notNull(),
@@ -29,3 +30,8 @@ export const authRateLimits = pgTable("auth_rate_limits", {
   windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull(),
 }, table => [check("auth_rate_limits_attempts_check", sql`${table.attempts} > 0`)]);
+
+export const avatarCleanup = pgTable("avatar_cleanup", {
+  key: text("key").primaryKey(),
+  deleteAfter: timestamp("delete_after", { withTimezone: true }).notNull().defaultNow(),
+});

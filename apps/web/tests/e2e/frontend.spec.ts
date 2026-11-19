@@ -46,7 +46,7 @@ test("rotas mantêm conteúdo, imagens, responsividade e conteúdo principal sem
       .toBe(true);
   }
   await page.goto("/jogos/inexistente");
-  await expect(page.getByText("This page could not be found.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Página não encontrada", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

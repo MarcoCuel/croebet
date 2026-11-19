@@ -4,6 +4,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createDatabase } from "../../dist/db/client.js";
 import { createApp } from "../../dist/app.js";
 import { authRoutes } from "../../dist/modules/auth/routes.js";
+import sharp from "sharp";
+import { cleanupAvatars } from "../../dist/modules/avatars/cleanup.js";
 import { readConfig } from "../../dist/config.js";
 import { tokenHash } from "../../dist/modules/auth/security.js";
 test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout", async t => {
@@ -12,7 +14,10 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  const { pool } = createDatabase(config.DATABASE_URL);
  assert.equal((await pool.query("select environment from application_environment where id = 1")).rows[0]?.environment, "test");
  const app = createApp(async () => {});
- await app.register(authRoutes, { pool, config });
+ const avatarFiles = new Map();
+ const avatarKeys = [];
+ const avatarStorage = { put: async (key, bytes) => { avatarKeys.push(key); avatarFiles.set(key, bytes); }, get: async key => avatarFiles.get(key), remove: async key => { avatarFiles.delete(key); } };
+ await app.register(authRoutes, { pool, config, avatarStorage });
  const username = "Test_" + randomUUID().replaceAll("-", "").slice(0, 16);
  const concurrentUsername = "Race_" + randomUUID().replaceAll("-", "").slice(0, 16);
  const limitedUsername = "Limit_" + randomUUID().replaceAll("-", "").slice(0, 16);
@@ -20,13 +25,13 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  const usernames = [username, concurrentUsername].map(value => value.toLowerCase());
  const rateKeys = [`register:${remoteAddress}`, `login-ip:${remoteAddress}`, ...[...usernames, limitedUsername.toLowerCase()].map(value => `login-user:${value}`)].map(tokenHash);
  const password = "senha longa para os testes";
- t.after(async () => { await app.close(); try { await pool.query("delete from sessions where user_id in (select id from users where lower(username) = any($1::text[]))", [usernames]); await pool.query("delete from users where lower(username) = any($1::text[])", [usernames]); await pool.query("delete from auth_rate_limits where key = any($1::text[])", [rateKeys]); } finally { await pool.end(); } });
+ t.after(async () => { await app.close(); try { await pool.query("delete from sessions where user_id in (select id from users where lower(username) = any($1::text[]))", [usernames]); await pool.query("delete from users where lower(username) = any($1::text[])", [usernames]); await pool.query("delete from auth_rate_limits where key = any($1::text[])", [rateKeys]); await pool.query("delete from avatar_cleanup where key = any($1::text[])", [avatarKeys]); } finally { await pool.end(); } });
  let jar = {};
  const remember = response => { for (const c of response.cookies) { if (c.value) jar[c.name] = c.value; else delete jar[c.name]; } };
  async function request(url, method = "GET", body, origin = config.WEB_ORIGIN) {
    let csrf;
    if (method !== "GET") { const r = await app.inject({ url: "/api/v1/auth/csrf", cookies: jar }); remember(r); csrf = r.json().token; }
-   const r = await app.inject({ url, method, remoteAddress, cookies: jar, headers: { origin, ...(csrf ? { "x-csrf-token": csrf } : {}) }, ...(body ? { payload: body } : {}) }); remember(r); return r;
+   const r = await app.inject({ url, method, remoteAddress, cookies: jar, headers: { origin, ...(csrf ? { "x-csrf-token": csrf } : {}), ...(Buffer.isBuffer(body) ? { "content-type": "image/png" } : {}) }, ...(body ? { payload: body } : {}) }); remember(r); return r;
  }
  assert.equal((await app.inject({ url: "/api/v1/auth/register", method: "POST", payload: { username, password } })).statusCode, 403);
  const registered = await request("/api/v1/auth/register", "POST", { username, password });
@@ -38,6 +43,29 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal(stored.rows[0].display_name, username);
  assert.equal(registered.body.includes("password"), false); assert.equal(registered.cookies.find(c => c.name === "croebet-session").httpOnly, true);
  assert.equal((await request("/api/v1/me")).json().user.username, username);
+ rateKeys.push(tokenHash(`avatar:${registered.json().user.id}`));
+ const photo = await sharp({ create: { width: 100, height: 200, channels: 3, background: "red" } }).png().toBuffer();
+ assert.equal((await request("/api/v1/me/avatar", "PUT", Buffer.from("invalid"))).statusCode, 400);
+ const avatarResponse = await request("/api/v1/me/avatar", "PUT", photo);
+ assert.equal(avatarResponse.statusCode, 200);
+ const firstAvatarUrl = avatarResponse.json().user.avatarUrl;
+ assert.equal((await request(`/api/v1/profiles/${username}`)).json().avatarUrl, firstAvatarUrl);
+ assert.equal((await request(firstAvatarUrl)).statusCode, 200);
+ const avatarCsrf = await app.inject({ url: "/api/v1/auth/csrf", cookies: jar }); remember(avatarCsrf);
+ const avatarCookies = { ...jar };
+ const concurrentAvatars = await Promise.all([1, 2].map(() => app.inject({ url: "/api/v1/me/avatar", method: "PUT", cookies: avatarCookies,
+   headers: { origin: config.WEB_ORIGIN, "x-csrf-token": avatarCsrf.json().token, "content-type": "image/png" }, payload: photo })));
+ assert.deepEqual(concurrentAvatars.map(response => response.statusCode), [200, 200]);
+ const currentAvatarUrl = (await request("/api/v1/me")).json().user.avatarUrl;
+ assert.ok(concurrentAvatars.some(response => response.json().user.avatarUrl === currentAvatarUrl));
+ const avatarKey = (await pool.query("select avatar_key from users where id=$1", [registered.json().user.id])).rows[0].avatar_key;
+ assert.equal(currentAvatarUrl, `/api/v1/avatars/${avatarKey}`);
+ await cleanupAvatars(pool, avatarStorage, "test"); assert.equal(avatarFiles.size, 1);
+ assert.equal((await request(firstAvatarUrl)).statusCode, 404);
+ const clearedAvatar = await request("/api/v1/me/avatar", "DELETE");
+ assert.equal(clearedAvatar.statusCode, 200); assert.equal(clearedAvatar.json().user.avatarUrl, null);
+ await cleanupAvatars(pool, avatarStorage, "test"); assert.equal(avatarFiles.size, 0);
+
  for (const variant of [username, username.toLowerCase(), username.toUpperCase()]) {
    assert.equal((await request("/api/v1/auth/register", "POST", { username: variant, password })).statusCode, 409);
  }
@@ -81,6 +109,24 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal((await request("/api/v1/me/username", "PATCH", { username })).statusCode, 200);
  await pool.query("update users set status='suspended' where username=$1", [username]);
  assert.equal((await request("/api/v1/me")).json().user, null);
+ assert.equal((await request("/api/v1/auth/login", "POST", { username, password })).statusCode, 401);
+
+ await pool.query("update users set status='active' where id=$1", [registered.json().user.id]);
+ await request("/api/v1/auth/login", "POST", { username, password });
+ const oldSession = { ...jar };
+ const deletedAvatar = await request("/api/v1/me/avatar", "PUT", photo);
+ assert.equal(deletedAvatar.statusCode, 200);
+ rateKeys.push(tokenHash(`delete-account:${registered.json().user.id}`));
+ assert.equal((await request("/api/v1/me", "DELETE", { password }, "https://evil.example")).statusCode, 403);
+ assert.equal((await request("/api/v1/me", "DELETE", { password: "errada" })).statusCode, 401);
+ assert.equal((await request("/api/v1/me")).json().user.id, registered.json().user.id);
+ assert.equal((await request("/api/v1/me", "DELETE", { password })).statusCode, 204);
+ assert.equal((await request(deletedAvatar.json().user.avatarUrl)).statusCode, 404);
+ await cleanupAvatars(pool, avatarStorage, "test"); assert.equal(avatarFiles.size, 0);
+ assert.equal((await request("/api/v1/me")).json().user, null);
+ assert.equal((await app.inject({ url: "/api/v1/me", cookies: oldSession })).json().user, null);
+ assert.equal((await pool.query("select id from users where id=$1", [registered.json().user.id])).rowCount, 0);
+ assert.equal((await pool.query("select user_id from sessions where user_id=$1", [registered.json().user.id])).rowCount, 0);
  assert.equal((await request("/api/v1/auth/login", "POST", { username, password })).statusCode, 401);
 
  // Independent clients race to claim the same name with different casing.

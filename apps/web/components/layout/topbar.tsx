@@ -74,7 +74,7 @@ export function Topbar({
         "/historico": "Histórico",
       } as Record<string, string>
     )[pathname] ??
-    "Página não encontrada";
+    (pathname === "/perfil" || pathname.startsWith("/perfil/") ? "Perfil" : "Página não encontrada");
   const isInternalPage = pathname !== "/";
   const backLink =
     pathname.startsWith("/admin/") && permissions.canManageSite

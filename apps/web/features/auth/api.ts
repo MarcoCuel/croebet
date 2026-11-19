@@ -6,9 +6,10 @@ export async function authRequest(path: string, method = "GET", body?: unknown) 
     if (!csrf.ok) throw new Error("Não foi possível conectar à autenticação.");
     const data = await csrf.json();
     headers["x-csrf-token"] = data.token;
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    if (body instanceof File) headers["Content-Type"] = body.type;
+    else if (body !== undefined) headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(`/api/v1${path}`, { method, headers, credentials: "same-origin", cache: "no-store", body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await fetch(`/api/v1${path}`, { method, headers, credentials: "same-origin", cache: "no-store", body: body instanceof File ? body : body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.error?.message ?? "Serviço indisponível. Tente novamente.");

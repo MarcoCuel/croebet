@@ -1,23 +1,26 @@
+import { randomUUID } from "node:crypto";
+import { avatarMaxBytes, avatarContentTypes, processAvatar, InvalidAvatar } from "../avatars/image.ts";
+import { avatarUrl, validAvatarKey, type AvatarStorage } from "../avatars/storage.ts";
 import type { FastifyPluginAsync } from "fastify";
 import cookie from "@fastify/cookie";
 import { hash, verify, argon2id } from "argon2";
 import type { Pool, PoolClient } from "pg";
-import { registerSchema, changeUsernameSchema, loginSchema, profileSchema, publicUserSchema, sessionSchema } from "@croebet/shared";
+import { registerSchema, deleteAccountSchema, changeUsernameSchema, loginSchema, profileSchema, publicProfileSchema, publicUserSchema, sessionSchema, usernameSchema } from "@croebet/shared";
 import type { readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
 
-type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null };
-const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
+type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null };
+const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
 const passwordHash = (password: string) => hash(password, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
 let dummyHash: Promise<string> | undefined;
-export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig> }> = async (app, { pool, config }) => {
+export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig>; avatarStorage?: AvatarStorage }> = async (app, { pool, config, avatarStorage }) => {
   await app.register(cookie);
   const secure = config.APP_ENV === "production";
   const sessionName = secure ? "__Host-croebet-session" : "croebet-session";
   const csrfName = secure ? "__Host-croebet-csrf" : "croebet-csrf";
   const cookieOptions = { httpOnly: true, secure, sameSite: "lax" as const, path: "/" };
   app.addHook("onRequest", async (_request, reply) => { reply.header("Cache-Control", "no-store"); });
-  app.addHook("preHandler", async (request, reply) => {
+  app.addHook("onRequest", async (request, reply) => {
     if (["POST", "PATCH", "DELETE", "PUT"].includes(request.method)) {
       if (request.headers.origin !== config.WEB_ORIGIN || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
         return reply.code(403).send({ error: { code: "CSRF_INVALID", message: "Atualize a página e tente novamente." } });
@@ -35,13 +38,83 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
     const result = await pool.query(`update sessions s set idle_expires_at = least(s.expires_at, now() + interval '7 days') from users u
       where s.token_hash = $1 and s.user_id = u.id and u.status = 'active' and s.expires_at > now() and s.idle_expires_at > now()
-      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash, u.username_changed_at`, [tokenHash(token)]);
+      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash, u.username_changed_at, u.avatar_key`, [tokenHash(token)]);
     return result.rows[0] ?? null;
   }
   async function issue(client: PoolClient, userId: string) {
     const token = newToken();
     await client.query("insert into sessions (token_hash, user_id, expires_at, idle_expires_at) values ($1, $2, now() + interval '30 days', now() + interval '7 days')", [tokenHash(token), userId]);
     return token;
+  }
+
+  if (avatarStorage) {
+    app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
+    app.get<{ Params: { key: string } }>("/api/v1/avatars/:key", async (request, reply) => {
+      const { key } = request.params;
+      if (!validAvatarKey(key)) return reply.code(404).send();
+      const used = await pool.query("select 1 from users where avatar_key = $1 and status = 'active'", [key]);
+      if (!used.rows.length) return reply.code(404).send();
+      try {
+        const image = await avatarStorage.get(key);
+        return reply.type("image/webp").header("X-Content-Type-Options", "nosniff").send(image);
+      } catch {
+        return reply.code(503).send({ error: { code: "AVATAR_UNAVAILABLE", message: "Foto temporariamente indisponível." } });
+      }
+    });
+    async function changeAvatar(token: string, key: string | null) {
+      const client = await pool.connect();
+      try {
+        await client.query("begin");
+        const locked = await client.query(`select u.* from users u join sessions s on s.user_id = u.id
+          where s.token_hash = $1 and u.status = 'active' and s.expires_at > clock_timestamp()
+          and s.idle_expires_at > clock_timestamp() for update of u, s`, [tokenHash(token)]);
+        const user = locked.rows[0] as UserRow | undefined;
+        if (!user) { await client.query("rollback"); return null; }
+        const updated = await client.query("update users set avatar_key = $1 where id = $2 returning *", [key, user.id]);
+        if (key) await client.query("delete from avatar_cleanup where key = $1", [key]);
+        if (user.avatar_key) await client.query("insert into avatar_cleanup (key) values ($1) on conflict do nothing", [user.avatar_key]);
+        await client.query("commit");
+        return publicUser(updated.rows[0]);
+      } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
+    }
+    app.put("/api/v1/me/avatar", {
+      bodyLimit: avatarMaxBytes,
+      onRequest: async (request, reply) => {
+        // Reject unauthorized uploads before buffering/decoding an image.
+        if (request.headers.origin !== config.WEB_ORIGIN || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
+          return reply.code(403).send({ error: { code: "CSRF_INVALID", message: "Atualize a página e tente novamente." } });
+        const user = await current(request.cookies[sessionName]);
+        if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+        if (!await limit(`avatar:${user.id}`, 20)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas alterações de foto. Tente novamente mais tarde." } });
+      },
+    }, async (request, reply) => {
+      let image: Buffer;
+      try {
+        if (!Buffer.isBuffer(request.body)) throw new InvalidAvatar("Escolha uma imagem JPG, PNG ou WebP.");
+        image = await processAvatar(request.body, request.headers["content-type"]?.split(";")[0].trim().toLowerCase() ?? "");
+      } catch (error) {
+        if (error instanceof InvalidAvatar) return reply.code(400).send({ error: { code: "INVALID_AVATAR", message: error.message } });
+        throw error;
+      }
+      const key = `${randomUUID()}.webp`;
+      // Reserve cleanup before writing: a crash never loses track of a staged object.
+      await pool.query("insert into avatar_cleanup (key, delete_after) values ($1, now() + interval '1 hour')", [key]);
+      try {
+        await avatarStorage.put(key, image);
+        const user = await changeAvatar(request.cookies[sessionName]!, key);
+        if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+        return sessionSchema.parse({ user });
+      } catch {
+        return reply.code(503).send({ error: { code: "AVATAR_SAVE_FAILED", message: "Não foi possível salvar a foto. Tente novamente." } });
+      }
+    });
+    app.delete("/api/v1/me/avatar", async (request, reply) => {
+      const token = request.cookies[sessionName];
+      if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+      const user = await changeAvatar(token, null);
+      if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+      return sessionSchema.parse({ user });
+    });
   }
   app.get("/api/v1/auth/csrf", async (request, reply) => {
     const nonce = newToken(); reply.setCookie(csrfName, nonce, { ...cookieOptions, maxAge: 3600 });
@@ -51,6 +124,15 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const user = await current(request.cookies[sessionName]);
     if (!user && request.cookies[sessionName]) reply.clearCookie(sessionName, cookieOptions);
     return sessionSchema.parse({ user: user ? publicUser(user) : null });
+  });
+  app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
+    const parsed = usernameSchema.safeParse(request.params.username);
+    if (parsed.success) {
+      const result = await pool.query("select username, display_name, avatar_key from users where lower(username) = $1 and status = 'active'", [parsed.data.toLowerCase()]);
+      const user = result.rows[0];
+      if (user) return publicProfileSchema.parse({ username: user.username, displayName: user.display_name, avatarUrl: avatarUrl(user.avatar_key) });
+    }
+    return reply.code(404).send({ error: { code: "PROFILE_NOT_FOUND", message: "Perfil não encontrado." } });
   });
   app.post("/api/v1/auth/register", async (request, reply) => {
     if (!await limit(`register:${request.ip}`, 10)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
@@ -98,6 +180,29 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   app.post("/api/v1/auth/logout", async (request, reply) => {
     if (request.cookies[sessionName]) await pool.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
     reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions); return reply.code(204).send();
+  });
+  app.delete("/api/v1/me", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    if (!await limit(`delete-account:${user.id}`, 10)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    const parsed = deleteAccountSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Informe sua senha atual." } });
+    if (!await verify(user.password_hash, parsed.data.password)) return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Senha incorreta." } });
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const locked = await client.query(`select u.id, u.avatar_key from users u join sessions s on s.user_id = u.id
+        where u.id = $1 and u.status = 'active' and u.password_hash = $2 and s.token_hash = $3
+        and s.expires_at > clock_timestamp() and s.idle_expires_at > clock_timestamp() for update of u, s`,
+        [user.id, user.password_hash, tokenHash(request.cookies[sessionName]!)]);
+      if (!locked.rows[0]) { await client.query("rollback"); return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } }); }
+      await client.query("delete from sessions where user_id = $1", [user.id]);
+      if (locked.rows[0].avatar_key) await client.query("insert into avatar_cleanup (key) values ($1) on conflict do nothing", [locked.rows[0].avatar_key]);
+      await client.query("delete from users where id = $1", [user.id]);
+      await client.query("commit");
+      reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions);
+      return reply.code(204).send();
+    } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
   });
   app.patch("/api/v1/me/username", async (request, reply) => {
     const token = request.cookies[sessionName];

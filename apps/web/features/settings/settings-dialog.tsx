@@ -2,14 +2,17 @@
 
 import { toast } from "sonner";
 import { useEffect, useId, useState } from "react";
-import { Monitor, Moon, Sun, X } from "lucide-react";
+import { Monitor, Moon, Pencil, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
   DialogContent,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+import { Card } from "@/components/ui/card";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { AvatarSettings } from "@/features/settings/avatar-settings";
@@ -61,7 +64,7 @@ export function SettingsDialog({
 
 function SettingsContent({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<(typeof sections)[number]>("Geral");
-  const { username, displayName, balance, dailyClaimed, signOut } =
+  const { username, displayName, balance, dailyClaimed } =
     useDemoSession();
   const { theme, setTheme } = useTheme();
   const panelId = useId();
@@ -147,19 +150,11 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
         {section === "Conta" && (
           <div className="grid gap-6">
             <AvatarSettings />
-            <AccountIdentity key={username} />
-            <AccountUsername key={`username-${username}`} />
-            <div className="border-t border-contrast/6 pt-6">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  onClose();
-                  signOut();
-                }}
-              >
-                Sair da conta
-              </Button>
-            </div>
+            <Card className="bg-contrast/3 px-4 py-0 sm:px-4 sm:py-0">
+              <AccountIdentity />
+              <AccountUsername />
+            </Card>
+            <DeleteAccount onDeleted={onClose} />
           </div>
         )}
         {section === "Histórico" && <WalletHistory compact />}
@@ -168,55 +163,64 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
   );
 }
 
+function AccountEditRow({ label, value, children, open, onOpenChange }: {
+  label: string;
+  value: string;
+  children: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-contrast/6 py-3 last:border-0">
+      <span className="shrink-0 text-sm">{label}</span>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-sm text-muted">{value}</span>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={`Editar ${label.toLocaleLowerCase("pt-BR")}`}>
+              <Pencil className="size-4" aria-hidden="true" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent aria-describedby={undefined}>{children}</DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+}
+
 function AccountIdentity() {
   const { displayName, updateDisplayName } = useDemoSession();
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState(displayName ?? "");
   const [saving, setSaving] = useState(false);
   return (
-    <form
-      className="grid gap-4"
-      onSubmit={async (event) => {
+    <AccountEditRow label="Nome" value={displayName ?? ""} open={open} onOpenChange={value => {
+      setOpen(value);
+      if (value) setName(displayName ?? "");
+    }}>
+      <DialogTitle>Editar nome</DialogTitle>
+      <form className="mt-6 grid gap-4" onSubmit={async event => {
         event.preventDefault();
         if (saving) return;
         setSaving(true);
         try {
           await updateDisplayName(name);
-          setName(name.trim());
+          setOpen(false);
           toast.success("Nome atualizado.");
         } catch (error) {
-          toast.error(
-            error instanceof Error
-              ? error.message
-              : "Não foi possível salvar o nome.",
-          );
+          toast.error(error instanceof Error ? error.message : "Não foi possível salvar o nome.");
         } finally { setSaving(false); }
-      }}
-    >
-      <Field className="font-normal text-muted">
-        Nome
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          required
-          maxLength={40}
-          autoComplete="nickname"
-        />
-      </Field>
-      <Button
-        type="submit"
-        size="sm"
-        className="justify-self-start"
-        loading={saving}
-        disabled={saving || name.trim() === displayName}
-      >
-        Salvar
-      </Button>
-    </form>
+      }}>
+        <Field>Nome<Input value={name} onChange={event => setName(event.target.value)} required maxLength={40} autoComplete="nickname" disabled={saving} /></Field>
+        <Button type="submit" loading={saving} disabled={saving || name.trim() === displayName}>Salvar</Button>
+      </form>
+    </AccountEditRow>
   );
 }
 
 function AccountUsername() {
   const { username, usernameChangeAvailableAt, updateUsername } = useDemoSession();
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState(username ?? "");
   const [saving, setSaving] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -229,20 +233,56 @@ function AccountUsername() {
   }, [usernameChangeAvailableAt, now]);
   const blocked = !!usernameChangeAvailableAt && new Date(usernameChangeAvailableAt).getTime() > now;
   const availabilityId = useId();
-  return <form className="grid gap-4" onSubmit={async event => {
-    event.preventDefault();
-    if (saving || blocked || value.trim() === username) return;
-    setSaving(true);
-    try { await updateUsername(value); toast.success("Usuário atualizado."); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar o usuário."); }
-    finally { setSaving(false); }
-  }}>
-    <Field className="font-normal text-muted">
-      Nome de usuário
-      <Input value={value} onChange={event => setValue(event.target.value)} minLength={3} maxLength={24} required
-        autoComplete="username" disabled={saving || blocked} aria-describedby={blocked ? availabilityId : undefined} />
-    </Field>
-    {blocked && usernameChangeAvailableAt && <p id={availabilityId} className="text-sm text-muted">Você poderá alterar seu usuário novamente em {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(usernameChangeAvailableAt))}.</p>}
-    <Button type="submit" size="sm" className="justify-self-start" loading={saving} disabled={saving || blocked || value.trim() === username}>Salvar usuário</Button>
-  </form>;
+  return (
+    <AccountEditRow label="Nome de usuário" value={`@${username}`} open={open} onOpenChange={next => {
+      setOpen(next);
+      if (next) { setValue(username ?? ""); setNow(Date.now()); }
+    }}>
+      <DialogTitle>Editar nome de usuário</DialogTitle>
+      <form className="mt-6 grid gap-4" onSubmit={async event => {
+        event.preventDefault();
+        if (saving || blocked || value.trim() === username) return;
+        setSaving(true);
+        try { await updateUsername(value); setOpen(false); toast.success("Usuário atualizado."); }
+        catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar o usuário."); }
+        finally { setSaving(false); }
+      }}>
+        <Field>Nome de usuário
+          <Input value={value} onChange={event => setValue(event.target.value)} minLength={3} maxLength={24} required
+            autoComplete="username" disabled={saving || blocked} aria-describedby={blocked ? availabilityId : undefined} />
+        </Field>
+        {blocked && usernameChangeAvailableAt && <p id={availabilityId} className="text-sm text-muted">Você poderá alterar seu usuário novamente em {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(usernameChangeAvailableAt))}.</p>}
+        <Button type="submit" loading={saving} disabled={saving || blocked || value.trim() === username}>Salvar usuário</Button>
+      </form>
+    </AccountEditRow>
+  );
+}
+
+function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
+  const { deleteAccount } = useDemoSession();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  return (
+    <Card className="flex items-center justify-between gap-4 bg-contrast/3 p-4 sm:p-4">
+      <span className="text-sm">Excluir conta</span>
+      <Dialog open={open} onOpenChange={next => { setOpen(next); if (!next) setPassword(""); }}>
+        <DialogTrigger asChild><Button variant="destructive" size="sm">Excluir</Button></DialogTrigger>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Excluir conta permanentemente</DialogTitle>
+          <form className="mt-6 grid gap-4" onSubmit={async event => {
+            event.preventDefault();
+            if (saving) return;
+            setSaving(true);
+            try { await deleteAccount(password); setPassword(""); setOpen(false); onDeleted(); toast.success("Conta excluída."); }
+            catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível excluir a conta."); }
+            finally { setSaving(false); }
+          }}>
+            <Field>Senha atual<PasswordInput value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required maxLength={512} disabled={saving} /></Field>
+            <Button type="submit" variant="destructive" loading={saving} disabled={saving || !password}>Excluir conta</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
 }

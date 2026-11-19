@@ -14,10 +14,11 @@ export type DemoSessionValue = Wallet & {
   sessionReady: boolean;
   permissions: SessionPermissions;
   avatar: string | null;
-  updateAvatar: (avatar: string | null) => void;
+  updateAvatar: (avatar: File | null) => Promise<void>;
   openLogin: () => void;
   openRegister: () => void;
   signOut: () => void;
+  deleteAccount: (password: string) => Promise<void>;
   dailyClaimed: boolean;
   claimDaily: () => void;
   addBalance: (amount: number) => void;

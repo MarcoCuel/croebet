@@ -41,7 +41,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     },
     sessionReady: ready,
     permissions: { canManageSite: user?.role === "admin" },
-    avatar: null,
+    avatar: user?.avatarUrl ?? null,
     balance: 0, transactions: [], predictions: [], lastClaim: "", dailyClaimed: false,
     openLogin: () => openAuth("login"), openRegister: () => openAuth("register"),
     signOut: async () => {
@@ -49,11 +49,22 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
       try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); }
       catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível sair."); }
     },
+    deleteAccount: async password => {
+      ++revision.current;
+      await authRequest("/me", "DELETE", { password });
+      ++revision.current; setUser(null);
+    },
     updateDisplayName: async displayName => {
       ++revision.current;
       const next = await authRequest("/me/profile", "PATCH", { displayName }); ++revision.current; setUser(next);
     },
-    updateAvatar: () => { throw new Error("O envio de avatar estará disponível após a integração de arquivos."); },
+    updateAvatar: async file => {
+      const accountId = user?.id;
+      ++revision.current;
+      const next = await authRequest("/me/avatar", file ? "PUT" : "DELETE", file ?? undefined);
+      ++revision.current;
+      setUser(current => current?.id === accountId && next?.id === accountId ? next : current);
+    },
     claimDaily: unavailable, addBalance: unavailable, clearPredictions: unavailable,
     placePrediction: async () => { unavailable(); return false; },
   }}>{children}<AuthDialog

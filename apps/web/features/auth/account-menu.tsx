@@ -8,6 +8,7 @@ import {
   Settings,
   Moon,
   LogOut,
+  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export function AccountMenu({
   name: string;
   sidebar?: boolean;
 }) {
-  const { signOut, avatar, permissions, displayName } = useDemoSession();
+  const { signOut, avatar, permissions, displayName, username } = useDemoSession();
   const visibleName = displayName ?? name;
   const { theme, setTheme } = useTheme();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -90,6 +91,14 @@ export function AccountMenu({
             }
           }}
         >
+          {username && (
+            <DropdownMenuItem asChild>
+              <Link href={`/perfil/${encodeURIComponent(username)}`}>
+                <UserRound className="size-4" aria-hidden="true" />
+                Perfil
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onSelect={() => {
               openingDialog.current = true;

@@ -29,6 +29,13 @@
       "when": 1795049090204,
       "tag": "0003_username_change_cooldown",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795051432356,
+      "tag": "0004_breezy_corsair",
+      "breakpoints": true
     }
   ]
 }

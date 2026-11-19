@@ -11,8 +11,12 @@ export const usernameSchema = z.string().trim().min(3, "Use pelo menos 3 caracte
 const passwordSchema = z.string().refine(value => Array.from(value).length >= 8 && Array.from(value).length <= 128, "Use uma senha de 8 a 128 caracteres.");
 export const registerSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
 export const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(512) }).strict();
+export const deleteAccountSchema = z.object({ password: z.string().min(1).max(512) }).strict();
 export const changeUsernameSchema = z.object({ username: usernameSchema }).strict();
 export const profileSchema = z.object({ displayName: z.string().trim().min(1).max(40).regex(/^[^\u0000-\u001f\u007f]+$/u) }).strict();
-export const publicUserSchema = z.object({ id: z.uuid(), username: usernameSchema, displayName: z.string(), usernameChangeAvailableAt: z.iso.datetime().nullable().default(null), role: z.enum(["user", "admin"]) }).strict();
+export const avatarUrlSchema = z.string().regex(/^\/api\/v1\/avatars\/[0-9a-f-]{36}\.webp$/).nullable().default(null);
+export const publicUserSchema = z.object({ id: z.uuid(), username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema, usernameChangeAvailableAt: z.iso.datetime().nullable().default(null), role: z.enum(["user", "admin"]) }).strict();
 export const sessionSchema = z.object({ user: publicUserSchema.nullable() }).strict();
 export type PublicUser = z.infer<typeof publicUserSchema>;
+export const publicProfileSchema = z.object({ username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema }).strict();
+export type PublicProfile = z.infer<typeof publicProfileSchema>;
