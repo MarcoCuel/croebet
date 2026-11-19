@@ -16,6 +16,14 @@ export function createGame(setup: Setup[], seed = 1, options: Partial<GameOption
   game.deck = shuffle(game, createDeck(game.mode), random);
   return game;
 }
+/** Explicit departure changes control, preserving the entire hand and decision. */
+export function replaceWithBot(current: Game, seat: number): Game {
+  if (current.phase !== "playing" || current.players[seat]?.kind !== "human") throw new Error("ILLEGAL_ACTION");
+  const game = structuredClone(current);
+  game.players[seat].kind = "normal";
+  log(game, `Um bot assumiu a vaga de ${game.players[seat].name}.`, seat);
+  return game;
+}
 export function targets(game: Game): number[] {
   if (game.mode === "vengeance") return vengeanceTargets(game);
   if (!game.pending) return [];

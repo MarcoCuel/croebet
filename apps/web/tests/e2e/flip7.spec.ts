@@ -60,13 +60,73 @@ test("saída do host transfere a sala para o outro participante",async({page,bro
     expect([...fixture.states.values()][0].room.hostId).toBe("93089d02-0b34-4b78-9d3e-f2679c190b5d");
   }finally{await peer.context.close();}
 });
+test("host altera versão, Brutal e capacidade no lobby e todos recebem a configuração",async({page,browser})=>{
+  await lobby(page);const peer=await second(browser);
+  try{
+    await peer.page.goto(page.url());await peer.page.getByRole("button",{name:"Entrar na sala",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Iniciar partida",exact:true})).toBeEnabled();
+    await expect(peer.page.getByRole("button",{name:"Alterar configuração",exact:true})).toHaveCount(0);
+    await page.getByRole("button",{name:"Alterar configuração",exact:true}).click();
+    await page.getByLabel("Versão do Flip7").selectOption("vengeance");
+    await page.getByRole("switch",{name:"Modo Brutal"}).click();
+    await page.getByLabel("Limite de jogadores").selectOption("3");
+    await page.getByRole("button",{name:"Salvar configuração",exact:true}).click();
+    for(const client of [page,peer.page])await expect(client.getByText("Vingança · Brutal · 2/3 jogadores",{exact:true})).toBeVisible();
+    await page.reload();await expect(page.getByText("Vingança · Brutal · 2/3 jogadores",{exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"Iniciar partida",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+    const room=[...fixture.states.values()][0].room;
+    expect(room.options).toEqual({mode:"vengeance",brutal:true});
+    expect(room.status).toBe("playing");
+  }finally{await peer.context.close();}
+});
+test("host pode expulsar uma pessoa do lobby",async({page,browser})=>{
+  await lobby(page);const peer=await second(browser);
+  try{
+    await peer.page.goto(page.url());await peer.page.getByRole("button",{name:"Entrar na sala",exact:true}).click();
+    await page.getByRole("button",{name:"Expulsar Beto",exact:true}).click();
+    await page.getByRole("button",{name:"Confirmar expulsão",exact:true}).click();
+    await expect(page.getByText("1/6 jogadores",{exact:false})).toBeVisible();
+    await expect(peer.page.getByRole("button",{name:"Entrar na sala",exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Iniciar partida",exact:true})).toBeDisabled();
+  }finally{await peer.context.close();}
+});
+test("host expulsa durante a vez da outra conta e um bot mantém a partida",async({page,browser})=>{
+  const peer=await start(page,browser);
+  try{
+    await page.getByRole("button",{name:"Parar",exact:true}).click();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"Expulsar Beto",exact:true}).click();
+    await page.getByRole("button",{name:"Confirmar expulsão",exact:true}).click();
+    await expect(peer.page).toHaveURL(/\/jogos\/flip7$/);
+    await expect(page.getByText("Bot",{exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible({timeout:15000});
+    const room=[...fixture.states.values()][0].room;
+    expect(room.status).toBe("playing");
+    if(room.status!=="lobby")expect(room.state.players[1].kind).toBe("normal");
+  }finally{await peer.context.close();}
+});
+test("abandono do host transfere controle ao bot e host para a outra conta",async({page,browser})=>{
+  const peer=await start(page,browser);
+  try{
+    await page.getByRole("button",{name:"Abandonar partida",exact:true}).click();
+    await expect(page.getByRole("dialog")).toContainText("Um bot assumirá suas cartas e seus pontos");
+    await page.getByRole("dialog").getByRole("button",{name:"Abandonar partida",exact:true}).click();
+    await expect(page).toHaveURL(/\/jogos\/flip7$/);
+    await expect(peer.page.getByText("Bot",{exact:true})).toBeVisible();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible({timeout:15000});
+    const room=[...fixture.states.values()][0].room;
+    expect(room.hostId).toBe("93089d02-0b34-4b78-9d3e-f2679c190b5d");
+  }finally{await peer.context.close();}
+});
 test("resposta perdida permite repetir o mesmo comando sem comprar duas vezes",async({page,browser})=>{
   const peer=await start(page,browser);
   try{
     fixture.failNextResponse();await page.getByRole("button",{name:"Comprar",exact:true}).click();
-    await expect(page.getByRole("alert")).toContainText("Resposta indisponível");
+    await expect(page.getByRole("region",{name:"Mesa de Flip7"}).getByRole("alert")).toContainText("Resposta indisponível");
     await page.getByRole("button",{name:"Tentar novamente",exact:true}).click();
-    await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+    await expect(page.locator('[data-player-hand="0"] [data-hand-card]')).toHaveCount(2);
     const room=[...fixture.states.values()][0].room;if(room.status==="lobby")throw Error("Partida não iniciada");
     expect(room.state.players[0].cards).toHaveLength(2);
   }finally{await peer.context.close();}

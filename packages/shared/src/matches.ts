@@ -23,10 +23,14 @@ export const flip7ActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cards"), cards: z.array(integer.min(0).max(107)).min(1).max(2).refine(ids => new Set(ids).size === ids.length) }).strict(),
   z.object({ type: z.literal("bonus"), target: seat.nullable() }).strict(),
 ]);
-export const flip7EventActionSchema = z.union([flip7ActionSchema, z.object({ type: z.literal("step") }).strict(), z.object({ type: z.literal("next") }).strict(), z.object({ type: z.literal("start") }).strict()]);
+export const flip7EventActionSchema = z.union([flip7ActionSchema, z.object({ type: z.literal("step") }).strict(), z.object({ type: z.literal("next") }).strict(), z.object({ type: z.literal("start") }).strict(), z.object({ type: z.literal("replace"), seat }).strict()]);
 // Bots remain available to engine tests, never to public room creation.
 export const createMatchSchema = z.object({ requestId: z.uuid(), game: z.literal("flip7"), capacity: integer.min(2).max(12), options: flip7OptionsSchema }).strict();
 export const lobbyCommandSchema = z.object({ commandId: z.uuid() }).strict();
+export const updateLobbySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema }).strict();
+export type UpdateLobby = z.infer<typeof updateLobbySchema>;
+export const kickMatchSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), targetUserId: z.uuid() }).strict();
+export type KickMatch = z.infer<typeof kickMatchSchema>;
 export const matchCommandSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), action: flip7ActionSchema }).strict();
 export const matchAbandonSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive() }).strict();
 export const matchCodeSchema = z.string().regex(/^[A-F0-9]{12}$/);

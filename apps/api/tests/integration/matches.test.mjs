@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createDatabase } from "../../dist/db/client.js";
-import { createMatch, commandMatch, getMatch, getRoomSync, listMatches, listLobbies, lobbyAction } from "../../dist/modules/matches/service.js";
+import { createMatch, commandMatch, getMatch, getRoomSync, listMatches, listLobbies, lobbyAction, kickMatch } from "../../dist/modules/matches/service.js";
 import { createApp } from "../../dist/app.js";
 import { authRoutes } from "../../dist/modules/auth/routes.js";
 import { tokenHash, newToken } from "../../dist/modules/auth/security.js";
@@ -75,7 +75,25 @@ test("PostgreSQL: capacidade concorrente, transferência de host, compactação 
  assert.deepEqual(await createMatch(pool,actors[0],sessions[0],input),original);
  await assert.rejects(createMatch(pool,actors[0],sessions[0],{...input,capacity:4}),{code:"IDEMPOTENCY_CONFLICT"});
 });
-test("PostgreSQL: rollback, sessão revogada e encerramento compartilhado",async t=>{
+test("PostgreSQL: só o host edita lobby aberto, preservando ocupação, versão e idempotência",async t=>{
+ const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(6);
+ await lobby(room.code,1,"join");
+ const joined=await lobby(room.code,2,"join");
+ const input={commandId:randomUUID(),expectedVersion:joined.version,capacity:4,options:{mode:"classic",brutal:false}};
+ await assert.rejects(lobbyAction(pool,actors[1],sessions[1],room.code,"update",input),{code:"HOST_ONLY"});
+ await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,expectedVersion:1}),{code:"VERSION_CONFLICT"});
+ await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,capacity:2}),{code:"CAPACITY_TOO_SMALL"});
+ const updated=await lobbyAction(pool,actors[0],sessions[0],room.code,"update",input);
+ assert.equal(updated.capacity,4);assert.deepEqual(updated.options,input.options);assert.equal(updated.version,joined.version+1);
+ assert.deepEqual(updated.participants,joined.participants);
+ assert.deepEqual(await lobbyAction(pool,actors[0],sessions[0],room.code,"update",input),updated);
+ await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,capacity:5}),{code:"IDEMPOTENCY_CONFLICT"});
+ assert.equal((await listLobbies(pool)).items.find(r=>r.id===room.id).capacity,4);
+ const started=await lobby(room.code,0,"start",{expectedVersion:updated.version});
+ assert.equal(started.state.mode,"classic");assert.equal(started.state.brutal,false);
+ await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,commandId:randomUUID(),expectedVersion:started.version}),{code:"LOBBY_CLOSED"});
+});
+test("PostgreSQL: rollback, sessão revogada e abandono individual",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create();
  const joined=await lobby(room.code,1,"join"),started=await lobby(room.code,0,"start",{expectedVersion:joined.version});
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
@@ -87,9 +105,39 @@ test("PostgreSQL: rollback, sessão revogada e encerramento compartilhado",async
  await assert.rejects(commandMatch(pool,actors[actor],sessions[actor],room.code,{commandId:randomUUID(),expectedVersion:started.version},true),{code:"UNAUTHENTICATED"});
  const peer=actor===0?1:0,command={commandId:randomUUID(),expectedVersion:started.version};
  const ended=await commandMatch(pool,actors[peer],sessions[peer],room.code,command,true);
- assert.equal(ended.match.status,"abandoned");assert.deepEqual(await commandMatch(pool,actors[peer],sessions[peer],room.code,command,true),ended);
+ assert.equal(ended.match.status,"playing");assert.deepEqual(wire(await commandMatch(pool,actors[peer],sessions[peer],room.code,command,true)),wire(ended));
+ assert.equal(ended.match.state.players[ended.match.participants.find(p=>p.userId===actors[peer]).seat].kind,"normal");
  assert.equal((await listMatches(pool,actors[peer])).items.some(m=>m.id===room.id),false);
- assert.equal((await getRoomSync(pool,actors[peer],room.code,started.version)).room.status,"abandoned");
+ await assert.rejects(getRoomSync(pool,actors[peer],room.code,started.version),{code:"PARTICIPATION_ENDED"});
+});
+
+test("PostgreSQL: expulsão no lobby e no jogo, bot sem controle pela conta e saída do último humano",async t=>{
+ const {pool,actors,sessions,create,lobby}=await environment(t),room=await create();
+ await lobby(room.code,1,"join");const joined=await lobby(room.code,2,"join");
+ const input={commandId:randomUUID(),expectedVersion:joined.version,targetUserId:actors[1]};
+ await assert.rejects(kickMatch(pool,actors[2],sessions[2],room.code,input),{code:"HOST_ONLY"});
+ await assert.rejects(kickMatch(pool,actors[0],sessions[0],room.code,{...input,targetUserId:actors[0]}),{code:"INVALID_TARGET"});
+ const kicked=await kickMatch(pool,actors[0],sessions[0],room.code,input);
+ assert.equal(kicked.participants.length,2);assert.equal(kicked.capacity,6);
+ assert.deepEqual(await kickMatch(pool,actors[0],sessions[0],room.code,input),kicked);
+ const rejoined=await lobby(room.code,1,"join");
+ const started=await lobby(room.code,0,"start",{expectedVersion:rejoined.version});
+ const target=started.participants.find(p=>p.userId===actors[1]);
+ const kick={commandId:randomUUID(),expectedVersion:started.version,targetUserId:actors[1]};
+ const converted=await kickMatch(pool,actors[0],sessions[0],room.code,kick);
+ assert.equal(converted.status,"playing");assert.equal(converted.state.players[target.seat].kind,"normal");
+ assert.deepEqual(wire(await kickMatch(pool,actors[0],sessions[0],room.code,kick)),wire(converted));
+ const frames=(await getRoomSync(pool,actors[0],room.code,started.version)).frames;
+ assert.deepEqual(frames[0].action,{type:"replace",seat:target.seat});
+ assert.deepEqual(frames[0].state.players[target.seat].cards,started.state.players[target.seat].cards);
+ assert.equal(frames[0].state.players[target.seat].total,started.state.players[target.seat].total);
+ await assert.rejects(commandMatch(pool,actors[1],sessions[1],room.code,{commandId:randomUUID(),expectedVersion:converted.version,action:{type:"draw"}}),{code:"PARTICIPATION_ENDED"});
+ await assert.rejects(getMatch(pool,actors[1],room.code),{code:"PARTICIPATION_ENDED"});
+ const gone=await commandMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:converted.version},true);
+ assert.equal(gone.match.hostId,actors[2]);assert.equal(gone.match.status,"playing");
+ const last=await commandMatch(pool,actors[2],sessions[2],room.code,{commandId:randomUUID(),expectedVersion:gone.match.version},true);
+ assert.equal(last.match.status,"abandoned");assert.ok(last.match.state.players.every(p=>p.kind==="normal"));
+ await assert.rejects(getMatch(pool,actors[2],room.code),{code:"NOT_FOUND"});
 });
 
 test("HTTP/SSE: autentica assinatura, transmite commits e revoga conexão sem expor mesa alheia",async t=>{

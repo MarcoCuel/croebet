@@ -1,8 +1,10 @@
-import { lobbySchema, lobbyActionResultSchema, matchResultSchema, type MatchCommand, type CreateMatch, type Match, type MatchResult, type RoomSync } from "@croebet/shared";
+import { lobbySchema, lobbyActionResultSchema, roomSchema, matchResultSchema, type MatchCommand, type CreateMatch, type Match, type MatchResult, type RoomSync, type UpdateLobby, type KickMatch } from "@croebet/shared";
 import { managementRequest } from "@/features/admin/management-api";
 
 let created: MatchResult | null = null;
 export const createServerMatch = (input: CreateMatch) => managementRequest("/matches",lobbySchema,"POST",input);
+export const updateServerLobby = (code: string, input: UpdateLobby) => managementRequest(`/matches/${code}/update`, lobbyActionResultSchema, "POST", input);
+export const kickServerPlayer = (code: string, input: KickMatch) => managementRequest(`/matches/${code}/kick`, roomSchema, "POST", input);
 export const changeLobby = (code: string, action: "join"|"leave"|"start", commandId: string, expectedVersion?: number) => managementRequest(`/matches/${code}/${action}`,lobbyActionResultSchema,"POST",{commandId,...(expectedVersion===undefined?{}:{expectedVersion})});
 export function rememberStart(sync: RoomSync) {
   if(sync.room.status==="lobby")return;

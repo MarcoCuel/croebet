@@ -21,6 +21,7 @@ import { cardChoices } from "./vengeance";
 import { forcedActionPresentation } from "./action-presentation";
 import { LobbyScreen } from "./lobby";
 import { useMatchLive } from "./live";
+import { KickPlayer } from "./kick-player";
 import { GOAL } from "./presentation";
 
 function Rules({ options }: { options: GameOptions }) {
@@ -39,7 +40,7 @@ function Rules({ options }: { options: GameOptions }) {
         <li>Ao acabar o baralho, os descartes são embaralhados. Vence quem tiver mais pontos ao fim da rodada em que alguém atingir {GOAL}. Empates dividem a vitória.</li>
       </ol>
       </>}
-      <p className="mt-5 text-xs text-muted">Com Croins, cada participante coloca a mesma entrada e os vencedores dividem o pote. A entrada dos bots é automática. Abandonar perde a entrada; recarregar mantém a partida. No modo livre, compartilhe o dispositivo.</p>
+      <p className="mt-5 text-xs text-muted">Partidas gratuitas entre contas da Croebet. Cada pessoa controla suas próprias jogadas. Recarregar ou desconectar mantém sua participação; não há limite de tempo para jogar.</p>
       <p className="mt-3 text-xs text-muted">Jogo de Eric Olsen{options.mode === "vengeance" ? " e Alyssa Swatek" : ""}.</p>
     </DialogContent>
   </Dialog>;
@@ -147,6 +148,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
   const {userId}=useSession();
   const serverMatch = useRef(initial.match);
+  const [matchInfo,setMatchInfo]=useState(initial.match);
   const receivedVersion=useRef(initial.match?.version ?? 0);
   const incoming=useRef<RoomSync|null>(null);
   const [liveRevision,setLiveRevision]=useState(0);
@@ -240,7 +242,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const send = useCallback(async (action: Action) => {
     const match = serverMatch.current;
     if (!match || !connected || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || frames.length || resolvingCardFinished) return;
-    if (action.type === "step" || action.type === "next" || action.type === "start") return;
+    if (action.type === "step" || action.type === "next" || action.type === "start" || action.type === "replace") return;
     if (pendingCommand.current && JSON.stringify(pendingCommand.current.action) !== JSON.stringify(action)) {
       toast.error("Confirme a ação pendente ou recarregue a partida."); return;
     }
@@ -252,6 +254,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
       if(response.match.version>receivedVersion.current){
         receivedVersion.current=response.match.version;
         serverMatch.current = response.match;
+        setMatchInfo(response.match);
         setFrames(response.frames);
       }
     } catch (error) { setCommandError(error instanceof Error ? error.message : "Não foi possível enviar a jogada."); }
@@ -300,7 +303,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     const hand = board.querySelector<HTMLElement>(`[data-player-hand="${flight.target}"]`);
     const layoutElements: HTMLElement[] = [];
     const timeline = gsap.timeline({ onComplete: () => {
-      gsap.set(layoutElements, { clearProps: "transform,width,height" });
+      if (layoutElements.length) gsap.set(layoutElements, { clearProps: "transform,width,height" });
       if (hand) gsap.set(hand, { clearProps: "height" });
       locked.current = false;
       setFlight(null);
@@ -354,7 +357,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     }
     return () => {
       timeline.kill();
-      gsap.set(layoutElements, { clearProps: "transform,width,height" });
+      if (layoutElements.length) gsap.set(layoutElements, { clearProps: "transform,width,height" });
       if (hand) gsap.set(hand, { clearProps: "height" });
     };
   }, [flight]);
@@ -412,6 +415,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
     if(!complete){router.refresh();return;}
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
+    setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
   },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router]);
 
@@ -419,7 +423,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
-  const ownSeat=initial.match?.participants.find(person=>person.userId===userId)?.seat;
+  const ownSeat=matchInfo?.participants.find(person=>person.userId===userId)?.seat;
   const human = connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
@@ -517,6 +521,8 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <p className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand")}>{player.name}</p>
                     <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
+                    {player.kind!=="human" && <Badge variant="secondary">Bot</Badge>}
+                    {matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/>}
                   </div>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
                     <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
@@ -604,7 +610,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">A partida será encerrada para todos os participantes.</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">Um bot assumirá suas cartas e seus pontos. A partida continuará para os demais e você não poderá voltar a controlar esta vaga.</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
             <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {

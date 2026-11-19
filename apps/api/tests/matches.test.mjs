@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createMatchSchema, matchCommandSchema, matchSchema } from "@croebet/shared";
+import { createMatchSchema, matchCommandSchema, matchSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
 import { createApp } from "../dist/app.js";
 import { authRoutes } from "../dist/modules/auth/routes.js";
 import { flip7Driver } from "../dist/modules/games/flip7/driver.js";
@@ -14,7 +14,27 @@ test("contratos não aceitam estado do cliente, seed, Croins, comandos internos 
   assert.ok(createMatchSchema.safeParse(input).success);
   for (const capacity of [1,13,2.5]) assert.equal(createMatchSchema.safeParse({...input,capacity}).success,false);
   for (const extra of [{ seed: 1 }, { stake: 5 }, { state: {} }, {setup}]) assert.equal(createMatchSchema.safeParse({ ...input, ...extra }).success,false);
-  for (const action of [{ type: "step" },{ type: "next" },{ type: "cards", cards: [1,1] },{ type: "draw", card: 10 }]) assert.equal(matchCommandSchema.safeParse({ commandId: randomUUID(), expectedVersion: 1, action }).success,false);
+  for (const action of [{ type: "step" },{ type: "next" },{type:"replace",seat:0},{ type: "cards", cards: [1,1] },{ type: "draw", card: 10 }]) assert.equal(matchCommandSchema.safeParse({ commandId: randomUUID(), expectedVersion: 1, action }).success,false);
+  assert.equal(updateLobbySchema.safeParse({commandId:randomUUID(),expectedVersion:1,capacity:4,options:{mode:"classic",brutal:true}}).success,false);
+  assert.equal(kickMatchSchema.safeParse({commandId:randomUUID(),expectedVersion:1,targetUserId:"another"}).success,false);
+});
+test("substituição preserva cartas e decisões especiais e automações continuam nos três modos",()=>{
+ for(const options of [{mode:"classic",brutal:false},{mode:"vengeance",brutal:false},{mode:"vengeance",brutal:true}]){
+  let state=createGame(Array.from({length:3},(_,i)=>({name:`P${i}`,kind:"human"})),42,options);
+  let steps=0;
+  while(!flip7Driver.finished(state)){
+   const automatic=flip7Driver.automatic(state);
+   if(automatic){state=flip7Driver.apply(state,automatic);continue;}
+   assert.ok(++steps<1000);
+   const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
+   const original=structuredClone(state),next=flip7Driver.replace(state,seat);
+   assert.deepEqual(state,original);assert.deepEqual(next.players[seat].cards,state.players[seat].cards);
+   assert.equal(next.players[seat].total,state.players[seat].total);assert.deepEqual(next.pending,state.pending);assert.deepEqual(next.bonusChoice,state.bonusChoice);
+   assert.equal(next.players[seat].kind,"normal");assert.ok(flip7Driver.automatic(next));
+   assert.ok(flip7Driver.parse(execute(flip7Driver,next,1).state));
+   state=flip7Driver.apply(state,botAction(state));
+  }
+ }
 });
 test("driver usa nome da conta, RNG seguro e projeção sem seed/baralho em todos os frames", () => {
   const first = flip7Driver.create({setup,options:input.options},"Marco");

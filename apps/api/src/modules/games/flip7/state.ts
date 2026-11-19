@@ -25,7 +25,6 @@ export function validateState(game: unknown): Game | null {
       && ["playing", "stayed", "frozen", "busted"].includes(String(player.status))
       && points(player.total) && typeof player.hasDrawn === "boolean" && cards(player.cards)
       && (player.bustedCards === undefined || (game.mode === "vengeance" && player.status === "busted" && Array.isArray(player.bustedCards) && player.bustedCards.every(id => integer(id) && (player.cards as Card[]).some(c => c.id === id)) && new Set(player.bustedCards).size === player.bustedCards.length)))) return null;
-    if (!game.players.some(player => player.kind === "human")) return null;
     const pending = (value: unknown) => object(value) && seat(value.source) && isCard(value.card)
       && (game.mode === "classic"
         ? ["freeze", "three", "chance"].includes(value.card.type) && (value.card.type === "chance" ? value.give === true : value.give === undefined || value.give === false) && value.resolving === undefined

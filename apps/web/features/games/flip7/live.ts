@@ -5,10 +5,15 @@ import { lobbyListSchema, roomSyncSchema, type Lobby, type RoomSync } from "@cro
 export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (items: Lobby[]) => void, onClosed: (message: string) => void) {
   const handlers=useRef({onRoom,onLobbies,onClosed});
   useEffect(()=>{handlers.current={onRoom,onLobbies,onClosed};});
-  const [connected,setConnected]=useState(false);
+  const streamKey=enabled?(code ?? "directory"):null;
+  const [connection,setConnection]=useState<{key:typeof streamKey;connected:boolean}>({key:null,connected:false});
+  const confirmedVersion=useRef(version);
+  useEffect(()=>{confirmedVersion.current=version;},[version]);
   useEffect(()=>{
     if(!enabled)return;
-    const source=new EventSource(`/api/v1/matches/live${code?`?code=${code}&afterVersion=${version}`:""}`);
+    const key=code ?? "directory";
+    const setConnected=(connected:boolean)=>setConnection({key,connected});
+    const source=new EventSource(`/api/v1/matches/live${code?`?code=${code}&afterVersion=${confirmedVersion.current}`:""}`);
     source.addEventListener("room",event=>{
       try { const sync=roomSyncSchema.parse(JSON.parse(event.data)); handlers.current.onRoom(sync); setConnected(true); }
       catch { source.close();setConnected(false);handlers.current.onClosed("Não foi possível sincronizar a sala. Recarregue a página."); }
@@ -17,11 +22,15 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
       try { handlers.current.onLobbies(lobbyListSchema.parse(JSON.parse(event.data)).items);setConnected(true); }
       catch { source.close();setConnected(false); }
     });
-    source.addEventListener("closed",event=>{source.close();setConnected(false);const data=JSON.parse(event.data);handlers.current.onClosed(data.message);});
+    source.addEventListener("closed",event=>{
+      source.close();setConnected(false);
+      let message="A conexão com a sala foi encerrada.";
+      try{const data=JSON.parse(event.data);if(typeof data.message==="string")message=data.message;}catch{/* Keep the connection closed on malformed data. */}
+      handlers.current.onClosed(message);
+    });
     source.onerror=()=>setConnected(false);
     return()=>{source.close();};
     // The stream persists across versions; SSE reconnect resends confirmed events.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[code,enabled]);
-  return connected;
+  return connection.key===streamKey && connection.connected;
 }

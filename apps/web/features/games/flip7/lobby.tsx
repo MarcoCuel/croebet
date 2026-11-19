@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { CreateMatch, Lobby, RoomSync } from "@croebet/shared";
+import type { CreateMatch, Lobby, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,18 @@ import { Heading } from "@/components/shared/heading";
 import type { InitialMatches } from "./server-matches";
 import type { GameOptions } from "./types";
 import { modeLabel } from "./presentation";
-import { createServerMatch, changeLobby, rememberStart } from "./api";
+import { createServerMatch, changeLobby, rememberStart, updateServerLobby } from "./api";
 import { useMatchLive } from "./live";
+import { KickPlayer } from "./kick-player";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
+
+function SetupFields({options,capacity,onOptions,onCapacity,minimum=2}:{options:GameOptions;capacity:number;onOptions:(options:GameOptions)=>void;onCapacity:(capacity:number)=>void;minimum?:number}) {
+  return <>
+    <Field>Versão<Select aria-label="Versão do Flip7" value={options.mode} onChange={e=>onOptions({mode:e.target.value as GameOptions["mode"],brutal:false})}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
+    {options.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal=>onOptions({...options,brutal})}/></Field>}
+    <Field>Limite de jogadores<Select aria-label="Limite de jogadores" value={capacity} onChange={e=>onCapacity(Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<minimum}>{n}</option>)}</Select></Field>
+  </>;
+}
 
 export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(options:GameOptions)=>ReactNode}) {
   const router=useRouter();
@@ -26,8 +35,10 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const [capacity,setCapacity]=useState(preferences.count);
   const [options,setOptions]=useState<GameOptions>({mode:preferences.mode,brutal:preferences.brutal});
   const [busy,setBusy]=useState(false);
+  const [editing,setEditing]=useState(false);
   const [error,setError]=useState(initial.error);
   const pendingCreate=useRef<CreateMatch|null>(null);
+  const pendingUpdate=useRef<UpdateLobby|null>(null);
   const pending=useRef<{key:string;id:string;version?:number}|null>(null);
   const navigating=useRef(false);
   useEffect(()=>{try{saveSetupPreferences({count:capacity,...options});}catch{/* Preferences are optional. */}},[capacity,options]);
@@ -69,28 +80,51 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
             <Avatar className="size-10"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
             <span className="min-w-0 flex-1 truncate">{person.username}</span>
             {person.userId===room.hostId && <span className="text-xs text-muted">Host</span>}
+            {host && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={person.username} disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")setRoom(current=>current && current.version>response.version?current:response);}}/>}
           </li>)}
         </ul>
         <p className="text-sm text-muted" role="status">{!connected?"Reconectando à sala…":host?"Você pode iniciar com pelo menos 2 jogadores.":"Aguardando o host iniciar a partida."}</p>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex flex-wrap gap-3">
           {!member?<Button disabled={busy || !connected || room.participants.length>=room.capacity} loading={busy} onClick={()=>act(room,"join")}>Entrar na sala</Button>:<>
-            {host && <Button disabled={busy || !connected || room.participants.length<2} loading={busy} onClick={()=>act(room,"start")}>Iniciar partida</Button>}
+            {host && <Button disabled={busy || !connected || editing || room.participants.length<2} loading={busy} onClick={()=>act(room,"start")}>Iniciar partida</Button>}
             <Button variant="outline" disabled={busy} onClick={()=>act(room,"leave")}>Sair do lobby</Button>
           </>}
           <Button variant="ghost" onClick={()=>router.push("/jogos/flip7")}>Ver salas</Button>
         </div>
       </Card>
-      <Card>{rules(room.options)}</Card>
+      <Card className="space-y-4">
+        {host && (editing?<>
+          <Heading variant="section">Configuração da sala</Heading>
+          <fieldset disabled={busy} className="space-y-4">
+            <SetupFields options={options} capacity={capacity} onOptions={setOptions} onCapacity={setCapacity} minimum={room.participants.length}/>
+            <div className="flex flex-wrap gap-3">
+              <Button loading={busy} disabled={!connected || capacity<room.participants.length} onClick={async()=>{
+                if(busy)return;
+                setBusy(true);setError("");
+                const payload={capacity,options,expectedVersion:room.version};
+                if(!pendingUpdate.current || JSON.stringify({...pendingUpdate.current,commandId:undefined})!==JSON.stringify(payload))pendingUpdate.current={...payload,commandId:crypto.randomUUID()};
+                try{
+                  const response=await updateServerLobby(room.code,pendingUpdate.current);
+                  pendingUpdate.current=null;
+                  if(response.status==="lobby")setRoom(current=>current && current.version>response.version?current:response);
+                  setEditing(false);
+                }catch(e){setError(e instanceof Error?e.message:"Não foi possível alterar a sala.");}
+                finally{setBusy(false);}
+              }}>Salvar configuração</Button>
+              <Button variant="ghost" onClick={()=>{setEditing(false);pendingUpdate.current=null;}}>Cancelar</Button>
+            </div>
+          </fieldset>
+        </>:<Button variant="secondary" disabled={busy || !connected} onClick={()=>{setOptions(room.options);setCapacity(room.capacity);setEditing(true);}}>Alterar configuração</Button>)}
+        {rules(room.options)}
+      </Card>
     </div>;
   }
   return <div className="mx-auto grid w-full max-w-5xl items-start gap-6 py-6 sm:py-12 lg:grid-cols-2">
     <Card className="space-y-5">
       <Heading variant="section">Criar lobby</Heading>
       <fieldset disabled={busy} className="space-y-4">
-        <Field>Versão<Select aria-label="Versão do Flip7" value={options.mode} onChange={e=>setOptions({mode:e.target.value as GameOptions["mode"],brutal:false})}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
-        {options.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={options.brutal} onCheckedChange={brutal=>setOptions({...options,brutal})}/></Field>}
-        <Field>Limite de jogadores<Select aria-label="Limite de jogadores" value={capacity} onChange={e=>setCapacity(Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n}>{n}</option>)}</Select></Field>
+        <SetupFields options={options} capacity={capacity} onOptions={setOptions} onCapacity={setCapacity}/>
         <p className="text-sm text-muted">A partida pode começar com 2 pessoas, sem preencher todas as vagas.</p>
         <Button className="w-full" loading={busy} onClick={async()=>{
           if(!userId){openLogin();return;}

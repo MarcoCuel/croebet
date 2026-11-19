@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Jogo em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots permanecem no motor para testes, desativados no fluxo público. Motor e partidas ficam na API/PostgreSQL; Croins permanecem bloqueados. Pontos não viram Croins nem atualizam rankings/conquistas.
+Jogo gratuito em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots não são adicionados na criação: assumem vagas após abandono ou expulsão durante o jogo. Motor e partidas ficam na API/PostgreSQL; Croins permanecem bloqueados. Pontos não viram Croins nem atualizam rankings/conquistas.
 
 A execução segue a [base compartilhada dos jogos](backend-architecture.md#base-compartilhada-dos-jogos), com regras específicas do Flip 7. Não há importação de snapshots locais. [Operação e contratos](backend-architecture.md#partidas-livres-integradas).
 
@@ -36,7 +36,9 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 ## Persistência e navegação
 
 - Código de 12 caracteres em `?partida=CODIGO`. Contas autenticadas veem lobbies abertos; após o início, somente participantes acessam a mesa. Listagem/retomada carregadas no servidor; indisponibilidade é distinta de ausência. Sem sessão, criar usa o login existente.
-- Lobbies abertos atualizam ao vivo e mostram ocupação/limite. Entrar/sair só é permitido antes do início; ao sair, o host passa para quem entrou primeiro depois dele. Última saída fecha a sala. Navegar, desconectar ou recarregar mantém a participação; não há substituição por bot nem timeout automático. Durante o jogo, Abandonar encerra a partida para todos, com confirmação explícita. Jogar novamente volta à criação de lobby e mantém o resultado anterior.
+- Lobbies abertos atualizam ao vivo e mostram ocupação/limite. O host pode alterar versão, Brutal e capacidade antes do início, sem reduzir a capacidade abaixo da ocupação; alterações usam a versão confirmada e chegam a todos por SSE. Entrar/sair só é permitido antes do início; ao sair, o host passa para o participante mais antigo. Última saída fecha a sala.
+- O host pode expulsar outra pessoa no lobby ou durante o jogo, com confirmação. No lobby, isso remove a participação e libera a vaga; não é um banimento. Durante a partida, expulsão ou abandono transfere permanentemente o controle para um bot normal, conservando cartas, pontos e escolhas pendentes. Os demais continuam jogando; a conta que saiu não pode retomar o controle. Se o host abandona, a função passa à pessoa mais antiga ainda no controle de uma vaga. Sem humanos restantes, a partida gratuita é encerrada.
+- Navegar, desconectar ou recarregar mantém a participação. Não há timeout ou substituição automática por ausência: a mesa aguarda indefinidamente, e o host pode expulsar manualmente. Jogar novamente volta à criação de lobby e mantém o resultado anterior.
 - Estado e automações confirmam no banco antes da apresentação. Respostas incluem frames de ações já aplicadas para a fila visual. Reload usa o estado confirmado sem repetir compras nem importar animações antigas.
 - Decisão humana usa ID de comando e versão esperada. Resposta incerta permite repetir o mesmo ID; atualizações remotas recuperam eventos ordenados ou snapshot. Não enviar `step`, `next`, seed, pontuação ou snapshot para autorizar jogadas.
 - Preferências em `croebet:flip7:setup`: modalidade, Brutal e limite de lugares; sem nomes/tipos. Fallback: Clássico, dois lugares, sem Brutal. Não ler nem converter partidas do localStorage; não é necessário preencher todas as vagas para iniciar.
@@ -52,10 +54,12 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 
 ## Economia pendente
 
-Direção do modo com Croins: mesma entrada por lugar, vencedores dividem pote, empates rateados em inteiros e sobras pela ordem dos lugares; não gerar transações de valor zero. Regras econômicas de desconexão, abandono e devolução precisam ser definidas antes de habilitar. Não transportar contribuições simuladas, recibos ou carteira do protótipo para a API.
+Implementação futura, após concluir o gratuito. O host escolherá a entrada, igual por lugar. Saldo insuficiente será informado e impedirá entrar no lobby; a cobrança acontecerá ao iniciar, com nova validação atômica do saldo de todos. Vencedores dividem o pote, empates são rateados em inteiros e sobras seguem a ordem dos lugares; não gerar transações de valor zero.
+
+Abandono voluntário perderá a entrada, e um bot assumirá enquanto os demais continuam. Desconexão não será abandono nem terá prazo automático. Antes de habilitar, ainda é necessário definir efeitos econômicos da expulsão, destino do prêmio de uma vaga controlada por bot e devoluções em cancelamentos/falhas. Não transportar contribuições simuladas, recibos ou carteira do protótipo para a API.
 
 ## Referências e verificação
 
 - Referência da adaptação clássica: [implementação analisada em 17/11/2026](https://flip-7-618523404455.us-west1.run.app/), que credita Eric Olsen (jogo), Dirk Aporius e Google AI Studio (implementação), com cabeçalhos SPDX Apache-2.0 nos módulos consultados. Não incorporamos scripts remotos, proxy ou service worker dessa referência.
 - Vingança: [manual The Op, Edition 1](https://cdn.shopify.com/s/files/1/0611/3958/3198/files/26_FLIP_7_VENGEANCE_RULES_C.pdf?v=1770853610) e [FAQ oficial](https://theop.games/pages/flip-7-wav-faqs). As escolhas diretas de ações acima são decisões específicas da Croebet.
-- Testes atuais: `apps/api/tests/flip7*.test.mjs` para regras, bots e conservação; testes de matches para contratos, executor, autorização, transações e retries; testes web para preferências/apresentação e E2E com duas contas para lobby, início com vagas livres, turnos, host, resposta perdida, retomada e ausência de bots/Croins. Comandos em [Validação](backend-architecture.md#validação). Não preservar testes exclusivos de formatos descartados ao substituir persistência.
+- Testes atuais: `apps/api/tests/flip7*.test.mjs` para regras, bots e conservação; testes de matches para contratos, executor, autorização, transações, retries e substituição de controle; testes web para preferências/apresentação e E2E com duas contas para lobby, edição de configuração, início com vagas livres, turnos, host, expulsão, abandono, resposta perdida, retomada e ausência de criação com bots/Croins. Fixtures SSE preservam as diretivas de transmissão sem transformação da API para não acumular eventos no proxy. Comandos em [Validação](backend-architecture.md#validação). Não preservar testes exclusivos de formatos descartados ao substituir persistência.
