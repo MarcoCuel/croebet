@@ -73,7 +73,7 @@ export function AuthDialog({
           </Field>
           <div className="grid gap-1.5">
             <Field htmlFor="auth-password">Senha</Field>
-            <PasswordInput id="auth-password" name="password" autoComplete={isRegistering ? "new-password" : "current-password"} minLength={isRegistering ? 15 : 1} maxLength={128} disabled={pending} required />
+            <PasswordInput id="auth-password" name="password" autoComplete={isRegistering ? "new-password" : "current-password"} minLength={isRegistering ? 8 : 1} maxLength={128} disabled={pending} required />
           </div>
           <Button className="mt-1" type="submit" loading={pending}>
             {isRegistering ? "Criar conta" : "Entrar"}
