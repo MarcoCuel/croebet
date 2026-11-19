@@ -15,7 +15,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   if (path === "/api/v1/navigation") return { status: 200, data: { main: [], footer: [] } };
   if (failure && path.includes("games")) return { status: 503, data: {} };
   if (path === "/api/v1/admin/games") return { status: 200, data: { items: [game] } };
-  if (path === "/api/v1/admin/games/flip7") {
+  if (path === `/api/v1/admin/games/${id}`) {
     if (method === "PATCH") {
       if (body.version !== game.version) return { status: 409, data: { error: { message: "O jogo foi alterado." } } };
       game = { ...game, ...body, version: game.version + 1 } as GameRecord;
@@ -51,6 +51,7 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   await expect(page.getByText("Nenhum jogo encontrado.")).toBeVisible();
   await page.getByRole("searchbox", { name: "Buscar jogos no admin" }).fill("");
   await list.getByRole("link", { name: "Editar", exact: true }).click();
+  await expect(page).toHaveURL(`/admin/jogos/${id}`);
   await expect(page.getByLabel("Imagem de capa")).toHaveValue("");
   await page.getByLabel("Nome do jogo").fill("Flip da comunidade");
   await page.getByRole("button", { name: "Salvar jogo" }).click();

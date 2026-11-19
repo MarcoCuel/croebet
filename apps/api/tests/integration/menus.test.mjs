@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createDatabase } from '../../dist/db/client.js';
 import { readMenus, readNavigation, saveMenu } from '../../dist/modules/menus/service.js';
 test('PostgreSQL: menus independentes, páginas por ID, conflito e rollback da auditoria', async t => {
@@ -10,13 +10,16 @@ test('PostgreSQL: menus independentes, páginas por ID, conflito e rollback da a
   t.after(async () => { try {
     if (original) for (const menu of original.menus) await pool.query('update navigation_menus set items=$1,version=$2 where location=$3', [JSON.stringify(menu.items), menu.version, menu.location]);
     if (pageId) await pool.query('delete from pages where id=$1', [pageId]);
-    if (actor) await pool.query('delete from users where id=$1', [actor]);
+    if (actor) {
+      await pool.query('delete from sessions where user_id=$1', [actor]);
+      await pool.query('delete from users where id=$1', [actor]);
+    }
   } finally { await pool.end(); } });
   assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
   original = await readMenus(pool);
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   actor = (await pool.query("insert into users (username,display_name,password_hash,role) values ($1,$1,'fixture','admin') returning id", [`Menu_${suffix}`])).rows[0].id;
-  const hash = randomUUID();
+  const hash = randomBytes(32).toString('hex');
   await pool.query("insert into sessions (token_hash,user_id,expires_at,idle_expires_at) values ($1,$2,now()+interval '1 day',now()+interval '1 day')", [hash, actor]);
   pageId = (await pool.query("insert into pages (slug,title,document,published) values ($1,'Ajuda','[]',false) returning id", [`menu-${suffix}`])).rows[0].id;
   const main = original.menus.find(menu => menu.location === 'main');
@@ -26,7 +29,7 @@ test('PostgreSQL: menus independentes, páginas por ID, conflito e rollback da a
   assert.equal(races.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(races.find(result => result.status === 'rejected').reason.code, 'VERSION_CONFLICT');
   assert.deepEqual((await readNavigation(pool)).main.map(item => item.label), ['Comunidade']);
-  await pool.query('update pages set published=true,slug=$1 where id=$2', [`novo-${suffix}`, pageId]);
+  await pool.query("update pages set published=true,status='published',slug=$1 where id=$2", [`novo-${suffix}`, pageId]);
   const visible = (await readNavigation(pool)).main;
   assert.deepEqual(visible.map(item => item.label), ['Ajuda do site', 'Comunidade']);
   assert.equal(visible[0].href, `/novo-${suffix}`);

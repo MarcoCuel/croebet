@@ -34,7 +34,7 @@ test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessí
   await page.getByRole("button", { name: "Adicionar jogador 2", exact: true }).click();
   const participant = page.getByRole("dialog");
   await participant.getByLabel("Nome", { exact: true }).fill("Jogador 2");
-  await participant.getByLabel("Tipo", { exact: true }).selectOption("human");
+  await participant.getByRole("combobox", { name: /^Tipo/ }).selectOption("human");
   await participant.getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(participant).not.toBeVisible();
   await page.evaluate(() => { Math.random = () => 42 / 4294967296; });
@@ -52,7 +52,7 @@ test("Flip7 abre pelo catálogo, funciona localmente e mantém controles acessí
       await expect(page.locator("[data-flying-card]")).toHaveCount(1);
       await expect(page.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);
       await expect(page.locator("[data-flying-card]")).toHaveCount(0);
-      for (const hand of await page.getByRole("region", { name: /^Mesa de / }).all()) {
+      for (const hand of await page.getByRole("region", { name: "Mesa de Flip7", exact: true }).getByRole("region", { name: /^Mesa de / }).all()) {
         if (await hand.getByText("Estourou", { exact: true }).count()) {
           const cards = hand.getByRole("img");
           for (const card of await cards.all()) await expect(card).toHaveAccessibleName("Carta de costas");
@@ -94,12 +94,12 @@ test("Flip7 lista a partida salva e mantém a retomada após recarregar", async 
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
   const before = await board.innerText();
   await page.reload();
-  await expect(board).toHaveText(before);
+  await expect(board).toHaveText(before, { useInnerText: true });
   await page.goto("/jogos");
   await page.goto("/jogos/flip7");
   await expect(board).toHaveCount(0);
   await page.getByRole("button", { name: "Continuar partida", exact: true }).click();
-  await expect(board).toHaveText(before);
+  await expect(board).toHaveText(before, { useInnerText: true });
   await expect(page).toHaveURL(new RegExp(`partida=${code}`));
   await expect(page.getByLabel("Código da partida", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toHaveCount(0);
@@ -276,14 +276,14 @@ test("configuração suporta 12 vagas e preserva edição ao reduzir e aumentar 
   await page.getByRole("button", { name: "Adicionar jogador 12", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Nome", { exact: true }).fill("Bot 12");
-  await dialog.getByLabel("Tipo", { exact: true }).selectOption("normal");
+  await dialog.getByRole("combobox", { name: /^Tipo/ }).selectOption("normal");
   await dialog.getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(page.getByRole("button", { name: "Editar Bot 12", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "Número de jogadores" }).selectOption("2");
   await page.getByRole("combobox", { name: "Número de jogadores" }).selectOption("12");
   await page.getByRole("button", { name: "Editar Bot 12", exact: true }).click();
   await expect(dialog.getByLabel("Nome", { exact: true })).toHaveValue("Bot 12");
-  await expect(dialog.getByLabel("Tipo", { exact: true })).toHaveValue("normal");
+  await expect(dialog.getByRole("combobox", { name: /^Tipo/ })).toHaveValue("normal");
   await dialog.getByRole("button", { name: "Remover", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Adicionar jogador / })).toHaveCount(11);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -495,8 +495,7 @@ test("Flip7 Brutal retoma a escolha e permite tirar 15 de quem já estourou", as
   await page.reload();
   await page.getByRole("button", { name: "Tirar 15 pontos de Pessoa", exact: true }).click();
   await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
-  const saved = await savedGame(page);
-  expect(saved.history).toEqual([[29, -15]]);
+  await expect.poll(async () => (await savedGame(page)).history).toEqual([[29, -15]]);
   await page.reload();
   expect((await savedGame(page)).history).toEqual([[29, -15]]);
 });
@@ -576,8 +575,8 @@ test("Flip7 Brutal permite clicar em si mesmo para receber o bônus de 15", asyn
   game = transition(game, { type: "draw" });
   await restore(page, game);
   await page.getByRole("button", { name: "Ganhar 15 pontos para Marco", exact: true }).click();
+  await expect.poll(async () => (await savedGame(page)).history).toEqual([[44, 9]]);
   const saved = await savedGame(page);
-  expect(saved.history).toEqual([[44, 9]]);
   expect(saved.bonusTarget).toBeNull();
   await expect(page.getByRole("button", { name: "Próxima rodada", exact: true })).toHaveCount(0);
 });

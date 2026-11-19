@@ -1,12 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { PageShell } from "@/components/layout/page-shell";
 import { Heading } from "@/components/shared/heading";
 import { Button } from "@/components/ui/button";
 
+export const metadata: Metadata = { title: "Página não encontrada · Croebet" };
+
 export default function NotFound() {
   return (
     <PageShell className="flex items-center justify-center py-16">
-      <title>Página não encontrada · Croebet</title>
       <section className="w-full max-w-md text-center" aria-labelledby="not-found-title">
         <h1 className="text-display leading-tight font-bold tracking-display text-brand">
           404

@@ -106,11 +106,11 @@ test("rodapé tem itens independentes e páginas em rascunho ficam ocultas", asy
   await expect(page.getByText("Menu salvo.", { exact: true })).toBeVisible();
   const context = await browser.newContext({ javaScriptEnabled: false }); const visitor = await context.newPage();
   await visitor.goto("/");
-  await expect(visitor.locator("footer").getByRole("link")).toHaveText(["Histórico"]);
+  await expect(visitor.locator("footer").getByRole("link")).toHaveText(["Carteira"]);
   pages[1].published = true; pages[1].slug = "central-de-ajuda";
   await visitor.reload();
   await expect(visitor.locator("footer").getByRole("link", { name: "Ajuda", exact: true })).toHaveAttribute("href", "/central-de-ajuda");
-  await page.getByRole("listitem", { name: "Item 1", exact: true }).getByText("Histórico", { exact: true }).click();
+  await page.getByRole("listitem", { name: "Item 1", exact: true }).getByText("Carteira", { exact: true }).click();
   await page.getByRole("button", { name: "Remover item 1" }).click();
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
   await expect(page.getByRole("button", { name: "Salvar menu", exact: true })).toBeDisabled();
@@ -176,6 +176,7 @@ test("seletor pesquisa ícones, salva a escolha e permite removê-la", async ({ 
   await dialog.getByRole("button", { name: "Remover", exact: true }).click();
   await expect(trigger).toContainText("Selecionar ícone");
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
+  await expect(page.getByText("Menu salvo.", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Salvar menu", exact: true })).toBeDisabled();
   expect(menus[0].items[0].icon).toBeNull();
   await visitor.reload();

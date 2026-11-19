@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
 import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
 import { managementRequest } from "@/features/admin/management-api";
+import { GameCover } from "@/features/games/game-cover";
 
 export function AdminGames({ games }: { games: GameRecord[] }) {
   const router = useRouter();
@@ -30,20 +31,25 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
     <Card className="overflow-hidden p-0 sm:p-0">
       {visible.length ? <ul aria-label="Jogos" className="divide-y divide-contrast/6">
         {visible.map(game => <li key={game.slug} className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
-          <div className="min-w-0 flex-1 basis-48">
+          <div className="flex min-w-0 flex-1 basis-48 items-center gap-4">
+            <div className="size-14 shrink-0">
+              <GameCover imageUrl={game.imageUrl} name={game.name} iconClassName="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Link className="break-words font-semibold hover:underline" href={`/admin/jogos/${game.slug}`}>{game.name}</Link>
+              <Link className="break-words font-semibold hover:underline" href={`/admin/jogos/${game.id}`}>{game.name}</Link>
               <Badge variant={game.enabled ? "default" : "secondary"}>{game.enabled ? "Ativo" : "Inativo"}</Badge>
             </div>
             <p className="mt-1 text-xs text-muted">/jogos/{game.slug}</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild size="sm" variant="outline"><Link href={`/admin/jogos/${game.slug}`}>Editar</Link></Button>
+            <Button asChild size="sm" variant="outline"><Link href={`/admin/jogos/${game.id}`}>Editar</Link></Button>
             <Button size="sm" variant="outline" loading={pending === game.slug} disabled={!!pending} onClick={async () => {
               if (pending) return;
               setPending(game.slug);
               try {
-                await managementRequest(`/admin/games/${game.slug}`, gameSchema, "PATCH", { name: game.name, imageUrl: game.imageUrl, enabled: !game.enabled, version: game.version });
+                await managementRequest(`/admin/games/${game.id}`, gameSchema, "PATCH", { name: game.name, imageUrl: game.imageUrl, enabled: !game.enabled, version: game.version });
                 toast.success(game.enabled ? "Jogo pausado." : "Jogo ativado."); router.refresh();
               } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar o jogo."); }
               finally { setPending(null); }

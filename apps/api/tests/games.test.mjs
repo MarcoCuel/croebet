@@ -25,7 +25,7 @@ test('endpoints administrativos de jogos exigem sessão e proteção de escrita'
   await app.register(authRoutes, { pool, config: { APP_ENV: 'test' } });
   assert.equal((await app.inject('/api/v1/admin/games')).statusCode, 404);
   assert.equal((await app.inject('/api/v1/games/roleta')).statusCode, 404);
-  assert.equal((await app.inject({ url: '/api/v1/admin/games/flip7', method: 'PATCH', payload: input })).statusCode, 403);
+  assert.equal((await app.inject({ url: `/api/v1/admin/games/${row.id}`, method: 'PATCH', payload: input })).statusCode, 403);
 });
 function transaction(version, failAudit = false) {
   const calls = [];
@@ -33,7 +33,12 @@ function transaction(version, failAudit = false) {
     calls.push(sql);
     if (sql.startsWith('select id, role')) return { rows: [{ id: 'admin', role: 'admin', status: 'active' }] };
     if (sql.startsWith('select 1 from sessions')) return { rows: [{}] };
-    if (sql.startsWith('select * from games')) return { rows: [{ ...row, version }] };
+    if (sql.startsWith('select * from games')) {
+      assert.equal(sql, 'select * from games where id=$1 for update');
+      assert.deepEqual(params, [row.id]);
+      return { rows: [{ ...row, version }] };
+    }
+    if (sql.startsWith('update games')) { assert.match(sql, /where id=\$4/); assert.equal(params[3], row.id); }
     if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], version: version + 1 }] };
     if (failAudit && sql.startsWith('insert into admin_audit')) throw new Error('audit unavailable');
     return { rows: [] };
@@ -42,15 +47,27 @@ function transaction(version, failAudit = false) {
 }
 test('edição recusa versão obsoleta; status e auditoria confirmam juntos', async () => {
   const stale = transaction(2);
-  await assert.rejects(saveGame(stale.pool, 'admin', 'hash', 'flip7', input), { code: 'VERSION_CONFLICT' });
+  await assert.rejects(saveGame(stale.pool, 'admin', 'hash', row.id, input), { code: 'VERSION_CONFLICT' });
   assert.equal(stale.calls.some(sql => sql.startsWith('update')), false);
   assert.ok(stale.calls.includes('rollback'));
   const valid = transaction(1);
-  const game = await saveGame(valid.pool, 'admin', 'hash', 'flip7', { ...input, enabled: false });
+  const game = await saveGame(valid.pool, 'admin', 'hash', row.id, { ...input, enabled: false });
   assert.equal(game.enabled, false); assert.equal(game.version, 2); assert.equal(game.imageUrl, null);
   assert.ok(valid.calls.some(sql => sql.startsWith('insert into admin_audit')));
   assert.ok(valid.calls.includes('commit'));
   const failed = transaction(1, true);
-  await assert.rejects(saveGame(failed.pool, 'admin', 'hash', 'flip7', input));
+  await assert.rejects(saveGame(failed.pool, 'admin', 'hash', row.id, input));
   assert.ok(failed.calls.includes('rollback')); assert.equal(failed.calls.includes('commit'), false);
+});
+
+test('consulta administrativa identifica jogo pelo UUID e consulta pública pelo slug', async () => {
+  for (const admin of [true, false]) {
+    const identifier = admin ? row.id : row.slug;
+    const pool = { query: async (sql, params) => {
+      assert.ok(sql.includes(`where ${admin ? 'id' : 'slug'}=$1`));
+      assert.deepEqual(params, [identifier]);
+      return { rows: [row] };
+    } };
+    assert.equal((await readGame(pool, identifier, admin)).id, row.id);
+  }
 });

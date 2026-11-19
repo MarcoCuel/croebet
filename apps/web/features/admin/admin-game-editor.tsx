@@ -24,7 +24,7 @@ export function AdminGameEditor({ game }: { game: GameRecord }) {
       if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
       setPending(true);
       try {
-        await managementRequest(`/admin/games/${game.slug}`, gameSchema, "PATCH", parsed.data);
+        await managementRequest(`/admin/games/${game.id}`, gameSchema, "PATCH", parsed.data);
         toast.success("Jogo salvo."); router.push("/admin/jogos"); router.refresh();
       } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar o jogo."); }
       finally { setPending(false); }

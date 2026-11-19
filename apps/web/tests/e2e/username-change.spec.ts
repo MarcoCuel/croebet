@@ -1,4 +1,9 @@
+import { startPublicApi } from "../public-api-fixture";
 import { expect, test } from "@playwright/test";
+
+let closeApi: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { closeApi = await startPublicApi(() => null); });
+test.afterAll(async () => { await closeApi?.(); });
 
 test("configurações salvam usuário e exibem o bloqueio sem alterar o nome público", async ({ page }) => {
   let user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "tonho", displayName: "Tonho Público", role: "user", usernameChangeAvailableAt: null as string | null };

@@ -35,16 +35,16 @@ test('edição obsoleta é revertida antes de alterar conteúdo ou auditoria', a
     if (sql.startsWith('select * from pages')) return { rows: [{ version: 2 }] };
     return { rows: [] };
   }, release: () => calls.push('release') };
-  await assert.rejects(savePage({ connect: async () => client }, 'admin', 'hash', 'sobre', { ...input, version: 1 }), { code: 'VERSION_CONFLICT' });
+  await assert.rejects(savePage({ connect: async () => client }, 'admin', 'hash', '93089d02-0b34-4b78-9d3e-f2679c190b5c', { ...input, version: 1 }), { code: 'VERSION_CONFLICT' });
   assert.ok(calls.includes('rollback')); assert.equal(calls.at(-1), 'release');
   assert.equal(calls.some(sql => /^(update|insert)/.test(sql)), false);
 });
 test('página expõe autoria e datas confirmadas, preservando ausência de histórico', async () => {
   const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'ajuda', title: 'Ajuda', document: [], published: false, show_in_menu: false, version: 1 };
-  const historical = await readPage({ query: async () => ({ rows: [row] }) }, 'ajuda', true);
+  const historical = await readPage({ query: async () => ({ rows: [row] }) }, row.id, true);
   assert.equal(historical.createdAt, null); assert.equal(historical.lastEditedBy, null);
   const date = new Date('2026-11-19T05:00:00Z');
-  const edited = await readPage({ query: async () => ({ rows: [{ ...row, created_at: date, updated_at: date, published_at: date, last_edited_by: 'Tonho' }] }) }, 'ajuda', true);
+  const edited = await readPage({ query: async () => ({ rows: [{ ...row, created_at: date, updated_at: date, published_at: date, last_edited_by: 'Tonho' }] }) }, row.id, true);
   assert.equal(edited.createdAt, date.toISOString()); assert.equal(edited.updatedAt, date.toISOString());
   assert.equal(edited.publishedAt, date.toISOString()); assert.equal(edited.lastEditedBy, 'Tonho');
 });
@@ -57,7 +57,7 @@ test('agendamento exige data e conteúdo; estados editoriais e autor são valida
 });
 test('agenda vencida é projetada como publicada sem depender de tarefa em background', async () => {
   const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'ajuda', title: 'Ajuda', document: input.document, published: false, show_in_menu: false, status: 'scheduled', version: 1 };
-  const read = date => readPage({ query: async () => ({ rows: [{ ...row, publish_at: new Date(date) }] }) }, 'ajuda', true);
+  const read = date => readPage({ query: async () => ({ rows: [{ ...row, publish_at: new Date(date) }] }) }, row.id, true);
   const future = await read('2099-01-01T12:00:00Z');
   assert.equal(future.published, false); assert.equal(future.status, 'scheduled');
   const past = await read('2020-01-01T12:00:00Z');
@@ -88,10 +88,11 @@ test('exclusão verifica versão, registra auditoria e confirma junto com a remo
   const { deletePage } = await import('../dist/modules/pages/service.js');
   const before = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'ajuda', title: 'Ajuda', document: [], published: false, show_in_menu: false, version: 2 };
   const stale = pageTransaction(before);
-  await assert.rejects(deletePage(stale.pool, 'admin', 'hash', 'ajuda', 1), { code: 'VERSION_CONFLICT' });
+  await assert.rejects(deletePage(stale.pool, 'admin', 'hash', before.id, 1), { code: 'VERSION_CONFLICT' });
   assert.equal(stale.calls.some(call => call.sql.startsWith('delete')), false);
   const valid = pageTransaction(before);
-  assert.deepEqual(await deletePage(valid.pool, 'admin', 'hash', 'ajuda', 2), { ok: true });
+  assert.deepEqual(await deletePage(valid.pool, 'admin', 'hash', before.id, 2), { ok: true });
+  assert.ok(valid.calls.some(call => call.sql === 'select * from pages where id=$1 for update' && call.params[0] === before.id));
   assert.ok(valid.calls.some(call => call.sql.startsWith('delete from pages')));
   assert.ok(valid.calls.some(call => call.params?.includes('page.deleted')));
   assert.equal(valid.calls.at(-1).sql, 'commit');
@@ -99,6 +100,19 @@ test('exclusão verifica versão, registra auditoria e confirma junto com a remo
 
 test('lixeira permanece privada mesmo com um agendamento vencido', async () => {
   const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'ajuda', title: 'Ajuda', document: input.document, published: false, show_in_menu: true, status: 'trash', version: 2, publish_at: new Date('2020-01-01T12:00:00Z') };
-  const page = await readPage({ query: async () => ({ rows: [row] }) }, 'ajuda', true);
+  const page = await readPage({ query: async () => ({ rows: [row] }) }, row.id, true);
   assert.equal(page.status, 'trash'); assert.equal(page.published, false);
+});
+
+test('consulta administrativa usa o ID estável mesmo após trocar slug', async () => {
+  const id = '93089d02-0b34-4b78-9d3e-f2679c190b5c';
+  let slug = 'sobre';
+  const pool = { query: async (sql, params) => {
+    assert.match(sql, /where id=\$1/);
+    assert.deepEqual(params, [id]);
+    return { rows: [{ id, slug, title: 'Página', document: [], published: false, show_in_menu: false, version: 1 }] };
+  } };
+  assert.equal((await readPage(pool, id, true)).slug, 'sobre');
+  slug = 'nossa-historia';
+  assert.equal((await readPage(pool, id, true)).slug, 'nossa-historia');
 });

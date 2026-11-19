@@ -1,5 +1,50 @@
 # Arquitetura da primeira versão funcional
 
+## Execução real de integração e E2E — 19/11/2026
+
+Esta conferência substitui os bloqueios de ambiente dos registros anteriores. Foram usados Node **22.22.0**, pnpm **12.21.0** do `packageManager`, instalação com `pnpm install --frozen-lockfile` e Google Chrome instalado, nos projetos desktop e mobile. O Corepack local procura o antigo `pnpm.cjs`; a execução usou o ponto de entrada oficial `pnpm.mjs` da mesma versão, com um shim temporário, sem mudar o lockfile ou desativar verificações de instalação.
+
+PostgreSQL **18.7** foi iniciado em um container descartável exclusivo, vinculado ao loopback na porta 55439, sem usar Compose, credenciais ou volumes do desenvolvimento. `TEST_DATABASE_URL`, `DATABASE_URL` e `DATABASE_MIGRATION_URL` foram fixadas exclusivamente nesse destino, com `APP_ENV=test`. Na raiz, foram executados:
+
+```sh
+APP_ENV=test DATABASE_URL="$TEST_DATABASE_URL" pnpm db:migrate
+APP_ENV=test DATABASE_URL="$TEST_DATABASE_URL" pnpm db:seed
+pnpm test:integration
+```
+
+As 15 migrations (0000–0014) foram aplicadas desde banco vazio e `application_environment.environment='test'` foi confirmado antes das operações de teste. Uma primeira fixture defeituosa deixou resíduos somente nesse container; a repetição limpa usou outro banco vazio da mesma instância exclusiva. Após corrigir a limpeza, a suíte passou também ao repetir no mesmo banco, sem reset. A execução mais recente, com o backend recompilado e as páginas por ID, aprovou **8 testes, zero falhas**. `integration/overview.test.mjs` passou: agregação, fronteiras de Brasília, dias vazios, exclusão das contrapartidas da emissão e histórico de contas removidas. Nenhum banco de desenvolvimento ou produção foi migrado, semeado ou resetado.
+
+Os arquivos de integração agora executam sequencialmente (`--test-concurrency=1`), pois a verificação de último administrador depende do estado global do banco. As corridas de comandos dentro de cada cenário continuam concorrentes. A fixture de menus passou a usar hash de sessão com 64 caracteres, status editorial de publicação e remoção das sessões antes da conta.
+
+Os E2E foram executados na ordem padrão → sessão → páginas/menus → jogos. As fixtures HTTP na porta 3201 foram preservadas; elas validam a interface e não substituem PostgreSQL. Next usa `.next-e2e` e `tsconfig.e2e.json`, separados dos artefatos do servidor do usuário. O Playwright não reutiliza servidores existentes. Para pages/games foi preparado o build Turbopack, incluindo o destino de proxy correto no build e no runtime:
+
+```sh
+API_INTERNAL_URL=http://127.0.0.1:3201 NEXT_DIST_DIR=.next-e2e pnpm build
+pnpm test:e2e
+pnpm test:e2e --config playwright.session.config.ts
+pnpm test:e2e --config playwright.pages.config.ts
+pnpm test:e2e --config playwright.games.config.ts
+```
+
+Resultados das últimas execuções completas de cada comando, após as respectivas correções:
+
+| Comando | Aprovados | Falhos |
+| --- | ---: | ---: |
+| `pnpm test:integration` | 8 | 0 |
+| `pnpm test` | 167 | 0 |
+| `pnpm test:e2e` | 78 | 2 |
+| `pnpm test:e2e --config playwright.session.config.ts` | 72 | 2 |
+| `pnpm test:e2e --config playwright.pages.config.ts` | 22 | 0 |
+| `pnpm test:e2e --config playwright.games.config.ts` | 2 | 2 |
+
+Os 167 unitários se dividem em 96 web, 68 API e três contratos. `pnpm lint`, `pnpm typecheck` e `pnpm build` também foram repetidos e aprovados ao final; o build usou `NEXT_DIST_DIR=.next-e2e`. `next typegen` atualizou os tipos normais de rotas sem apagar os artefatos do servidor existente. Execuções diagnósticas anteriores incluíram falhas e interrupções; não são consideradas aprovações. A suíte games também pertence à seleção padrão, portanto suas duas falhas aparecem nos dois comandos, não representam quatro defeitos distintos.
+
+Correções de E2E: fixtures HTTP para catálogo, navegação, páginas e carteira; respostas 404 reais para recursos desconhecidos; seletores limitados ao painel/mão/alerta correto; campos select localizados pelo papel acessível; comparação da URL resolvida do avatar; navegação concluída antes de reload; confirmação de gravações antes de ler fixtures; toasts repetidos e contadores de filtros; movimento do ponteiro pelo submenu Radix antes do clique. A exigência dos estados e valores foi preservada. O título 404 passou a usar metadata e a ausência de jogo é tratada na página, sem lançar o erro durante a leitura dos metadados. Foi recuperado o acesso ao resgate de cupom no mobile pela página Carteira, reutilizando o mesmo modal e a API, sem alterar o cabeçalho compacto.
+
+**Falha remanescente de código/framework, não de ambiente:** Next.js 16.4.6 responde 404 para recursos dinâmicos inexistentes, mas entrega um shell `__next_error__` sem o conteúdo visível quando JavaScript está desativado. Reproduzido por inspeção HTTP e Chrome, tanto em `next dev` quanto em `next start`; corresponde ao [bug aberto next.js#100596](https://github.com/vercel/next.js/issues/100596). Afeta o jogo pausado (padrão/games) e o perfil inexistente (sessão), nos dois projetos. Os testes permanecem ativos e falhando; a reativação posterior do jogo dentro desse cenário não é alcançada. Não foi aplicada alteração experimental no framework nem substituída a resposta por sucesso HTTP. Não declarar essas três suítes aprovadas.
+
+Ao concluir, servidores e fixtures de teste estavam encerrados, portas 3100/3201/55439 livres, container e volume exclusivos removidos e o servidor existente na porta 3000 ativo. Alterações de outras frentes no workspace foram preservadas. Apostas públicas, ranking e conquistas continuam desabilitados; autenticação, permissões e carteira não voltaram ao localStorage. A persistência das partidas livres do Flip 7 permanece. Nenhum deploy ou alteração em serviços externos foi realizado.
+
 ## Visão geral integrada — 19/11/2026
 
 `GET /api/v1/admin/overview?days=1|7|30` exige sessão ativa e papel administrativo, conforme as demais consultas de gestão. Parâmetros extras e períodos não previstos são recusados. O contrato público é validado em `packages/shared/src/overview.ts`; nenhuma migration ou seed adicional é necessária.
@@ -26,7 +71,7 @@ A suíte Playwright de sessão/perfil/carteira/economia/administração foi tent
 
 Implementação de páginas transferida para o Fastify/PostgreSQL. `GET /api/v1/pages` retorna somente referências de páginas publicadas; `GET /api/v1/pages/:slug` retorna somente conteúdo publicado. Rascunhos e endereços inválidos/inexistentes recebem 404, sem fallback para conteúdo do navegador. Leituras usam no-store. O Next consulta conteúdo e navegação no servidor; falha de serviço apresenta tentativa novamente, distinta de ausência. Sidebar e rodapé usam exclusivamente os menus independentes descritos abaixo; publicar uma página não cria itens de navegação. Revalidação posterior preserva dados confirmados durante falhas.
 
-`GET /api/v1/admin/pages`, `GET /api/v1/admin/pages/:slug`, `POST /api/v1/admin/pages` e `PATCH /api/v1/admin/pages/:slug` usam as proteções administrativas existentes: papel validado na API, sessão revalidada na transação, Origin/CSRF e limites nas escritas. Páginas têm UUID estável, slug único, título, documento JSON validado, publicação, presença no menu e versão positiva. Criação exige versão zero; edição exige a versão atual e incrementa-a sob lock. Conflitos pedem recarregamento, sem sobrescrever outra edição. Alterar slug invalida o endereço anterior, sem aliases. Publicação vazia e rotas reservadas (inclusive perfil) são recusadas. Auditoria e conteúdo confirmam juntos.
+`GET /api/v1/admin/pages`, `GET /api/v1/admin/pages/:id`, `POST /api/v1/admin/pages` e `PATCH /api/v1/admin/pages/:id` usam as proteções administrativas existentes: papel validado na API, sessão revalidada na transação, Origin/CSRF e limites nas escritas. O editor usa `/admin/paginas/[id]`; leitura, edição e exclusão administrativas identificam a página exclusivamente pelo UUID, mantendo a URL do editor ao alterar título ou slug. Não há aliases administrativos por slug. Páginas têm UUID estável, slug único, título, documento JSON validado, publicação, presença no menu e versão positiva. Criação exige versão zero; edição exige a versão atual e incrementa-a sob lock. Conflitos pedem recarregamento, sem sobrescrever outra edição. Alterar slug invalida o endereço anterior, sem aliases. Publicação vazia e rotas reservadas (inclusive perfil) são recusadas. Auditoria e conteúdo confirmam juntos.
 
 Contratos e validação do documento rico ficam em `packages/shared`; o frontend mantém seu renderizador seguro de tags permitidas e não interpreta HTML armazenado. Conteúdo tem limites de profundidade, nós e tamanho; tags executáveis e atributos adicionais são recusados. O editor e o layout existentes foram preservados. A lista e o formulário administrativo recebem dados iniciais via HTTP no servidor; rascunhos nunca são enviados à navegação pública.
 
@@ -38,7 +83,7 @@ A migration `0011_perpetual_goliath` acrescenta status editorial (`draft`, `pend
 
 A listagem administrativa de páginas tem busca por título/slug (sem distinguir acentos ou caixa), filtros com contadores em botões secondary/ghost e uma lista simples em Card, ordenada por título, sem cabeçalhos de colunas. Cada linha apresenta título, status, slug e ações com os botões do design system. Todos exclui o lixo; estados adicionais aparecem quando presentes. A busca combina com o status selecionado. As páginas iniciais continuam carregadas no servidor.
 
-A migration `0012_zippy_blockbuster` adiciona o status `trash`. Mover para o lixo usa `PATCH /api/v1/admin/pages/:slug`, despublica a página e remove seu agendamento; restaurar a mantém como rascunho. Páginas no lixo não aparecem publicamente nem nos menus e continuam reservando o slug. As operações usam versão atual, sessão, papel, CSRF, rate limit, transação e auditoria de edição. `DELETE /api/v1/admin/pages/:slug` continua sendo exclusão permanente, com confirmação pela interface do lixo e auditoria `page.deleted`. Aplique as migrations antes de usar a lixeira.
+A migration `0012_zippy_blockbuster` adiciona o status `trash`. Mover para o lixo usa `PATCH /api/v1/admin/pages/:id`, despublica a página e remove seu agendamento; restaurar a mantém como rascunho. Páginas no lixo não aparecem publicamente nem nos menus e continuam reservando o slug. As operações usam versão atual, sessão, papel, CSRF, rate limit, transação e auditoria de edição. `DELETE /api/v1/admin/pages/:id` continua sendo exclusão permanente, com confirmação pela interface do lixo e auditoria `page.deleted`. Aplique as migrations antes de usar a lixeira.
 
 Validação atual: lint, TypeScript, suíte unitária e build com Webpack aprovados. Os testes de páginas cobrem estados editoriais, validação de agenda e autor, projeção de agenda vencida, conflito de versão, privacidade e exclusão auditada. Suíte PostgreSQL preparada para agendamento temporal, estados privados e exclusão; E2E preparado para modais, criação, edição, agendamento e exclusão em desktop/mobile. Migration e E2E foram tentados, mas a sessão bloqueou a conexão PostgreSQL e a porta 3100 com EPERM. Não houve validação de integração real dessa revisão.
 
@@ -492,7 +537,7 @@ Validação desta rodada: `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm bui
 
 ## Carteira simplificada e extrato integrado — 19/11/2026
 
-A página `/historico` consulta saldo e primeiras 20 movimentações no servidor via HTTP autenticado, sem cache e sem acesso direto ao banco. Mostra um Card de saldo disponível com o ícone padrão da Croin e um extrato com título, data, ícone e valor. Não mostra totais acumulados, gráficos, status ou saldo por linha. O modal de cada lançamento contém valor, saldo resultante, data completa e referência da operação quando disponível. Datas usam America/Sao_Paulo; Hoje/Ontem são calculados a partir do mesmo instante enviado pelo servidor para evitar divergência de hidratação.
+A página `/carteira` consulta saldo e primeiras 20 movimentações no servidor via HTTP autenticado, sem cache e sem acesso direto ao banco. Mostra um Card de saldo disponível com o ícone padrão da Croin e um extrato com título, data, ícone e valor. Não mostra totais acumulados, gráficos, status ou saldo por linha. O modal de cada lançamento contém valor, saldo resultante, data completa e referência da operação quando disponível. Datas usam America/Sao_Paulo; Hoje/Ontem são calculados a partir do mesmo instante enviado pelo servidor para evitar divergência de hidratação.
 
 `GET /api/v1/me/transactions` aceita `direction=all|income|expense` (padrão all), aplicado no SQL antes da paginação, e retorna também `reference` quando disponível. A listagem mantém o botão Carregar mais em lotes de 20. Falhas não são tratadas como saldo zero ou extrato vazio; a primeira consulta oferece nova tentativa e falhas ao carregar mais preservam os itens confirmados. Mudanças de filtro usam navegação do App Router; login/logout/exclusão atualizam os Server Components. O acesso pelo painel de configurações leva à mesma página, evitando um segundo extrato com dados provisórios.
 
@@ -575,7 +620,7 @@ As listagens HTTP de usuários e cupons retornam `counts` por status, incluindo 
 
 O catálogo deixa de vir de constantes do frontend/localStorage. A tabela `games` guarda slug de implementação, nome, status ativo, URL opcional de capa e versão. A migration `0013_adorable_grim_reaper` cria somente o schema; `pnpm db:seed` cadastra apenas `flip7` com nome “Flip 7”, ativo e sem imagem. O seed é idempotente e não sobrescreve edições do administrador. Novos jogos executáveis continuam exigindo implementação; não há cadastro de slugs arbitrários no painel.
 
-`GET /api/v1/games` e `GET /api/v1/games/:slug` publicam exclusivamente jogos ativos. `GET /api/v1/admin/games`, `GET /api/v1/admin/games/:slug` e `PATCH /api/v1/admin/games/:slug` exigem administrador. Escrita usa Origin/CSRF, limite por conta, revalidação de sessão na transação, bloqueio do jogo, versão esperada e auditoria atômica. Nome, ativação e URL da capa são editáveis; URLs aceitam HTTPS ou caminho local absoluto, sem conteúdo executável.
+`GET /api/v1/games` e `GET /api/v1/games/:slug` publicam exclusivamente jogos ativos. `GET /api/v1/admin/games`, `GET /api/v1/admin/games/:id` e `PATCH /api/v1/admin/games/:id` exigem administrador. Escrita usa Origin/CSRF, limite por conta, revalidação de sessão na transação, bloqueio do jogo, versão esperada e auditoria atômica. O editor administrativo usa `/admin/jogos/[id]` e as operações administrativas identificam o jogo pelo UUID, sem aliases por slug. Nome, ativação e URL da capa são editáveis; URLs aceitam HTTPS ou caminho local absoluto, sem conteúdo executável.
 
 Home, listagem pública, título na navegação e página do jogo consultam a API pelo servidor, com no-store. Jogo pausado não aparece no catálogo e sua rota responde 404 antes de montar o motor. Falha de serviço apresenta tentativa novamente, distinta de catálogo vazio. O admin usa uma única superfície com linhas separadas, busca, filtros, status e ações Editar/Pausar/Ativar, no padrão de páginas e usuários. Sem imagem, mostra placeholder; não reutiliza automaticamente `/art/flip7.webp`. O campo de imagem recebe URL/caminho; esta entrega não adiciona upload de arquivos.
 

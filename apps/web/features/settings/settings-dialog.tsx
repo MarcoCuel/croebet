@@ -22,7 +22,7 @@ import Link from "next/link";
 import { BalanceValue } from "@/features/wallet/balance";
 import { cn } from "@/lib/utils";
 
-const sections = ["Geral", "Aparência", "Conta", "Histórico"] as const;
+const sections = ["Geral", "Aparência", "Conta", "Carteira"] as const;
 const themes = [
   { value: "light", label: "Claro", icon: Sun },
   { value: "dark", label: "Escuro", icon: Moon },
@@ -157,7 +157,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <DeleteAccount onDeleted={onClose} />
           </div>
         )}
-        {section === "Histórico" && <Button asChild variant="secondary"><Link href="/historico" onClick={onClose}>Ver histórico de Croins</Link></Button>}
+        {section === "Carteira" && <Button asChild variant="secondary"><Link href="/carteira" onClick={onClose}>Ver carteira</Link></Button>}
       </section>
     </>
   );

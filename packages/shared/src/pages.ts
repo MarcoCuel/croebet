@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { isRichTextDocument, richTextPlainText } from "./rich-text.js";
 
-const reserved = new Set(["admin", "api", "jogos", "apostas", "rankings", "conquistas", "historico", "perfil", "nova", "_next", "favicon", "robots", "sitemap"]);
+const reserved = new Set(["admin", "api", "jogos", "apostas", "rankings", "conquistas", "carteira", "perfil", "nova", "_next", "favicon", "robots", "sitemap"]);
 export const pageSlugSchema = z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).refine(slug => !reserved.has(slug), "Este endereço é reservado.");
 const documentSchema = z.custom<import("./rich-text.js").RichTextDocument>(isRichTextDocument, "Conteúdo inválido.")
   .refine(value => JSON.stringify(value).length <= 45000, "Conteúdo muito longo.");

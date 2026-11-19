@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Balance } from "@/features/wallet/balance";
+import { RedeemButton } from "@/features/wallet/redeem-button";
 import { formatBalance } from "@/features/wallet/wallet";
 import { cn } from "@/lib/utils";
 import type { getWalletHistory } from "@/features/wallet/server-wallet";
@@ -84,18 +85,21 @@ export function WalletHistory({ initial, direction, now }: {
   return (
     <div className="grid gap-8">
       <Card className="grid gap-2">
-        <p className="text-sm text-muted">Saldo disponível</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted">Saldo disponível</p>
+          <div className="md:hidden"><RedeemButton /></div>
+        </div>
         <p className="flex flex-wrap items-center gap-2 text-3xl font-semibold tabular-nums sm:text-4xl">
           <Balance key={username} value={walletReady ? balance : initial.balance} /> <span aria-hidden="true" className="text-lg font-normal text-muted">Croins</span>
         </p>
       </Card>
       <section aria-labelledby="transactions-title">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="transactions-title" className="text-lg font-semibold">Histórico</h2>
+          <h2 id="transactions-title" className="text-lg font-semibold">Histórico de transações</h2>
           <nav aria-label="Filtrar movimentações" className="flex gap-1">
             {filters.map(({ value, label }) => (
               <Button key={value} asChild size="sm" variant={direction === value ? "secondary" : "ghost"}>
-                <Link href={value === "all" ? "/historico" : `/historico?direction=${value}`} scroll={false} aria-current={direction === value ? "page" : undefined}>{label}</Link>
+                <Link href={value === "all" ? "/carteira" : `/carteira?direction=${value}`} scroll={false} aria-current={direction === value ? "page" : undefined}>{label}</Link>
               </Button>
             ))}
           </nav>

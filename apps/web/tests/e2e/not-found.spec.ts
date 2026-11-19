@@ -1,4 +1,9 @@
+import { startPublicApi } from "../public-api-fixture";
 import { expect, test } from "@playwright/test";
+
+let closeApi: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { closeApi = await startPublicApi(() => null); });
+test.afterAll(async () => { await closeApi?.(); });
 
 test("404 personalizada mantém navegação e caminhos de retorno", async ({ page }) => {
   for (const path of ["/pagina-inexistente", "/jogos/inexistente", "/rota/inexistente/aninhada"]) {

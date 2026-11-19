@@ -10,7 +10,7 @@ export type SitePage = {
 
 const reservedSlugs = new Set([
   "admin", "api", "jogos", "apostas", "rankings", "conquistas",
-  "historico", "nova", "_next", "favicon", "robots", "sitemap",
+  "carteira", "nova", "_next", "favicon", "robots", "sitemap",
 ]);
 
 export function validPageSlug(slug: string) {

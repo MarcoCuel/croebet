@@ -69,7 +69,7 @@ export function Topbar({
         "/apostas": "Apostas",
         "/rankings": "Rankings",
         "/conquistas": "Conquistas",
-        "/historico": "Histórico",
+        "/carteira": "Carteira",
       } as Record<string, string>
     )[pathname] ??
     (pathname === "/perfil" || pathname.startsWith("/perfil/") ? "Perfil" : "Página não encontrada");
@@ -150,7 +150,7 @@ export function Topbar({
               variant="ghost"
               className="min-h-0 min-w-0 shrink px-0.5 py-0 font-normal text-foreground"
             >
-              <Link href="/historico" aria-label="Ver histórico de Croins">
+              <Link href="/carteira" aria-label="Ver carteira">
                 <Balance key={username} value={walletReady ? balance : null} />
               </Link>
             </Button>
@@ -162,7 +162,7 @@ export function Topbar({
               variant="secondary"
               className="min-w-0 shrink px-2 font-normal md:hidden"
             >
-              <Link href="/historico" aria-label="Ver histórico de Croins">
+              <Link href="/carteira" aria-label="Ver carteira">
                 <Balance key={username} value={walletReady ? balance : null} />
               </Link>
             </Button>

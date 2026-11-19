@@ -1,4 +1,9 @@
+import { startPublicApi } from "../public-api-fixture";
 import { expect, test } from "@playwright/test";
+
+let closeApi: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { closeApi = await startPublicApi(() => null); });
+test.afterAll(async () => { await closeApi?.(); });
 
 test("rankings e conquistas ficam indisponíveis até uma próxima versão", async ({ page, isMobile }) => {
   await page.goto("/");

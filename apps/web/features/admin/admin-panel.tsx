@@ -45,7 +45,8 @@ export function AdminPanel({
     <div className="min-w-0">
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[12rem_minmax(0,1fr)]">
         <nav
-          className="flex flex-wrap gap-1 lg:grid"
+          className="flex flex-wrap gap-1 lg:sticky lg:top-[calc(var(--header-height)+1rem)] lg:grid lg:max-h-[calc(100dvh-var(--header-height)-2rem)] lg:overflow-y-auto"
+          data-lenis-prevent
           aria-label="Seções do admin"
         >
           {sections.map(({ id, label, Icon }) => (

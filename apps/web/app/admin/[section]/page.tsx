@@ -3,7 +3,7 @@ import { AdminMarkets } from "@/features/admin/admin-markets";
 import { gamesSchema } from "@croebet/shared";
 import { AdminGames } from "@/features/admin/admin-games";
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { AdminAccess } from "@/features/admin/admin-access";
 import { adminQuerySchema, adminUsersSchema, couponsQuerySchema, couponsSchema, pagesSchema } from "@croebet/shared";
 import { AdminPages } from "@/features/admin/admin-pages";
@@ -44,7 +44,6 @@ export default async function AdminSectionPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { section } = await params;
-  if (section === "sobre") redirect("/admin/paginas/sobre");
   const entry = Object.entries(adminRoutes).find(
     ([, href]) => href === `/admin/${section}`,
   );

@@ -25,31 +25,31 @@ test('PostgreSQL: publicação, unicidade, edição concorrente e auditoria de p
   await assert.rejects(readPage(pool, slug), { code: 'NOT_FOUND' });
   assert.equal((await readPageLinks(pool)).items.some(page => page.slug === slug), false);
   await assert.rejects(savePage(pool, actor, hash, null, input), { code: '23505' });
-  const attempts = await Promise.allSettled([1, 2].map(() => savePage(pool, actor, hash, slug, { ...input, published: true, version: draft.version })));
+  const attempts = await Promise.allSettled([1, 2].map(() => savePage(pool, actor, hash, draft.id, { ...input, published: true, version: draft.version })));
   assert.equal(attempts.filter(item => item.status === 'fulfilled').length, 1);
   assert.equal(attempts.find(item => item.status === 'rejected').reason.code, 'VERSION_CONFLICT');
   const published = await readPage(pool, slug);
   assert.ok(published.publishedAt); assert.equal(published.createdAt, draft.createdAt);
   assert.equal((await readPageLinks(pool)).items.find(page => page.slug === slug).showInMenu, true);
-  const renamed = await savePage(pool, actor, hash, slug, { ...input, slug: `${slug}-novo`, published: false, version: published.version });
+  const renamed = await savePage(pool, actor, hash, draft.id, { ...input, slug: `${slug}-novo`, published: false, version: published.version });
   await assert.rejects(readPage(pool, slug), { code: 'NOT_FOUND' });
   await assert.rejects(readPage(pool, `${slug}-novo`), { code: 'NOT_FOUND' });
   assert.equal((await pool.query("select count(*)::int as count from admin_audit where target_id=$1 and action like 'page.%'", [draft.id])).rows[0].count, 3);
-  const scheduled = await savePage(pool, actor, hash, renamed.slug, { ...input, slug: renamed.slug, status: 'scheduled', publishAt: '2099-01-01T12:00:00Z', version: renamed.version });
+  const scheduled = await savePage(pool, actor, hash, renamed.id, { ...input, slug: renamed.slug, status: 'scheduled', publishAt: '2099-01-01T12:00:00Z', version: renamed.version });
   assert.equal(scheduled.authorId, actor); assert.equal(scheduled.status, 'scheduled');
   await assert.rejects(readPage(pool, renamed.slug), { code: 'NOT_FOUND' });
   await pool.query("update pages set publish_at='2020-01-01T12:00:00Z' where id=$1", [scheduled.id]);
   assert.equal((await readPage(pool, renamed.slug)).published, true);
   assert.equal((await readPageLinks(pool)).items.some(page => page.slug === renamed.slug), true);
   for (const status of ['private', 'pending', 'trash', 'draft']) {
-    const current = await readPage(pool, renamed.slug, true);
-    await savePage(pool, actor, hash, renamed.slug, { ...input, slug: renamed.slug, status, version: current.version });
+    const current = await readPage(pool, renamed.id, true);
+    await savePage(pool, actor, hash, renamed.id, { ...input, slug: renamed.slug, status, version: current.version });
     await assert.rejects(readPage(pool, renamed.slug), { code: 'NOT_FOUND' });
   }
-  const current = await readPage(pool, renamed.slug, true);
-  await assert.rejects(deletePage(pool, actor, hash, renamed.slug, current.version - 1), { code: 'VERSION_CONFLICT' });
-  await deletePage(pool, actor, hash, renamed.slug, current.version);
-  await assert.rejects(readPage(pool, renamed.slug, true), { code: 'NOT_FOUND' });
+  const current = await readPage(pool, renamed.id, true);
+  await assert.rejects(deletePage(pool, actor, hash, renamed.id, current.version - 1), { code: 'VERSION_CONFLICT' });
+  await deletePage(pool, actor, hash, renamed.id, current.version);
+  await assert.rejects(readPage(pool, renamed.id, true), { code: 'NOT_FOUND' });
   assert.equal((await pool.query("select count(*)::int as count from admin_audit where target_id=$1 and action='page.deleted'", [draft.id])).rows[0].count, 1);
 
 });

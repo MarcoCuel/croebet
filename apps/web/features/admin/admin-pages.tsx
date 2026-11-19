@@ -42,7 +42,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
     if (pending) return;
     setPending(page.id);
     try {
-      await managementRequest(`/admin/pages/${page.slug}`, sitePageSchema, "PATCH", {
+      await managementRequest(`/admin/pages/${page.id}`, sitePageSchema, "PATCH", {
         slug: page.slug, title: page.title, document: page.document, published: false, showInMenu: page.showInMenu,
         status, publishAt: null, authorId: page.authorId, version: page.version,
       });
@@ -62,7 +62,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
         {visible.map(page => <li key={page.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
           <div className="min-w-0 flex-1 basis-48">
             <div className="flex flex-wrap items-center gap-2">
-              {page.status === "trash" ? <span className="break-words font-semibold">{page.title}</span> : <Link className="break-words font-semibold hover:underline" href={`/admin/paginas/${page.slug}`}>{page.title}</Link>}
+              {page.status === "trash" ? <span className="break-words font-semibold">{page.title}</span> : <Link className="break-words font-semibold hover:underline" href={`/admin/paginas/${page.id}`}>{page.title}</Link>}
               <Badge variant={page.published ? "default" : "secondary"}>{statusLabels[page.status]}</Badge>
             </div>
             <p className="mt-1 break-all text-sm text-muted">/{page.slug}</p>
@@ -72,7 +72,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
               <Button variant="secondary" size="sm" disabled={!!pending} loading={pending === page.id} onClick={() => changeStatus(page, "draft")}>Restaurar</Button>
               <Button variant="outline" size="sm" disabled={!!pending} onClick={() => setDeleting(page)}>Excluir permanentemente</Button>
             </> : <>
-              <Button asChild variant="secondary" size="sm"><Link href={`/admin/paginas/${page.slug}`} aria-label={`Editar ${page.title}`}>Editar</Link></Button>
+              <Button asChild variant="secondary" size="sm"><Link href={`/admin/paginas/${page.id}`} aria-label={`Editar ${page.title}`}>Editar</Link></Button>
               <Button variant="outline" size="sm" disabled={!!pending} loading={pending === page.id} onClick={() => changeStatus(page, "trash")} aria-label={`Mover ${page.title} para o lixo`}>Lixo</Button>
               {page.published && <Button asChild variant="ghost" size="sm"><Link href={`/${page.slug}`} aria-label={`Ver ${page.title}`}>Ver página</Link></Button>}
             </>}
@@ -89,7 +89,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
           if (!deleting || pending) return;
           setPending(deleting.id);
           try {
-            await managementRequest(`/admin/pages/${deleting.slug}`, pageDeleteResultSchema, "DELETE", { version: deleting.version });
+            await managementRequest(`/admin/pages/${deleting.id}`, pageDeleteResultSchema, "DELETE", { version: deleting.version });
             toast.success("Página excluída."); setDeleting(null); router.refresh();
           } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível excluir a página."); }
           finally { setPending(null); }
@@ -149,9 +149,9 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
     if (!input.success) return void toast.error(input.error.issues[0]?.message ?? "Confira os dados da página.");
     setPending("save");
     try {
-      const saved = await managementRequest(page ? `/admin/pages/${page.slug}` : "/admin/pages", sitePageSchema, page ? "PATCH" : "POST", input.data);
+      const saved = await managementRequest(page ? `/admin/pages/${page.id}` : "/admin/pages", sitePageSchema, page ? "PATCH" : "POST", input.data);
       toast.success(saved.status === "scheduled" ? "Publicação agendada." : "Página salva.");
-      router.replace(`/admin/paginas/${saved.slug}`); router.refresh();
+      router.replace(`/admin/paginas/${saved.id}`); router.refresh();
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar a página."); }
     finally { setPending(null); }
   }
@@ -212,7 +212,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
             if (!page || pending) return;
             setPending("delete");
             try {
-              await managementRequest(`/admin/pages/${page.slug}`, sitePageSchema, "PATCH", { slug: page.slug, title: page.title, document: page.document, published: false, showInMenu: page.showInMenu, status: "trash", publishAt: null, authorId: page.authorId, version: page.version });
+              await managementRequest(`/admin/pages/${page.id}`, sitePageSchema, "PATCH", { slug: page.slug, title: page.title, document: page.document, published: false, showInMenu: page.showInMenu, status: "trash", publishAt: null, authorId: page.authorId, version: page.version });
               toast.success("Página movida para o lixo."); setDialog(null); router.push("/admin/paginas"); router.refresh();
             } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível excluir a página."); }
             finally { setPending(null); }

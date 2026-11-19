@@ -6,9 +6,20 @@ const economy = { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'Amer
 const initial = () => ({ balance: 30, lastClaimAt: null as string | null, nextClaimAt: null as string | null, eligible: true, serverNow: new Date().toISOString() });
 let daily = initial();
 let api: Server;
+const game = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 };
 test.beforeAll(async () => {
   api = createServer((request, response) => {
     response.setHeader("content-type", "application/json");
+    if (request.url === "/api/v1/me/wallet") {
+      response.end(JSON.stringify({ balance: daily.balance })); return;
+    }
+    if (request.url?.startsWith("/api/v1/me/transactions")) {
+      response.end(JSON.stringify({ items: [], hasMore: false })); return;
+    }
+    if (request.url === "/api/v1/games" || request.url === "/api/v1/games/flip7") {
+      response.end(JSON.stringify(request.url === "/api/v1/games" ? { items: [game] } : game));
+      return;
+    }
     response.end(JSON.stringify(request.url === "/api/v1/economy" ? economy : request.url === "/api/v1/rewards/daily" ? daily : { user }));
   });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
@@ -104,7 +115,7 @@ test("movimento reduzido atualiza o saldo diretamente", async ({ page }) => {
   await expect(delta).toHaveCSS("opacity", "0");
 });
 
-test("cupom fecha o modal antes de atualizar e animar o saldo", async ({ page }) => {
+test("cupom fecha o modal antes de atualizar e animar o saldo", async ({ page, isMobile }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.route("**/api/v1/auth/csrf", route => route.fulfill({ json: { token: "fixture" } }));
   let redeemed = false;
@@ -118,7 +129,10 @@ test("cupom fecha o modal antes de atualizar e animar o saldo", async ({ page })
     await route.fulfill({ json: daily });
   });
   await page.goto("/");
-  await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
+  if (isMobile) {
+    await page.locator("header").getByRole("link", { name: "Ver carteira" }).click();
+    await page.getByRole("main").getByRole("button", { name: "Resgatar cupom" }).click();
+  } else await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Código do cupom").fill("LIVE50");
   await dialog.getByRole("button", { name: "Resgatar cupom", exact: true }).click();

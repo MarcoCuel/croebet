@@ -63,6 +63,7 @@ test("períodos consultam a API e preservam o saldo atual após reload", async (
   await expect(panel.getByRole("img")).toHaveAccessibleName(/1 movimentações/);
   await expect(panel.getByText("37", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "30 dias", exact: true }).click();
+  await expect(page).toHaveURL(/days=30/);
   await page.reload();
   await expect(page.getByRole("link", { name: "30 dias", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(panel.getByText("37", { exact: true })).toBeVisible();
@@ -70,16 +71,17 @@ test("períodos consultam a API e preservam o saldo atual após reload", async (
 });
 test("falha da API oferece nova tentativa sem inventar um painel zerado", async ({ page }) => {
   unavailable = true; await page.goto("/admin");
-  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar estes dados.");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Não foi possível carregar estes dados.");
   await expect(page.getByText("Saldo dos usuários", { exact: true })).toHaveCount(0);
   unavailable = false; await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByText("Saldo dos usuários", { exact: true })).toBeVisible();
 });
 test("base vazia confirmada mostra zeros e filtros continuam disponíveis", async ({ page }) => {
   empty = true; await page.goto("/admin");
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  const panel = page.getByRole("region", { name: "Visão geral" });
+  await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(page.getByText("Nenhum cadastro neste período.")).toBeVisible();
-  await expect(page.getByRole("img")).toHaveCount(0);
+  await expect(panel.getByRole("img")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "7 dias", exact: true })).toBeVisible();
 });
 test("conta comum não recebe a visão geral administrativa", async ({ page }) => {

@@ -36,14 +36,14 @@ test("saldo e primeiras 20 operações já estão no HTML sem JavaScript", async
   const context = await browser.newContext({ javaScriptEnabled: false });
   await context.addCookies([{ name: "croebet-session", value: "wallet-test", url: "http://127.0.0.1:3100" }]);
   const page = await context.newPage();
-  await page.goto("/historico");
+  await page.goto("/carteira");
   await expect(page.getByText("Saldo disponível")).toBeVisible();
   await expect(page.locator("main [aria-live=polite]")).toContainText("1.250");
   await expect(page.locator("main li")).toHaveCount(20);
   await context.close();
 });
 test("detalhes, paginação e filtros consultam o extrato", async ({ page }) => {
-  await page.goto("/historico");
+  await page.goto("/carteira");
   await expect(page.locator("main li")).toHaveCount(20);
   await expect(page.getByText("Saldo após a operação")).toHaveCount(0);
   await page.locator("main li").first().getByRole("button").click();
@@ -61,8 +61,8 @@ test("detalhes, paginação e filtros consultam o extrato", async ({ page }) => 
 });
 test("falha do serviço permite tentar novamente sem mostrar saldo zero", async ({ page }) => {
   unavailable = true;
-  await page.goto("/historico");
-  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar sua carteira.");
+  await page.goto("/carteira");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Não foi possível carregar sua carteira.");
   await expect(page.getByText("Saldo disponível")).toHaveCount(0);
   unavailable = false;
   await page.getByRole("button", { name: "Tentar novamente" }).click();

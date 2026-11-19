@@ -119,13 +119,13 @@ test("upload direto atualiza a foto e ela continua no perfil após recarregar", 
   await page.getByRole("button", { name: "Alterar foto de perfil", exact: true }).press("Enter");
   await (await chooserPromise).setFiles({ name: "avatar.png", mimeType: "image/png", buffer: png });
   await expect(page.getByText("Foto atualizada.", { exact: true })).toBeVisible();
-  await expect(page.locator("main img")).toHaveAttribute("src", avatarUrl);
+  await expect(page.locator("main img")).toHaveJSProperty("src", new URL(avatarUrl, page.url()).href);
   await page.reload();
-  await expect(page.locator("main img")).toHaveAttribute("src", avatarUrl);
+  await expect(page.locator("main img")).toHaveJSProperty("src", new URL(avatarUrl, page.url()).href);
   signedIn = false;
   sessionActive = false;
   await page.reload();
-  await expect(page.locator("main img")).toHaveAttribute("src", avatarUrl);
+  await expect(page.locator("main img")).toHaveJSProperty("src", new URL(avatarUrl, page.url()).href);
   await expect(page.getByRole("button", { name: "Alterar foto de perfil", exact: true })).toHaveCount(0);
 });
 

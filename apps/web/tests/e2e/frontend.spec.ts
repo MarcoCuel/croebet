@@ -57,6 +57,15 @@ test("tema persiste e System acompanha a preferência do sistema", async ({
   await page.goto("/");
   await signIn(page);
   const root = page.locator("html");
+  const chooseTheme = async (name: string) => {
+    const option = page.getByRole("menuitemradio", { name, exact: true });
+    const box = await option.boundingBox();
+    expect(box).not.toBeNull();
+    // Follow the pointer corridor of Radix's submenu instead of teleporting
+    // past its trigger, which dismisses the submenu before the click.
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2, { steps: 10 });
+    await option.click();
+  };
   const openTheme = async () => {
     await page
       .getByRole("button", { name: "Conta de Arquitetura", exact: true })
@@ -66,7 +75,7 @@ test("tema persiste e System acompanha a preferência do sistema", async ({
   };
   await openTheme();
   await expect(page.getByRole("menuitemradio")).toHaveCount(3);
-  await page.getByRole("menuitemradio", { name: "Light", exact: true }).click();
+  await chooseTheme("Light");
   await expect(root).toHaveAttribute("data-theme", "light");
   await page.reload();
   await expect(root).toHaveAttribute("data-theme", "light");
@@ -74,14 +83,12 @@ test("tema persiste e System acompanha a preferência do sistema", async ({
   await expect(
     page.getByRole("menuitemradio", { name: "Light", exact: true }),
   ).toHaveAttribute("aria-checked", "true");
-  await page.getByRole("menuitemradio", { name: "Dark", exact: true }).click();
+  await chooseTheme("Dark");
   await expect(root).toHaveAttribute("data-theme", "dark");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(root).toHaveAttribute("data-theme", "dark");
   await openTheme();
-  await page
-    .getByRole("menuitemradio", { name: "System", exact: true })
-    .click();
+  await chooseTheme("System");
   await expect(root).toHaveAttribute("data-theme", "light");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(root).toHaveAttribute("data-theme", "dark");
@@ -121,9 +128,9 @@ test("configurações alternam seções, aplicam tema e devolvem foco ao fechar"
   await expect(
     dialog.getByRole("button", { name: "Claro", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await nav.getByRole("button", { name: "Histórico", exact: true }).click();
+  await nav.getByRole("button", { name: "Carteira", exact: true }).click();
   await expect(
-    dialog.getByRole("link", { name: "Ver histórico de Croins" }),
+    dialog.getByRole("link", { name: "Ver carteira" }),
   ).toBeVisible();
   expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
     true,

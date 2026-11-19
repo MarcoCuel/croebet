@@ -28,9 +28,9 @@ test("entrada com Croins permanece bloqueada e não movimenta carteira local", a
   await expect(page.getByText("Partidas com Croins ainda não estão disponíveis.")).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("croebet:demo-wallet:marco"))).toBeNull();
   await entry.fill("0");
-  await expect(page.getByRole("alert")).toContainText("inteira maior que zero");
+  await expect(page.getByRole("alert").filter({ hasText: "inteira maior que zero" })).toBeVisible();
   await entry.fill("50");
-  await expect(page.getByRole("alert")).toContainText("Saldo insuficiente");
+  await expect(page.getByRole("alert").filter({ hasText: "Saldo insuficiente" })).toBeVisible();
   await page.getByRole("switch", { name: "Jogar com Croins", exact: true }).uncheck();
   await expect(page.getByRole("button", { name: "Começar partida", exact: true })).toBeVisible();
 });
@@ -43,7 +43,7 @@ test("retomada de partida econômica do protótipo não credita nem debita a car
     localStorage.setItem("croebet:flip7:match", JSON.stringify(saved));
   }, match);
   await page.goto("/jogos/flip7?partida=ABCDEF123456");
-  await expect(page.getByRole("alert")).toContainText("Partidas com Croins ainda não estão disponíveis.");
+  await expect(page.getByRole("alert").filter({ hasText: "Partidas com Croins ainda não estão disponíveis." })).toBeVisible();
   await expect(page.getByRole("region", { name: "Mesa de Flip7" })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem("croebet:demo-wallet:marco"))).toBeNull();
 });

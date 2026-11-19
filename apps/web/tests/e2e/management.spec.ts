@@ -21,6 +21,8 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
   const page = { items: [] as unknown[], hasMore: false };
   if (path === "/api/v1/me") return { user: { ...admin, role: adminRole } };
   if (path === "/api/v1/economy") return { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 50], defaultBet: 5 };
+  if (path === "/api/v1/me/wallet") return { balance };
+  if (path === "/api/v1/me/transactions") return page;
   if (path === "/api/v1/auth/csrf") return { token: "fixture" };
   if (path === "/api/v1/rewards/daily" || path === "/api/v1/coupons/redeem") {
     if (method === "POST") { balance += coupon?.amount ?? 0; lastBody = body; }
@@ -84,7 +86,7 @@ test("alteração de permissão envia motivo e estado esperado ao backend", asyn
   await page.goto(`/admin/usuarios/${userId}`);
   await page.getByRole("button", { name: "Editar permissão e status" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Permissão", { exact: true }).selectOption("admin");
+  await dialog.getByRole("combobox", { name: /^Permissão/ }).selectOption("admin");
   await dialog.getByLabel("Motivo").fill("Equipe de moderação");
   await dialog.getByRole("button", { name: "Salvar alterações" }).click();
   await expect(page.getByText("Equipe de moderação", { exact: true })).toBeVisible();
@@ -100,7 +102,7 @@ test("ajuste sem motivo atualiza saldo e movimentações", async ({ page }) => {
   await expect(page.getByText("Saldo: 37", { exact: true })).toBeVisible();
   expect(lastBody.amount).toBe(7); expect(lastBody.reason).toBe(""); expect(lastBody.requestId).toEqual(expect.any(String));
 });
-test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", async ({ page }) => {
+test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", async ({ page, isMobile }) => {
   await page.goto("/admin/cupons/novo");
   await expect(page.getByLabel("Croins por resgate")).toHaveValue("");
   await page.getByLabel("Código do cupom").fill("LIVE7");
@@ -110,7 +112,10 @@ test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", asy
   await page.getByRole("button", { name: "Salvar cupom", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/cupons/${couponId}$`));
   expect(lastBody.startsAt).toBe("2026-01-01T15:00:00.000Z"); expect(lastBody.limit).toBeNull();
-  await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
+  if (isMobile) {
+    await page.locator("header").getByRole("link", { name: "Ver carteira" }).click();
+    await page.getByRole("main").getByRole("button", { name: "Resgatar cupom" }).click();
+  } else await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
   const dialog = page.getByRole("dialog"); await dialog.getByLabel("Código do cupom").fill("live7");
   await dialog.getByRole("button", { name: "Resgatar cupom", exact: true }).click();
   await expect(dialog).not.toBeVisible();
@@ -119,7 +124,7 @@ test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", asy
 });
 test("falha inicial da API não é apresentada como lista vazia", async ({ page }) => {
   unavailable = true; await page.goto("/admin/usuarios");
-  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar estes dados.");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Não foi possível carregar estes dados.");
   await expect(page.getByText("Nenhum usuário encontrado.")).toHaveCount(0);
   unavailable = false; await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByRole("link", { name: "Ver usuário Tonho" })).toBeVisible();
@@ -128,10 +133,10 @@ test("falha inicial da API não é apresentada como lista vazia", async ({ page 
 test("busca e filtro consultam as contas reais sem carteiras de demonstração", async ({ page }) => {
   await page.goto("/admin/usuarios");
   const search = page.getByRole("searchbox", { name: "Buscar usuários no admin" });
-  await search.fill("inexistente"); await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await search.fill("inexistente"); await search.press("Enter");
   await expect(page.getByText("Nenhum usuário encontrado.")).toBeVisible();
   await page.getByRole("searchbox", { name: "Buscar usuários no admin" }).fill("Tonho");
-  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await search.press("Enter");
   await expect(page.getByRole("link", { name: "Ver usuário Tonho" })).toBeVisible();
   await page.getByRole("link", { name: "Suspensos", exact: true }).click();
   await expect(page.getByText("Nenhum usuário encontrado.")).toBeVisible();

@@ -1,4 +1,9 @@
+import { startPublicApi } from "../public-api-fixture";
 import { expect, test } from "@playwright/test";
+
+let closeApi: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { closeApi = await startPublicApi(() => null); });
+test.afterAll(async () => { await closeApi?.(); });
 
 for (const reducedMotion of ["no-preference", "reduce"] as const) {
   test(`troca de página durante a rolagem mantém o topo (${reducedMotion})`, async ({ page }) => {

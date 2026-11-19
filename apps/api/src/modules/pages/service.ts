@@ -28,15 +28,15 @@ export async function readPages(pool: Pool) {
   const result = await pool.query("select * from pages order by slug");
   return pagesSchema.parse({ items: result.rows.map(project) });
 }
-export async function readPage(pool: Pool, slug: string, admin = false) {
-  const result = await pool.query(`select * from pages where slug=$1 ${admin ? "" : `and ${pagePublicCondition}`}`, [slug]);
+export async function readPage(pool: Pool, identifier: string, admin = false) {
+  const result = await pool.query(`select * from pages where ${admin ? "id" : "slug"}=$1 ${admin ? "" : `and ${pagePublicCondition}`}`, [identifier]);
   if (!result.rows[0]) throw new ManagementError(404, "NOT_FOUND", "Página não encontrada.");
   return project(result.rows[0]);
 }
-export async function savePage(pool: Pool, actorId: string, hash: string, slug: string | null, input: z.infer<typeof pageWriteSchema>) {
+export async function savePage(pool: Pool, actorId: string, hash: string, id: string | null, input: z.infer<typeof pageWriteSchema>) {
   return adminTransaction(pool, actorId, hash, null, async client => {
-    const before = slug ? (await client.query("select * from pages where slug=$1 for update", [slug])).rows[0] : null;
-    if (slug && !before) throw new ManagementError(404, "NOT_FOUND", "Página não encontrada.");
+    const before = id ? (await client.query("select * from pages where id=$1 for update", [id])).rows[0] : null;
+    if (id && !before) throw new ManagementError(404, "NOT_FOUND", "Página não encontrada.");
     if (input.version !== (before?.version ?? 0)) throw new ManagementError(409, "VERSION_CONFLICT", "A página foi alterada. Recarregue antes de salvar.");
     const now = new Date();
     const publishAt = input.publishAt === undefined ? before?.publish_at ?? null : input.publishAt ? new Date(input.publishAt) : null;
@@ -61,9 +61,9 @@ export async function savePage(pool: Pool, actorId: string, hash: string, slug: 
     return page;
   });
 }
-export async function deletePage(pool: Pool, actorId: string, hash: string, slug: string, version: number) {
+export async function deletePage(pool: Pool, actorId: string, hash: string, id: string, version: number) {
   return adminTransaction(pool, actorId, hash, null, async client => {
-    const before = (await client.query("select * from pages where slug=$1 for update", [slug])).rows[0];
+    const before = (await client.query("select * from pages where id=$1 for update", [id])).rows[0];
     if (!before) throw new ManagementError(404, "NOT_FOUND", "Página não encontrada.");
     if (before.version !== version) throw new ManagementError(409, "VERSION_CONFLICT", "A página foi alterada. Recarregue antes de excluir.");
     await client.query("delete from pages where id=$1", [before.id]);

@@ -7,7 +7,7 @@ export const fixedMenuPages = {
   betting: { label: "Apostas", href: "/apostas", disabled: true },
   rankings: { label: "Rankings", href: "/rankings", disabled: true },
   achievements: { label: "Conquistas", href: "/conquistas", disabled: true },
-  history: { label: "Histórico", href: "/historico", disabled: false },
+  history: { label: "Carteira", href: "/carteira", disabled: false },
   profile: { label: "Perfil", href: "/perfil", disabled: false },
 } as const;
 export const fixedMenuPageSchema = z.enum(["home", "games", "betting", "rankings", "achievements", "history", "profile"]);

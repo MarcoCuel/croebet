@@ -42,10 +42,10 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
     try { return await readGame(pool, parsed.data); }
     catch (error) { if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } }); throw error; }
   });
-  app.get("/api/v1/admin/games", (request, reply) => run(request, reply, true, async () => readGames(pool, true)));
-  app.get("/api/v1/admin/games/:slug", (request, reply) => run(request, reply, true, async () => readGame(pool, gameSlugSchema.parse((request.params as { slug: string }).slug), true)));
-  app.patch("/api/v1/admin/games/:slug", (request, reply) => run(request, reply, true, async (actor, hash) => saveGame(pool, actor.id, hash, gameSlugSchema.parse((request.params as { slug: string }).slug), gameWriteSchema.parse(request.body))));
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as { id: string }).id);
+  app.get("/api/v1/admin/games", (request, reply) => run(request, reply, true, async () => readGames(pool, true)));
+  app.get("/api/v1/admin/games/:id", (request, reply) => run(request, reply, true, async () => readGame(pool, id(request), true)));
+  app.patch("/api/v1/admin/games/:id", (request, reply) => run(request, reply, true, async (actor, hash) => saveGame(pool, actor.id, hash, id(request), gameWriteSchema.parse(request.body))));
   app.get("/api/v1/admin/markets", (request, reply) => run(request, reply, true, async () => readMarkets(pool)));
   app.get("/api/v1/admin/markets/:id", (request, reply) => run(request, reply, true, async () => readMarket(pool, id(request))));
   app.post("/api/v1/admin/markets", (request, reply) => run(request, reply, true, async (actor, hash) => saveMarket(pool, actor.id, hash, null, catalogMarketWriteSchema.parse(request.body))));
@@ -55,7 +55,6 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
   app.get("/api/v1/admin/menus", (request, reply) => run(request, reply, true, async () => readMenus(pool)));
   app.patch("/api/v1/admin/menus/:location", (request, reply) => run(request, reply, true, async (actor, hash) => saveMenu(pool, actor.id, hash,
     menuLocationSchema.parse((request.params as { location: string }).location), menuWriteSchema.parse(request.body))));
-  const slug = (request: FastifyRequest) => pageSlugSchema.parse((request.params as { slug: string }).slug);
   app.get("/api/v1/pages", async () => readPageLinks(pool));
   app.get("/api/v1/pages/:slug", async (request, reply) => {
     const parsed = pageSlugSchema.safeParse((request.params as { slug: string }).slug);
@@ -64,11 +63,11 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
     catch (error) { if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } }); throw error; }
   });
   app.get("/api/v1/admin/page-authors", (request, reply) => run(request, reply, true, async () => readPageAuthors(pool)));
-  app.delete("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async (actor, hash) => deletePage(pool, actor.id, hash, slug(request), pageDeleteSchema.parse(request.body).version)));
+  app.delete("/api/v1/admin/pages/:id", (request, reply) => run(request, reply, true, async (actor, hash) => deletePage(pool, actor.id, hash, id(request), pageDeleteSchema.parse(request.body).version)));
   app.get("/api/v1/admin/pages", (request, reply) => run(request, reply, true, async () => readPages(pool)));
-  app.get("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async () => readPage(pool, slug(request), true)));
+  app.get("/api/v1/admin/pages/:id", (request, reply) => run(request, reply, true, async () => readPage(pool, id(request), true)));
   app.post("/api/v1/admin/pages", (request, reply) => run(request, reply, true, async (actor, hash) => savePage(pool, actor.id, hash, null, pageWriteSchema.parse(request.body))));
-  app.patch("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async (actor, hash) => savePage(pool, actor.id, hash, slug(request), pageWriteSchema.parse(request.body))));
+  app.patch("/api/v1/admin/pages/:id", (request, reply) => run(request, reply, true, async (actor, hash) => savePage(pool, actor.id, hash, id(request), pageWriteSchema.parse(request.body))));
   app.get("/api/v1/admin/users", (request, reply) => run(request, reply, true, async () => readAdminUsers(pool, adminQuerySchema.parse(request.query))));
   app.get("/api/v1/admin/users/:id", (request, reply) => run(request, reply, true, async () => {
     const userId = id(request);

@@ -29,7 +29,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   }
   if (path === "/api/v1/admin/pages") return { status: 200, data: { items: pages } };
   const slug = path.split("/").at(-1);
-  const page = pages.find(p => p.slug === slug);
+  const page = pages.find(p => path.includes("/admin/") ? p.id === slug : p.slug === slug);
   if (!page || (!path.includes("/admin/") && !page.published)) return { status: 404, data: {} };
   if (method === "DELETE") {
     if (body.version !== page.version) return { status: 409, data: { error: { message: "A página foi alterada. Recarregue antes de excluir." } } };
@@ -68,7 +68,7 @@ test("página, menu e rodapé chegam no HTML público sem JavaScript; rascunho f
   await context.close();
 });
 test("edição publica para outro navegador e detecta conflito", async ({ page, browser }) => {
-  await page.goto("/admin/paginas/sobre");
+  await page.goto(`/admin/paginas/${base.id}`);
   await page.getByLabel("Título", { exact: true }).fill("Nossa história");
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("Página salva.", { exact: true })).toBeVisible();
@@ -76,7 +76,17 @@ test("edição publica para outro navegador e detecta conflito", async ({ page, 
   await visitor.goto("/sobre"); await expect(visitor).toHaveTitle("Nossa história · Croebet");
   await expect(visitor.locator("footer").getByRole("link", { name: "Sobre", exact: true })).toBeVisible();
   await context.close();
-  await page.goto("/admin/paginas/sobre"); pages[0].version++;
+  await page.getByRole("button", { name: "Editar slug", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Slug", { exact: true }).fill("nossa-historia");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect.poll(() => pages[0].slug).toBe("nossa-historia");
+  await expect(page.getByText("Página salva.", { exact: true }).last()).toBeVisible();
+  await expect(page).toHaveURL(`http://127.0.0.1:3100/admin/paginas/${base.id}`);
+  await page.reload();
+  await expect(page.getByLabel("Título", { exact: true })).toHaveValue("Nossa história");
+  expect(pages[0].slug).toBe("nossa-historia");
+  await page.goto(`/admin/paginas/${base.id}`); pages[0].version++;
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("A página foi alterada. Recarregue antes de salvar.")).toBeVisible();
 });
@@ -89,7 +99,7 @@ test("falha do serviço tem tentativa novamente e não vira 404", async ({ page 
 
 async function setStatus(page: import("@playwright/test").Page, status: string) {
   await page.getByRole("button", { name: "Editar status", exact: true }).click();
-  await page.getByRole("dialog").getByLabel("Status", { exact: true }).selectOption(status);
+  await page.getByRole("dialog").getByRole("combobox", { name: /^Status/ }).selectOption(status);
   await page.getByRole("button", { name: "Aplicar", exact: true }).click();
 }
 test("lista vazia, modais, rascunho, publicação e exclusão", async ({ page }) => {
@@ -104,11 +114,12 @@ test("lista vazia, modais, rascunho, publicação e exclusão", async ({ page })
   await page.getByRole("dialog").getByLabel("Slug", { exact: true }).fill("ajuda-da-casa");
   await page.getByRole("button", { name: "Aplicar", exact: true }).click();
   await page.getByRole("button", { name: "Editar autor", exact: true }).click();
-  await expect(page.getByRole("dialog").getByLabel("Autor", { exact: true })).toHaveValue(user.id);
+  await expect(page.getByRole("dialog").getByRole("combobox", { name: /^Autor/ })).toHaveValue(user.id);
   await page.getByRole("button", { name: "Aplicar", exact: true }).click();
   await setStatus(page, "draft");
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin\/paginas\/ajuda-da-casa$/);
+  await expect(page).toHaveURL(/\/admin\/paginas\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(`http://127.0.0.1:3100/admin/paginas/${pages[0].id}`);
   await expect(page.getByRole("button", { name: "Mover para o lixo", exact: true })).toBeVisible();
   expect(pages[0].published).toBe(false);
   await setStatus(page, "published");
@@ -117,7 +128,7 @@ test("lista vazia, modais, rascunho, publicação e exclusão", async ({ page })
   await page.getByRole("textbox", { name: "Conteúdo principal" }).fill("Como funciona");
   await page.getByRole("button", { name: "Salvar", exact: true }).click();
   await expect(page.getByText("Página salva.", { exact: true })).toBeVisible();
-  expect(pages[0].published).toBe(true);
+  await expect.poll(() => pages[0].published).toBe(true);
   await page.getByRole("button", { name: "Mover para o lixo", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Mover página para o lixo?", exact: true })).toBeVisible();
   expect(pages).toHaveLength(1);
@@ -138,7 +149,8 @@ test("data futura muda a ação para Agendar e mantém a página privada", async
   await page.getByLabel("Data e hora (Brasília)").fill("2099-12-01T12:00");
   await page.getByRole("button", { name: "Aplicar", exact: true }).click();
   await page.getByRole("button", { name: "Agendar", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin\/paginas\/novidades$/);
+  await expect(page).toHaveURL(/\/admin\/paginas\/[0-9a-f-]{36}$/);
+  await expect(page).toHaveURL(`http://127.0.0.1:3100/admin/paginas/${pages.at(-1)?.id}`);
   expect(pages.at(-1)?.status).toBe("scheduled");
   expect(pages.at(-1)?.published).toBe(false);
   expect((await page.goto("/novidades"))?.status()).toBe(404);
@@ -157,15 +169,15 @@ test("listagem combina busca e status, move para o lixo e restaura sem publicar"
   await expect(page.getByText("Nenhuma página encontrada.")).toBeVisible();
   await page.getByRole("searchbox").fill("");
   await page.getByRole("button", { name: "Mover Sobre para o lixo", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Lixo (1)", exact: true })).toBeVisible();
   await expect(list.getByRole("link", { name: "Sobre", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /^Lixo/ }).click();
+  await expect(page.getByRole("button", { name: /^Lixo/ })).toHaveAccessibleName(/^Lixo\s*\(?1\)?$/);
   await expect(list.getByText("Sobre", { exact: true })).toBeVisible();
   expect(pages[0].published).toBe(false);
   await page.reload();
   await page.getByRole("button", { name: /^Lixo/ }).click();
   await page.getByRole("button", { name: "Restaurar", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Lixo (0)", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Lixo/ })).toHaveAccessibleName(/^Lixo\s*\(?0\)?$/);
   await page.getByRole("button", { name: /^Rascunho/ }).click();
   await expect(list.getByRole("link", { name: "Sobre", exact: true })).toBeVisible();
   expect(pages[0].status).toBe("draft"); expect(pages[0].published).toBe(false);

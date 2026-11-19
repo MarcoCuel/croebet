@@ -3,7 +3,7 @@
 import {
   ChevronDown,
   ChevronsUpDown,
-  History,
+  Wallet,
   Shield,
   Settings,
   Moon,
@@ -146,9 +146,9 @@ export function AccountMenu({
             </DropdownMenuItem>
           )}
           <DropdownMenuItem asChild>
-            <Link href="/historico">
-              <History className="size-4" aria-hidden="true" />
-              Histórico
+            <Link href="/carteira">
+              <Wallet className="size-4" aria-hidden="true" />
+              Carteira
             </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
