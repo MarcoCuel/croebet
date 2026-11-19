@@ -25,8 +25,9 @@ Sessão, carteira, apostas, partidas e configurações usam o navegador. O login
 | Economia | Livro imutável, operações atômicas, idempotência e auditoria. |
 | Dados atuais | Descartáveis, sem importação ou compatibilidade com o protótipo. |
 | Escala inicial | Uma instância da API; sem necessidade concreta de Redis. |
+| Docker inicial | Somente PostgreSQL em container no desenvolvimento; Next.js e Fastify continuam como processos Node no host. |
 
-Não usar Route Handlers do Next.js como backend principal, polling da aplicação como transporte principal de partidas, banco acessível pelo frontend ou saldo/resultado calculado como autoridade no cliente. Não introduzir microsserviços, Docker obrigatório, filas externas ou workers separados sem necessidade demonstrada. O fallback HTTP long-polling do protocolo Socket.IO pode permanecer habilitado: ele não equivale à proposta descartada de consultar periodicamente a API para conduzir partidas.
+Não usar Route Handlers do Next.js como backend principal, polling da aplicação como transporte principal de partidas, banco acessível pelo frontend ou saldo/resultado calculado como autoridade no cliente. Não introduzir microsserviços, containerização das aplicações, filas externas ou workers separados sem necessidade demonstrada. O fallback HTTP long-polling do protocolo Socket.IO pode permanecer habilitado: ele não equivale à proposta descartada de consultar periodicamente a API para conduzir partidas.
 
 Recomendações de implantação e desenho abaixo são propostas técnicas; valores de economia, regras de recuperação e políticas de partidas continuam abertos quando explicitamente indicados.
 
@@ -192,9 +193,9 @@ Tema, visibilidade de painéis e preferências de configuração podem continuar
 
 ## Infraestrutura mínima
 
-Desenvolvimento: processos Next.js e Fastify, PostgreSQL local ou banco exclusivo de desenvolvimento, e bucket S3 exclusivo quando avatares forem integrados. Testes de banco usam destino separado. Não exigir Docker, emulador S3 ou processo de worker. Um adaptador de arquivos local pode servir apenas ao desenvolvimento de avatar se necessário, sem virar a persistência de produção.
+Desenvolvimento: Next.js e Fastify como processos Node no host, PostgreSQL em Docker Compose, e bucket S3 exclusivo quando avatares forem integrados. Testes de banco usam destino separado. Docker foi aprovado inicialmente somente para o banco; não adicionar containers das aplicações, emulador S3 ou processo de worker. Um adaptador de arquivos local pode servir apenas ao desenvolvimento de avatar se necessário, sem virar a persistência de produção.
 
-Produção inicial recomendada: um servidor com Next.js, uma instância Fastify e PostgreSQL em processos separados, supervisionados pelo sistema; bucket S3 para avatares. Proxy reverso termina HTTPS e encaminha páginas ao Next.js e `/api/v1` e `/socket.io` ao Fastify, suportando upgrade WebSocket e timeouts compatíveis com heartbeat. Banco não exposto à internet. Backups ficam fora desse servidor e a restauração é validada antes do lançamento. PostgreSQL gerenciado é alternativa caso a redução de manutenção justifique o custo; provedor e dimensionamento permanecem abertos.
+Produção inicial recomendada: um servidor com Next.js e uma instância Fastify em processos separados, supervisionados pelo sistema, com PostgreSQL em container ou serviço gerenciado conforme a implantação definida; bucket S3 para avatares. Proxy reverso termina HTTPS e encaminha páginas ao Next.js e `/api/v1` e `/socket.io` ao Fastify, suportando upgrade WebSocket e timeouts compatíveis com heartbeat. Banco não exposto à internet. Backups ficam fora desse servidor e a restauração é validada antes do lançamento. PostgreSQL gerenciado é alternativa caso a redução de manutenção justifique o custo; provedor e dimensionamento permanecem abertos.
 
 O Next.js não precisa reiniciar para publicar a API, nem a API para publicar o frontend. Cada build inclui a versão dos contratos que utiliza. Antes de mover qualquer processo para outra máquina, preservar a mesma origem pública pelo proxy e manter APIs/eventos compatíveis com clientes já abertos. Alterações de schema são executadas uma vez por implantação, com credenciais de migration separadas. Redis e workers externos só serão reavaliados diante de necessidade concreta de escala, isolamento ou carga.
 
@@ -286,3 +287,28 @@ Instalar dependências com `pnpm install` (inclui @fastify/cookie e argon2, com 
 Validação desta rodada: lint do workspace e typecheck do frontend aprovados; build de produção do frontend aprovado com Node 22.22.0; 118 testes unitários existentes e quatro testes de contratos/CSRF/reset aprovados. Typecheck/build/testes agregados da API continuam bloqueados por dependências ausentes; integração não executou por falta de pg/Fastify/Argon2. Playwright voltou a falhar antes de iniciar o navegador com EPERM na porta 3100. Esses resultados não comprovam autenticação real funcionando com banco.
 
 Atualização após instalação pelo usuário: Fastify, pg, Drizzle, cookie e Argon2 estão disponíveis; o carregamento nativo do Argon2 foi confirmado. Shared, API e frontend passaram em TypeScript; os seis testes unitários HTTP/contratos/segurança passaram e Drizzle Kit check aprovou os metadados. O `.env` local da API foi preparado com segredo aleatório, usando provisoriamente o destino de desenvolvimento do exemplo. Ainda falta confirmar/provisionar PostgreSQL e ajustar a conexão antes de aplicar migrations; não houve validação de cadastro/login com banco. O runtime Docker não pôde ser inspecionado pelo assistente por permissão no socket. A versão pnpm 12.21.0 escolhida pelo usuário não foi alterada; o Corepack deste executor tentou acessar um cache fora da área permitida, portanto os testes foram executados pelos binários locais instalados.
+
+## PostgreSQL em Docker — ambiente local
+
+Decisão aprovada: Docker somente para o banco inicialmente. `compose.yaml` na raiz define PostgreSQL 18, volume nomeado em `/var/lib/postgresql` (caminho da imagem oficial 18+), healthcheck `pg_isready`, restart unless-stopped e porta 5432 vinculada exclusivamente a `127.0.0.1`. Next.js e Fastify continuam no host. Não há Dockerfiles de aplicações nem nova fila/worker. Esta configuração é de desenvolvimento e não é um manifesto de produção.
+
+Pré-requisito: Docker Desktop instalado e iniciado no Mac. Docker e Compose já foram encontrados neste computador. O assistente não consegue operar o engine pelo socket nesta sessão; isso não comprova que o Docker Desktop esteja parado. Não alterar permissões do socket para contornar essa restrição.
+
+A raiz tem `.env.example` para POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD e POSTGRES_PORT; `.env` local recebe senha aleatória. A conexão correspondente fica em `apps/api/.env`, com segredo CSRF separado. Os arquivos de segredos são ignorados pelo Git e não devem ser enviados em mensagens. Em novas instalações, copiar o exemplo da raiz para `.env`, definir senha local e montar a mesma DATABASE_URL na API. Credenciais deste container destinam-se ao desenvolvimento, não aos papéis de runtime/migration de produção.
+
+Na raiz do projeto, com Docker Desktop aberto:
+
+```sh
+docker compose up -d --wait postgres
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
+```
+
+Depois, acessar `http://localhost:3000`; WEB_ORIGIN da API usa essa origem. `pnpm db:up` equivale ao primeiro comando. `pnpm db:stop` para o banco sem remover o volume; `pnpm db:logs` acompanha os logs. `docker compose ps` mostra a saúde do serviço. O banco continua existindo após parar/recriar o container. POSTGRES_* inicializa apenas volume vazio: mudar a senha no `.env` não altera automaticamente a senha de um banco já inicializado. Mudanças de porta precisam ser refletidas em DATABASE_URL.
+
+Não acrescentar remoção de volumes a scripts de reset; as proteções de ambiente/destino dos comandos de banco continuam válidas. Testes de integração ainda precisam de banco separado com marcador test, nunca do banco de desenvolvimento com usuários criados pelo navegador. S3 e Dockerização das aplicações ficam fora desta entrega.
+
+Validação: `docker compose config --quiet` passou com interpolação das variáveis; arquivos de segredos permanecem ignorados. O container não foi iniciado nem migrations aplicadas nesta sessão, por falta de acesso ao socket do engine. Após iniciar pelo terminal do usuário, validar readiness e cadastro/login com banco antes de declarar autenticação funcional.
+
+Referências: [imagem oficial PostgreSQL](https://hub.docker.com/_/postgres), [Docker Desktop para Mac](https://docs.docker.com/desktop/setup/install/mac-install/).

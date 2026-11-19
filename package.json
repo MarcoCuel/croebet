@@ -21,6 +21,9 @@
     "db:generate": "pnpm --filter @croebet/api db:generate",
     "db:migrate": "pnpm --filter @croebet/api db:migrate",
     "db:seed": "pnpm --filter @croebet/api db:seed",
-    "db:reset": "pnpm --filter @croebet/api db:reset"
+    "db:reset": "pnpm --filter @croebet/api db:reset",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:stop": "docker compose stop postgres",
+    "db:logs": "docker compose logs -f postgres"
   }
 }
