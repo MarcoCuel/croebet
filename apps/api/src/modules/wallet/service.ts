@@ -3,7 +3,12 @@ import type { Pool } from "pg";
 import { walletSchema, transactionsSchema } from "@croebet/shared";
 
 export class WalletError extends Error {
-  constructor(public code: "INVALID_TRANSFER" | "IDEMPOTENCY_CONFLICT" | "INSUFFICIENT_FUNDS" | "ACCOUNT_UNAVAILABLE") { super(code); }
+  public code: "INVALID_TRANSFER" | "IDEMPOTENCY_CONFLICT" | "INSUFFICIENT_FUNDS" | "ACCOUNT_UNAVAILABLE";
+
+  constructor(code: WalletError["code"]) {
+    super(code);
+    this.code = code;
+  }
 }
 export type Transfer = {
   scope: string; idempotencyKey: string; from: string; to: string;
