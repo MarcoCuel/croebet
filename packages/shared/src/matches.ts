@@ -36,7 +36,7 @@ export const matchAbandonSchema = z.object({ commandId: z.uuid(), expectedVersio
 export const matchCodeSchema = z.string().regex(/^[A-F0-9]{12}$/);
 export const matchParticipantSchema = z.object({ userId: z.uuid(), username: z.string(), displayName: z.string(), avatarUrl: z.string().nullable(), seat: integer.min(0).max(11) }).strict();
 const roomFields = { id: z.uuid(), code: matchCodeSchema, game: z.literal("flip7"), rulesVersion: integer.positive(), version: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema, hostId: z.uuid(), participants: z.array(matchParticipantSchema).max(12) };
-export const lobbySchema = z.object({ ...roomFields, status: z.literal("lobby"), state: z.null() }).strict();
+export const lobbySchema = z.object({ ...roomFields, status: z.literal("lobby"), state: z.null(), pendingInvitations: z.array(z.object({userId:z.uuid(),username:z.string(),avatarUrl:z.string().nullable()}).strict()).default([]), onlineUserIds:z.array(z.uuid()).default([]) }).strict();
 export const matchSchema = z.object({ ...roomFields, status: z.enum(["playing", "finished", "abandoned"]), state: flip7ViewSchema }).strict();
 export const roomSchema = z.discriminatedUnion("status", [lobbySchema, matchSchema]);
 export const lobbyListSchema = z.object({ items: z.array(lobbySchema).max(100), current: lobbySchema.nullable() }).strict();
@@ -57,3 +57,15 @@ export type Lobby = z.infer<typeof lobbySchema>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomSync = z.infer<typeof roomSyncSchema>;
 export type MatchParticipant = z.infer<typeof matchParticipantSchema>;
+
+// Lobby invitations expose only public account data and a short presence lease.
+export const invitePlayerSchema = z.object({ targetUserId: z.uuid() }).strict();
+export const lobbyPlayersQuerySchema = z.object({ q: z.string().trim().max(80).default("") }).strict();
+export const lobbyPlayersSchema = z.object({ items: z.array(z.object({
+  userId: z.uuid(), username: z.string(), avatarUrl: z.string().nullable(), online: z.boolean(), invited: z.boolean(),
+}).strict()), hasMore: z.boolean() }).strict();
+export const lobbyInvitationsSchema = z.object({ items: z.array(z.object({
+  code: matchCodeSchema, username: z.string(), avatarUrl: z.string().nullable(),
+}).strict()) }).strict();
+export type LobbyPlayers = z.infer<typeof lobbyPlayersSchema>;
+export type LobbyInvitations = z.infer<typeof lobbyInvitationsSchema>;

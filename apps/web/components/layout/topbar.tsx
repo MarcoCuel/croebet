@@ -166,9 +166,7 @@ export function Topbar({
                 <Balance key={username} value={walletReady ? balance : null} />
               </Link>
             </Button>
-            <div className="hidden md:block">
-              <NotificationsMenu />
-            </div>
+            <NotificationsMenu />
             <AccountMenu name={username} />
           </div>
         </>

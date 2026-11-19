@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Crown, Plus, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
@@ -16,6 +17,7 @@ import type { GameOptions } from "./types";
 import { modeLabel } from "./presentation";
 import { createServerMatch, changeLobby, rememberStart, updateServerLobby } from "./api";
 import { useMatchLive } from "./live";
+import { InvitePlayers } from "./invite-players";
 import { KickPlayer } from "./kick-player";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
 
@@ -29,15 +31,16 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const [capacity,setCapacity]=useState(preferences.count);
   const [options,setOptions]=useState<GameOptions>({mode:preferences.mode,brutal:preferences.brutal});
   const [busy,setBusy]=useState(false);
+  const [inviting,setInviting]=useState(searchParams.get("convidar")==="1");
   const [error,setError]=useState(initial.error);
   const pendingCreate=useRef<CreateMatch|null>(null);
   const pendingUpdate=useRef<UpdateLobby|null>(null);
   const pending=useRef<{key:string;id:string;version?:number}|null>(null);
   const navigating=useRef(false);
   const leaving=useRef(false);
-  const visit=(code:string|null)=>{
+  const visit=(code:string|null,invite=false)=>{
     if(searchParams.get("partida")===code)router.refresh();
-    else router.replace(code?"/jogos/flip7?partida="+code:"/jogos/flip7",{scroll:false});
+    else router.replace(code?"/jogos/flip7?partida="+code+(invite?"&convidar=1":""):"/jogos/flip7",{scroll:false});
   };
   useEffect(()=>{try{saveSetupPreferences({count:capacity,...options});}catch{/* Preferences are optional. */}},[capacity,options]);
   function acceptLobby(next:Lobby){
@@ -70,7 +73,9 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=room?.options ?? options;
   const limit=room?.capacity ?? capacity;
-  const occupied=room?.participants.length ?? 1;
+  const seats=room?[...room.participants,...room.pendingInvitations]:[];
+  const occupied=room?seats.length:1;
+  const allOnline=!!room && room.pendingInvitations.length===0 && room.participants.every(p=>room.onlineUserIds.includes(p.userId));
   const canEdit=!busy && (!room || (host && connected));
 
   async function configure(nextOptions:GameOptions,nextCapacity:number){
@@ -106,14 +111,23 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     }catch(e){pending.current=null;leaving.current=false;setError(e instanceof Error?e.message:"Não foi possível atualizar a sala.");}
     finally{setBusy(false);}
   }
-  async function create(){
+  const autoJoin=useRef("");
+  useEffect(()=>{
+    const code=searchParams.get("partida");
+    if(!userId || !room || room.code!==code || member || busy || leaving.current)return;
+    const key=userId+":"+code;
+    if(autoJoin.current===key)return;
+    autoJoin.current=key;
+    void act(room,"join");
+  });
+  async function create(invite=false){
     if(busy || room || directory.current)return;
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
     const payload={game:"flip7" as const,capacity,options};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:crypto.randomUUID()};
-    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code);}
+    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
     finally{setBusy(false);}
   }
@@ -122,54 +136,70 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     <Card className="space-y-5" aria-label="Configuração e regras">
       <Heading variant="section">Configuração</Heading>
       <fieldset disabled={!canEdit} className="space-y-4">
-        <Field>Versão<Select aria-label="Versão do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
+        <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Versão<Select className="max-w-full" aria-label="Versão do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit)}/></Field>}
       </fieldset>
       {rules(settings)}
     </Card>
     <Card className="space-y-5" aria-label="Jogadores e vagas">
-      <Heading variant="section">{room?"Lobby "+room.code:"Jogadores"}</Heading>
       <fieldset disabled={!canEdit}>
-        <Field>Limite de jogadores<Select aria-label="Limite de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
+        <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
       </fieldset>
-      <p className="text-sm text-muted">{modeLabel(settings)} · {occupied}/{limit} jogadores</p>
-      <ul className="divide-y divide-contrast/6" aria-label="Vagas da sala">
+      <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
-          const person=room?.participants[i];
+          const person=seats[i];
+          const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || !room.onlineUserIds.includes(person.userId));
           const preview=!room && i===0;
           const name=person?.username ?? (preview?username ?? "Você":null);
-          return <li key={person?.userId ?? "seat-"+i} className="flex min-h-16 items-center gap-3 py-3">
-            <Avatar className="size-10"><AvatarImage src={person?.avatarUrl ?? (preview?avatar ?? undefined:undefined)}/><AvatarFallback>{name?.[0]?.toLocaleUpperCase("pt-BR") ?? "·"}</AvatarFallback></Avatar>
-            <span className={cn("min-w-0 flex-1 truncate text-sm",!name && "text-muted")}>{name ?? "Vaga livre"}</span>
-            {((person && person.userId===room?.hostId) || preview) && <span className="text-xs text-muted">Host</span>}
-            {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={person.username} disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
+          const isHost=(person && person.userId===room?.hostId) || preview;
+          const next=i===occupied;
+          const placeholder=<UserRound className="size-6 text-muted" aria-hidden="true"/>;
+          return <li key={person?.userId ?? "seat-"+i} className={cn("relative flex min-w-0 flex-col items-center gap-2",waiting && "opacity-40")}>
+            <div className="relative">
+              {name?<Avatar className="size-16"><AvatarImage src={person?.avatarUrl ?? (preview?avatar ?? undefined:undefined)}/><AvatarFallback className="text-lg">{name[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
+                :next && (!room || host)?<Button variant="ghost" size="icon" className="size-16 rounded-full! border border-dashed border-field-border p-0" aria-label="Convidar jogadores" disabled={busy || (!!room && !connected)} onClick={async()=>{
+                  if(!userId){openLogin();return;}
+                  if(room){setInviting(true);return;}
+                  const created=await create(true);if(created)setInviting(true);
+                }}><Plus className="size-6" aria-hidden="true"/></Button>
+                :<span className="flex size-16 items-center justify-center rounded-full border border-dashed border-field-border">{placeholder}</span>}
+              {isHost && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-brand" title="Host"><Crown className="size-4" aria-label="Host"/></span>}
+            </div>
+            <span className={cn("w-full truncate text-center text-xs font-medium",isHost?"text-brand":!name && "text-muted")} title={waiting?`${name} · Aguardando entrada`:name ?? undefined}>{name ?? "Disponível"}</span>
+            {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={person.username} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
           </li>;
         })}
       </ul>
+      {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))router.replace("/jogos/flip7?partida="+room.code,{scroll:false});}}/>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="space-y-3">
-        {!room?<Button className="w-full" loading={busy} disabled={!!directory.current} onClick={()=>void create()}>{userId?"Criar lobby":"Entrar para jogar"}</Button>
-          :!member?<Button className="w-full" loading={busy} disabled={busy || !connected || room.participants.length>=room.capacity || !!directory.current} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
-          :<>
-            <Button className="w-full" loading={busy} disabled={busy || !connected || !host || room.participants.length<2} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
-            <Button className="w-full" variant="ghost" disabled={busy} onClick={()=>void act(room,"leave")}>Sair do lobby</Button>
-          </>}
-        <p className="text-sm text-muted" role="status">{room?!connected?"Reconectando à sala…":host?"A partida pode começar com pelo menos 2 jogadores.":"Só o host pode alterar a configuração e iniciar.":"A partida pode começar com 2 pessoas, sem preencher todas as vagas."}</p>
+        {!room?<Button className="w-full" loading={busy} disabled={!!directory.current} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
+          :!member?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || !!directory.current} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
+          :<div className="flex items-center gap-3">
+            <Button className="min-w-0 flex-1" loading={busy} disabled={busy || !connected || !host || room.participants.length<2 || !allOnline} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
+            <Button className="shrink-0" variant="secondary" disabled={busy} onClick={()=>void act(room,"leave")}>Cancelar</Button>
+          </div>}
+        {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
+        {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}
       </div>
     </Card>
-    <Card className="space-y-5 lg:col-span-2" aria-label="Lobbies abertos">
+    <section className="space-y-5 lg:col-span-2" aria-label="Lobbies abertos">
       <Heading variant="section">Lobbies abertos</Heading>
       {!userId?<p className="text-sm text-muted">Entre na sua conta para ver as salas.</p>:<>
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {directory.items.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className="divide-y divide-contrast/6">{directory.items.map(lobby=>{
+        {directory.items.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className="grid gap-4 sm:grid-cols-2">{directory.items.map(lobby=>{
           const joined=lobby.participants.some(p=>p.userId===userId);
-          return <li key={lobby.code} className="flex flex-wrap items-center gap-3 py-4">
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p><p className="text-xs text-muted">{modeLabel(lobby.options)} · {lobby.participants.length}/{lobby.capacity} jogadores</p></div>
-            {joined?<span className="text-sm text-muted">Seu lobby</span>:<Button size="sm" variant="secondary" loading={busy} disabled={busy || !connected || !!directory.current || lobby.participants.length>=lobby.capacity} onClick={()=>void act(lobby,"join")}>{lobby.participants.length>=lobby.capacity?"Lotado":"Entrar"}</Button>}
-          </li>;
+          return <li key={lobby.code}><Card className="h-full space-y-5">
+            <div><p className="truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p><p className="mt-1 text-xs text-muted">{modeLabel(lobby.options)} · {lobby.participants.length+lobby.pendingInvitations.length}/{lobby.capacity} jogadores</p></div>
+            <ul className="flex flex-wrap gap-3" aria-label="Jogadores do lobby">{[...lobby.participants,...lobby.pendingInvitations].map(person=><li key={person.userId} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",(!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
+              <Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
+              <span title={person.username} className={cn("w-full truncate text-center text-xs",person.userId===lobby.hostId && "text-brand")}>{person.username}</span>
+            </li>)}</ul>
+            {joined?<Button className="w-full" size="sm" variant="secondary" onClick={()=>visit(lobby.code)}>Voltar ao lobby</Button>:<Button className="w-full" size="sm" variant="secondary" loading={busy} disabled={busy || !connected || !!directory.current || lobby.participants.length+lobby.pendingInvitations.length>=lobby.capacity && !lobby.pendingInvitations.some(p=>p.userId===userId)} onClick={()=>void act(lobby,"join")}>{lobby.participants.length+lobby.pendingInvitations.length>=lobby.capacity && !lobby.pendingInvitations.some(p=>p.userId===userId)?"Lotado":"Entrar"}</Button>}
+          </Card></li>;
         })}</ul>}
       </>}
-    </Card>
+    </section>
     {initial.items.length>0 && <Card className="space-y-4 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="divide-y divide-contrast/6">{initial.items.map(match=><li key={match.code} className="flex flex-wrap items-center justify-between gap-3 py-3"><span className="text-sm">{modeLabel(match.options)} · Rodada {match.state.round} · {match.participants.length} jogadores</span><Button size="sm" variant="secondary" onClick={()=>visit(match.code)}>Continuar partida</Button></li>)}</ul></Card>}
   </div>;
 }

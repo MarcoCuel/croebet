@@ -184,3 +184,22 @@ export const gameMatchCommands = pgTable("game_match_commands", {
 export const gameMatchEvents = pgTable("game_match_events", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }), version: integer("version").notNull(), event: jsonb("event").notNull(),
 }, table => [uniqueIndex("match_event_version").on(table.matchId,table.version)]);
+
+export const userPresence = pgTable("user_presence", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+export const gameMatchInvitations = pgTable("game_match_invitations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }),
+  senderId: uuid("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  recipientId: uuid("recipient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, table => [uniqueIndex("match_invitation_recipient").on(table.matchId, table.recipientId), index("match_invitations_inbox").on(table.recipientId), check("match_invitation_other_user", sql`${table.senderId} <> ${table.recipientId}`)]);
+
+export const matchPresence = pgTable("match_presence", {
+  id: uuid("id").primaryKey(),
+  matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, table => [index("match_presence_room").on(table.matchId)]);

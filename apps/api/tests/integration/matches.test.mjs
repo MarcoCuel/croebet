@@ -20,8 +20,12 @@ async function environment(t) {
     tokens.push(newToken());sessions.push(tokenHash(tokens[i]));
     await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')",[sessions[i],actors[i]]);
   }
-  const create=(capacity=6)=>createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"flip7",capacity,options:{mode:"vengeance",brutal:true}});
-  const lobby=(code,index,action,extra={})=>lobbyAction(pool,actors[index],sessions[index],code,action,{commandId:randomUUID(),...extra});
+  const create=async(capacity=6)=>{const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"flip7",capacity,options:{mode:"vengeance",brutal:true}});await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);return room;};
+  const lobby=async(code,index,action,extra={})=>{
+    const room=await lobbyAction(pool,actors[index],sessions[index],code,action,{commandId:randomUUID(),...extra});
+    if(action==="join")await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[index]]);
+    return room;
+  };
   return {pool,actors,sessions,tokens,create,lobby};
 }
 test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recuperação de eventos",async t=>{
@@ -187,20 +191,20 @@ test("HTTP/SSE: autentica assinatura, transmite commits e revoga conexão sem ex
  const {response}=await connect(0,`?code=${room.code}&afterVersion=${room.version}`);
  assert.equal(response.headers.get("content-type"),"text/event-stream; charset=utf-8");
  const reader=response.body.getReader();let buffer="";
- async function event(name){
+ async function event(name,accept=()=>true){
   const timeout=AbortSignal.timeout(5000);
   while(true){
    const split=buffer.indexOf("\n\n");
-   if(split>=0){const block=buffer.slice(0,split);buffer=buffer.slice(split+2);if(block.includes(`event: ${name}\n`)){const line=block.split("\n").find(line=>line.startsWith("data: "));return JSON.parse(line.slice(6));}continue;}
+   if(split>=0){const block=buffer.slice(0,split);buffer=buffer.slice(split+2);if(block.includes(`event: ${name}\n`)){const line=block.split("\n").find(line=>line.startsWith("data: "));const data=JSON.parse(line.slice(6));if(accept(data))return data;}continue;}
    const chunk=await new Promise((resolve,reject)=>{const fail=()=>reject(Error("SSE timeout"));timeout.addEventListener("abort",fail,{once:true});reader.read().then(resolve,reject).finally(()=>timeout.removeEventListener("abort",fail));});
    if(chunk.done)throw Error("SSE closed unexpectedly");buffer+=new TextDecoder().decode(chunk.value);
   }
  }
  assert.equal((await event("room")).room.status,"lobby");
  assert.equal((await event("lobbies")).current.code,room.code);
- const joined=await lobby(room.code,1,"join");assert.equal((await event("room")).room.participants.length,2);
+ const joined=await lobby(room.code,1,"join");assert.equal((await event("room",data=>data.room.version===joined.version)).room.participants.length,2);
  await lobby(room.code,0,"start",{expectedVersion:joined.version});
- const started=await event("room");assert.equal(started.room.status,"playing");assert.ok(started.frames.some(frame=>frame.action.type==="start"));
+ const started=await event("room",data=>data.room.status==="playing");assert.equal(started.room.status,"playing");assert.ok(started.frames.some(frame=>frame.action.type==="start"));
  assert.equal((await connect(2,`?code=${room.code}`)).response.status,404);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
  const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
@@ -210,4 +214,55 @@ test("HTTP/SSE: autentica assinatura, transmite commits e revoga conexão sem ex
  if(actor===0)await commandMatch(pool,actors[1],sessions[1],room.code,{commandId:randomUUID(),expectedVersion:started.room.version},true);
  else await commandMatch(pool,actors[actor],sessions[actor],room.code,command);
  assert.equal((await event("closed")).code,"UNAUTHENTICATED");
+});
+
+test("PostgreSQL: convites autorizados, presença, repetição e reserva de vaga, recusa e entrada",async t=>{
+  const {refreshPresence,listLobbyPlayers,inviteLobbyPlayer}=await import("../../dist/modules/matches/service.js");
+  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(2);
+  let players=await listLobbyPlayers(pool,actors[0],room.code,"");
+  assert.equal(players.items.some(p=>p.userId===actors[0]),false);
+  assert.equal(players.items.find(p=>p.userId===actors[1]).online,false);
+  await refreshPresence(pool,actors[1],sessions[1]);
+  players=await listLobbyPlayers(pool,actors[0],room.code,"");
+  assert.equal(players.items.find(p=>p.userId===actors[1]).online,true);
+  await pool.query("update user_presence set expires_at=now()-interval '1 second' where user_id=$1",[actors[1]]);
+  assert.equal((await listLobbyPlayers(pool,actors[0],room.code,"")).items.find(p=>p.userId===actors[1]).online,false);
+  await assert.rejects(inviteLobbyPlayer(pool,actors[1],sessions[1],room.code,actors[2]),{code:"HOST_ONLY"});
+  await assert.rejects(listLobbyPlayers(pool,actors[1],room.code,""),{code:"HOST_ONLY"});
+  await assert.rejects(inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[0]),{code:"ALREADY_JOINED"});
+  await assert.rejects(inviteLobbyPlayer(pool,actors[0],"invalid",room.code,actors[1]),{code:"UNAUTHENTICATED"});
+  await Promise.all([1,2].map(()=>inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[1])));
+  assert.equal((await pool.query("select count(*)::int total from game_match_invitations where match_id=$1",[room.id])).rows[0].total,1);
+  assert.equal((await getMatch(pool,actors[0],room.code)).participants.length,1);
+  assert.equal((await refreshPresence(pool,actors[1],sessions[1])).items[0].code,room.code);
+  assert.equal((await refreshPresence(pool,actors[2],sessions[2])).items.length,0);
+  assert.equal((await listLobbyPlayers(pool,actors[0],room.code,"")).items.find(p=>p.userId===actors[1]).invited,true);
+  assert.equal((await listLobbyPlayers(pool,actors[0],room.code,"%" )).items.length,0);
+  assert.equal((await getMatch(pool,actors[0],room.code)).pendingInvitations[0].userId,actors[1]);
+  await assert.rejects(lobby(room.code,2,"join"),{code:"LOBBY_FULL"});
+  const {declineInvitation}=await import("../../dist/modules/matches/service.js");
+  await declineInvitation(pool,actors[1],sessions[1],room.code);
+  assert.equal((await getMatch(pool,actors[0],room.code)).pendingInvitations.length,0);
+  await inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[1]);
+  await lobby(room.code,1,"join");
+  assert.equal((await refreshPresence(pool,actors[1],sessions[1])).items.length,0);
+  await assert.rejects(inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[2]),{code:"LOBBY_FULL"});
+  await lobby(room.code,0,"start",{expectedVersion:(await getMatch(pool,actors[0],room.code)).version});
+  await assert.rejects(inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[2]),{code:"LOBBY_CLOSED"});
+});
+
+test("PostgreSQL: início exige presença na sala de todos, incluindo convidados pendentes",async t=>{
+  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(4);
+  const {inviteLobbyPlayer}=await import("../../dist/modules/matches/service.js");
+  await lobby(room.code,1,"join");
+  await inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[2]);
+  let current=await getMatch(pool,actors[0],room.code);
+  await assert.rejects(lobby(room.code,0,"start",{expectedVersion:current.version}),{code:"INVITATIONS_PENDING"});
+  await kickMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:current.version,targetUserId:actors[2]});
+  await pool.query("update match_presence set expires_at=now()-interval '1 second' where user_id=$1",[actors[1]]);
+  current=await getMatch(pool,actors[0],room.code);
+  assert.equal(current.onlineUserIds.includes(actors[1]),false);
+  await assert.rejects(lobby(room.code,0,"start",{expectedVersion:current.version}),{code:"PLAYERS_OFFLINE"});
+  await pool.query("update match_presence set expires_at=now()+interval '1 minute' where user_id=$1",[actors[1]]);
+  assert.equal((await lobby(room.code,0,"start",{expectedVersion:current.version})).status,"playing");
 });

@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { createMatchSchema, matchCommandSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
+import { invitePlayerSchema, lobbyPlayersQuerySchema, createMatchSchema, matchCommandSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
 import { matchLive } from "./live.ts";
 import { tokenHash } from "../auth/security.ts";
-import { MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
+import { declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
 
 type Options = { pool: Pool; sessionName: string; origin?: string; current: (token: string | undefined) => Promise<{ id: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function matchRoutes(app: FastifyInstance, options: Options) {
@@ -23,6 +23,13 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
     }
   }
   const live=matchLive(app,pool,sessionName,options.origin);
+  app.post("/api/v1/matches/presence",(req,reply)=>run(req,reply,(id,hash)=>refreshPresence(pool,id,hash)));
+  app.get<{Params:{code:string}}>("/api/v1/matches/:code/players",(req,reply)=>run(req,reply,id=>listLobbyPlayers(pool,id,matchCodeSchema.parse(req.params.code),lobbyPlayersQuerySchema.parse(req.query).q)));
+  app.post<{Params:{code:string}}>("/api/v1/matches/:code/invite",(req,reply)=>run(req,reply,async(id,hash)=>{
+    if(!await limit(`invitations:${id}`,30))return reply.code(429).send({error:{code:"RATE_LIMIT",message:"Muitos convites. Aguarde antes de enviar outros."}});
+    return inviteLobbyPlayer(pool,id,hash,matchCodeSchema.parse(req.params.code),invitePlayerSchema.parse(req.body).targetUserId);
+  }));
+  app.post<{Params:{code:string}}>("/api/v1/matches/:code/decline",(req,reply)=>run(req,reply,(id,hash)=>declineInvitation(pool,id,hash,matchCodeSchema.parse(req.params.code))));
   app.get("/api/v1/matches/live",(req,reply)=>run(req,reply,id=>live(req,reply,id)));
   app.get("/api/v1/matches/lobbies",(req,reply)=>run(req,reply,id=>listLobbies(pool,id)));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/update",(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),"update",updateLobbySchema.parse(req.body))));

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLobbyInvitations, LobbyInvitationItems } from "@/features/games/flip7/lobby-invitations";
 import { ArrowUpRight, Bell, Construction, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,11 +13,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function NotificationsMenu() {
+  const invitations=useLobbyInvitations();
+  const invitationCount=invitations.length;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" size="icon" aria-label="Notificações">
+        <Button variant="secondary" size="icon" className="relative" aria-label={invitationCount?`Notificações (${invitationCount} ${invitationCount===1?"convite":"convites"})`:"Notificações"}>
           <Bell className="size-4" aria-hidden="true" />
+          {invitationCount>0 && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand"/>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -24,6 +28,7 @@ export function NotificationsMenu() {
         aria-label="Notificações"
         className="w-[26rem] max-h-[calc(100dvh-6rem)] overflow-y-auto p-1.5"
       >
+        <LobbyInvitationItems items={invitations}/>
         <DropdownMenuLabel className="flex items-start gap-4 px-3 py-3.5 font-normal whitespace-normal">
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-foreground">

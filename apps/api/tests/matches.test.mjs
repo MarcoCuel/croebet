@@ -74,5 +74,9 @@ test("rotas exigem sessão e herdam Origin/CSRF antes de permitir escritas", asy
   const app = createApp(async () => {}); t.after(() => app.close());
   await app.register(authRoutes,{ pool: { query: async () => ({ rows:[{ environment:"test" }] }) }, config:{ APP_ENV:"test" } });
   assert.equal((await app.inject("/api/v1/matches")).statusCode,401);
+  assert.equal((await app.inject("/api/v1/matches/ABCDEF123456/players")).statusCode,401);
+  for(const url of ["/api/v1/matches/presence","/api/v1/matches/ABCDEF123456/invite","/api/v1/matches/ABCDEF123456/decline"]){
+    assert.equal((await app.inject({method:"POST",url,payload:{}})).statusCode,403);
+  }
   assert.equal((await app.inject({ method:"POST",url:"/api/v1/matches",payload:input })).statusCode,403);
 });

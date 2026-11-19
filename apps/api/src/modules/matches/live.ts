@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import type { ServerResponse } from "node:http";
@@ -5,24 +6,36 @@ import { matchCodeSchema } from "@croebet/shared";
 import { tokenHash } from "../auth/security.ts";
 import { getRoomSync, listLobbies, MatchError } from "./service.ts";
 
-type Connection = { response: ServerResponse; actor: string; session: string; code?: string; version: number; directory: string; checked: number };
+type Connection = { id:string; roomSignature:string; response: ServerResponse; actor: string; session: string; code?: string; version: number; directory: string; checked: number };
 /** One database watcher per API process; clients receive SSE, never poll HTTP.
  * Versions/events remain in PostgreSQL, so reconnect and process restart catch up.
  */
 export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string, origin: string | undefined) {
   const connections = new Set<Connection>();
   let running: Promise<void> | undefined;
+  let renewed=0;
   const write = (c: Connection, event: string, data: unknown, version?: number) => {
     if (c.response.destroyed || c.response.writableLength > 1024 * 1024) { c.response.destroy(); connections.delete(c); return false; }
     c.response.write(`${version===undefined?"":`id: ${version}\n`}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); return true;
   };
   async function update() {
     if (!connections.size) return;
+    if(Date.now()-renewed>15000){
+      const rooms=[...connections].filter(c=>c.code);
+      await pool.query(`insert into match_presence(id,match_id,user_id,expires_at)
+        select c.id,m.id,c.actor,clock_timestamp()+interval '30 seconds'
+        from unnest($1::uuid[],$2::text[],$3::uuid[]) as c(id,code,actor) join game_matches m on m.code=c.code
+        on conflict(id) do update set expires_at=excluded.expires_at`,[rooms.map(c=>c.id),rooms.map(c=>c.code),rooms.map(c=>c.actor)]);
+      await pool.query("delete from match_presence where expires_at<=clock_timestamp()");
+      renewed=Date.now();
+    }
     const codes = [...new Set([...connections].flatMap(c => c.code ? [c.code] : []))];
-    const versions = await pool.query<{code:string;version:number}>("select code,version from game_matches where code=any($1::text[])",[codes]);
+    const versions = await pool.query<{code:string;version:number;status:string}>("select code,version,status from game_matches where code=any($1::text[])",[codes]);
     const byCode = new Map(versions.rows.map(row => [row.code,row.version]));
     const directory = await pool.query("select m.code,m.version,g.enabled from game_matches m join games g on g.id=m.game_id where m.status='lobby' order by m.code");
-    const signature = JSON.stringify(directory?.rows);
+    const presence=await pool.query("select distinct match_id,user_id from match_presence where expires_at>clock_timestamp() order by match_id,user_id");
+    const invitations=await pool.query("select id from game_match_invitations where expires_at>clock_timestamp() order by id");
+    const signature = JSON.stringify([directory.rows,presence.rows,invitations.rows]);
     const lobbies = new Map<string,Awaited<ReturnType<typeof listLobbies>>>();
     for (const c of connections) {
       try {
@@ -32,9 +45,10 @@ export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string,
           if (!session.rows.length) throw new MatchError("UNAUTHENTICATED",401,"Entre novamente.");
           c.checked=Date.now(); c.response.write(": heartbeat\n\n");
         }
-        if (c.code && (c.version===0 || byCode.get(c.code)!==c.version)) {
+        if (c.code && (c.version===0 || byCode.get(c.code)!==c.version || (c.directory!==signature && versions.rows.some(r=>r.code===c.code && r.status==="lobby")))) {
           const data=await getRoomSync(pool,c.actor,c.code,c.version);
-          if(write(c,"room",data,data.room.version)) c.version=data.room.version;
+          const serialized=JSON.stringify(data);
+          if(c.roomSignature!==serialized && write(c,"room",data,data.room.version)){c.version=data.room.version;c.roomSignature=serialized;}
         }
         if (c.directory!==signature) {
           let data=lobbies.get(c.actor);
@@ -60,12 +74,14 @@ export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string,
     // Authorize and load before committing headers; never expose another table.
     const initial=code ? await getRoomSync(pool,actor,code,version) : null;
     const directory=await listLobbies(pool,actor);
+    const connectionId=randomUUID();
+    if(initial)await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')",[connectionId,initial.room.id,actor]);
     reply.hijack();
     reply.raw.writeHead(200,{"Content-Type":"text/event-stream; charset=utf-8","Cache-Control":"no-cache, no-store, no-transform","Connection":"keep-alive","X-Accel-Buffering":"no"});
-    const c:Connection={response:reply.raw,actor,session:tokenHash(request.cookies[sessionName]!),code,version:0,directory:"",checked:Date.now()};
+    const c:Connection={id:connectionId,roomSignature:"",response:reply.raw,actor,session:tokenHash(request.cookies[sessionName]!),code,version:0,directory:"",checked:Date.now()};
     connections.add(c);
     if(initial){write(c,"room",initial,initial.room.version);c.version=initial.room.version;}
     write(c,"lobbies",directory);
-    reply.raw.on("close",()=>connections.delete(c));
+    reply.raw.on("close",()=>{connections.delete(c);void pool.query("delete from match_presence where id=$1",[c.id]).catch(error=>app.log.error(error));});
   };
 }

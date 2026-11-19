@@ -127,6 +127,20 @@
       "when": 1795122972953,
       "tag": "0017_multiplayer_lobbies",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795129925211,
+      "tag": "0018_fearless_puma",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795130955104,
+      "tag": "0019_chief_ravenous",
+      "breakpoints": true
     }
   ]
 }
