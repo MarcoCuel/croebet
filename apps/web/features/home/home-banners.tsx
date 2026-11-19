@@ -64,7 +64,7 @@ export function HomeBanners() {
           {!username ? "Entre para resgatar" : !daily ? "Indisponível" : coolingDown ? `Próximo resgate em ${countdown}` : "Disponível"}
         </Badge>
         <div>
-          <Heading variant="banner">Resgate diário</Heading>
+          <Heading variant="banner">Bônus diário</Heading>
           <p className="mt-3 text-sm sm:text-base">
             Ganhe <strong>10 Croins</strong> grátis a cada 24 horas. <br/>Volte todos os dias para resgatar!
           </p>

@@ -24,7 +24,7 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
   }
   const live=matchLive(app,pool,sessionName,options.origin);
   app.get("/api/v1/matches/live",(req,reply)=>run(req,reply,id=>live(req,reply,id)));
-  app.get("/api/v1/matches/lobbies",(req,reply)=>run(req,reply,()=>listLobbies(pool)));
+  app.get("/api/v1/matches/lobbies",(req,reply)=>run(req,reply,id=>listLobbies(pool,id)));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/update",(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),"update",updateLobbySchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/kick",(req,reply)=>run(req,reply,(id,hash)=>kickMatch(pool,id,hash,matchCodeSchema.parse(req.params.code),kickMatchSchema.parse(req.body))));
   for (const kind of ["join","leave","start"] as const) app.post<{Params:{code:string}}>(`/api/v1/matches/:code/${kind}`,(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),kind,kind==="start"?matchAbandonSchema.parse(req.body):lobbyCommandSchema.parse(req.body))));

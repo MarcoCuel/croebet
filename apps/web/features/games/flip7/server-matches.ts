@@ -3,9 +3,9 @@ import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { matchCodeSchema, roomSchema, matchListSchema, lobbyListSchema, type Match, type Lobby } from "@croebet/shared";
 
-export type InitialMatches = { revision: string; match: Match | null; lobby: Lobby | null; lobbies: Lobby[]; items: Match[]; error: string; unavailable: boolean };
+export type InitialMatches = { revision: string; match: Match | null; lobby: Lobby | null; currentLobby: Lobby | null; lobbies: Lobby[]; items: Match[]; error: string; unavailable: boolean };
 export async function getInitialMatches(code: string | undefined): Promise<InitialMatches> {
-  const empty: InitialMatches = { revision: randomUUID(), match: null, lobby:null,lobbies:[],items: [], error: "", unavailable: false };
+  const empty: InitialMatches = { revision: randomUUID(), match: null, lobby:null,currentLobby:null,lobbies:[],items: [], error: "", unavailable: false };
   const jar=await cookies();
   const cookie=jar.get("__Host-croebet-session") ?? jar.get("croebet-session");
   if(!cookie)return {...empty,error:code?"Entre para acessar a sala.":""};
@@ -18,8 +18,10 @@ export async function getInitialMatches(code: string | undefined): Promise<Initi
     return response.json();
   };
   try {
-    if(code){const room=roomSchema.parse(await request(`/${code}`));return room.status==="lobby"?{...empty,lobby:room}:{...empty,match:room};}
-    const [games,lobbies]=await Promise.all([request(""),request("/lobbies")]);
-    return {...empty,items:matchListSchema.parse(games).items,lobbies:lobbyListSchema.parse(lobbies).items};
+    const [data,lobbies]=await Promise.all([request(code?`/${code}`:""),request("/lobbies")]);
+    const directory=lobbyListSchema.parse(lobbies);
+    const base={...empty,lobbies:directory.items,currentLobby:directory.current};
+    if(code){const room=roomSchema.parse(data);return room.status==="lobby"?{...base,lobby:directory.current ?? room}:{...base,match:room};}
+    return {...base,lobby:directory.current,items:matchListSchema.parse(data).items};
   }catch(error){const message=error instanceof Error?error.message:"unavailable";return {...empty,unavailable:message==="unavailable" || !["Entre novamente para acessar as salas.","Sala não encontrada."].includes(message),error:message==="unavailable"?"Não foi possível carregar as salas.":message};}
 }

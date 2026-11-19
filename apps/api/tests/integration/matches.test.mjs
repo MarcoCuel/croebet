@@ -27,7 +27,7 @@ async function environment(t) {
 test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recuperação de eventos",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create();
  assert.equal(room.status,"lobby");assert.equal(room.capacity,6);assert.equal(room.state,null);
- assert.ok((await listLobbies(pool)).items.some(r=>r.id===room.id));
+ assert.ok((await listLobbies(pool,actors[0])).items.some(r=>r.id===room.id));
  assert.equal((await getMatch(pool,actors[2],room.code)).status,"lobby");
  await assert.rejects(lobby(room.code,0,"start",{expectedVersion:1}),{code:"NOT_ENOUGH_PLAYERS"});
  const joined=await lobby(room.code,1,"join");
@@ -36,7 +36,7 @@ test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recupera
  const started=await lobby(room.code,0,"start",{expectedVersion:joined.version});
  assert.equal(started.status,"playing");assert.equal(started.state.players.length,2);assert.equal(started.capacity,6);
  assert.ok(started.state.players.every(p=>p.kind==="human"));
- assert.equal((await listLobbies(pool)).items.some(r=>r.id===room.id),false);
+ assert.equal((await listLobbies(pool,actors[0])).items.some(r=>r.id===room.id),false);
  for(const actor of actors.slice(0,2))assert.ok((await listMatches(pool,actor)).items.some(m=>m.id===room.id));
  await assert.rejects(getMatch(pool,actors[2],room.code),{code:"NOT_FOUND"});
  await assert.rejects(lobby(room.code,2,"join"),{code:"LOBBY_CLOSED"});
@@ -56,6 +56,33 @@ test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recupera
  assert.equal(JSON.stringify(catchup).includes('"deck"'),false);assert.equal(JSON.stringify(catchup).includes('"seed"'),false);
  await pool.query("delete from game_match_events where match_id=$1 and version=$2",[room.id,catchup.frames[0].version]);
  assert.equal((await getRoomSync(pool,actors[actor],room.code,started.version)).reset,true);
+});
+test("PostgreSQL: uma conta ocupa só um lobby, mesmo com criação e entrada concorrentes",async t=>{
+ const {pool,actors,sessions,lobby}=await environment(t);
+ const input=()=>({requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"classic",brutal:false}});
+ const first=input(),second=input();
+ const attempts=await Promise.allSettled([first,second].map(data=>createMatch(pool,actors[0],sessions[0],data)));
+ assert.equal(attempts.filter(result=>result.status==="fulfilled").length,1);
+ assert.equal(attempts.find(result=>result.status==="rejected").reason.code,"LOBBY_EXISTS");
+ const room=attempts.find(result=>result.status==="fulfilled").value;
+ assert.deepEqual(await createMatch(pool,actors[0],sessions[0],attempts[0].status==="fulfilled"?first:second),room);
+ assert.equal((await listLobbies(pool,actors[0])).current.id,room.id);
+ assert.equal((await listLobbies(pool,actors[1])).current,null);
+ const other=await createMatch(pool,actors[2],sessions[2],input());
+ await assert.rejects(lobby(other.code,0,"join"),{code:"LOBBY_EXISTS"});
+ await lobby(room.code,1,"join");
+ await assert.rejects(createMatch(pool,actors[1],sessions[1],input()),{code:"LOBBY_EXISTS"});
+ await lobby(room.code,0,"leave");
+ assert.equal((await listLobbies(pool,actors[0])).current,null);
+ assert.equal((await listLobbies(pool,actors[1])).current.hostId,actors[1]);
+ await lobby(other.code,0,"join");
+ const race=await Promise.allSettled([createMatch(pool,actors[3],sessions[3],input()),lobby(other.code,3,"join")]);
+ assert.equal(race.filter(result=>result.status==="fulfilled").length,1);
+ assert.equal(race.find(result=>result.status==="rejected").reason.code,"LOBBY_EXISTS");
+ const count=await pool.query("select count(*)::int as total from game_match_players p join game_matches m on m.id=p.match_id where p.user_id=$1 and m.status='lobby'",[actors[3]]);
+ assert.equal(count.rows[0].total,1);
+ await lobby(room.code,1,"leave");
+ assert.equal((await createMatch(pool,actors[1],sessions[1],input())).status,"lobby");
 });
 test("PostgreSQL: capacidade concorrente, transferência de host, compactação e fechamento",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(2);
@@ -88,7 +115,7 @@ test("PostgreSQL: só o host edita lobby aberto, preservando ocupação, versão
  assert.deepEqual(updated.participants,joined.participants);
  assert.deepEqual(await lobbyAction(pool,actors[0],sessions[0],room.code,"update",input),updated);
  await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,capacity:5}),{code:"IDEMPOTENCY_CONFLICT"});
- assert.equal((await listLobbies(pool)).items.find(r=>r.id===room.id).capacity,4);
+ assert.equal((await listLobbies(pool,actors[0])).items.find(r=>r.id===room.id).capacity,4);
  const started=await lobby(room.code,0,"start",{expectedVersion:updated.version});
  assert.equal(started.state.mode,"classic");assert.equal(started.state.brutal,false);
  await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,commandId:randomUUID(),expectedVersion:started.version}),{code:"LOBBY_CLOSED"});
@@ -170,6 +197,7 @@ test("HTTP/SSE: autentica assinatura, transmite commits e revoga conexão sem ex
   }
  }
  assert.equal((await event("room")).room.status,"lobby");
+ assert.equal((await event("lobbies")).current.code,room.code);
  const joined=await lobby(room.code,1,"join");assert.equal((await event("room")).room.participants.length,2);
  await lobby(room.code,0,"start",{expectedVersion:joined.version});
  const started=await event("room");assert.equal(started.room.status,"playing");assert.ok(started.frames.some(frame=>frame.action.type==="start"));

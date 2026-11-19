@@ -13,7 +13,11 @@ export function matchesFixture() {
   const commands:unknown[]=[];
   const streams=new Set<{response:ServerResponse;code:string|null;actor:string;version:number}>();
   let failAfterCommit=false;
-  const directory=()=>({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="lobby")});
+  let createdCount=0;
+  const directory=(actor:string)=>{
+    const items=[...states.values()].map(s=>s.room).filter(room=>room.status==="lobby");
+    return {items,current:items.find(room=>room.participants.some(person=>person.userId===actor)) ?? null};
+  };
   function replace(saved:{room:Room;privateState?:Game;frames:MatchFrame[]},seat:number){
     if(!saved.privateState)throw Error("Partida não iniciada");
     const before=flip7Driver.project(saved.privateState),state=replaceWithBot(saved.privateState,seat),version=saved.room.version+1;
@@ -25,8 +29,11 @@ export function matchesFixture() {
     return {match:saved.room,before,frames};
   }
   function notify(){for(const stream of streams){
-    if(!stream.code){stream.response.write(`event: lobbies\ndata: ${JSON.stringify(directory())}\n\n`);continue;}
-    const saved=states.get(stream.code);if(!saved || saved.room.version<=stream.version)continue;
+    stream.response.write(`event: lobbies\ndata: ${JSON.stringify(directory(stream.actor))}\n\n`);
+    if(!stream.code)continue;
+    const saved=states.get(stream.code);
+    if(!saved){stream.response.write(`event: closed\ndata: ${JSON.stringify({message:"Sala encerrada."})}\n\n`);stream.response.end();continue;}
+    if(saved.room.version<=stream.version)continue;
     if(saved.room.status!=="lobby" && !saved.room.participants.some(p=>p.userId===stream.actor)){stream.response.end();continue;}
     if(saved.room.status==="playing" && saved.room.state.players[saved.room.participants.find(p=>p.userId===stream.actor)!.seat].kind!=="human"){
       stream.response.write(`event: closed\ndata: ${JSON.stringify({message:"Um bot assumiu sua vaga."})}\n\n`);stream.response.end();continue;
@@ -49,10 +56,10 @@ export function matchesFixture() {
       const stream={response,code,actor:actor.id,version};streams.add(stream);response.on("close",()=>streams.delete(stream));
       const saved=code?states.get(code):null;
       if(saved)response.write(`event: room\ndata: ${JSON.stringify({room:saved.room,frames:saved.frames.filter(f=>f.version>version),reset:false})}\n\n`);
-      else response.write(`event: lobbies\ndata: ${JSON.stringify(directory())}\n\n`);
+      response.write(`event: lobbies\ndata: ${JSON.stringify(directory(actor.id))}\n\n`);
       return true;
     }
-    if(path==="/api/v1/matches/lobbies")return send(directory());
+    if(path==="/api/v1/matches/lobbies")return send(directory(actor.id));
     if(request.method==="GET" && path==="/api/v1/matches")return send({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor.id))});
     const code=path.split("/")[4];
     if(request.method==="GET")return states.has(code)?send(states.get(code)!.room):send({error:{message:"Sala não encontrada."}},404);
@@ -61,7 +68,8 @@ export function matchesFixture() {
     if(receipts.has(key)){notify();return send(receipts.get(key));}
     const person=(seat:number):MatchParticipant=>({userId:actor.id,username:actor.username,displayName:actor.displayName,avatarUrl:null,seat});
     if(path==="/api/v1/matches"){
-      const input=createMatchSchema.parse(body),code=(states.size+1).toString(16).padStart(12,"0").toUpperCase();
+      if(directory(actor.id).current)return send({error:{message:"Você já está em um lobby."}},409);
+      const input=createMatchSchema.parse(body),code=(++createdCount).toString(16).padStart(12,"0").toUpperCase();
       const room:Room={id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
       states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
     }
@@ -81,12 +89,14 @@ export function matchesFixture() {
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/join")){
+      if(directory(actor.id).current && directory(actor.id).current?.code!==code)return send({error:{message:"Você já está em um lobby."}},409);
       if(saved.room.status!=="lobby" || saved.room.participants.length>=saved.room.capacity)return send({error:{message:"Sala indisponível."}},409);
       if(!saved.room.participants.some(p=>p.userId===actor.id))saved.room={...saved.room,version:saved.room.version+1,participants:[...saved.room.participants,person(saved.room.participants.length)]};
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/leave")){
       const people=saved.room.participants.filter(p=>p.userId!==actor.id);
+      if(!people.length){const closed={code:saved.room.code,status:"closed"};states.delete(code);receipts.set(key,closed);notify();return send(closed);}
       saved.room={...saved.room,version:saved.room.version+1,participants:people,hostId:people[0]?.userId ?? actor.id};
       receipts.set(key,saved.room);notify();return send(saved.room);
     }

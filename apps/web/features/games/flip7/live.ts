@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { lobbyListSchema, roomSyncSchema, type Lobby, type RoomSync } from "@croebet/shared";
+import { lobbyListSchema, roomSyncSchema, type LobbyList, type RoomSync } from "@croebet/shared";
 
-export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (items: Lobby[]) => void, onClosed: (message: string) => void) {
+export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void) {
   const handlers=useRef({onRoom,onLobbies,onClosed});
   useEffect(()=>{handlers.current={onRoom,onLobbies,onClosed};});
   const streamKey=enabled?(code ?? "directory"):null;
@@ -19,7 +19,7 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
       catch { source.close();setConnected(false);handlers.current.onClosed("Não foi possível sincronizar a sala. Recarregue a página."); }
     });
     source.addEventListener("lobbies",event=>{
-      try { handlers.current.onLobbies(lobbyListSchema.parse(JSON.parse(event.data)).items);setConnected(true); }
+      try { handlers.current.onLobbies(lobbyListSchema.parse(JSON.parse(event.data)));setConnected(true); }
       catch { source.close();setConnected(false); }
     });
     source.addEventListener("closed",event=>{

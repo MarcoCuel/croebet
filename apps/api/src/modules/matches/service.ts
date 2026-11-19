@@ -48,12 +48,18 @@ async function read<T>(pool: Pool, action: (client: PoolClient) => Promise<T>) {
   try { await client.query("begin isolation level repeatable read read only"); const result=await action(client); await client.query("commit"); return result; }
   catch(error) { await client.query("rollback"); throw error; } finally { client.release(); }
 }
-export async function listLobbies(pool: Pool) {
+export async function listLobbies(pool: Pool, actor: string) {
   return read(pool,async client => {
     const result=await client.query<Row>(`select m.* from game_matches m join games g on g.id=m.game_id where m.status='lobby' and g.enabled=true order by m.created_at desc,m.id limit 100`);
-    const people=await participants(client,result.rows.map(row=>row.id));
-    return lobbyListSchema.parse({ items:result.rows.map(row=>view(row,people.get(row.id) ?? [])) });
+    const current=await client.query<Row>(`select m.* from game_matches m where m.status='lobby' and exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1) order by m.created_at,m.id limit 1`,[actor]);
+    const people=await participants(client,[...result.rows,...current.rows].map(row=>row.id));
+    return lobbyListSchema.parse({ items:result.rows.map(row=>view(row,people.get(row.id) ?? [])), current:current.rows[0]?view(current.rows[0],people.get(current.rows[0].id) ?? []):null });
   });
+}
+async function requireNoOtherLobby(client: PoolClient, actor: string, except?: string) {
+  // All membership writes hold the actor's account lock in transaction().
+  const existing=await client.query("select 1 from game_match_players p join game_matches m on m.id=p.match_id where p.user_id=$1 and m.status='lobby' and ($2::uuid is null or m.id<>$2) limit 1",[actor,except ?? null]);
+  if(existing.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já está em um lobby. Saia dele antes de criar ou entrar em outro.");
 }
 export async function listMatches(pool: Pool, actor: string) {
   return read(pool,async client=>{
@@ -92,7 +98,8 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
       if(previous.rows[0].creation_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Este pedido já foi usado com outra configuração.");
       return lobbySchema.parse(previous.rows[0].creation_response);
     }
-    const active=await client.query("select count(*)::int as total from game_matches where owner_id=$1 and status in ('playing','lobby')",[actor]);
+    await requireNoOtherLobby(client,actor);
+    const active=await client.query("select count(*)::int as total from game_matches where owner_id=$1 and status='playing'",[actor]);
     if(active.rows[0].total>=30) throw new MatchError("MATCH_LIMIT",409,"Encerre uma sala antes de criar outra.");
     const catalog=await client.query("select id from games where slug=$1 and enabled=true for share",[input.game]);
     if(!catalog.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
@@ -163,6 +170,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
       if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
       if(!member) {
+        await requireNoOtherLobby(client,actor,row.id);
         if(people.length>=row.capacity) throw new MatchError("LOBBY_FULL",409,"Esta sala está lotada.");
         const seat=Array.from({length:row.capacity},(_,i)=>i).find(index=>!people.some(person=>person.seat===index))!;
         await client.query("insert into game_match_players(match_id,seat,user_id,controller_id,name,kind) select $1,$2,id,id,username,'user' from users where id=$3",[row.id,seat,actor]);

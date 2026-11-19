@@ -37,7 +37,7 @@ O projeto está em desenvolvimento; contas, saldos, partidas e demais dados atua
 
 ### 4.1. Jogos
 
-O primeiro jogo é o **Flip 7**, com motor e partidas persistidos no servidor e lobbies públicos entre usuários da Croebet. Salas têm limite de 2 a 12 pessoas e podem iniciar com apenas duas. O host pode alterar versão, modo e capacidade antes do início e expulsar participantes no lobby ou durante o jogo. Abandono ou expulsão durante a partida transfere a vaga para um bot; desconexões aguardam indefinidamente. Primeiro será concluído o modo gratuito; Croins permanecem bloqueados até a integração econômica. Regras, apresentação e decisões econômicas futuras estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
+O primeiro jogo é o **Flip 7**, com motor e partidas persistidos no servidor e lobbies públicos entre usuários da Croebet. Cada conta pode estar em somente um lobby aberto por vez. Salas têm limite de 2 a 12 pessoas e podem iniciar com apenas duas. O host pode alterar versão, modo e capacidade antes do início e expulsar participantes no lobby ou durante o jogo. Abandono ou expulsão durante a partida transfere a vaga para um bot; desconexões aguardam indefinidamente. Primeiro será concluído o modo gratuito; Croins permanecem bloqueados até a integração econômica. Regras, apresentação e decisões econômicas futuras estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
 
 Haverá outros jogos funcionais, com identidade visual e referências próprias da comunidade. Exemplos previstos:
 

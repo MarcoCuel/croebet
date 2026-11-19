@@ -21,13 +21,12 @@ export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string,
     const codes = [...new Set([...connections].flatMap(c => c.code ? [c.code] : []))];
     const versions = await pool.query<{code:string;version:number}>("select code,version from game_matches where code=any($1::text[])",[codes]);
     const byCode = new Map(versions.rows.map(row => [row.code,row.version]));
-    const directories = [...connections].filter(c => !c.code);
-    const directory = directories.length ? await pool.query("select m.code,m.version from game_matches m join games g on g.id=m.game_id where m.status='lobby' and g.enabled=true order by m.code") : null;
+    const directory = await pool.query("select m.code,m.version,g.enabled from game_matches m join games g on g.id=m.game_id where m.status='lobby' order by m.code");
     const signature = JSON.stringify(directory?.rows);
-    let lobbies: Awaited<ReturnType<typeof listLobbies>> | undefined;
+    const lobbies = new Map<string,Awaited<ReturnType<typeof listLobbies>>>();
     for (const c of connections) {
       try {
-        const changed=c.code ? c.version===0 || byCode.get(c.code)!==c.version : c.directory!==signature;
+        const changed=(c.code && (c.version===0 || byCode.get(c.code)!==c.version)) || c.directory!==signature;
         if (changed || Date.now()-c.checked > 15000) {
           const session=await pool.query("select 1 from sessions s join users u on u.id=s.user_id where s.token_hash=$1 and s.user_id=$2 and u.status='active' and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp()",[c.session,c.actor]);
           if (!session.rows.length) throw new MatchError("UNAUTHENTICATED",401,"Entre novamente.");
@@ -36,9 +35,11 @@ export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string,
         if (c.code && (c.version===0 || byCode.get(c.code)!==c.version)) {
           const data=await getRoomSync(pool,c.actor,c.code,c.version);
           if(write(c,"room",data,data.room.version)) c.version=data.room.version;
-        } else if (!c.code && c.directory!==signature) {
-          lobbies ??= await listLobbies(pool);
-          if(write(c,"lobbies",lobbies)) c.directory=signature;
+        }
+        if (c.directory!==signature) {
+          let data=lobbies.get(c.actor);
+          if(!data){data=await listLobbies(pool,c.actor);lobbies.set(c.actor,data);}
+          if(write(c,"lobbies",data)) c.directory=signature;
         }
       } catch(error) {
         if(error instanceof MatchError) { write(c,"closed",{code:error.code,message:error.message}); c.response.end(); connections.delete(c); }
@@ -57,13 +58,14 @@ export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string,
     const version=Number(request.headers["last-event-id"] ?? query.afterVersion ?? 0);
     if(!Number.isSafeInteger(version) || version<0) return reply.code(400).send({error:{code:"INVALID_INPUT",message:"Versão inválida."}});
     // Authorize and load before committing headers; never expose another table.
-    const initial=code ? await getRoomSync(pool,actor,code,version) : await listLobbies(pool);
+    const initial=code ? await getRoomSync(pool,actor,code,version) : null;
+    const directory=await listLobbies(pool,actor);
     reply.hijack();
     reply.raw.writeHead(200,{"Content-Type":"text/event-stream; charset=utf-8","Cache-Control":"no-cache, no-store, no-transform","Connection":"keep-alive","X-Accel-Buffering":"no"});
     const c:Connection={response:reply.raw,actor,session:tokenHash(request.cookies[sessionName]!),code,version:0,directory:"",checked:Date.now()};
     connections.add(c);
-    write(c,code?"room":"lobbies",initial,"room" in initial?initial.room.version:undefined);
-    if("room" in initial)c.version=initial.room.version;
+    if(initial){write(c,"room",initial,initial.room.version);c.version=initial.room.version;}
+    write(c,"lobbies",directory);
     reply.raw.on("close",()=>connections.delete(c));
   };
 }
