@@ -4,6 +4,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
@@ -51,14 +52,11 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
     finally { setPending(null); }
   }
   return <div className="grid min-w-0 gap-4">
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-      <nav aria-label="Filtrar páginas por status" className="flex flex-wrap gap-1">
+    <AdminListHeader filterLabel="Filtrar páginas por status" filters={<>
         {filters.map(({ value, label }) => <Button key={value} size="sm" variant={filter === value ? "secondary" : "ghost"} aria-current={filter === value ? "page" : undefined} onClick={() => setFilter(value)}>
-          {label} <span className="text-muted tabular-nums">({pages.filter(page => matchesFilter(page, value)).length})</span>
+          {label} {filter === value && <AdminFilterCount count={pages.filter(page => matchesFilter(page, value)).length} />}
         </Button>)}
-      </nav>
-      <div className="w-full sm:w-72"><SearchInput value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar páginas…" aria-label="Buscar páginas" /></div>
-    </div>
+    </>} search={<SearchInput value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar páginas…" aria-label="Buscar páginas" />} />
     <Card>
       {visible.length ? <ul aria-label="Páginas" className="divide-y divide-contrast/6">
         {visible.map(page => <li key={page.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 py-4 first:pt-0 last:pb-0">
@@ -82,7 +80,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
         </li>)}
       </ul> : <p className="text-sm text-muted">{!pages.length ? "Nenhuma página criada ainda." : "Nenhuma página encontrada."}</p>}
     </Card>
-    <p className="text-xs text-muted" aria-live="polite">{visible.length} {visible.length === 1 ? "página" : "páginas"}</p>
+
     <Dialog open={!!deleting} onOpenChange={open => { if (!open && !pending) setDeleting(null); }}>
       <DialogContent aria-describedby={undefined} onEscapeKeyDown={event => { if (pending) event.preventDefault(); }} onPointerDownOutside={event => { if (pending) event.preventDefault(); }}>
         <DialogTitle>Excluir página permanentemente?</DialogTitle>

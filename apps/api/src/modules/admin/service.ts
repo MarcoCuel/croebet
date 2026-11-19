@@ -60,9 +60,11 @@ export async function readAdminUsers(pool: Pool, query: z.infer<typeof adminQuer
   const params = [`%${query.q}%`, query.status];
   const [rows, count] = await Promise.all([
     pool.query(`${userProjection} ${where} order by u.created_at desc,u.id desc limit $3 offset $4`, [...params, query.limit + 1, query.offset]),
-    pool.query(`select count(*)::int as total from users u ${where}`, params),
+    pool.query(`select count(*)::int as "all", count(*) filter (where u.status='active')::int as active,
+      count(*) filter (where u.status='suspended')::int as suspended from users u where (u.username ilike $1 or u.display_name ilike $1)`, [params[0]]),
   ]);
-  return adminUsersSchema.parse({ items: rows.rows.slice(0, query.limit).map(userData), hasMore: rows.rows.length > query.limit, total: count.rows[0].total });
+  const counts = count.rows[0];
+  return adminUsersSchema.parse({ items: rows.rows.slice(0, query.limit).map(userData), hasMore: rows.rows.length > query.limit, total: counts[query.status], counts });
 }
 export async function changeUser(pool: Pool, actorId: string, hash: string, targetId: string, input: z.infer<typeof userChangeSchema>) {
   await adminTransaction(pool, actorId, hash, targetId, async (client, target) => {
@@ -123,9 +125,14 @@ export async function readCoupons(pool: Pool, query: z.infer<typeof couponsQuery
   const params = [`%${query.q}%`, query.status];
   const [rows, count] = await Promise.all([
     pool.query(`${base} select * from listed ${where} order by created_at desc,id desc limit $3 offset $4`, [...params, query.limit + 1, query.offset]),
-    pool.query(`${base} select count(*)::int as total from listed ${where}`, params),
+    pool.query(`${base} select state, count(*)::int as total from listed where code ilike $1 group by state`, [params[0]]),
   ]);
-  return couponsSchema.parse({ items: rows.rows.slice(0, query.limit).map(couponData), hasMore: rows.rows.length > query.limit, total: count.rows[0].total });
+  const counts = { Todos: 0, Ativo: 0, Agendado: 0, Pausado: 0, Expirado: 0, Esgotado: 0 };
+  for (const row of count.rows) {
+    counts[row.state as keyof typeof counts] = row.total;
+    counts.Todos += row.total;
+  }
+  return couponsSchema.parse({ items: rows.rows.slice(0, query.limit).map(couponData), hasMore: rows.rows.length > query.limit, total: counts[query.status], counts });
 }
 export async function readRedemptions(pool: Pool, couponId: string, q = "", offset = 0, limit = 20) {
   const result = await pool.query(`select r.id,r.amount,r.created_at,u.username from coupon_redemptions r

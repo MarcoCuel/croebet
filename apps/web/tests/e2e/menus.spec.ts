@@ -62,7 +62,7 @@ test("menu principal aceita rótulos, links personalizados, ordem e nova aba", a
   await page.goto("/admin/menus");
   await page.getByLabel("Rótulo do link", { exact: true }).fill("Comunidade");
   await page.getByLabel("URL do link", { exact: true }).fill("https://example.com/comunidade");
-  await page.getByRole("button", { name: "Adicionar link personalizado" }).click();
+  await page.getByRole("group", { name: "Link personalizado", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
   await page.getByRole("switch", { name: "Abrir item 3 em nova aba" }).check();
   await page.getByRole("button", { name: "Subir item 3" }).click();
   await page.getByLabel("Rótulo do item 3", { exact: true }).fill("Quem somos");
@@ -82,9 +82,9 @@ test("rodapé tem itens independentes e páginas em rascunho ficam ocultas", asy
   await page.goto("/admin/menus");
   await page.getByLabel("Menu", { exact: true }).selectOption("footer");
   await page.getByLabel("Página fixa", { exact: true }).selectOption("history");
-  await page.getByRole("button", { name: "Adicionar página fixa" }).click();
+  await page.getByRole("group", { name: "Páginas fixas", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
   await page.getByLabel("Página criada", { exact: true }).selectOption(draftId);
-  await page.getByRole("button", { name: "Adicionar página criada" }).click();
+  await page.getByRole("group", { name: "Páginas criadas", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(page.getByText("Oculta até a publicação", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
   await expect(page.getByText("Menu salvo.", { exact: true })).toBeVisible();
@@ -105,7 +105,7 @@ test("conflitos preservam edição local; links executáveis são recusados", as
   await page.goto("/admin/menus");
   await page.getByLabel("Rótulo do link", { exact: true }).fill("Perigoso");
   await page.getByLabel("URL do link", { exact: true }).fill("javascript:alert(1)");
-  await page.getByRole("button", { name: "Adicionar link personalizado" }).click();
+  await page.getByRole("group", { name: "Link personalizado", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(page.getByText("Informe um link interno, http, https, mailto ou tel válido.")).toBeVisible();
   await page.getByLabel("Rótulo do item 1", { exact: true }).fill("Começar"); menus[0].version++;
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();

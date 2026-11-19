@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
@@ -26,39 +27,40 @@ export function AdminMarkets() {
       normalize(m.question).includes(normalize(search.trim())),
   );
   return (
-    <>
+    <div className="grid min-w-0 gap-4">
       <h1 className="sr-only">Apostas</h1>
-      <SearchInput
-        aria-label="Buscar apostas no admin"
-        placeholder="Buscar apostas"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
-      <div
-        className="my-4 flex flex-wrap gap-1"
-        role="group"
-        aria-label="Status das apostas"
-      >
-        <Button
-          size="sm"
-          variant={status === "all" ? "secondary" : "ghost"}
-          aria-pressed={status === "all"}
-          onClick={() => setStatus("all")}
-        >
-          Todas
-        </Button>
-        {Object.entries(marketStatuses).map(([value, label]) => (
+      <AdminListHeader
+        filterLabel="Status das apostas"
+        search={
+          <SearchInput
+            aria-label="Buscar apostas no admin"
+            placeholder="Buscar apostas"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        }
+        filters={<>
           <Button
-            key={value}
             size="sm"
-            variant={status === value ? "secondary" : "ghost"}
-            aria-pressed={status === value}
-            onClick={() => setStatus(value as MarketStatus)}
+            variant={status === "all" ? "secondary" : "ghost"}
+            aria-pressed={status === "all"}
+            onClick={() => setStatus("all")}
           >
-            {label}
+            Todas {status === "all" && <AdminFilterCount count={config.markets.length} />}
           </Button>
-        ))}
-      </div>
+          {Object.entries(marketStatuses).map(([value, label]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={status === value ? "secondary" : "ghost"}
+              aria-pressed={status === value}
+              onClick={() => setStatus(value as MarketStatus)}
+            >
+              {label} {status === value && <AdminFilterCount count={config.markets.filter(market => market.status === value).length} />}
+            </Button>
+          ))}
+        </>}
+      />
       {error ? (
         <Card role="alert">{error}</Card>
       ) : (
@@ -123,6 +125,6 @@ export function AdminMarkets() {
       {!error && markets.length === 0 && (
         <Card className="text-sm text-muted">Nenhuma aposta encontrada.</Card>
       )}
-    </>
+    </div>
   );
 }

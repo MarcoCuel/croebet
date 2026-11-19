@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -32,13 +33,9 @@ function Status({ user }: { user: AdminUser }) {
   return <Badge variant="secondary" className={user.status === "active" ? "bg-prediction-yes/10 text-prediction-yes" : "bg-prediction-no/10 text-prediction-no"}>{user.status === "active" ? "Ativo" : "Suspenso"}</Badge>;
 }
 export function AdminUsers({ initial, query }: { initial: ReturnType<typeof adminUsersSchema.parse>; query: ListQuery }) {
-  return <div>
+  return <div className="grid min-w-0 gap-4">
     <h1 className="sr-only">Usuários</h1>
-    <ManagementSearch base="/admin/usuarios" query={query} label="Buscar usuários no admin" placeholder="Buscar por nome ou usuário" />
-    <div className="my-4 flex flex-wrap items-center justify-between gap-3">
-      <nav aria-label="Status dos usuários" className="flex flex-wrap gap-1">{[["all", "Todos"], ["active", "Ativos"], ["suspended", "Suspensos"]].map(([value, label]) => <Button key={value} size="sm" variant={query.status === value ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/usuarios", { ...query, status: value, offset: 0 })} aria-current={query.status === value ? "page" : undefined}>{label}</Link></Button>)}</nav>
-      <p className="text-xs text-muted" role="status">{initial.total} {initial.total === 1 ? "usuário" : "usuários"}</p>
-    </div>
+    <AdminListHeader filterLabel="Status dos usuários" filters={<>{[["all", "Todos"], ["active", "Ativos"], ["suspended", "Suspensos"]].map(([value, label]) => <Button key={value} size="sm" variant={query.status === value ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/usuarios", { ...query, status: value, offset: 0 })} aria-current={query.status === value ? "page" : undefined}>{label} {query.status === value && <AdminFilterCount count={initial.counts[value as keyof typeof initial.counts]} />}</Link></Button>)}</>} search={<ManagementSearch base="/admin/usuarios" query={query} label="Buscar usuários no admin" placeholder="Buscar por nome ou usuário" />} />
     <Card className="overflow-hidden p-0 sm:p-0">
       <div aria-hidden="true" className="hidden grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem] gap-4 px-5 py-4 text-xs text-muted xl:grid"><span>Usuário</span><span>Permissão</span><span>Status</span><span>Saldo</span><span /></div>
       <ul className="divide-y divide-contrast/6">{initial.items.map(user => <li key={user.id}><Link href={`/admin/usuarios/${user.id}`} aria-label={`Ver usuário ${user.username}`} className="grid grid-cols-2 items-center gap-3 p-5 transition-colors hover:bg-contrast/10 xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]">

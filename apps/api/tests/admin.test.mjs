@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
-import { protectLastAdmin, adminTransaction, changeUser, saveCoupon, couponAvailability, adjustBalance } from '../dist/modules/admin/service.js';
+import { readAdminUsers, readCoupons, protectLastAdmin, adminTransaction, changeUser, saveCoupon, couponAvailability, adjustBalance } from '../dist/modules/admin/service.js';
 import { redeemCoupon } from '../dist/modules/admin/redeem.js';
 import { couponWriteSchema, redeemCouponSchema, balanceAdjustmentSchema, userChangeSchema, adminUserSchema } from '@croebet/shared';
 
@@ -117,4 +117,29 @@ test('rotas administrativas escondem recursos de visitantes e usuários comuns e
   }
 
   assert.equal(z.uuid().safeParse(target).success, true);
+});
+
+test('contagens de usuários abrangem todos os status antes da paginação', async () => {
+  const calls = [];
+  const pool = { query: async (sql, params) => {
+    calls.push([sql, params]);
+    return { rows: sql.includes('count(*)') ? [{ all: 42, active: 40, suspended: 2 }] : [] };
+  } };
+  const result = await readAdminUsers(pool, { q: 'Tonho', status: 'suspended', offset: 20, limit: 20 });
+  assert.deepEqual(result.counts, { all: 42, active: 40, suspended: 2 });
+  assert.equal(result.total, 2);
+  assert.deepEqual(calls[1][1], ['%Tonho%']);
+  assert.ok(!calls[1][0].includes("$2"));
+});
+test('contagens de cupons incluem status vazios e não dependem da página selecionada', async () => {
+  const calls = [];
+  const pool = { query: async (sql, params) => {
+    calls.push([sql, params]);
+    return { rows: sql.includes('group by state') ? [{ state: 'Ativo', total: 25 }, { state: 'Pausado', total: 3 }] : [] };
+  } };
+  const result = await readCoupons(pool, { q: 'CROE', status: 'Pausado', offset: 20, limit: 20 });
+  assert.deepEqual(result.counts, { Todos: 28, Ativo: 25, Agendado: 0, Pausado: 3, Expirado: 0, Esgotado: 0 });
+  assert.equal(result.total, 3);
+  assert.deepEqual(calls[1][1], ['%CROE%']);
+  assert.ok(!calls[1][0].includes('$2'));
 });

@@ -17,10 +17,9 @@ export function listHref(base: string, query: ListQuery) {
   return `${base}?${new URLSearchParams({ q: query.q, status: query.status, offset: String(query.offset) })}`;
 }
 export function ManagementSearch({ base, query, label, placeholder }: { base: string; query: ListQuery; label: string; placeholder: string }) {
-  return <form action={base} className="flex gap-2">
+  return <form action={base} className="w-full">
     <SearchInput name="q" defaultValue={query.q} aria-label={label} placeholder={placeholder} maxLength={80} className="min-w-0 flex-1" />
     <Input type="hidden" name="status" value={query.status} />
-    <Button type="submit" variant="secondary">Buscar</Button>
   </form>;
 }
 export function ListPagination({ base, query, hasMore }: { base: string; query: ListQuery; hasMore: boolean }) {

@@ -30,7 +30,7 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
     const query = new URL(url, "http://api").searchParams;
     const q = (query.get("q") ?? "").toLowerCase(); const status = query.get("status") ?? "all";
     const items = user.username.toLowerCase().includes(q) && (status === "all" || status === user.status) ? [user] : [];
-    return { items, total: items.length, hasMore: false };
+    return { items, total: items.length, hasMore: false, counts: { all: user.username.toLowerCase().includes(q) ? 1 : 0, active: user.username.toLowerCase().includes(q) && user.status === "active" ? 1 : 0, suspended: user.username.toLowerCase().includes(q) && user.status === "suspended" ? 1 : 0 } };
   }
   if (path === `/api/v1/admin/users/${userId}` && method === "PATCH") {
     lastBody = body; user = { ...user, role: String(body.role), status: String(body.status) };
@@ -49,7 +49,7 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
       endsAt: body.endsAt as string | null, paused: Boolean(body.paused), version: (coupon?.version ?? -1) + 1, redeemed: 0, distributed: 0, status: body.paused ? "Pausado" : "Ativo" };
     return { id: couponId };
   }
-  if (path === "/api/v1/admin/coupons") return { items: coupon ? [coupon] : [], total: coupon ? 1 : 0, hasMore: false };
+  if (path === "/api/v1/admin/coupons") return { items: coupon ? [coupon] : [], total: coupon ? 1 : 0, hasMore: false, counts: { Todos: coupon ? 1 : 0, Ativo: coupon?.status === "Ativo" ? 1 : 0, Agendado: 0, Pausado: coupon?.status === "Pausado" ? 1 : 0, Expirado: 0, Esgotado: 0 } };
   if (path === `/api/v1/admin/coupons/${couponId}`) return { coupon, redemptions: page, audit: page };
   return page;
 }

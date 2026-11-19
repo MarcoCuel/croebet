@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { couponWriteSchema, couponsSchema, couponDetailSchema, redemptionsSchema, type Coupon } from "@croebet/shared";
 import { toast } from "sonner";
+import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,11 +21,9 @@ import { adminDate, AuditHistory, ManagementSearch, ListPagination, listHref, ty
 
 function Status({ coupon }: { coupon: Coupon }) { return <Badge variant={coupon.status === "Ativo" ? "default" : "secondary"}>{coupon.status}</Badge>; }
 export function AdminCoupons({ initial, query }: { initial: ReturnType<typeof couponsSchema.parse>; query: ListQuery }) {
-  return <>
+  return <div className="grid min-w-0 gap-4">
     <h1 className="sr-only">Cupons</h1>
-    <ManagementSearch base="/admin/cupons" query={query} label="Buscar cupons" placeholder="Buscar por código" />
-    <nav className="my-4 flex flex-wrap gap-1" aria-label="Status dos cupons">{["Todos", "Ativo", "Agendado", "Pausado", "Expirado", "Esgotado"].map(status => <Button key={status} size="sm" variant={query.status === status ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/cupons", { ...query, status, offset: 0 })} aria-current={query.status === status ? "page" : undefined}>{status}</Link></Button>)}</nav>
-    <div className="mb-4 flex justify-between gap-4"><p className="text-xs text-muted">{initial.total} cupons</p><Button asChild size="sm"><Link href="/admin/cupons/novo">Novo cupom</Link></Button></div>
+    <AdminListHeader filterLabel="Status dos cupons" filters={<>{["Todos", "Ativo", "Agendado", "Pausado", "Expirado", "Esgotado"].map(status => <Button key={status} size="sm" variant={query.status === status ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/cupons", { ...query, status, offset: 0 })} aria-current={query.status === status ? "page" : undefined}>{status} {query.status === status && <AdminFilterCount count={initial.counts[status as keyof typeof initial.counts]} />}</Link></Button>)}</>} search={<ManagementSearch base="/admin/cupons" query={query} label="Buscar cupons" placeholder="Buscar por código" />} />
     <ul className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">{initial.items.map(c => <li key={c.id}><Card className="flex h-full flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="break-all font-semibold">{c.code}</h2><Status coupon={c} /></div>
       <p className="text-2xl font-semibold tabular-nums">{formatBalance.format(c.amount)} <span className="text-sm font-normal text-muted">Croins</span></p>
@@ -34,7 +33,7 @@ export function AdminCoupons({ initial, query }: { initial: ReturnType<typeof co
     </Card></li>)}</ul>
     {!initial.items.length && <Card className="text-sm text-muted">Nenhum cupom encontrado.</Card>}
     <ListPagination base="/admin/cupons" query={query} hasMore={initial.hasMore} />
-  </>;
+  </div>;
 }
 const inputDate = (value: string | null | undefined) => value ? new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)).replace(" ", "T") : "";
 const utcDate = (value: string) => value ? new Date(`${value}:00-03:00`).toISOString() : null;
