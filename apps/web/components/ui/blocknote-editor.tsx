@@ -18,7 +18,7 @@ const schema = BlockNoteSchema.create({
     numberedListItem: defaultBlockSpecs.numberedListItem,
     quote: defaultBlockSpecs.quote,
   },
-  inlineContentSpecs: { text: defaultInlineContentSpecs.text },
+  inlineContentSpecs: defaultInlineContentSpecs,
   styleSpecs: { bold: defaultStyleSpecs.bold, italic: defaultStyleSpecs.italic, underline: defaultStyleSpecs.underline },
 });
 

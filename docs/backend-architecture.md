@@ -1,5 +1,15 @@
 # Arquitetura da primeira versão funcional
 
+## Verificação de contas e economia — 19/11/2026
+
+Nova execução sobre o código atual: lint aprovado nas três aplicações/pacotes; TypeScript e compilação de shared/API aprovados; TypeScript web aprovado após corrigir o esquema do BlockNote e o conversor de conteúdo. O editor mantém os tipos internos obrigatórios de texto/link; links recebidos são convertidos para texto com formatação, sem destinos de hyperlink no contrato público. Teste de regressão cobre essa conversão. Total de 186 testes unitários aprovados (131 web, 52 API e três contratos).
+
+`drizzle-kit check` aprovou os metadados das 13 migrations (0000–0012), mas sua aplicação real não foi confirmada. A conexão ao PostgreSQL de desenvolvimento foi recusada pela sessão com `connect EPERM 127.0.0.1:5432`; Docker também recusou acesso ao socket. Nenhuma migration, seed ou reset foi executado no banco de desenvolvimento.
+
+Os sete testes de integração foram tentados e pararam na configuração: `TEST_DATABASE_URL` não está definida. Portanto, concorrência, rollback, imutabilidade, contas, carteira, resgates, cupons e administração ainda exigem validação no PostgreSQL isolado, migrado e identificado como `test`. Não usar o banco de desenvolvimento como destino desses testes.
+
+A suíte Playwright de sessão/perfil/carteira/economia/administração foi tentada; o servidor não iniciou por `listen EPERM 127.0.0.1:3100`. Esses cenários usam fixtures HTTP e não substituem os testes PostgreSQL. O build web padrão com Turbopack foi iniciado, mas permaneceu sem conclusão e foi interrompido; não está aprovado nesta rodada. Como o wrapper pnpm tenta escrever em cache Corepack não permitido, as verificações acima usaram os binários já instalados no projeto.
+
 ## Páginas, menu e rodapé — 19/11/2026
 
 Implementação de páginas transferida para o Fastify/PostgreSQL. `GET /api/v1/pages` retorna somente referências de páginas publicadas; `GET /api/v1/pages/:slug` retorna somente conteúdo publicado. Rascunhos e endereços inválidos/inexistentes recebem 404, sem fallback para conteúdo do navegador. Leituras usam no-store. O Next consulta conteúdo e navegação no servidor; falha de serviço apresenta tentativa novamente, distinta de ausência. Sidebar e rodapé usam exclusivamente os menus independentes descritos abaixo; publicar uma página não cria itens de navegação. Revalidação posterior preserva dados confirmados durante falhas.

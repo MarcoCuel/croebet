@@ -39,3 +39,15 @@ test("BlockNote agrupa itens consecutivos e mantém documentos vazios como rascu
   assert.equal(richTextPlainText(fromEditorBlocks([{ type: "paragraph", content: [], children: [] }])), "");
   assert.equal(isRichTextDocument(saved), true);
 });
+
+test("links colados no BlockNote preservam texto e formatação no contrato de páginas", () => {
+  const saved = fromEditorBlocks([{ type: "paragraph", content: [
+    { type: "text", text: "Veja ", styles: {} },
+    { type: "link", href: "https://example.com", content: [
+      { type: "text", text: "o site", styles: { bold: true } },
+    ] },
+  ] }]);
+  assert.deepEqual(saved, [{ tag: "p", children: ["Veja ", { tag: "strong", children: ["o site"] }] }]);
+  assert.equal(isRichTextDocument(saved), true);
+  assert.equal(richTextPlainText(saved), "Veja o site");
+});

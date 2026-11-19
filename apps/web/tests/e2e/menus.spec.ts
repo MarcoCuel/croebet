@@ -63,9 +63,22 @@ test("menu principal aceita rótulos, links personalizados, ordem e nova aba", a
   await page.getByLabel("Rótulo do link", { exact: true }).fill("Comunidade");
   await page.getByLabel("URL do link", { exact: true }).fill("https://example.com/comunidade");
   await page.getByRole("group", { name: "Link personalizado", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
-  await page.getByRole("switch", { name: "Abrir item 3 em nova aba" }).check();
+  const customItem = page.getByRole("listitem", { name: "Item 3", exact: true });
+  await expect(customItem.getByRole("switch", { name: "Abrir em nova aba", exact: true })).toBeHidden();
+  await expect(customItem.getByLabel("Título", { exact: true })).toBeHidden();
+  await customItem.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  const titleBounds = await customItem.getByLabel("Título", { exact: true }).boundingBox();
+  const removeBounds = await customItem.getByRole("button", { name: "Remover item 3" }).boundingBox();
+  expect(titleBounds).not.toBeNull(); expect(removeBounds).not.toBeNull();
+  expect(Math.abs((titleBounds!.y + titleBounds!.height / 2) - (removeBounds!.y + removeBounds!.height / 2))).toBeLessThan(1);
+  await customItem.getByRole("switch", { name: "Abrir em nova aba", exact: true }).check();
+  await customItem.getByText("Comunidade", { exact: true }).click();
+  await expect(customItem.getByRole("switch", { name: "Abrir em nova aba", exact: true })).toBeHidden();
+  await customItem.getByText("Comunidade", { exact: true }).click();
   await page.getByRole("button", { name: "Subir item 3" }).click();
-  await page.getByLabel("Rótulo do item 3", { exact: true }).fill("Quem somos");
+  await page.getByRole("listitem", { name: "Item 3", exact: true }).getByText("Sobre", { exact: true }).click();
+  await page.getByRole("listitem", { name: "Item 3", exact: true }).getByLabel("Título", { exact: true }).fill("Quem somos");
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
   await expect(page.getByText("Menu salvo.", { exact: true })).toBeVisible();
   expect(menus[0].items.map(item => item.label)).toEqual(["Início", "Comunidade", "Quem somos"]);
@@ -85,6 +98,7 @@ test("rodapé tem itens independentes e páginas em rascunho ficam ocultas", asy
   await page.getByRole("group", { name: "Páginas fixas", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
   await page.getByLabel("Página criada", { exact: true }).selectOption(draftId);
   await page.getByRole("group", { name: "Páginas criadas", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
+  await page.getByRole("listitem", { name: "Item 2", exact: true }).getByText("Ajuda", { exact: true }).click();
   await expect(page.getByText("Oculta até a publicação", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
   await expect(page.getByText("Menu salvo.", { exact: true })).toBeVisible();
@@ -94,6 +108,7 @@ test("rodapé tem itens independentes e páginas em rascunho ficam ocultas", asy
   pages[1].published = true; pages[1].slug = "central-de-ajuda";
   await visitor.reload();
   await expect(visitor.locator("footer").getByRole("link", { name: "Ajuda", exact: true })).toHaveAttribute("href", "/central-de-ajuda");
+  await page.getByRole("listitem", { name: "Item 1", exact: true }).getByText("Histórico", { exact: true }).click();
   await page.getByRole("button", { name: "Remover item 1" }).click();
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
   await expect(page.getByRole("button", { name: "Salvar menu", exact: true })).toBeDisabled();
@@ -107,10 +122,11 @@ test("conflitos preservam edição local; links executáveis são recusados", as
   await page.getByLabel("URL do link", { exact: true }).fill("javascript:alert(1)");
   await page.getByRole("group", { name: "Link personalizado", exact: true }).getByRole("button", { name: "Adicionar", exact: true }).click();
   await expect(page.getByText("Informe um link interno, http, https, mailto ou tel válido.")).toBeVisible();
-  await page.getByLabel("Rótulo do item 1", { exact: true }).fill("Começar"); menus[0].version++;
+  await page.getByRole("listitem", { name: "Item 1", exact: true }).getByText("Início", { exact: true }).click();
+  await page.getByRole("listitem", { name: "Item 1", exact: true }).getByLabel("Título", { exact: true }).fill("Começar"); menus[0].version++;
   await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
   await expect(page.getByText("Este menu foi alterado. Recarregue antes de salvar.")).toBeVisible();
-  await expect(page.getByLabel("Rótulo do item 1", { exact: true })).toHaveValue("Começar");
+  await expect(page.getByRole("listitem", { name: "Item 1", exact: true }).getByLabel("Título", { exact: true })).toHaveValue("Começar");
 });
 test("configuração de menus é privada e falhas oferecem nova tentativa", async ({ page }) => {
   role = "user"; expect((await page.goto("/admin/menus"))?.status()).toBe(404);

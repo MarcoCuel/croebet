@@ -2,12 +2,13 @@ import type { RichTextDocument, RichTextNode } from "./rich-text.ts";
 
 type TextStyles = { bold?: boolean; italic?: boolean; underline?: boolean };
 type EditorText = { type: "text"; text: string; styles: TextStyles };
+type EditorInline = EditorText | { type: "link"; href: string; content: readonly EditorText[] };
 type BlockContent = { content: EditorText[]; children: EditorBlock[] };
 export type EditorBlock = BlockContent & (
   | { type: "paragraph" | "quote" | "bulletListItem" | "numberedListItem" }
   | { type: "heading"; props: { level: 1 | 2 | 3 } }
 );
-type ReadableBlock = { type: string; props?: { level?: number }; content?: readonly EditorText[]; children?: readonly ReadableBlock[] };
+type ReadableBlock = { type: string; props?: { [key: string]: unknown; level?: number }; content?: readonly EditorInline[]; children?: readonly ReadableBlock[] };
 const inlineTags = new Set(["strong", "em", "u", "br"]);
 
 function inlineContent(nodes: RichTextDocument, styles: TextStyles = {}): EditorText[] {
@@ -54,8 +55,10 @@ export function toEditorBlocks(document: RichTextDocument): EditorBlock[] {
   return blocks;
 }
 
-function readInline(content: readonly EditorText[]): RichTextDocument {
+function readInline(content: readonly EditorInline[]): RichTextDocument {
   return content.flatMap(item => {
+    // The page contract supports formatted text, without hyperlink destinations.
+    if (item.type === "link") return readInline(item.content);
     const lines = item.text.split("\n");
     let nodes: RichTextDocument = lines.flatMap((line, index): RichTextDocument => [...(index ? [{ tag: "br" as const, children: [] }] : []), ...(line ? [line] : [])]);
     for (const [style, tag] of [["bold", "strong"], ["italic", "em"], ["underline", "u"]] as const) {
