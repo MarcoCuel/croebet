@@ -3,7 +3,7 @@
 import { Award, PlayingCards, House, Info, Tickets, Trophy } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSiteConfig } from "@/features/admin/site-config";
+import { usePageLinks } from "@/features/pages/page-links";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +23,8 @@ export function MenuLinks({
   sidebar?: boolean;
 }) {
   const pathname = usePathname();
-  const { config } = useSiteConfig();
-  const menuLinks: typeof links = [...links, ...config.pages.filter((page) => page.published && page.showInMenu).map((page) => ({ href: `/${page.slug}`, label: page.title, Icon: Info }))];
+  const pages = usePageLinks();
+  const menuLinks: typeof links = [...links, ...(pages ?? []).filter(page => page.showInMenu).map((page) => ({ href: `/${page.slug}`, label: page.title, Icon: Info }))];
   return (
     <nav className="grid gap-1.5" aria-label="Navegação principal">
       {menuLinks.map(({ href, label, Icon, comingSoon }) => comingSoon ? (

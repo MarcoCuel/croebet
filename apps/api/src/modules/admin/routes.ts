@@ -7,6 +7,8 @@ import { tokenHash } from "../auth/security.ts";
 import { readTransactions, WalletError } from "../wallet/service.ts";
 import { ManagementError, readAdminUser, readAdminUsers, readAudit, changeUser, adjustBalance, readCoupon, readCoupons, readRedemptions, saveCoupon } from "./service.ts";
 import { redeemCoupon } from "./redeem.ts";
+import { pageSlugSchema, pageWriteSchema } from "@croebet/shared";
+import { readPageLinks, readPage, readPages, savePage } from "../pages/service.ts";
 
 type Options = { pool: Pool; sessionName: string; current: (token: string | undefined) => Promise<{ id: string; role: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function managementRoutes(app: FastifyInstance, options: Options) {
@@ -20,11 +22,23 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
       if (error instanceof z.ZodError) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: error.issues[0].message } });
       if (error instanceof WalletError) return reply.code(409).send({ error: { code: error.code, message: error.code === "INSUFFICIENT_FUNDS" ? "Saldo insuficiente para a retirada." : "Não foi possível movimentar a carteira. Confira os valores." } });
-      if (error && typeof error === "object" && "code" in error && error.code === "23505") return reply.code(409).send({ error: { code: "CONFLICT", message: "Este código já existe ou este pedido já foi processado." } });
+      if (error && typeof error === "object" && "code" in error && error.code === "23505") return reply.code(409).send({ error: { code: "CONFLICT", message: "Este código ou endereço já existe, ou este pedido já foi processado." } });
       throw error;
     }
   }
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as { id: string }).id);
+  const slug = (request: FastifyRequest) => pageSlugSchema.parse((request.params as { slug: string }).slug);
+  app.get("/api/v1/pages", async () => readPageLinks(pool));
+  app.get("/api/v1/pages/:slug", async (request, reply) => {
+    const parsed = pageSlugSchema.safeParse((request.params as { slug: string }).slug);
+    if (!parsed.success) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Página não encontrada." } });
+    try { return await readPage(pool, parsed.data); }
+    catch (error) { if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } }); throw error; }
+  });
+  app.get("/api/v1/admin/pages", (request, reply) => run(request, reply, true, async () => readPages(pool)));
+  app.get("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async () => readPage(pool, slug(request), true)));
+  app.post("/api/v1/admin/pages", (request, reply) => run(request, reply, true, async (actor, hash) => savePage(pool, actor.id, hash, null, pageWriteSchema.parse(request.body))));
+  app.patch("/api/v1/admin/pages/:slug", (request, reply) => run(request, reply, true, async (actor, hash) => savePage(pool, actor.id, hash, slug(request), pageWriteSchema.parse(request.body))));
   app.get("/api/v1/admin/users", (request, reply) => run(request, reply, true, async () => readAdminUsers(pool, adminQuerySchema.parse(request.query))));
   app.get("/api/v1/admin/users/:id", (request, reply) => run(request, reply, true, async () => {
     const userId = id(request);

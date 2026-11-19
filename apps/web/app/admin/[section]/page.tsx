@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AdminAccess } from "@/features/admin/admin-access";
-import { adminQuerySchema, adminUsersSchema, couponsQuerySchema, couponsSchema } from "@croebet/shared";
+import { adminQuerySchema, adminUsersSchema, couponsQuerySchema, couponsSchema, pagesSchema } from "@croebet/shared";
+import { AdminPages } from "@/features/admin/admin-pages";
 import { getManagement } from "@/features/admin/server-management";
 import { AdminUsers } from "@/features/admin/admin-users";
 import { AdminCoupons } from "@/features/admin/admin-coupons";
@@ -41,6 +42,10 @@ export default async function AdminSectionPage({
     ([, href]) => href === `/admin/${section}`,
   );
   if (!entry) notFound();
+  if (section === "paginas") {
+    const data = await getManagement("/admin/pages", pagesSchema);
+    return <AdminAccess section="pages" content={data ? <AdminPages pages={data.items} /> : <ManagementUnavailable />} />;
+  }
   if (section === "usuarios" || section === "cupons") {
     const search = await searchParams;
     const users = section === "usuarios";

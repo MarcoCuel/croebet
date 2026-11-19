@@ -8,6 +8,7 @@ import { Navigation } from "@/components/layout/navigation";
 import { Providers } from "@/components/layout/providers";
 import { getInitialSession } from "@/features/auth/server-session";
 import { Footer } from "@/components/layout/footer";
+import { loadPageLinks } from "@/features/pages/api";
 
 const inter = localFont({
   src: "./fonts/InterVariable.woff2",
@@ -26,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const initialSession = await getInitialSession();
+  const [initialSession, initialPages] = await Promise.all([getInitialSession(), loadPageLinks(process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001")]);
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -34,7 +35,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body className="bg-background font-sans text-base text-foreground">
         <Motion />
-        <Providers initialSession={initialSession}>
+        <Providers initialSession={initialSession} initialPages={initialPages}>
           <Navigation>
             {children}
             <Footer />

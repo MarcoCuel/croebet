@@ -1,5 +1,14 @@
 import { pgTable, bigint, bigserial, integer, boolean, jsonb, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+export const pages = pgTable("pages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  document: jsonb("document").notNull(),
+  published: boolean("published").notNull().default(false),
+  showInMenu: boolean("show_in_menu").notNull().default(false),
+  version: integer("version").notNull().default(1),
+}, table => [check("page_version_positive", sql`${table.version} > 0`)]);
 // Referência operacional: não contém valores da economia nem usuários demo.
 export const applicationEnvironment = pgTable("application_environment", {
   id: integer("id").primaryKey(),

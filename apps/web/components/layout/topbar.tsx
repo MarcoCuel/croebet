@@ -16,6 +16,7 @@ import { useSiteConfig } from "@/features/admin/site-config";
 import { useHomeSection } from "@/features/home/home-section";
 import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
+import { usePageLinks } from "@/features/pages/page-links";
 
 export function Topbar({
   mobileMenuOpen,
@@ -26,8 +27,9 @@ export function Topbar({
 }) {
   const pathname = usePathname();
   const {
-    config: { games, pages },
+    config: { games },
   } = useSiteConfig();
+  const pages = usePageLinks() ?? [];
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";
   const { permissions } = useDemoSession();
@@ -62,7 +64,7 @@ export function Topbar({
               } as Record<string, string>
             )[pathname]
       : undefined) ??
-    pages.find((page) => page.published && pathname === `/${page.slug}`)?.title ??
+    pages.find((page) => pathname === `/${page.slug}`)?.title ??
     games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
     (
       {

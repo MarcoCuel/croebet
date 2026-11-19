@@ -1,4 +1,6 @@
 import { z } from "zod";
+export * from "./rich-text.js";
+export * from "./pages.js";
 
 export const healthSchema = z.object({ status: z.literal("ok"), service: z.literal("croebet-api") }).strict();
 export const readinessSchema = z.object({ status: z.enum(["ready", "unavailable"]) }).strict();

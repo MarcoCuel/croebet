@@ -7,7 +7,6 @@ import { AdminOverview } from "@/features/admin/admin-overview";
 import { AdminGames } from "@/features/admin/admin-games";
 import { AdminGameEditor } from "@/features/admin/admin-game-editor";
 import { adminRoutes, type AdminSection } from "@/features/admin/routes";
-import { AdminPages, AdminPageEditor } from "@/features/admin/admin-pages";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -36,7 +35,6 @@ export function AdminPanel({
   section = "overview",
   gameSlug,
   marketId,
-  pageSlug,
   content,
 }: {
   content?: ReactNode;
@@ -93,13 +91,7 @@ export function AdminPanel({
             ) : (
               <AdminMarkets />
             ))}
-          {section === "pages" &&
-            (pageSlug ? (
-              <AdminPageEditor key={pageSlug} slug={pageSlug} />
-            ) : (
-              <AdminPages />
-            ))}
-          {(section === "coupons" || section === "users") && content}
+          {(section === "pages" || section === "coupons" || section === "users") && content}
         </section>
       </div>
     </div>

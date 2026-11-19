@@ -1,5 +1,19 @@
 # Arquitetura da primeira versão funcional
 
+## Páginas, menu e rodapé — 19/11/2026
+
+Implementação de páginas transferida para o Fastify/PostgreSQL. `GET /api/v1/pages` retorna somente links de páginas publicadas (slug, título e presença no menu); `GET /api/v1/pages/:slug` retorna somente conteúdo publicado. Rascunhos e endereços inválidos/inexistentes recebem 404, sem fallback para conteúdo do navegador. Leituras usam no-store. O Next consulta conteúdo e navegação no servidor; falha de serviço apresenta tentativa novamente, distinta de ausência. Menu mostra publicadas com showInMenu; rodapé mantém todas as publicadas. Revalidação posterior preserva os links confirmados durante falhas.
+
+`GET /api/v1/admin/pages`, `GET /api/v1/admin/pages/:slug`, `POST /api/v1/admin/pages` e `PATCH /api/v1/admin/pages/:slug` usam as proteções administrativas existentes: papel validado na API, sessão revalidada na transação, Origin/CSRF e limites nas escritas. Páginas têm UUID estável, slug único, título, documento JSON validado, publicação, presença no menu e versão positiva. Criação exige versão zero; edição exige a versão atual e incrementa-a sob lock. Conflitos pedem recarregamento, sem sobrescrever outra edição. Alterar slug invalida o endereço anterior, sem aliases. Publicação vazia e rotas reservadas (inclusive perfil) são recusadas. Auditoria e conteúdo confirmam juntos.
+
+Contratos e validação do documento rico ficam em `packages/shared`; o frontend mantém seu renderizador seguro de tags permitidas e não interpreta HTML armazenado. Conteúdo tem limites de profundidade, nós e tamanho; tags executáveis e atributos adicionais são recusados. O editor e o layout existentes foram preservados. A lista e o formulário administrativo recebem dados iniciais via HTTP no servidor; rascunhos nunca são enviados à navegação pública.
+
+Migration `0008_tricky_smiling_tiger` gerada, ainda não aplicada por instrução de não executar migrations. Cria pages e insere o conteúdo de referência atual de Sobre, publicado e no menu, além de Termos e Privacidade em rascunho. Não importa edições de localStorage e não altera contas ou saldos. Campos antigos de páginas na configuração demo deixam de alimentar os fluxos integrados; catálogo e apostas continuam locais até suas respectivas etapas. Até preparar o schema, os fluxos de páginas mostrarão indisponibilidade. Ativação exige aplicar a migration e reiniciar a API, quando autorizado.
+
+Validação: lint, TypeScript, build e 168 testes unitários aprovados (39 API, 126 web e três contratos); Drizzle Kit check e git diff --check aprovados. Os testes de contratos/HTTP cobrem rotas reservadas, documento inválido, publicação vazia, bloqueio de visitantes, filtro público de rascunhos e conflito de versão. Suíte PostgreSQL preparada para publicação, colisão de slug, concorrência e auditoria; depende de TEST_DATABASE_URL isolada e migrada e não foi executada. E2E específico usa `pnpm test:e2e --config playwright.pages.config.ts` após `pnpm build`, com fixture HTTP isolada e Next start na porta 3100; não disputa o lock do servidor Next dev do usuário. Seis cenários aprovados em Chrome desktop/mobile: HTML público sem JavaScript, privacidade de rascunho, edição vista em outro navegador, conflito e falha/retry. Esse teste valida a integração da interface com contratos HTTP, não substitui a suíte PostgreSQL.
+
+O layout administrativo deixou de bloquear builds de produção por NODE_ENV e passa a verificar a sessão/papel no servidor pela API. Visitantes e contas sem papel admin recebem 404; falhas de sessão apresentam indisponibilidade com nova tentativa. A autorização efetiva de cada operação permanece no Fastify.
+
 Atualizado em 19/11/2026. Referência técnica e roadmap. Fundação iniciada; consultar o estado de implementação e validação ao final. Registros datados anteriores são históricos; a conferência de 19/11 substitui seus bloqueios de ambiente.
 
 ## Referências e situação atual
