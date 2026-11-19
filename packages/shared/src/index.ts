@@ -2,6 +2,7 @@ import { z } from "zod";
 export * from "./rich-text.js";
 export * from "./pages.js";
 export * from "./menus.js";
+export * from "./icons.js";
 
 export const healthSchema = z.object({ status: z.literal("ok"), service: z.literal("croebet-api") }).strict();
 export const readinessSchema = z.object({ status: z.enum(["ready", "unavailable"]) }).strict();
@@ -102,3 +103,5 @@ export const redeemCouponSchema = z.object({ code: couponCodeSchema, requestId: 
 export const resourceIdSchema = z.uuid();
 export const commandResultSchema = z.object({ ok: z.literal(true) }).strict();
 export const resourceResultSchema = z.object({ id: z.uuid() }).strict();
+
+export * from "./games.js";

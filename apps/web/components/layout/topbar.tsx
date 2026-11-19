@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
-import { useSiteConfig } from "@/features/admin/site-config";
+import { useGameLinks } from "@/features/games/game-links";
 import { useHomeSection } from "@/features/home/home-section";
 import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
@@ -26,9 +26,7 @@ export function Topbar({
   onOpenMenu: () => void;
 }) {
   const pathname = usePathname();
-  const {
-    config: { games },
-  } = useSiteConfig();
+  const games = useGameLinks();
   const pages = usePageLinks() ?? [];
   const { section, setSection } = useHomeSection();
   const isBets = section === "bets";

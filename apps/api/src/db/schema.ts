@@ -134,3 +134,12 @@ export const adminAudit = pgTable("admin_audit", {
   details: jsonb("details").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [index("admin_audit_target").on(table.targetId, table.createdAt)]);
+
+export const games = pgTable("games", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  imageUrl: text("image_url"),
+  version: integer("version").notNull().default(1),
+}, table => [check("game_version_positive", sql`${table.version} > 0`), check("game_slug_supported", sql`${table.slug} in ('flip7')`)]);

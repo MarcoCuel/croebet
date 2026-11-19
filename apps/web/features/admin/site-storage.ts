@@ -1,5 +1,4 @@
 import { isRichTextDocument, richTextPlainText } from "@/lib/rich-text";
-import { games } from "@/features/games/catalog";
 import {
   markets,
   marketStatuses,
@@ -42,17 +41,14 @@ export function isMarket(value: unknown): value is Market {
           : validOutcome(m, m.settlement.result) && m.status !== "cancelled"))
   );
 }
-export type AdminGame = (typeof games)[number] & { enabled: boolean };
 export type AdminMarket = Market;
 export type SiteConfig = {
-  games: AdminGame[];
   markets: AdminMarket[];
   about: AboutContent;
   pages: SitePage[];
   pagesVersion: 1;
 };
 export const initialSiteConfig: SiteConfig = {
-  games: games.map((game) => ({ ...game, enabled: true })),
   markets,
   about: defaultAbout,
   pages: [{ slug: "sobre", title: "Sobre", document: aboutDocument(defaultAbout), published: true, showInMenu: true }, ...defaultPages],
@@ -66,23 +62,6 @@ export function isSiteConfig(value: unknown): value is SiteConfig {
   const text = (value: unknown) =>
     typeof value === "string" && value.trim().length > 0;
   return (
-    Array.isArray(data.games) &&
-    data.games.length === games.length &&
-    new Set(data.games.map((g) => g?.slug)).size === games.length &&
-    data.games.every(
-      (g) =>
-        g &&
-        games.some(
-          (original) => original.slug === g.slug && original.cover === g.cover,
-        ) &&
-        text(g.name) &&
-        text(g.type) &&
-        text(g.description) &&
-        Array.isArray(g.coverTitle) &&
-        g.coverTitle.length > 0 &&
-        g.coverTitle.every(text) &&
-        typeof g.enabled === "boolean",
-    ) &&
     Array.isArray(data.markets) &&
     new Set(data.markets.map((m) => m?.id)).size === data.markets.length &&
     data.markets.every(isMarket) &&

@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import { fixedMenuPages, type MenuRecord } from "@croebet/shared";
+import { lucideIconNodes } from "@croebet/shared/lucide-icon-nodes";
 
 const actorId = "93089d02-0b34-4b78-9d3e-f2679c190b5b";
 const aboutId = "93089d02-0b34-4b78-9d3e-f2679c190b5c";
@@ -25,6 +26,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
       if (item.type === "page" && !page) return [];
       const fixed = item.type === "fixed" ? item.target : null;
       return [{ id: item.id, label: item.label, newTab: item.newTab, fixed, disabled: fixed ? fixedMenuPages[fixed].disabled : false,
+        ...(item.icon ? { icon: item.icon, iconNode: lucideIconNodes[item.icon] } : {}),
         href: item.type === "custom" ? item.url : item.type === "fixed" ? fixedMenuPages[item.target].href : `/${page!.slug}` }];
     })])) };
   }
@@ -134,4 +136,50 @@ test("configuração de menus é privada e falhas oferecem nova tentativa", asyn
   await expect(page.getByRole("button", { name: "Tentar novamente" })).toBeVisible();
   failure = false; await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByLabel("Menu", { exact: true })).toBeVisible();
+});
+test("seletor pesquisa ícones, salva a escolha e permite removê-la", async ({ page, browser }) => {
+  await page.goto("/admin/menus");
+  const item = page.getByRole("listitem", { name: "Item 1", exact: true });
+  await item.locator("summary").click();
+  const trigger = item.getByRole("button", { name: "Selecionar ícone", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Ícones Lucide", exact: true });
+  const search = dialog.getByRole("searchbox", { name: "Buscar ícones" });
+  await expect(search).toBeFocused();
+  const grid = dialog.getByRole("group", { name: "Ícones Lucide", exact: true });
+  await expect(grid.getByRole("button")).toHaveCount(60);
+  expect(await grid.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(5);
+  await dialog.getByRole("button", { name: "Mostrar mais ícones", exact: true }).click();
+  await expect(grid.getByRole("button")).toHaveCount(120);
+  await search.fill("nao-existe-este-icone");
+  await expect(dialog.getByText("Nenhum ícone encontrado.")).toBeVisible();
+  await search.fill("arrow right");
+  await dialog.getByRole("button", { name: "Selecionar arrow-right", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toContainText("arrow-right");
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
+  await expect(page.getByText("Menu salvo.", { exact: true })).toBeVisible();
+  expect(menus[0].items[0].icon).toBe("arrow-right");
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 900 } });
+  const visitor = await context.newPage();
+  await visitor.goto("/");
+  const link = visitor.getByRole("navigation", { name: "Navegação principal", exact: true }).getByRole("link", { name: "Início", exact: true });
+  await expect(link.locator('svg[data-icon="arrow-right"]')).toBeVisible();
+  await page.reload();
+  await item.locator("summary").click();
+  await expect(trigger).toContainText("arrow-right");
+  await trigger.click();
+  await dialog.getByRole("button", { name: "Remover", exact: true }).click();
+  await expect(trigger).toContainText("Selecionar ícone");
+  await page.getByRole("button", { name: "Salvar menu", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Salvar menu", exact: true })).toBeDisabled();
+  expect(menus[0].items[0].icon).toBeNull();
+  await visitor.reload();
+  await expect(link.locator("svg[data-icon]")).toHaveCount(0);
+  await expect(link.locator("svg")).toHaveCount(0);
+  await context.close();
 });

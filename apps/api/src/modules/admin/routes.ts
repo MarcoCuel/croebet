@@ -1,3 +1,5 @@
+import { gameSlugSchema, gameWriteSchema } from "@croebet/shared";
+import { readGame, readGames, saveGame } from "../games/service.ts";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -28,6 +30,16 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       throw error;
     }
   }
+  app.get("/api/v1/games", async () => readGames(pool));
+  app.get("/api/v1/games/:slug", async (request, reply) => {
+    const parsed = gameSlugSchema.safeParse((request.params as { slug: string }).slug);
+    if (!parsed.success) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Jogo não encontrado." } });
+    try { return await readGame(pool, parsed.data); }
+    catch (error) { if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } }); throw error; }
+  });
+  app.get("/api/v1/admin/games", (request, reply) => run(request, reply, true, async () => readGames(pool, true)));
+  app.get("/api/v1/admin/games/:slug", (request, reply) => run(request, reply, true, async () => readGame(pool, gameSlugSchema.parse((request.params as { slug: string }).slug), true)));
+  app.patch("/api/v1/admin/games/:slug", (request, reply) => run(request, reply, true, async (actor, hash) => saveGame(pool, actor.id, hash, gameSlugSchema.parse((request.params as { slug: string }).slug), gameWriteSchema.parse(request.body))));
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as { id: string }).id);
   app.get("/api/v1/navigation", async () => readNavigation(pool));
   app.get("/api/v1/admin/menus", (request, reply) => run(request, reply, true, async () => readMenus(pool)));

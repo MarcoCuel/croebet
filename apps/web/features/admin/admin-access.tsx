@@ -13,7 +13,6 @@ const AdminPanel = dynamic(() =>
 
 export function AdminAccess({
   section = "overview",
-  gameSlug,
   marketId,
   pageSlug,
   userId,
@@ -22,7 +21,6 @@ export function AdminAccess({
 }: {
   content?: ReactNode;
   section?: AdminSection;
-  gameSlug?: string;
   marketId?: string;
   pageSlug?: string;
   userId?: string;
@@ -35,7 +33,6 @@ export function AdminAccess({
     <AdminPanel
       content={content}
       section={section}
-      gameSlug={gameSlug}
       marketId={marketId}
       pageSlug={pageSlug}
       userId={userId}

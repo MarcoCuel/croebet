@@ -21,7 +21,7 @@ test('PostgreSQL: menus independentes, páginas por ID, conflito e rollback da a
   pageId = (await pool.query("insert into pages (slug,title,document,published) values ($1,'Ajuda','[]',false) returning id", [`menu-${suffix}`])).rows[0].id;
   const main = original.menus.find(menu => menu.location === 'main');
   const footer = original.menus.find(menu => menu.location === 'footer');
-  const items = [{ id: randomUUID(), type: 'page', pageId, label: 'Ajuda do site', newTab: false }, { id: randomUUID(), type: 'custom', url: 'https://example.com', label: 'Comunidade', newTab: true }];
+  const items = [{ id: randomUUID(), type: 'page', pageId, label: 'Ajuda do site', newTab: false, icon: 'heart' }, { id: randomUUID(), type: 'custom', url: 'https://example.com', label: 'Comunidade', newTab: true, icon: 'star' }];
   const races = await Promise.allSettled([1, 2].map(() => saveMenu(pool, actor, hash, 'main', { version: main.version, items })));
   assert.equal(races.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(races.find(result => result.status === 'rejected').reason.code, 'VERSION_CONFLICT');
@@ -30,6 +30,8 @@ test('PostgreSQL: menus independentes, páginas por ID, conflito e rollback da a
   const visible = (await readNavigation(pool)).main;
   assert.deepEqual(visible.map(item => item.label), ['Ajuda do site', 'Comunidade']);
   assert.equal(visible[0].href, `/novo-${suffix}`);
+  assert.deepEqual(visible.map(item => item.icon), ['heart', 'star']);
+  assert.deepEqual((await readMenus(pool)).menus.find(menu => menu.location === 'main').items, items);
   await saveMenu(pool, actor, hash, 'footer', { version: footer.version, items: [] });
   assert.deepEqual((await readNavigation(pool)).main, visible);
   const current = (await readMenus(pool)).menus.find(menu => menu.location === 'main');

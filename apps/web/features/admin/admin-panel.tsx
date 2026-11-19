@@ -4,8 +4,6 @@ import type { ReactNode } from "react";
 import { AdminMarkets } from "@/features/admin/admin-markets";
 import { AdminMarketEditor } from "@/features/admin/admin-market-editor";
 import { AdminOverview } from "@/features/admin/admin-overview";
-import { AdminGames } from "@/features/admin/admin-games";
-import { AdminGameEditor } from "@/features/admin/admin-game-editor";
 import { adminRoutes, type AdminSection } from "@/features/admin/routes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -35,13 +33,11 @@ const sections = [
 
 export function AdminPanel({
   section = "overview",
-  gameSlug,
   marketId,
   content,
 }: {
   content?: ReactNode;
   section?: AdminSection;
-  gameSlug?: string;
   marketId?: string;
   pageSlug?: string;
   userId?: string;
@@ -81,19 +77,13 @@ export function AdminPanel({
           aria-label={sections.find((s) => s.id === section)?.label}
         >
           {section === "overview" && <AdminOverview />}
-          {section === "games" &&
-            (gameSlug ? (
-              <AdminGameEditor key={gameSlug} slug={gameSlug} />
-            ) : (
-              <AdminGames />
-            ))}
           {section === "markets" &&
             (marketId ? (
               <AdminMarketEditor key={marketId} id={marketId} />
             ) : (
               <AdminMarkets />
             ))}
-          {(section === "menus" || section === "pages" || section === "coupons" || section === "users") && content}
+          {(section === "games" || section === "menus" || section === "pages" || section === "coupons" || section === "users") && content}
         </section>
       </div>
     </div>

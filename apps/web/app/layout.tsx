@@ -1,3 +1,5 @@
+import { GameLinksProvider } from "@/features/games/game-links";
+import { getPublicGames } from "@/features/games/server-games";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
@@ -29,7 +31,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const apiUrl = process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001";
-  const [initialSession, initialPages, initialNavigation] = await Promise.all([getInitialSession(), loadPageLinks(apiUrl), loadNavigation(apiUrl)]);
+  const [initialSession, initialPages, initialNavigation, initialGames] = await Promise.all([getInitialSession(), loadPageLinks(apiUrl), loadNavigation(apiUrl), getPublicGames()]);
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -38,10 +40,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="bg-background font-sans text-base text-foreground">
         <Motion />
         <Providers initialSession={initialSession} initialPages={initialPages} initialNavigation={initialNavigation}>
-          <Navigation>
-            {children}
-            <Footer />
-          </Navigation>
+          <GameLinksProvider games={initialGames?.items ?? []}>
+            <Navigation>
+              {children}
+              <Footer />
+            </Navigation>
+          </GameLinksProvider>
         </Providers>
       </body>
     </html>

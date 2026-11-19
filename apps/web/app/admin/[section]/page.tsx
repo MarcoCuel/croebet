@@ -1,3 +1,5 @@
+import { gamesSchema } from "@croebet/shared";
+import { AdminGames } from "@/features/admin/admin-games";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AdminAccess } from "@/features/admin/admin-access";
@@ -45,6 +47,10 @@ export default async function AdminSectionPage({
     ([, href]) => href === `/admin/${section}`,
   );
   if (!entry) notFound();
+  if (section === "jogos") {
+    const data = await getManagement("/admin/games", gamesSchema);
+    return <AdminAccess section="games" content={data ? <AdminGames games={data.items} /> : <ManagementUnavailable />} />;
+  }
   if (section === "menus") {
     const data = await getManagement("/admin/menus", menuAdminSchema);
     return <AdminAccess section="menus" content={data ? <AdminMenus initial={data} /> : <ManagementUnavailable />} />;

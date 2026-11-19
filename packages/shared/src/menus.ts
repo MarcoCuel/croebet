@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { iconNameSchema, iconNodeSchema } from "./icons.js";
 
 export const fixedMenuPages = {
   home: { label: "Início", href: "/", disabled: false },
@@ -21,7 +22,7 @@ export function validMenuUrl(value: string): boolean {
       && !url.username && !url.password && Boolean(url.pathname || url.hostname);
   } catch { return false; }
 }
-const common = { id: z.uuid(), label: z.string().trim().min(1, "Informe o rótulo.").max(80), newTab: z.boolean() };
+const common = { id: z.uuid(), label: z.string().trim().min(1, "Informe o rótulo.").max(80), newTab: z.boolean(), icon: iconNameSchema.nullable().optional() };
 export const menuItemSchema = z.discriminatedUnion("type", [
   z.object({ ...common, type: z.literal("fixed"), target: fixedMenuPageSchema }).strict(),
   z.object({ ...common, type: z.literal("page"), pageId: z.uuid() }).strict(),
@@ -32,7 +33,7 @@ export const menuWriteSchema = z.object({ version: z.number().int().positive(), 
 export const menuSchema = menuWriteSchema.extend({ location: menuLocationSchema });
 export const menuPageOptionSchema = z.object({ id: z.uuid(), slug: z.string(), title: z.string(), published: z.boolean() }).strict();
 export const menuAdminSchema = z.object({ menus: z.array(menuSchema).length(2).refine(menus => new Set(menus.map(menu => menu.location)).size === 2), pages: z.array(menuPageOptionSchema) }).strict();
-export const resolvedMenuItemSchema = z.object({ id: z.uuid(), label: z.string(), href: z.string().refine(validMenuUrl), newTab: z.boolean(), fixed: fixedMenuPageSchema.nullable(), disabled: z.boolean() }).strict();
+export const resolvedMenuItemSchema = z.object({ id: z.uuid(), label: z.string(), href: z.string().refine(validMenuUrl), newTab: z.boolean(), fixed: fixedMenuPageSchema.nullable(), disabled: z.boolean(), icon: iconNameSchema.nullable().optional(), iconNode: iconNodeSchema.optional() }).strict();
 export const navigationSchema = z.object({ main: z.array(resolvedMenuItemSchema), footer: z.array(resolvedMenuItemSchema) }).strict();
 export type MenuItem = z.infer<typeof menuItemSchema>;
 export type MenuRecord = z.infer<typeof menuSchema>;

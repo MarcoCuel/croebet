@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { menuWriteSchema, validMenuUrl } from '@croebet/shared';
+import { menuWriteSchema, validMenuUrl, navigationSchema, iconNameSchema, iconNodeSchema, lucideIconNames } from '@croebet/shared';
+import { lucideIconNodes } from '@croebet/shared/lucide-icon-nodes';
 import { resolveMenu, saveMenu, readNavigation } from '../dist/modules/menus/service.js';
 import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
@@ -25,6 +26,34 @@ test('ordem e rótulos são independentes; IDs seguem renomeação e rascunhos s
 });
 test('menu ausente não é tratado como um menu vazio confirmado', async () => {
   await assert.rejects(readNavigation({ query: async () => ({ rows: [] }) }), /Menus indisponíveis/);
+});
+test('catálogo completo tem nomes únicos e vetores válidos; ícones arbitrários são recusados', () => {
+  assert.ok(lucideIconNames.length > 1800);
+  assert.equal(new Set(lucideIconNames).size, lucideIconNames.length);
+  assert.deepEqual(Object.keys(lucideIconNodes).sort(), [...lucideIconNames]);
+  for (const name of lucideIconNames) {
+    assert.equal(iconNameSchema.safeParse(name).success, true, name);
+    assert.equal(iconNodeSchema.safeParse(lucideIconNodes[name]).success, true, name);
+  }
+  for (const icon of ['not-an-icon', '__proto__', '<script>', '', 123]) {
+    assert.equal(menuWriteSchema.safeParse({ version: 1, items: [{ ...custom, icon }] }).success, false);
+  }
+  assert.equal(menuWriteSchema.safeParse({ version: 1, items: [{ ...custom, icon: null }] }).success, true);
+  assert.equal(menuWriteSchema.safeParse({ version: 1, items: [{ ...custom, icon: 'star', iconNode: [] }] }).success, false);
+});
+test('ícone escolhido é projetado nos três tipos de destino; remoção deixa o item sem ícone', () => {
+  const items = [
+    { ...custom, icon: 'star' },
+    { id: pageId, type: 'page', pageId, label: 'Sobre', newTab: false, icon: 'heart' },
+    { id: '93089d02-0b34-4b78-9d3e-f2679c190b5d', type: 'fixed', target: 'home', label: 'Início', newTab: false, icon: 'cat' },
+  ];
+  const resolved = resolveMenu(items, [{ id: pageId, slug: 'sobre', published: true }]);
+  assert.deepEqual(resolved.map(item => item.icon), ['star', 'heart', 'cat']);
+  for (const item of resolved) assert.deepEqual(item.iconNode, lucideIconNodes[item.icon]);
+  assert.equal(navigationSchema.safeParse({ main: resolved, footer: [] }).success, true);
+  for (const item of resolveMenu(items.map(item => ({ ...item, icon: null })), [{ id: pageId, slug: 'sobre', published: true }])) {
+    assert.equal(item.iconNode, undefined);
+  }
 });
 test('visitantes não acessam configuração dos menus e mutações exigem CSRF', async t => {
   const app = createApp(async () => {}); t.after(() => app.close());

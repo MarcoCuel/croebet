@@ -22,7 +22,6 @@ import {
   type SiteConfig,
 } from "@/features/admin/site-storage";
 export type {
-  AdminGame,
   AdminMarket,
   SiteConfig,
 } from "@/features/admin/site-storage";

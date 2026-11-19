@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./lucide-icon-nodes": {
+      "types": "./dist/lucide-icon-nodes.d.ts",
+      "default": "./dist/lucide-icon-nodes.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"

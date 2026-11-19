@@ -1,13 +1,11 @@
 "use client";
 
-import { Award, PlayingCards, House, Info, Tickets, Trophy, History, UserRound, ExternalLink } from "lucide-react";
+import { Icon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMenus } from "@/features/menus/menu-provider";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-const icons = { home: House, games: PlayingCards, betting: Tickets, rankings: Trophy, achievements: Award, history: History, profile: UserRound };
 
 export function MenuLinks({
   onNavigate,
@@ -18,11 +16,11 @@ export function MenuLinks({
 }) {
   const pathname = usePathname();
   const menus = useMenus();
-  const menuLinks = (menus?.main ?? []).map(item => ({ ...item, Icon: item.fixed ? icons[item.fixed] : item.href.startsWith("/") ? Info : ExternalLink }));
+  const menuLinks = menus?.main ?? [];
   return (
     <nav className="grid gap-1.5" aria-label="Navegação principal">
       {!menus && <p role="status" className="px-3 text-sm text-muted">Menu indisponível.</p>}
-      {menuLinks.map(({ id, href, label, Icon, disabled, newTab }) => disabled ? (
+      {menuLinks.map(({ id, href, label, disabled, newTab, icon, iconNode }) => disabled ? (
         <span
           key={id}
           aria-disabled="true"
@@ -32,7 +30,7 @@ export function MenuLinks({
             sidebar && "@max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:px-0",
           )}
         >
-          <Icon className="size-4 shrink-0" aria-hidden="true" />
+          {iconNode && <Icon iconNode={iconNode} className="size-4 shrink-0" aria-hidden="true" data-icon={icon} />}
           <span className={cn(sidebar && "@max-[8rem]/sidebar:hidden")}>{label}</span>
           <Badge variant="secondary" className={cn("ml-auto shrink-0 whitespace-nowrap px-2 py-0.5 text-muted", sidebar && "@max-[8rem]/sidebar:hidden")}>Em breve</Badge>
         </span>
@@ -58,7 +56,7 @@ export function MenuLinks({
           }
           onClick={onNavigate}
         >
-          <Icon className="size-4 shrink-0" aria-hidden="true" />
+          {iconNode && <Icon iconNode={iconNode} className="size-4 shrink-0" aria-hidden="true" data-icon={icon} />}
           <span className={cn(sidebar && "@max-[8rem]/sidebar:hidden")}>
             {label}
           </span>

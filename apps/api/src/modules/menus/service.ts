@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { z } from "zod";
+import { lucideIconNodes } from "@croebet/shared/lucide-icon-nodes";
 import { fixedMenuPages, menuSchema, menuAdminSchema, navigationSchema, type MenuRecord, type MenuItem, type MenuLocation, type NavigationData, type menuWriteSchema } from "@croebet/shared";
 import { pagePublicCondition } from "../pages/service.ts";
 import { adminTransaction, audit, ManagementError } from "../admin/service.ts";
@@ -11,13 +12,14 @@ function records(rows: Record<string, unknown>[]) {
 }
 export function resolveMenu(items: MenuItem[], pages: { id: string; slug: string; published: boolean }[]): NavigationData["main"] {
   return items.flatMap<NavigationData["main"][number]>(item => {
+    const icon = item.icon ? { icon: item.icon, iconNode: lucideIconNodes[item.icon] } : {};
     if (item.type === "page") {
       const page = pages.find(page => page.id === item.pageId && page.published);
-      return page ? [{ id: item.id, label: item.label, href: `/${page.slug}`, newTab: item.newTab, fixed: null, disabled: false }] : [];
+      return page ? [{ id: item.id, label: item.label, href: `/${page.slug}`, newTab: item.newTab, fixed: null, disabled: false, ...icon }] : [];
     }
     const fixed = item.type === "fixed" ? item.target : null;
     return [{ id: item.id, label: item.label, href: item.type === "custom" ? item.url : fixedMenuPages[item.target].href,
-      newTab: item.newTab, fixed, disabled: fixed ? fixedMenuPages[fixed].disabled : false }];
+      newTab: item.newTab, fixed, disabled: fixed ? fixedMenuPages[fixed].disabled : false, ...icon }];
   });
 }
 export async function readNavigation(pool: Pool) {

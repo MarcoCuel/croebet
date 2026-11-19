@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { IconPicker } from "@/components/ui/icon-picker";
 import { managementRequest } from "@/features/admin/management-api";
 
 export function AdminMenus({ initial }: { initial: MenuAdmin }) {
@@ -109,6 +110,10 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
                 ? <Field>URL<Input value={item.url} maxLength={2000} required disabled={saving} onChange={event => replace(item.id, value => value.type === "custom" ? { ...value, url: event.target.value } : value)} /></Field>
                 : <p className="break-words text-sm text-muted">{item.type === "fixed" ? fixedMenuPages[item.target].href : page ? `/${page.slug}` : "Página removida"}</p>}
               {item.type === "page" && !page?.published && <Badge variant="secondary" className="w-fit">Oculta até a publicação</Badge>}
+              <div className="grid gap-1.5 text-sm font-semibold">
+                <span>Ícone</span>
+                <IconPicker value={item.icon} disabled={saving} onValueChange={icon => replace(item.id, item => ({ ...item, icon }))} />
+              </div>
               <Field className="flex items-center justify-between gap-3">Abrir em nova aba<Switch checked={item.newTab} disabled={saving} onCheckedChange={newTab => replace(item.id, item => ({ ...item, newTab }))} /></Field>
             </div>
           </details></Card></li>;
