@@ -146,3 +146,4 @@ export * from "./match-history.js";
 export * from "./media.js";
 
 export * from "./rankings.js";
+export * from "./achievements.js";

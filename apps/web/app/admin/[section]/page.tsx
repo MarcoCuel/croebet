@@ -1,3 +1,5 @@
+import { achievementDefinitionsSchema } from "@croebet/shared";
+import { AdminAchievements } from "@/features/admin/admin-achievements";
 import { AdminMedia } from "@/features/admin/admin-media";
 import { catalogMarketsSchema } from "@croebet/shared";
 import { AdminMarkets } from "@/features/admin/admin-markets";
@@ -25,6 +27,7 @@ const titles = {
   games: "Jogos",
   markets: "Apostas",
   coupons: "Cupons",
+  achievements: "Conquistas",
   users: "Usuários",
   pages: "Páginas",
   menus: "Menus",
@@ -63,6 +66,10 @@ export default async function AdminSectionPage({
   if (section === "apostas") {
     const data = await getManagement("/admin/markets", catalogMarketsSchema);
     return <AdminAccess section="markets" content={data ? <AdminMarkets markets={data.items} /> : <ManagementUnavailable />} />;
+  }
+  if (section === "conquistas") {
+    const data = await getManagement("/admin/achievements", achievementDefinitionsSchema);
+    return <AdminAccess section="achievements" content={data ? <AdminAchievements items={data.items} /> : <ManagementUnavailable />} />;
   }
   if (section === "jogos") {
     const data = await getManagement("/admin/games", gamesSchema);

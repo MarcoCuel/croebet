@@ -5,6 +5,7 @@ import { adminRoutes, type AdminSection } from "@/features/admin/routes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  Award,
   ImageIcon,
   FileText,
   Settings,
@@ -23,6 +24,7 @@ const sections = [
   { id: "games", label: "Jogos", Icon: PlayingCards },
   { id: "markets", label: "Apostas", Icon: Tickets },
   { id: "coupons", label: "Cupons", Icon: Ticket },
+  { id: "achievements", label: "Conquistas", Icon: Award },
   { id: "users", label: "Usuários", Icon: Users },
   { id: "pages", label: "Páginas", Icon: FileText },
   { id: "menus", label: "Menus", Icon: ListTree },

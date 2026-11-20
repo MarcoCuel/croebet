@@ -6,7 +6,7 @@ export const fixedMenuPages = {
   games: { label: "Jogos", href: "/jogos", disabled: false },
   betting: { label: "Apostas", href: "/apostas", disabled: true },
   rankings: { label: "Rankings", href: "/rankings", disabled: false },
-  achievements: { label: "Conquistas", href: "/conquistas", disabled: true },
+  achievements: { label: "Conquistas", href: "/conquistas", disabled: false },
   history: { label: "Carteira", href: "/carteira", disabled: false },
   profile: { label: "Perfil", href: "/perfil", disabled: false },
 } as const;

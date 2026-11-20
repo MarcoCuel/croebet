@@ -39,6 +39,10 @@ test.beforeEach(async ({ page, context }) => {
   await context.addCookies([{ name: "croebet-session", value: "media-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const request = route.request(), url = new URL(request.url());
+    if (request.method() === "DELETE" && url.pathname.startsWith("/api/v1/admin/media/")) {
+      expect(request.headers()["content-type"]).toBeUndefined();
+      expect(request.postData()).toBeNull();
+    }
     if (url.pathname.startsWith("/api/v1/media/")) { await route.fulfill({ status: 200, contentType: "image/png", body: png }); return; }
     const body = request.headers()["content-type"]?.includes("application/json") ? request.postDataJSON() ?? {} : {};
     const result = respond(url.pathname + url.search, request.method(), body);

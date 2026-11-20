@@ -3,6 +3,7 @@ export const adminRoutes = {
   overview: "/admin",
   games: "/admin/jogos",
   markets: "/admin/apostas",
+  achievements: "/admin/conquistas",
   coupons: "/admin/cupons",
   users: "/admin/usuarios",
   pages: "/admin/paginas",

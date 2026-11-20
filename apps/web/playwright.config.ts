@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: ["**/rankings.spec.ts", "**/media.spec.ts", "**/session-hydration.spec.ts", "**/profile.spec.ts", "**/wallet-history.spec.ts", "**/economy.spec.ts", "**/management.spec.ts", "**/pages.spec.ts", "**/menus.spec.ts", "**/admin-overview.spec.ts"],
+  testIgnore: ["**/achievements.spec.ts", "**/rankings.spec.ts", "**/media.spec.ts", "**/session-hydration.spec.ts", "**/profile.spec.ts", "**/wallet-history.spec.ts", "**/economy.spec.ts", "**/management.spec.ts", "**/pages.spec.ts", "**/menus.spec.ts", "**/admin-overview.spec.ts"],
   fullyParallel: false,
   workers: 1,
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },

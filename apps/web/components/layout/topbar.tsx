@@ -30,7 +30,9 @@ export function Topbar({
   const { permissions } = useSession();
   const pageTitle =
     (pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/cupons/")
+      ? pathname.startsWith("/admin/conquistas/")
+        ? pathname.endsWith("/nova") ? "Criar conquista" : "Editar conquista"
+        : pathname.startsWith("/admin/cupons/")
         ? pathname.endsWith("/novo") ? "Novo cupom" : "Gerenciar cupom"
         : pathname.startsWith("/admin/usuarios/")
         ? "Usuário"
@@ -46,6 +48,7 @@ export function Topbar({
               {
                 [adminRoutes.seo]: "Configurações",
                 "/admin/cupons": "Cupons",
+                [adminRoutes.achievements]: "Conquistas",
                 "/admin/jogos": "Jogos",
                 "/admin/apostas": "Apostas",
                 "/admin/paginas": "Páginas",
@@ -71,7 +74,9 @@ export function Topbar({
   const isInternalPage = pathname !== "/";
   const backLink =
     pathname.startsWith("/admin/") && permissions.canManageSite
-      ? pathname.startsWith("/admin/cupons/")
+      ? pathname.startsWith("/admin/conquistas/")
+        ? { href: adminRoutes.achievements, label: "Voltar para Conquistas do admin" }
+        : pathname.startsWith("/admin/cupons/")
         ? { href: adminRoutes.coupons, label: "Voltar para Cupons do admin" }
         : pathname.startsWith("/admin/usuarios/")
         ? { href: adminRoutes.users, label: "Voltar para Usuários do admin" }

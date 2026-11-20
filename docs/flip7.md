@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Jogo com partidas gratuitas ou com Croins em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots não são adicionados na criação: assumem vagas após abandono ou expulsão durante o jogo. Motor, partidas e movimentações de Croins ficam na API/PostgreSQL. Pontos não viram Croins. Rankings consultam vitórias arquivadas e perdas liquidadas; conquistas permanecem pendentes.
+Jogo com partidas gratuitas ou com Croins em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots não são adicionados na criação: assumem vagas após abandono ou expulsão durante o jogo. Motor, partidas e movimentações de Croins ficam na API/PostgreSQL. Pontos não viram Croins. Rankings consultam vitórias arquivadas e perdas liquidadas; conquistas usam partidas concluídas, vitórias e prejuízos, enquanto critérios por ações específicas permanecem futuros.
 
 A execução segue a [base compartilhada dos jogos](backend-architecture.md#base-compartilhada-dos-jogos), com regras específicas do Flip 7. Não há importação de snapshots locais. [Operação e contratos](backend-architecture.md#partidas-integradas).
 

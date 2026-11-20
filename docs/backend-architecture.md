@@ -11,7 +11,7 @@ Inspeção do código em 19/11/2026. Implementado não significa validado nesta 
 | Administração | Visão geral, usuários/permissões/suspensão, cupons, páginas, menus, catálogo de jogos e catálogo de apostas via API |
 | Jogos | Seed com Flip 7 ativo e sem capa; motor e partidas livres na API/PostgreSQL, com lobbies públicos editáveis pelo host, sincronização Socket.IO e bots assumindo vagas após abandono/expulsão |
 | Apostas | Apenas catálogo administrativo persistido; sem palpites, apuração ou pagamentos no backend; acesso público desabilitado |
-| Rankings e conquistas | Rankings públicos de vitórias, saldo e perdas líquidas; conquistas com “Em breve” e redirecionamento ao início |
+| Rankings e conquistas | Rankings públicos de vitórias, saldo e perdas líquidas; conquistas privadas com níveis persistidos e catálogo administrável |
 
 ## Arquitetura
 
@@ -110,6 +110,14 @@ Regras e valores aprovados estão em [CROEBET.md, seção 4.3](../CROEBET.md#43-
 - Motivo é opcional nas ações administrativas. Ausência de motivo no ajuste usa a descrição padrão; a exigência interna de descrição do livro não cria campo obrigatório na interface.
 - `/me/wallet` e `/me/transactions` são autenticados; extrato paginado e filtrado na API, sem carteira local alternativa.
 
+## Conquistas
+
+`modules/achievements` agrega arquivos de partidas, liquidações, bônus e cupons. `GET /me/achievements` exige sessão; em uma transação, revalida conta/sessão, consulta métricas históricas e concede níveis ativos com unicidade por conta/nível. Repetições mantêm os desbloqueios e suas datas. A maior sequência histórica não cai quando a sequência atual é interrompida. Não há alteração de saldos nem importação do protótipo. Critérios em [Rankings e gamificação](../CROEBET.md#44-rankings-e-gamificação).
+
+`/admin/achievements` e `/admin/achievements/:id` reutilizam autorização, CSRF, limite de escrita, transação administrativa, versão otimista e auditoria. Um lock compartilhado de catálogo permite conciliações de contas distintas; escritas administrativas usam o lock exclusivo. Conciliações de uma mesma conta são serializadas. Metas/remoções de níveis concedidos e trocas do critério com concessões são recusadas; desativar preserva o histórico. As metas usam inteiros seguros e crescentes, sem limite fixo de níveis; os limites normais de tamanho da requisição continuam aplicáveis.
+
+A migration `0028` adiciona catálogo, níveis e concessões, com seis definições iniciais editáveis. Aplicar antes de publicar API/interface; não requer reset, seed de contas nem reescrita do livro/arquivos. Para recuar a aplicação, desabilitar o acesso à funcionalidade e manter as tabelas/concessões, sem reversão destrutiva. Exclusão de conta remove seu progresso privado via FK; os históricos independentes de partidas/economia permanecem preservados.
+
 ## Conteúdo e administração
 
 - Escritas administrativas usam sessão/papel, CSRF, limites, transação e auditoria atômica. Recursos editáveis têm versão esperada ou estado anterior esperado; conflito não sobrescreve outra edição.
@@ -190,13 +198,13 @@ Direção aprovada, ainda não implementada. Não criar estruturas antecipadamen
 
 1. Validar lobbies e partidas entre dispositivos reais, especialmente reconexão durante escolhas especiais. Salas continuam somente públicas, sem espectadores nem substituição por outra conta. Ausências aguardam indefinidamente; bots assumem apenas por abandono ou expulsão explícitos.
 2. Validar a operação de partidas com Croins entre dispositivos e acompanhar os registros de entrada, pote, prêmio e devolução. Regras implementadas em [Flip 7](flip7.md#economia).
-3. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Conquistas seguem pendentes; rankings usam os registros existentes.
+3. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Conquistas e rankings usam os registros existentes; critérios específicos de ações dos jogos continuam futuros.
 
 ## Validação
 
 - Implementação: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (Turbopack). Testes unitários não comprovam PostgreSQL nem bucket S3 real. Documentação apenas: conferir referências e `git diff --check`.
 - Integração: compile shared/API (`pnpm --filter @croebet/shared build` e `pnpm --filter @croebet/api build`), prepare banco exclusivo, aplique migrate/seed com `APP_ENV=test` e `DATABASE_URL` desse destino, configure `TEST_DATABASE_URL` e execute `pnpm test:integration`. Não reutilize a base development; execução sequencial já está configurada.
-- E2E: Chrome instalado. Na raiz, execute `pnpm test:e2e` e `pnpm test:e2e --config playwright.session.config.ts`. Páginas/menus e jogos usam build: `API_INTERNAL_URL=http://127.0.0.1:3201 NEXT_DIST_DIR=.next-e2e pnpm build`, depois `pnpm test:e2e --config playwright.pages.config.ts` e `pnpm test:e2e --config playwright.games.config.ts` (catálogo e Flip 7 multiplayer).
+- E2E: Chrome instalado. Conquistas usam `API_INTERNAL_URL=http://127.0.0.1:3201 NEXT_DIST_DIR=.next-achievements-check pnpm build` e `pnpm test:e2e --config playwright.achievements.config.ts` com fixtures HTTP e build de produção. Na raiz, execute `pnpm test:e2e` e `pnpm test:e2e --config playwright.session.config.ts`. Páginas/menus e jogos usam build: `API_INTERNAL_URL=http://127.0.0.1:3201 NEXT_DIST_DIR=.next-e2e pnpm build`, depois `pnpm test:e2e --config playwright.pages.config.ts` e `pnpm test:e2e --config playwright.games.config.ts` (catálogo e Flip 7 multiplayer).
 - Suítes de navegador usam fixtures HTTP/Socket.IO em 3201 e Next em 3100, `.next-e2e`/`tsconfig.e2e.json`, sem reutilizar servidores existentes; execute-as sequencialmente. Não apagar `.next` nem encerrar o servidor do usuário para testar. Fixtures validam interface/contratos, não transações PostgreSQL.
 - Pendência registrada na última execução: cenários de 404 dinâmico sem JavaScript de jogo pausado e perfil inexistente falhavam pela ausência do conteúdo visível no shell do Next, apesar do HTTP 404. Testes continuam ativos; confirme o resultado atual antes de declarar suíte aprovada.
 - Resultados de cada rodada ficam no relato da entrega, não neste documento. Não transformar limitações temporárias do executor em regras do projeto.

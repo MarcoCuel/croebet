@@ -93,9 +93,13 @@ As configurações são centralizadas no backend. Cadastro e resgate devem credi
 
 ### 4.4. Rankings e gamificação
 
-Rankings estão disponíveis publicamente em `/rankings`: Vitórias no Flip 7, Mais ricos pelo saldo atual e Maiores perdedores pelo prejuízo líquido de partidas liquidadas. Vitórias e perdas têm filtros independentes de mês atual/geral, no fuso de Brasília; saldo é sempre atual. Conquistas permanecem indisponíveis no menu com “Em breve”.
+Rankings estão disponíveis publicamente em `/rankings`: Vitórias no Flip 7, Mais ricos pelo saldo atual e Maiores perdedores pelo prejuízo líquido de partidas liquidadas. Vitórias e perdas têm filtros independentes de mês atual/geral, no fuso de Brasília; saldo é sempre atual. Conquistas ficam disponíveis em `/conquistas` para contas autenticadas, com acesso pelo menu somente quando logadas.
 
 Vitórias usam partidas finalizadas, incluindo empates; vagas assumidas por bots não dão vitória à conta original. Perdas somam entradas menos prêmios efetivamente recebidos, incluindo entradas de vagas abandonadas e potes destinados à casa; pendências e devoluções ficam fora. Bônus, cupons e ajustes administrativos só afetam Mais ricos. Contas suspensas, excluídas ou com exclusão agendada não aparecem; seus históricos permanecem preservados. Empates na métrica compartilham posição, com ordem estável por usuário. A página preserva os cards com pódio e lista, pagina dez contas por card e apresenta a própria posição mesmo fora da página.
+
+Conquistas preservam os cards com emblema, níveis e progresso do desenho original. O catálogo inicial inclui Só mais uma (partidas concluídas: 1/25/100), Foi habilidade (vitórias: 1/10/50), Presença marcada (dias distintos de bônus: 3/15/50), Volto amanhã (maior sequência de bônus: 3/7/30), Cupom não é salário (resgates: 1/5/20) e A casa agradece (partidas com prejuízo: 1/10/50). Metas são acumuladas, sem temporada nem recompensa automática em Croins. Apenas partidas finalizadas com controle humano no resultado contam como concluídas/vitórias; empates dão vitória. Prejuízo por partida desconta o prêmio efetivamente recebido e exclui pendências/devoluções. Sequências usam o calendário de Brasília e preservam o maior recorde mesmo após interrupção.
+
+Admin → Conquistas gerencia nome, ícone, critério entre as métricas implementadas, status, ordem e níveis com metas crescentes, sem quantidade fixa. Cada nível tem identidade própria. Desbloqueios são persistidos e não revogados por edições: alterar metas ou remover níveis conquistados e mudar o critério quando há concessões ficam bloqueados; textos e novos níveis continuam editáveis. Desativar oculta o card e pausa novas concessões, preservando os desbloqueios. Ao consultar a página, a API concilia o histórico disponível e registra os níveis alcançados; a data registrada é a de reconhecimento, sem inventar a data original de feitos anteriores. Conquistas especiais por ações do Flip 7 continuam futuras.
 
 A competição é parte importante da experiência:
 
@@ -242,7 +246,7 @@ A acidez deve ser calibrada conforme o contexto: mensagens de erro e regras prec
 - Permissões adicionais da moderação; formatos e rateio das apostas seguem a seção 4.2;
 - Recuperação de conta sem e-mail; o Flip 7 já permite espectadores e aguarda desconexões sem timeout, com regras econômicas em [Economia](docs/flip7.md#economia);
 - Futuras categorias e recompensas dos rankings;
-- Lista e requisitos de emblemas/conquistas;
+- Novos critérios e conquistas especiais por jogo;
 - Política de contas, abuso e múltiplos cadastros;
 - Se haverá ou não prêmios reais no futuro e quais requisitos seriam necessários.
 

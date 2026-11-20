@@ -29,6 +29,8 @@ O perfil renderiza o calendário de atividade com os dados da primeira consulta 
 
 A página `/rankings` carrega os três rankings na API durante SSR, sem cache compartilhado. Preserva o desenho de cards com pódio e lista; `features/rankings/ranking-card.tsx` apresenta avatares, links de perfil, paginação e estados vazios/indisponíveis distintos. Vitórias e Maiores perdedores têm filtros independentes no canto direito de seus títulos; Mais ricos sempre mostra saldo atual, sem filtro.
 
+`/conquistas` exige sessão no servidor e recebe progresso confirmado na primeira renderização. Preserva o desenho original de resumo, emblemas, níveis e barras; indisponibilidade oferece retentativa sem apresentar progresso zerado. `useMenus` oculta Conquistas para visitantes no menu principal e no rodapé, inclusive durante sessão indeterminada. Admin → Conquistas reutiliza listagem, filtros/busca, ícones e componentes de formulário do painel; internas usam UUID e o editor permite acrescentar níveis sem quantidade fixa, mantendo IDs estáveis e metas conquistadas protegidas.
+
 ## Componentes e acessibilidade
 
 - App instalável: `app/manifest.ts` define identidade, ícones e abertura standalone; metadata raiz inclui ícone e configuração Apple. `components/layout/app-install.tsx` oferece instalação quando o navegador emite `beforeinstallprompt` e orienta a instalação manual no Safari do iOS. Ocultar por 7 dias ao dispensar; não mostrar em standalone. Exige HTTPS (ou localhost). A instalação/abertura fica sob controle do navegador; jogos continuam exigindo conexão, sem cache offline de sessões ou partidas.

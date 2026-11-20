@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { NavigationData } from "@croebet/shared";
+import { useSession } from "@/features/auth/session-context";
 import { loadNavigation } from "@/features/menus/api";
 
 const MenuContext = createContext<NavigationData | null>(null);
@@ -15,4 +16,10 @@ export function MenuProvider({ initial, children }: { initial: NavigationData | 
   }, [initial]);
   return <MenuContext.Provider value={data}>{children}</MenuContext.Provider>;
 }
-export const useMenus = () => useContext(MenuContext);
+export function useMenus() {
+  const menus = useContext(MenuContext);
+  const { userId, sessionReady } = useSession();
+  if (!menus || (sessionReady && userId)) return menus;
+  const visible = (item: NavigationData["main"][number]) => item.fixed !== "achievements" && item.href.split(/[?#]/)[0] !== "/conquistas";
+  return { main: menus.main.filter(visible), footer: menus.footer.filter(visible) };
+}

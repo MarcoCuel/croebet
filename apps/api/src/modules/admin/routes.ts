@@ -1,3 +1,5 @@
+import { achievementWriteSchema } from "@croebet/shared";
+import { readAchievementDefinitions, readAchievementDefinition, saveAchievement, readOwnAchievements } from "../achievements/service.ts";
 import { mediaQuerySchema, mediaMaxBytes, mediaContentTypes } from "@croebet/shared";
 import type { ImageStorage } from "../storage/images.ts";
 import { validImageKey } from "../storage/images.ts";
@@ -93,6 +95,11 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
     catch (error) { if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } }); throw error; }
   });
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as { id: string }).id);
+  app.get("/api/v1/me/achievements", (request, reply) => run(request, reply, false, async (actor, hash) => readOwnAchievements(pool, actor.id, hash)));
+  app.get("/api/v1/admin/achievements", (request, reply) => run(request, reply, true, async () => readAchievementDefinitions(pool)));
+  app.get("/api/v1/admin/achievements/:id", (request, reply) => run(request, reply, true, async () => readAchievementDefinition(pool, id(request))));
+  app.post("/api/v1/admin/achievements", { bodyLimit: 1048576 }, (request, reply) => run(request, reply, true, async (actor, hash) => saveAchievement(pool, actor.id, hash, null, achievementWriteSchema.parse(request.body))));
+  app.patch("/api/v1/admin/achievements/:id", { bodyLimit: 1048576 }, (request, reply) => run(request, reply, true, async (actor, hash) => saveAchievement(pool, actor.id, hash, id(request), achievementWriteSchema.parse(request.body))));
   app.get("/api/v1/admin/games", (request, reply) => run(request, reply, true, async () => readGames(pool, true)));
   app.get("/api/v1/admin/games/:id", (request, reply) => run(request, reply, true, async () => readGame(pool, id(request), true)));
   app.get("/api/v1/admin/games/:id/matches", (request, reply) => run(request, reply, true, async () => readGameHistory(pool, id(request), matchHistoryQuerySchema.parse(request.query))));

@@ -243,3 +243,20 @@ export const gameMatchStakes = pgTable("game_match_stakes", {
   settledAt: timestamp("settled_at", { withTimezone: true }),
 }, table => [check("match_stake_status", sql`${table.status} in ('pending','paid','refunded')`),
   check("match_stake_amounts", sql`${table.entryAmount}>0 and ${table.potTotal}>=${table.entryAmount} and ${table.potTotal}<=9007199254740991`)]);
+
+export const achievementDefinitions = pgTable("achievement_definitions", {
+  id: uuid("id").primaryKey().defaultRandom(), name: text("name").notNull(), icon: text("icon").notNull(),
+  metric: text("metric").notNull(), active: boolean("active").notNull().default(true),
+  order: integer("sort_order").notNull().default(0), version: integer("version").notNull().default(1),
+}, table => [check("achievement_metric_valid", sql`${table.metric} in ('games','wins','dailyDays','dailyStreak','coupons','losingGames')`),
+  check("achievement_definition_valid", sql`char_length(${table.name}) between 1 and 80 and ${table.order} >= 0 and ${table.version} > 0`)]);
+export const achievementLevels = pgTable("achievement_levels", {
+  id: uuid("id").primaryKey().defaultRandom(), achievementId: uuid("achievement_id").notNull().references(() => achievementDefinitions.id),
+  target: bigint("target", { mode: "number" }).notNull(), description: text("description").notNull(),
+}, table => [uniqueIndex("achievement_level_target_unique").on(table.achievementId, table.target),
+  check("achievement_level_valid", sql`${table.target} between 1 and 9007199254740991 and char_length(${table.description}) between 1 and 240`)]);
+export const achievementUnlocks = pgTable("achievement_unlocks", {
+  id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  levelId: uuid("level_id").notNull().references(() => achievementLevels.id),
+  unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("achievement_unlock_once").on(table.userId, table.levelId), index("achievement_unlock_level_idx").on(table.levelId)]);
