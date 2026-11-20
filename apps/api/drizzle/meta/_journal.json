@@ -162,6 +162,13 @@
       "when": 1795156949400,
       "tag": "0022_game_description",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795157821241,
+      "tag": "0023_match_history",
+      "breakpoints": true
     }
   ]
 }

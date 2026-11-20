@@ -60,7 +60,7 @@ function VengeanceRules({ brutal }: { brutal: boolean }) {
 const playerStatus = { playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" } as const;
 const numberNames = ["Zero", "Um", "Dois", "Três", "Quatro", "Cinco", "Seis", "Sete", "Oito", "Nove", "Dez", "Onze", "Doze", "Treze"];
 const numberColors = ["neutral", "slate", "lime", "pink", "cyan", "green", "purple", "coral", "lime", "orange", "red", "blue", "slate", "sky"];
-function PlayingCard({ card, flipped = false, compact = false, fluid = false, sideways = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean; sideways?: boolean }) {
+export function PlayingCard({ card, flipped = false, compact = false, fluid = false, sideways = false }: { card: Card; flipped?: boolean; compact?: boolean; fluid?: boolean; sideways?: boolean }) {
   const gradientId = useId();
   const holographic = card.type === "lucky13" && !flipped;
   const special = ["freeze", "chance", "three", "one", "four", "steal", "swap", "remove"].includes(card.type);

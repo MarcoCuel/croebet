@@ -1,3 +1,5 @@
+import { matchHistoryQuerySchema } from "@croebet/shared";
+import { readGameHistory, readMatchReplay } from "./match-history.ts";
 import { catalogMarketWriteSchema, catalogMarketDeleteSchema } from "@croebet/shared";
 import { readMarkets, readMarket, saveMarket, deleteMarket } from "../markets/service.ts";
 import { gameSlugSchema, gameWriteSchema } from "@croebet/shared";
@@ -56,6 +58,11 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
   const id = (request: FastifyRequest) => z.uuid().parse((request.params as { id: string }).id);
   app.get("/api/v1/admin/games", (request, reply) => run(request, reply, true, async () => readGames(pool, true)));
   app.get("/api/v1/admin/games/:id", (request, reply) => run(request, reply, true, async () => readGame(pool, id(request), true)));
+  app.get("/api/v1/admin/games/:id/matches", (request, reply) => run(request, reply, true, async () => readGameHistory(pool, id(request), matchHistoryQuerySchema.parse(request.query))));
+  app.get("/api/v1/admin/games/:id/matches/:matchId", (request, reply) => run(request, reply, true, async () => {
+    const query = matchHistoryQuerySchema.parse(request.query);
+    return readMatchReplay(pool, id(request), z.uuid().parse((request.params as {matchId:string}).matchId), query.offset, query.limit);
+  }));
   app.patch("/api/v1/admin/games/:id", (request, reply) => run(request, reply, true, async (actor, hash) => saveGame(pool, actor.id, hash, id(request), gameWriteSchema.parse(request.body))));
   app.get("/api/v1/admin/markets", (request, reply) => run(request, reply, true, async () => readMarkets(pool)));
   app.get("/api/v1/admin/markets/:id", (request, reply) => run(request, reply, true, async () => readMarket(pool, id(request))));

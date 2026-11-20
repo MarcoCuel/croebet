@@ -385,3 +385,48 @@ test("PostgreSQL: início exige presença na sala de todos, incluindo convidados
   await pool.query("update match_presence set expires_at=now()+interval '1 minute' where user_id=$1",[actors[1]]);
   assert.equal((await lobby(room.code,0,"start",{expectedVersion:current.version})).status,"playing");
 });
+
+test("PostgreSQL: arquivo transacional, replay completo, idempotência e preservação após exclusão",async t=>{
+ const {readGameHistory,readMatchReplay}=await import("../../dist/modules/admin/match-history.js");
+ const {pool,actors,sessions,create,lobby,cleanup}=await environment(t);
+ const room=await create();
+ cleanup.push(async()=>{await pool.query("delete from game_match_archive_frames where match_id=$1",[room.id]);await pool.query("delete from game_match_archives where id=$1",[room.id]);});
+ assert.equal((await pool.query("select 1 from game_match_archives where id=$1",[room.id])).rowCount,0);
+ const joined=await lobby(room.code,1,"join");
+ let match=await lobby(room.code,0,"start",{expectedVersion:joined.version});
+ const rollbackClient=await pool.connect();
+ try {
+   await rollbackClient.query("begin");
+   await rollbackClient.query("update game_matches set status='abandoned' where id=$1",[room.id]);
+   assert.equal((await rollbackClient.query("select status from game_match_archives where id=$1",[room.id])).rows[0].status,"abandoned");
+   await rollbackClient.query("rollback");
+ } finally {rollbackClient.release();}
+ assert.equal((await pool.query("select status from game_match_archives where id=$1",[room.id])).rows[0].status,"playing");
+ for(let step=0;match.status==="playing"&&step<1500;step++){
+   const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
+   const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
+   const actor=actors.indexOf(match.participants.find(p=>p.seat===seat).userId);
+   const command={commandId:randomUUID(),expectedVersion:match.version,action:botAction(state)};
+   const result=await commandMatch(pool,actors[actor],sessions[actor],room.code,command);
+   if(step===0)assert.deepEqual(wire(await commandMatch(pool,actors[actor],sessions[actor],room.code,command)),wire(result));
+   match=result.match;
+ }
+ assert.equal(match.status,"finished");
+ const gameId=(await pool.query("select game_id from game_matches where id=$1",[room.id])).rows[0].game_id;
+ const replay=await readMatchReplay(pool,gameId,room.id,0,100);
+ assert.ok(replay.match.players.some(p=>p.winner));
+ assert.equal(replay.frames[0].action.type,"start");
+ const archive=(await pool.query("select event from game_match_archive_frames where match_id=$1 order by version",[room.id])).rows;
+ const events=(await pool.query("select event from game_match_events where match_id=$1 order by version",[room.id])).rows;
+ assert.deepEqual(archive,events);assert.equal(replay.match.frameCount,events.length);
+ assert.deepEqual(archive.at(-1).event.state,wire(match.state));
+ assert.equal(JSON.stringify(archive).includes('"deck"'),false);
+ const filtered=await readGameHistory(pool,gameId,{offset:0,limit:20,q:room.code,status:"finished"});
+ assert.equal(filtered.items[0].id,room.id);
+ const client=await pool.connect();
+ try{await client.query("begin");await client.query("delete from game_matches where id=$1",[room.id]);await client.query("rollback");}finally{client.release();}
+ assert.equal((await readMatchReplay(pool,gameId,room.id,0,100)).match.status,"finished");
+ await pool.query("delete from game_matches where id=$1",[room.id]);
+ await pool.query("delete from users where id=$1",[actors[0]]);
+ assert.deepEqual((await readMatchReplay(pool,gameId,room.id,0,100)).match,replay.match);
+});

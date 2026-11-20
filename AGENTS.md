@@ -2,9 +2,9 @@
 
 ## Contexto
 
-- Projeto em desenvolvimento, sem dados de produção a preservar. Contas, saldos, partidas, cupons e históricos atuais são descartáveis; podem ser limpos e recriados quando a tarefa exigir.
-- Não crie importadores de mocks/localStorage, compatibilidade com formatos antigos, aliases ou redirecionamentos para endereços substituídos apenas para preservar o protótipo. Migrations de schema e seeds continuam necessários para reproduzir uma base vazia; podem ser consolidados neste estágio.
-- Use as proteções existentes de ambiente/destino nos comandos de reset. Dados descartáveis não dispensam autorização, validação, atomicidade e idempotência dos fluxos implementados.
+- Projeto em operação, com usuários e dados reais. Preserve contas, saldos, partidas, cupons, históricos e auditoria. Não execute resets, limpezas destrutivas ou consolidação de migrations existentes em bases reais.
+- Alterações de schema exigem migrations incrementais compatíveis com os dados existentes. Planeje implantação, preservação e recuperação; testes destrutivos somente em banco exclusivo de test, com as proteções de ambiente/destino existentes.
+- Históricos de partidas devem permanecer disponíveis para auditoria, reprodução administrativa e futuros rankings, inclusive após exclusão de conta. Não registre segredos nem exponha estados privados do motor.
 - Preserve funcionalidades, regras aprovadas e apresentação existente; refatorar não autoriza redesign nem expansão de escopo.
 
 ## Consulta por assunto

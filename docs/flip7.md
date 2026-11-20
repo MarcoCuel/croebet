@@ -46,6 +46,8 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 - Decisão humana usa ID de comando e versão esperada. Resposta incerta permite repetir o mesmo ID; atualizações remotas recuperam eventos ordenados ou snapshot. Não enviar `step`, `next`, seed, pontuação ou snapshot para autorizar jogadas.
 - Preferências em `croebet:flip7:setup`: modalidade, Brutal e limite de lugares; sem nomes/tipos. Fallback: Clássico, dois lugares, sem Brutal. Não ler nem converter partidas do localStorage; não é necessário preencher todas as vagas para iniciar.
 
+O admin consulta as partidas dentro de cada jogo, incluindo participantes, pontuações, vencedores e reprodução dos estados confirmados com controles de pausa, avanço e retorno. Os registros sobrevivem à exclusão de contas e salas. A reprodução não interfere no jogo; rankings continuam pendentes. Persistência e limites em [Histórico administrativo](backend-architecture.md#histórico-administrativo-de-partidas).
+
 ## Apresentação
 
 - Baralho/status/ações no topo; mãos em linhas por participante, números e modificadores dimensionados pelo container. Histórico lateral em telas largas, abaixo no mobile, com controle para esconder. Avatar ativo usa box-shadow de 2px com transição; fundo permanece igual.

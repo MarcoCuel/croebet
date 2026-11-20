@@ -1,4 +1,5 @@
 "use client";
+import { AdminGameHistory } from "./admin-game-history";
 import { SeoEditor } from "./seo-fields";
 import { seoFieldsSchema } from "@croebet/shared";
 
@@ -19,7 +20,7 @@ export function AdminGameEditor({ game }: { game: GameRecord }) {
   const router = useRouter();
   const [seo, setSeo] = useState(game.seo ?? seoFieldsSchema.parse({}));
   const [pending, setPending] = useState(false);
-  return <Card>
+  return <div className="grid gap-6"><Card>
     <form className="grid items-start gap-6 sm:grid-cols-[12rem_minmax(0,1fr)]" onSubmit={async event => {
       event.preventDefault();
       if (pending) return;
@@ -44,5 +45,5 @@ export function AdminGameEditor({ game }: { game: GameRecord }) {
         <Button type="submit" loading={pending} disabled={pending} className="justify-self-start">Salvar jogo</Button>
       </div>
     </form>
-  </Card>;
+  </Card><AdminGameHistory gameId={game.id} /></div>;
 }

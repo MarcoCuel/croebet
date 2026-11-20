@@ -60,6 +60,8 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 
 - SEO: `features/seo/metadata.ts` compõe título, descrição, canonical e compartilhamento no servidor, sem cache persistente. Campos vazios herdam padrões. Configure `WEB_ORIGIN` (ou `NEXT_PUBLIC_SITE_URL`) no web para URLs absolutas; admin, perfis, carteira e rotas sem SEO público herdam `noindex`.
 
+O editor de jogos inclui a listagem paginada de partidas, com filtros por status e busca por código/participante. A interna `/admin/jogos/[id]/partidas/[matchId]` reproduz projeções confirmadas em páginas de até 100 frames, com início/final, avanço/retorno, pausa e velocidade; não conecta ao executor multiplayer. Resultados e vencedores vêm da API administrativa. [Persistência e limites](backend-architecture.md#histórico-administrativo-de-partidas).
+
 ## 3D sob demanda
 
 - React Three Fiber é o padrão de novas experiências; não migrar jogos existentes automaticamente. Siga `three/scenes/croin-preview.tsx`: fronteira cliente com `next/dynamic({ ssr: false })`.

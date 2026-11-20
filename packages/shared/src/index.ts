@@ -110,3 +110,4 @@ export const resourceResultSchema = z.object({ id: z.uuid() }).strict();
 export * from "./games.js";
 export * from "./markets.js";
 export * from "./overview.js";
+export * from "./match-history.js";

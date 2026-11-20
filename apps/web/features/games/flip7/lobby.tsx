@@ -164,9 +164,9 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     finally{setBusy(false);}
   }
 
-  return <div className="w-full space-y-6 py-6 sm:py-12">
+  return <div className="w-full space-y-4">
     <GameEntryHeader game={game} actions={!userId?rules(settings):undefined}/>
-    <div className="grid min-w-0 items-start gap-6 xl:grid-cols-3">
+    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
     {showSettings && <Card className="min-w-0 space-y-5" aria-label="Configuração e regras">
       <Heading variant="section">Configuração</Heading>
       <fieldset disabled={!canEdit} className="space-y-4">

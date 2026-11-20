@@ -33,7 +33,7 @@ A crítica não é necessariamente aos jogos de azar em si: o ponto principal é
 
 ## 4. Funcionamento da plataforma
 
-O projeto está em desenvolvimento; contas, saldos, partidas e demais dados atuais podem ser descartados e recriados. As regras aprovadas abaixo orientam o produto, mas recursos futuros não devem ser apresentados como disponíveis. A implementação existente está resumida em [Estado atual](docs/backend-architecture.md#estado-atual).
+O projeto está em operação, com usuários reais; contas, saldos, partidas e demais registros devem ser preservados. Mudanças exigem migrations incrementais, sem reset de bases reais. As regras aprovadas abaixo orientam o produto, mas recursos futuros não devem ser apresentados como disponíveis. A implementação existente está resumida em [Estado atual](docs/backend-architecture.md#estado-atual).
 
 ### 4.1. Jogos
 
@@ -93,6 +93,8 @@ As configurações são centralizadas no backend. Cadastro e resgate devem credi
 ### 4.4. Rankings e gamificação
 
 Rankings e conquistas ficam fora da primeira versão. Por enquanto, aparecem apenas no menu lateral como itens indisponíveis com o badge “Em breve”, sem acesso às páginas do protótipo.
+
+As partidas têm histórico administrativo preservado, participantes, pontuações, vencedores e reprodução das jogadas dentro de Admin → Jogos. Essa base será usada pelo ranking; critérios de pontuação, elegibilidade de vagas assumidas por bots e agregação ainda serão definidos.
 
 A competição é parte importante da experiência:
 

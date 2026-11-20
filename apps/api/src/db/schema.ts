@@ -204,3 +204,15 @@ export const matchPresence = pgTable("match_presence", {
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, table => [index("match_presence_room").on(table.matchId)]);
+
+// Independent audit records survive account and operational-room deletion.
+export const gameMatchArchives = pgTable("game_match_archives", {
+  id: uuid("id").primaryKey(), gameId: uuid("game_id").notNull().references(() => games.id), code: text("code").notNull(),
+  rulesVersion: integer("rules_version").notNull(), status: text("status").notNull(), options: jsonb("options").notNull(),
+  participants: jsonb("participants").notNull(), state: jsonb("state").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(), endedAt: timestamp("ended_at", { withTimezone: true }),
+}, table => [index("archive_game_started").on(table.gameId, table.startedAt, table.id)]);
+export const gameMatchArchiveFrames = pgTable("game_match_archive_frames", {
+  id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatchArchives.id),
+  version: integer("version").notNull(), event: jsonb("event").notNull(),
+}, table => [uniqueIndex("archive_frame_version").on(table.matchId, table.version)]);
