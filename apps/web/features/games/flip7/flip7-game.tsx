@@ -1,6 +1,8 @@
 "use client";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
+import { GameControls } from "../game-controls";
+import { useGameAudio } from "../use-game-audio";
 import { randomUUID } from "@/lib/uuid";
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -11,7 +13,7 @@ import type { GameRecord, MatchFrame, MatchCommand, RoomSync, MatchParticipant }
 import type { InitialMatches } from "./server-matches";
 import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
-import { BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X } from "lucide-react";
+import { LogOut, BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -165,11 +167,13 @@ export default function Flip7Game({ initial, game }: { initial: InitialMatches; 
 function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatches; startPlaying?: boolean }) {
   const playback = useFlip7Replay(initial.replay!, startPlaying);
   if (!initial.replay?.frames.length) return <Surface><p className="text-sm text-muted">Nenhuma jogada disponível nesta partida.</p></Surface>;
-  return <Flip7Table initial={initial} replay={{ state: playback.state, active: playback.active, finished: initial.replay!.match.status === "finished", metadata: playback.metadata, restart: playback.restart, loading: playback.loading, controls: <Flip7ReplayControls playback={playback} /> }} />;
+  return <Flip7Table initial={initial} replay={{ epoch: playback.epoch, index: playback.index, frame: playback.frame, paused: playback.animationPaused, delay: playback.delay, onPresented: playback.onPresented, state: playback.state, active: playback.active, finished: initial.replay!.match.status === "finished", metadata: playback.metadata, restart: playback.restart, loading: playback.loading, controls: <Flip7ReplayControls playback={playback} /> }} />;
 }
 
-function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }: { initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
+function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }: { initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
   const router = useRouter();
+  const audio = useGameAudio();
+  const { play: playSound } = audio;
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
   const {userId,refreshWallet}=useSession();
   const refreshWalletRef=useRef(refreshWallet);
@@ -196,6 +200,12 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
   const [resultReady, setResultReady] = useState(!!replay && !replay.active && replay.finished);
+  const prizePlayed = useRef(initial.match?.status === "finished");
+  useEffect(() => {
+    if (replay || !resultReady || prizePlayed.current) return;
+    prizePlayed.current = true;
+    if (matchInfo?.potTotal && matchInfo.settlement === "paid") playSound("prize");
+  }, [replay, resultReady, matchInfo?.potTotal, matchInfo?.settlement, playSound]);
   const refreshedEconomy=useRef("");
   useEffect(()=>{
     if(replay || !userId || !initial.match?.entryAmount || (matchInfo?.status==="finished" && !resultReady))return;
@@ -205,9 +215,9 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     void refreshWalletRef.current();
   },[matchInfo?.settlement,matchInfo?.status,matchInfo?.id,resultReady,userId,initial.match?.entryAmount,replay]);
   const resultTriggerRef = useRef<HTMLButtonElement>(null);
-  const [liveGame, setGame] = useState<Game | null>(creation?.before ?? initial.match?.state ?? null);
-  const game = replay?.state ?? liveGame;
-  const [resolvingCard, setResolvingCard] = useState(() => replay ? null : forcedActionPresentation(creation?.before ?? initial.match?.state ?? null));
+  const [liveGame, setGame] = useState<Game | null>(replay?.state ?? creation?.before ?? initial.match?.state ?? null);
+  const game = liveGame;
+  const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(replay?.state ?? creation?.before ?? initial.match?.state ?? null));
   const resolvingCardFinished = !!resolvingCard && !game?.forced;
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
@@ -219,6 +229,10 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
   const revealRef = useRef<HTMLDivElement>(null);
   const flyingRef = useRef<HTMLDivElement>(null);
   const locked = useRef(false);
+  const replayEpoch = useRef(replay?.epoch);
+  const replayIndex = useRef(replay?.loading ? null : replay?.index);
+  const replayPrizePlayed = useRef(replay?.state?.phase === "over");
+  const animationTimelines = useRef(new Set<gsap.core.Timeline>());
   const [flight, setFlight] = useState<{ card: Card; target: number; initial: boolean; parked: boolean; consumedChance?: Card; discardedCards?: Card[]; discardAfter?: boolean; hand?: { height: number; cards: { id: string; left: number; top: number; width: number; height: number }[] }; origin?: { left: number; top: number; width: number } } | null>(null);
   const [landed, setLanded] = useState(false);
   const [selectedCards, setSelectedCards] = useState<number[]>([]);
@@ -229,9 +243,13 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
     return () => window.clearTimeout(timeout);
   }, [game?.phase, resolvingCard, flight, movingCards, replay]);
+  const replayActive = replay?.active;
+  const replayPot = replay?.metadata.potTotal;
   const present = useCallback((action: Action, next: Game) => {
     const current = gameRef.current;
     if (!current) return;
+    if (next.round !== current.round) playSound("shuffle");
+    if (current.players.every(player => !player.cards.length) && next.players.some(player => player.cards.length) && current.round === 1 && initial.match?.entryAmount) playSound("entry");
     setSelectedCards([]);
     setPresentationBefore(current);
     const captureHand = (target: number) => {
@@ -274,7 +292,57 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     setSwapPreview(null);
     gameRef.current = next;
     setGame(next);
-  }, [swapPreview]);
+  }, [swapPreview, playSound, initial.match?.entryAmount]);
+  const replayReset = replay?.epoch;
+  const replayFrame = replay?.frame;
+  const replayFrameIndex = replay?.index;
+  const replayLoading = replay?.loading;
+  const onReplayPresented = replay?.onPresented;
+  useEffect(() => {
+    if (!replayActive) return;
+    const reset = replayEpoch.current !== replayReset;
+    if (reset) {
+      // Preserve the slider DOM (and pointer capture) while cancelling the
+      // previous presentation, even if the selected archive page is loading.
+      for (const timeline of animationTimelines.current) timeline.kill();
+      animationTimelines.current.clear();
+    }
+    if (reset && replayLoading) {
+      const timer = window.setTimeout(() => {
+        locked.current = false;
+        setFlight(null); setMovingCards(null); setResolvingCard(null);
+        setPresentationBefore(null);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+    if (replayLoading || !replayFrame || (!reset && replayIndex.current === replayFrameIndex)) return;
+    const timer = window.setTimeout(() => {
+      const previousIndex = replayIndex.current;
+      replayEpoch.current = replayReset;
+      replayIndex.current = replayFrameIndex;
+      if (reset || previousIndex == null) {
+        locked.current = false;
+        setFlight(null); setMovingCards(null); setLanded(false);
+        setPresentationBefore(null); setSwapPreview(null); setSelectedCards([]);
+        const elements = boardRef.current?.querySelectorAll("[data-hand-card], [data-flight-card], [data-player-hand]");
+        if (elements?.length) gsap.set(elements, { clearProps: "transform,width,height,opacity,visibility" });
+        gameRef.current = replayFrame.state;
+        setGame(replayFrame.state);
+        setResolvingCard(forcedActionPresentation(replayFrame.state));
+        replayPrizePlayed.current = replayFrame.state.phase === "over";
+        setResultReady(false); setResultDismissed(true);
+      } else present(replayFrame.action, replayFrame.state);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [replayActive, replayReset, replayLoading, replayFrame, replayFrameIndex, present]);
+  useEffect(() => {
+    if (!replayActive || replayLoading || replayFrameIndex == null || replayIndex.current !== replayFrameIndex || replayEpoch.current !== replayReset || flight || movingCards || resolvingCardFinished) return;
+    if (liveGame?.phase === "over" && !replayPrizePlayed.current) {
+      replayPrizePlayed.current = true;
+      if (replayPot) playSound("prize");
+    }
+    onReplayPresented?.(replayFrameIndex);
+  }, [replayActive, replayReset, replayLoading, replayFrameIndex, liveGame, flight, movingCards, resolvingCardFinished, onReplayPresented, replayPot, playSound]);
   const send = useCallback(async (action: Action) => {
     const match = serverMatch.current;
     if (!match || !connected || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || frames.length || resolvingCardFinished) return;
@@ -339,6 +407,8 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
       locked.current = false;
       setFlight(null);
     } });
+    const timelines = animationTimelines.current;
+    timelines.add(timeline);
     // Preserve the previous hand until the card leaves the reveal area.
     // All destination bounds are measured before applying these visual offsets.
     const extractionDuration = reduced ? 0 : 0.24;
@@ -367,12 +437,13 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         .to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, scale: 1, duration: revealDuration, ease: "power2.out" }, extractionDuration)
         .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, departure);
     }
-    timeline.call(() => setLanded(true));
+    timeline.call(() => playSound("slide"), [], 0);
+    timeline.call(() => { playSound("place"); setLanded(true); });
     if (flight.consumedChance) {
       const protection = board.querySelector<HTMLElement>(`[data-flight-card="${flight.consumedChance.id}"]`);
       if (protection) {
         const discarded = [destination, protection];
-        timeline.set(ghost, { autoAlpha: 0 })
+        timeline.call(() => playSound("discard")).set(ghost, { autoAlpha: 0 })
           .set(destination, { visibility: "visible" })
           .to(discarded, { y: reduced ? 0 : -12, duration: reduced ? 0 : 0.16, ease: "power2.out" }, reduced ? ">" : ">0.2")
           .to(discarded, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.32, ease: "power2.in" });
@@ -383,21 +454,25 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         const element = board.querySelector<HTMLElement>(`[data-flight-card="${card.id}"]`);
         return element ? [element] : [];
       }), ...(flight.discardAfter ? [destination] : [])];
-      timeline.set(ghost, { autoAlpha: 0 }).set(destination, { visibility: "visible" })
+      timeline.call(() => playSound("discard")).set(ghost, { autoAlpha: 0 }).set(destination, { visibility: "visible" })
         .to(discarded, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
     }
     return () => {
       timeline.kill();
+      timelines.delete(timeline);
       if (layoutElements.length) gsap.set(layoutElements, { clearProps: "transform,width,height" });
       if (hand) gsap.set(hand, { clearProps: "height" });
     };
-  }, [flight]);
+  }, [flight, playSound]);
 
   useLayoutEffect(() => {
     if (!movingCards || !boardRef.current) return;
     const board = boardRef.current;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const timeline = gsap.timeline({ onComplete: () => { locked.current = false; setMovingCards(null); } });
+    timeline.call(() => playSound(movingCards.some(card => card.target === null) ? "discard" : "slide"), [], 0);
+    const timelines = animationTimelines.current;
+    timelines.add(timeline);
     for (const movement of movingCards) {
       const ghost = board.querySelector<HTMLElement>(`[data-moving-card="${movement.card.id}"]`);
       const target = movement.target === null ? deckRef.current : board.querySelector<HTMLElement>(`[data-hand-card="${movement.card.id}"]`);
@@ -406,8 +481,9 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
       timeline.fromTo(ghost, { x: movement.origin.left, y: movement.origin.top, scale: movement.origin.width / ghost.offsetWidth, transformOrigin: "top left" },
         { x: movement.target === null ? movement.origin.left + (reduced ? 0 : 96) : rect.left, y: movement.target === null ? movement.origin.top - (reduced ? 0 : 128) : rect.top, scale: movement.target === null ? movement.origin.width / ghost.offsetWidth * (reduced ? 1 : 0.8) : rect.width / ghost.offsetWidth, rotation: movement.target === null && !reduced ? 18 : 0, opacity: movement.target === null ? 0 : 1, duration: reduced ? 0 : 0.35, ease: "power2.inOut" }, 0);
     }
-    return () => { timeline.kill(); };
-  }, [movingCards]);
+    if (movingCards.some(card => card.target !== null)) timeline.call(() => playSound("place"));
+    return () => { timeline.kill(); timelines.delete(timeline); };
+  }, [movingCards, playSound]);
 
   useLayoutEffect(() => {
     if (!resolvingCard || !resolvingCardFinished || flight || movingCards) return;
@@ -418,11 +494,20 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
       locked.current = false;
       setResolvingCard(null);
     } });
+    const timelines = animationTimelines.current;
+    timelines.add(timeline);
     // Let the final purchase and its stopped/busted status settle before discarding the action.
     timeline.to({}, { duration: reduced ? 0 : 0.5 });
-    if (element) timeline.to(element, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
-    return () => { timeline.kill(); locked.current = false; };
-  }, [resolvingCard, resolvingCardFinished, flight, movingCards]);
+    if (element) timeline.call(() => playSound("discard")).to(element, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
+    return () => { timeline.kill(); timelines.delete(timeline); locked.current = false; };
+  }, [resolvingCard, resolvingCardFinished, flight, movingCards, playSound]);
+
+  useLayoutEffect(() => {
+    for (const timeline of animationTimelines.current) {
+      timeline.timeScale(replay ? 1000 / replay.delay : 1);
+      timeline.paused(replay?.paused ?? false);
+    }
+  }, [replay, flight, movingCards, resolvingCardFinished]);
 
   useEffect(() => {
     if (!game || resolvingCardFinished || flight || movingCards || exitOpen || leaving || busy || !frames.length) return;
@@ -538,7 +623,9 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push("/jogos/flip7")}>Sair da reprodução</Button></>}
             {spectator && <><Badge variant="outline">Espectador</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={()=>router.push("/jogos/flip7")}>Sair da visualização</Button></>}
-            {!replay && !spectator && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
+            <GameControls audio={audio}>
+            {!replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
+            </GameControls>
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
@@ -555,7 +642,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
               </div>)}
               <div ref={revealRef} data-card-reveal aria-hidden="true" className="h-32 w-20 shrink-0 sm:h-36 sm:w-24" />
             </div>
-            <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
+            <div className="flex justify-around w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
                   <AvatarImage src={tableParticipants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />

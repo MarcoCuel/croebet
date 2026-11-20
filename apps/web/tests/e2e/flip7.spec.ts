@@ -1,5 +1,5 @@
 import { matchSchema } from "@croebet/shared";
-import { createGame } from "../../../api/src/modules/games/flip7/engine";
+import { createGame, transition } from "../../../api/src/modules/games/flip7/engine";
 import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { startPublicApi } from "../public-api-fixture";
@@ -497,4 +497,112 @@ test("resultado apresenta vencedor, duração, rodadas, prêmio e placar com ava
   await expect(dialog).not.toBeVisible();
   await page.getByRole("button",{name:"Ver resultado",exact:true}).click();
   await expect(dialog.getByText("12 min 34 s",{exact:true})).toBeVisible();
+});
+
+test("controles da mesa persistem som e volume e sincronizam efeitos com cartas", async ({ page, browser }, testInfo) => {
+  await instrumentAudio(page);
+  const peer = await start(page, browser);
+  try {
+    const controls = page.getByLabel("Controles da partida", { exact: true });
+    const exit = controls.getByRole("button", { name: "Abandonar partida", exact: true });
+    await expect(exit).toHaveText("");
+    await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
+    const volume = controls.getByRole("slider", { name: "Volume dos efeitos" });
+    await volume.fill("30");
+    await expect(controls.getByText("30%", { exact: true })).toBeVisible();
+    await controls.getByRole("button", { name: "Silenciar som", exact: true }).click();
+    await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toHaveAttribute("aria-pressed", "false");
+    await page.reload();
+    await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
+    await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
+    await expect(volume).toHaveValue("30");
+    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(26);
+    await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
+    await expect(controls.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
+    if (testInfo.project.name === "desktop") {
+      const fullscreen = controls.getByRole("button", { name: "Tela cheia", exact: true });
+      await fullscreen.click();
+      await expect(controls.getByRole("button", { name: "Sair da tela cheia", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await controls.getByRole("button", { name: "Sair da tela cheia", exact: true }).click();
+      await expect(fullscreen).toBeVisible();
+    }
+    await page.getByRole("button", { name: "Comprar", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
+    await expect(exit).toBeEnabled();
+    await exit.click();
+    await expect(page.getByRole("dialog", { name: "Abandonar partida?" })).toBeVisible();
+    await page.getByRole("button", { name: "Continuar jogando", exact: true }).click();
+  } finally { await peer.context.close(); }
+});
+
+async function instrumentAudio(page: Page) {
+  await page.addInitScript(() => {
+    const state = window as unknown as { playedEffects: number; decodedEffects: number };
+    state.playedEffects = 0;
+    state.decodedEffects = 0;
+    const decode = AudioContext.prototype.decodeAudioData;
+    AudioContext.prototype.decodeAudioData = function (data, success, error) {
+      return decode.call(this, data, success, error).then(buffer => { state.decodedEffects++; return buffer; });
+    };
+    const original = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof original>) {
+      state.playedEffects++;
+      return original.apply(this, args);
+    };
+  });
+}
+
+test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor", async ({ page }, testInfo) => {
+  await instrumentAudio(page);
+  const code = "ABCDEF123456";
+  const before = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
+  const after = transition(before, { type: "draw" });
+  const state = flip7Driver.project(after);
+  const finalState = { ...state, phase: "over", round: 2 };
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 3, status: "finished", state: finalState, hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  fixture.states.set(code, { room, frames: [] });
+  await page.route(`**/api/v1/me/matches/${code}?*`, route => route.fulfill({ json: {
+    match: { id: room.id, code, gameId: "93089d02-0b34-4b78-9d3e-f2679c190b5c", rulesVersion: 1, status: "finished", options: room.options, startedAt: "2026-11-20T12:00:00.000Z", endedAt: "2026-11-20T12:01:00.000Z", players: matchUsers.map((user, seat) => ({ seat, userId: user.id, name: user.username, avatarUrl: null, score: 0, winner: true, bot: false })), frameCount: 3, entryAmount: 0, potTotal: 0, payouts: [], settlement: "paid" },
+    finalState, frames: [{ version: 1, action: { type: "start" }, state: flip7Driver.project(before) }, { version: 2, action: { type: "draw" }, state }, { version: 3, action: { type: "next" }, state: finalState }], offset: 0, hasMore: false,
+  } }));
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  await page.getByRole("dialog", { name: "Resultado da partida" }).getByRole("button", { name: "Replay", exact: true }).click();
+  const controls = page.getByLabel("Controles de reprodução", { exact: true });
+  await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
+  await controls.getByRole("button", { name: "Pausar", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(26);
+  await controls.getByRole("button", { name: "Próxima jogada", exact: true }).click();
+  await expect(page.locator("[data-flying-card]")).toBeVisible();
+  await expect(controls.getByText("Jogada 2 de 3", { exact: true })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Próxima jogada", exact: true })).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
+  await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+  // Backward seek restores a snapshot and cancels any pending presentation.
+  await controls.getByRole("button", { name: "Jogada anterior", exact: true }).click();
+  await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+  const [box, speed, play, position] = await Promise.all([
+    controls.boundingBox(), controls.getByLabel("Velocidade da reprodução").boundingBox(),
+    controls.getByRole("button", { name: "Reproduzir", exact: true }).boundingBox(),
+    controls.getByText("Jogada 1 de 3", { exact: true }).boundingBox(),
+  ]);
+  expect(Math.abs(play!.x + play!.width / 2 - box!.x - box!.width / 2)).toBeLessThan(2);
+  expect(speed!.x).toBeLessThan(position!.x);
+  if (testInfo.project.name === "desktop") expect(Math.abs(speed!.y - position!.y)).toBeLessThan(12);
+  const slider = controls.getByRole("slider", { name: "Ir para jogada" });
+  const sliderNode = await slider.elementHandle();
+  const soundsBeforeScrub = await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects);
+  // Even a one-frame slider change is a silent snapshot, never a card flight.
+  await slider.fill("1");
+  await expect(controls.getByText("Jogada 2 de 3", { exact: true })).toBeVisible();
+  await expect(controls.getByRole("button", { name: "Próxima jogada", exact: true })).toBeEnabled();
+  await expect(page.locator("[data-flying-card], [data-moving-card]")).toHaveCount(0);
+  await slider.press("ArrowRight");
+  await expect(controls.getByText("Jogada 3 de 3", { exact: true })).toBeVisible();
+  await slider.fill("0");
+  await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
+  expect(await sliderNode!.evaluate(element => element.isConnected)).toBe(true);
+  expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(soundsBeforeScrub);
+
 });

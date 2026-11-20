@@ -2,15 +2,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { matchReplaySchema } from "@croebet/shared";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { ReplayControls } from "@/features/games/replay-controls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlayingCard } from "@/features/games/flip7/flip7-game";
 import { MatchBadges, MatchPlayerAvatar, MatchPlayerIdentity } from "./admin-match-summary";
 import { Badge } from "@/components/ui/badge";
 import { CroinIcon } from "@/components/shared/croin-icon";
-import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Play, Pause } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 const replayDate = (value: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
 async function readReplayPage(path: string) {
   const response = await fetch(`/api/v1${path}`, { credentials: "same-origin", cache: "no-store" });
@@ -43,7 +42,6 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
     const timer=setTimeout(()=>setIndex(value=>value+1),delay);
     return ()=>clearTimeout(timer);
   },[playing,loading,frame,index,delay,initial.match.frameCount]);
-  const atEnd=index>=initial.match.frameCount-1;
   function seek(value:number) {setPlaying(false);setError("");setIndex(value);}
   const match = initial.match;
   const rankedPlayers = [...match.players].sort((a, b) => b.score - a.score);
@@ -55,18 +53,8 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="grid min-w-0 gap-4">
         <Card className="grid gap-4">
-          <div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Reprodução</h2><Select aria-label="Velocidade da reprodução" value={delay} onChange={event => setDelay(Number(event.target.value))} className="min-h-8 py-1 text-xs"><option value={2000}>0,5×</option><option value={1000}>1×</option><option value={500}>2×</option></Select></div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon-sm" aria-label="Início" onClick={() => seek(0)} disabled={index === 0}><SkipBack className="size-4" aria-hidden="true" /></Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Jogada anterior" onClick={() => seek(Math.max(0, index - 1))} disabled={index === 0}><ChevronLeft className="size-4" aria-hidden="true" /></Button>
-              <Button size="sm" onClick={() => setPlaying(value => !value)} disabled={loading || atEnd || !!error}>{playing && !atEnd ? <Pause className="size-4" aria-hidden="true" /> : <Play className="size-4" aria-hidden="true" />}{playing && !atEnd ? "Pausar" : "Reproduzir"}</Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Próxima jogada" onClick={() => seek(Math.min(match.frameCount - 1, index + 1))} disabled={atEnd}><ChevronRight className="size-4" aria-hidden="true" /></Button>
-              <Button variant="ghost" size="icon-sm" aria-label="Final" onClick={() => seek(match.frameCount - 1)} disabled={atEnd}><SkipForward className="size-4" aria-hidden="true" /></Button>
-            </div>
-            <span className="text-xs text-muted tabular-nums">Jogada <span className="font-semibold text-foreground">{index + 1}</span> de {match.frameCount}</span>
-          </div>
-          <Input aria-label="Ir para jogada" type="range" min={0} max={Math.max(0, match.frameCount - 1)} value={index} onChange={event => seek(Number(event.target.value))} className="h-4 min-h-4 w-full border-0 bg-transparent p-0 accent-brand" />
+          <h2 className="font-semibold">Reprodução</h2>
+          <ReplayControls index={index} count={match.frameCount} playing={playing && index < match.frameCount - 1} delay={delay} loading={loading} error={error} seek={seek} toggle={() => setPlaying(value => !value)} setDelay={setDelay} />
         </Card>
         {error ? <Card role="alert" className="grid justify-items-start gap-3 text-sm">{error}<Button variant="secondary" size="sm" onClick={() => { setError(""); setRetry(value => value + 1); }}>Tentar novamente</Button></Card> : loading || !frame ? <Card role="status" className="text-sm text-muted">Carregando jogadas…</Card> : <>
           <Card className="min-w-0">
