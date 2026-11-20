@@ -7,10 +7,19 @@ const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Admin", di
 const base: SitePageRecord = { seo: seoFieldsSchema.parse({}), id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "sobre", title: "Sobre", document: [{ tag: "p", children: ["Conteúdo compartilhado"] }], published: true, showInMenu: true, version: 1, createdAt: null, updatedAt: null, publishedAt: null, lastEditedBy: null, status: "published", publishAt: null, authorId: user.id, authorName: user.displayName };
 let pages: SitePageRecord[] = [];
 let failure = false;
+let settings = structuredClone(defaultSeoSettings);
+let settingsFailure = false;
 let api: Server;
 function respond(path: string, method: string, body: Record<string, unknown> = {}, authenticated = true): { status: number; data: unknown } {
   if (path === "/api/v1/seo") return { status: 200, data: defaultSeoSettings };
-  if (path === "/api/v1/admin/seo") return { status: 200, data: method === "PATCH" ? { ...body, version: Number(body.version) + 1 } : defaultSeoSettings };
+  if (path === "/api/v1/admin/seo") {
+    if (method === "PATCH") {
+      if (settingsFailure) return { status: 503, data: { error: { message: "Não foi possível salvar." } } };
+      if (body.version !== settings.version) return { status: 409, data: { error: { message: "Versão desatualizada." } } };
+      settings = { ...settings, ...body, version: settings.version + 1 };
+    }
+    return { status: 200, data: settings };
+  }
   if (path === "/api/v1/me") return { status: 200, data: { user: authenticated ? user : null } };
   if (path === "/api/v1/auth/csrf") return { status: 200, data: { token: "fixture" } };
   if (path === "/api/v1/economy") return { status: 200, data: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1, 5, 10, 50], defaultBet: 5 } };
@@ -54,7 +63,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  pages = [structuredClone(base), { ...structuredClone(base), id: "93089d02-0b34-4b78-9d3e-f2679c190b5d", slug: "rascunho", title: "Segredo", status: "draft", published: false }]; failure = false;
+  pages = [structuredClone(base), { ...structuredClone(base), id: "93089d02-0b34-4b78-9d3e-f2679c190b5d", slug: "rascunho", title: "Segredo", status: "draft", published: false }]; failure = false; settings = structuredClone(defaultSeoSettings); settingsFailure = false;
   await context.addCookies([{ name: "croebet-session", value: "pages-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const request = route.request(); const result = respond(new URL(request.url()).pathname, request.method(), request.postDataJSON() ?? {});
@@ -186,10 +195,58 @@ test("listagem combina busca e status, move para o lixo e restaura sem publicar"
   expect(pages[0].status).toBe("draft"); expect(pages[0].published).toBe(false);
 });
 
-test("SEO permite salvar os padrões e mostra confirmação", async ({ page }) => {
+test("configurações usam a nova URL e salvam campos individuais sem perder outros valores", async ({ page }) => {
   await page.goto("/admin/seo");
-  await page.getByLabel("Título SEO", { exact: true }).first().fill("Croebet da comunidade");
-  await page.getByRole("button", { name: "Salvar alterações" }).click();
-  await expect(page.getByText("SEO salvo.")).toBeVisible();
-  await expect(page.getByLabel("Título SEO", { exact: true }).first()).toHaveValue("Croebet da comunidade");
+  await expect(page).toHaveURL("/admin/configuracoes");
+  await expect(page).toHaveTitle("Configurações · Admin · Croebet");
+  await expect(page.getByRole("navigation", { name: "Seções do admin" }).getByRole("link", { name: "Configurações" })).toHaveAttribute("aria-current", "page");
+  await page.getByRole("button", { name: "Editar título SEO", exact: true }).first().click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Título SEO", { exact: true }).fill("Croebet da comunidade");
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Configurações salvas.")).toBeVisible();
+  await expect(page.getByText("Croebet da comunidade", { exact: true })).toHaveCount(2);
+  await page.getByRole("button", { name: "Editar título SEO", exact: true }).nth(1).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Título SEO", { exact: true }).fill("Bem-vindo à Croebet");
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(settings.title).toBe("Croebet da comunidade");
+  expect(settings.home.title).toBe("Bem-vindo à Croebet");
+  expect(settings.games).toEqual(defaultSeoSettings.games);
+  expect(settings.version).toBe(2);
+  await page.reload();
+  await expect(page.getByText("Bem-vindo à Croebet", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("configurações permitem cancelar, validam e mantêm o modal aberto quando o salvamento falha", async ({ page }) => {
+  await page.goto("/admin/configuracoes");
+  await page.getByRole("button", { name: "Editar nome do site", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Nome do site", { exact: true }).fill("Descartar");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Editar nome do site", exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel("Nome do site", { exact: true })).toHaveValue(defaultSeoSettings.siteName);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Editar formato dos títulos", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Formato dos títulos", { exact: true }).fill("Sem marcador");
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByText("Inclua {título} no formato.")).toBeVisible();
+  expect(settings.version).toBe(0);
+  await dialog.getByLabel("Formato dos títulos", { exact: true }).fill("{título} | Croebet");
+  settingsFailure = true;
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByText("Não foi possível salvar.", { exact: true })).toBeVisible();
+  await expect(dialog).toBeVisible();
+  settingsFailure = false;
+  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Editar permitir indexação", exact: true }).first().click();
+  await page.getByRole("dialog").getByRole("switch", { name: "Permitir indexação" }).check();
+  await page.getByRole("dialog").getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(settings.index).toBe(true);
+  expect(settings.titleTemplate).toBe("{título} | Croebet");
 });

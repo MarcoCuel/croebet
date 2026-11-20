@@ -25,6 +25,8 @@ function respond(url: string) {
   if (parsed.pathname === "/api/v1/economy") return { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1,5,10,50], defaultBet: 5 };
   if (parsed.pathname === "/api/v1/rewards/daily") return { balance: 37, lastClaimAt: null, nextClaimAt: null, eligible: true, serverNow: "2026-11-19T15:00:00.000Z" };
   if (parsed.pathname === "/api/v1/admin/overview") return overview(Number(parsed.searchParams.get("days") ?? 7) as 1 | 7 | 30);
+  if (parsed.pathname === "/api/v1/admin/users") return { items: [], total: 0, hasMore: false, counts: { all: 0, active: 0, suspended: 0 } };
+  if (parsed.pathname === "/api/v1/admin/coupons") return { items: [], total: 0, hasMore: false, counts: { Todos: 0, Ativo: 0, Agendado: 0, Pausado: 0, Expirado: 0, Esgotado: 0 } };
   return { items: [] };
 }
 test.beforeAll(async () => {
@@ -68,6 +70,27 @@ test("períodos consultam a API e preservam o saldo atual após reload", async (
   await expect(page.getByRole("link", { name: "30 dias", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(panel.getByText("37", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+test("menu administrativo mantém o alinhamento em páginas curtas e longas", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Sidebar sticky é usada apenas no desktop.");
+  let initialTop: number | undefined;
+  for (const [path, name] of [["/admin", "Visão geral"], ["/admin/jogos", "Jogos"], ["/admin/apostas", "Apostas"], ["/admin/cupons", "Cupons"], ["/admin/usuarios", "Usuários"]]) {
+    await page.goto(path);
+    const menu = page.getByRole("navigation", { name: "Seções do admin" });
+    const content = page.getByRole("region", { name, exact: true });
+    await expect(menu).toBeVisible();
+    await expect(content).toBeVisible();
+    const menuBox = await menu.boundingBox();
+    const contentBox = await content.boundingBox();
+    expect(Math.abs(menuBox!.y - contentBox!.y)).toBeLessThan(1);
+    initialTop ??= menuBox!.y;
+    expect(Math.abs(menuBox!.y - initialTop)).toBeLessThan(1);
+  }
+  await page.goto("/admin");
+  const menu = page.getByRole("navigation", { name: "Seções do admin" });
+  await expect(menu).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 100));
+  await expect.poll(async () => (await menu.boundingBox())!.y).toBeCloseTo(initialTop!, 0);
 });
 test("falha da API oferece nova tentativa sem inventar um painel zerado", async ({ page }) => {
   unavailable = true; await page.goto("/admin");

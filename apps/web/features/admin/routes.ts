@@ -1,5 +1,5 @@
 export const adminRoutes = {
-  seo: "/admin/seo",
+  seo: "/admin/configuracoes",
   overview: "/admin",
   games: "/admin/jogos",
   markets: "/admin/apostas",

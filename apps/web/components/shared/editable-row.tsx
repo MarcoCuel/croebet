@@ -16,16 +16,16 @@ export function EditableRow({ label, value, children, open, onOpenChange }: {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-contrast/6 py-3 last:border-0">
       <span className="shrink-0 text-sm">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-h-9 min-w-0 items-center gap-2">
         <span className="truncate text-sm text-muted">{value}</span>
-        {children ? <Dialog open={open} onOpenChange={onOpenChange}>
+        {children && <Dialog open={open} onOpenChange={onOpenChange}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-label={`Editar ${label.toLocaleLowerCase("pt-BR")}`}>
               <Pencil className="size-4" aria-hidden="true" />
             </Button>
           </DialogTrigger>
           <DialogContent aria-describedby={undefined}>{children}</DialogContent>
-        </Dialog> : <span className="size-9 shrink-0" aria-hidden="true" />}
+        </Dialog>}
       </div>
     </div>
   );

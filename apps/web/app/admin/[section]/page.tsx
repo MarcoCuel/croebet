@@ -3,7 +3,7 @@ import { AdminMarkets } from "@/features/admin/admin-markets";
 import { gamesSchema } from "@croebet/shared";
 import { AdminGames } from "@/features/admin/admin-games";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AdminAccess } from "@/features/admin/admin-access";
 import { adminQuerySchema, adminUsersSchema, couponsQuerySchema, couponsSchema, pagesSchema } from "@croebet/shared";
 import { AdminPages } from "@/features/admin/admin-pages";
@@ -51,8 +51,9 @@ export default async function AdminSectionPage({
   const entry = Object.entries(adminRoutes).find(
     ([, href]) => href === `/admin/${section}`,
   );
+  if (section === "seo") redirect(adminRoutes.seo);
   if (!entry) notFound();
-  if (section === "seo") {
+  if (section === "configuracoes") {
     const data = await getManagement("/admin/seo", seoSettingsSchema);
     return <AdminAccess section="seo" content={data ? <AdminSeo initial={data} /> : <ManagementUnavailable />} />;
   }
