@@ -36,7 +36,7 @@ export function useLobbyInvitations() {
       catch{/* Keep the last confirmed inbox while reconnecting. */}
     }
     socket.on("invitations",receive).on("connect",refresh);
-    const release=retainGameSocket();
+    const release=retainGameSocket(userId);
     void refresh();
     const timer=window.setInterval(()=>void refresh(),15000);
     document.addEventListener("visibilitychange",refresh);

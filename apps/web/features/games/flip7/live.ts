@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { matchListSchema, type Match, lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
+import { useSession } from "@/features/auth/session-context";
 import { gameSocket, retainGameSocket } from "../realtime";
 
 export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void, onMatches?: (matches: Match[]) => void) {
+  const {userId} = useSession();
   const handlers = useRef({ onRoom, onLobbies, onClosed, onMatches });
   useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed, onMatches }; });
   const key = enabled ? code ?? "directory" : null;
@@ -42,7 +44,7 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
     const disconnected = () => status(false);
     socket.on("connect", watch).on("disconnect", disconnected).on("connect_error", disconnected)
       .on("matches", matches).on("room", room).on("lobbies", directory).on("room-closed", closed).on("closed", closed);
-    const release = retainGameSocket();
+    const release = retainGameSocket(userId);
     if (socket.connected) watch();
     return () => {
       active = false;
@@ -51,6 +53,6 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
       if(socket.connected) socket.emit("watch",{afterVersion:0},()=>{});
       release();
     };
-  }, [code, enabled, key]);
+  }, [code, enabled, key, userId]);
   return connection.key === key && connection.connected;
 }

@@ -7,7 +7,7 @@ import { createGame, replaceWithBot, type Game } from "../../api/src/modules/gam
 import { execute } from "../../api/src/modules/matches/execution";
 
 export const matchUsers=[{id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",username:"Marco",displayName:"Marco",role:"user"},{id:"93089d02-0b34-4b78-9d3e-f2679c190b5d",username:"Beto",displayName:"Beto",role:"user"}];
-export const fixtureUser=(req:IncomingMessage)=>matchUsers[req.headers.cookie?.includes("game-fixture-beto")?1:0];
+export const fixtureUser=(req:IncomingMessage)=>!req.headers.cookie?.includes("game-fixture-")?null:matchUsers[req.headers.cookie?.includes("game-fixture-beto")?1:0];
 export function matchesFixture() {
   const states=new Map<string,{room:Room;privateState?:Game;frames:MatchFrame[]}>();
   const receipts=new Map<string,unknown>();
@@ -37,15 +37,12 @@ export function matchesFixture() {
   }
   function notify(){for(const stream of streams){
     stream.socket.emit("lobbies",directory(stream.actor));
+    stream.socket.emit("matches",{items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing")});
     stream.socket.emit("invitations",{items:[...invitations.values()].filter(i=>i.target===stream.actor && states.get(i.code)?.room.status==="lobby").map(i=>({code:i.code,username:matchUsers.find(u=>u.id===i.sender)!.username,avatarUrl:null}))});
     if(!stream.code)continue;
     const saved=states.get(stream.code);
     if(!saved){stream.socket.emit("room-closed",{message:"Sala encerrada."});stream.code=null;continue;}
     if(saved.room.version<=stream.version && saved.room.status!=="lobby")continue;
-    if(saved.room.status!=="lobby" && !saved.room.participants.some(p=>p.userId===stream.actor)){stream.socket.emit("room-closed",{message:"Sala indisponível."});stream.code=null;continue;}
-    if(saved.room.status==="playing" && saved.room.state.players[saved.room.participants.find(p=>p.userId===stream.actor)!.seat].kind!=="human"){
-      stream.socket.emit("room-closed",{message:"Um bot assumiu sua vaga."});stream.code=null;continue;
-    }
     const frames=saved.frames.filter(f=>f.version>stream.version);
     const reset=!frames.length || frames[0].version!==stream.version+1;
     stream.socket.emit("room",{room:saved.room,frames:reset?[]:frames,reset});stream.version=saved.room.version;
@@ -57,7 +54,7 @@ export function matchesFixture() {
       next(csrf && socket.handshake.auth.csrf===csrf?undefined:new Error("CSRF must precede WebSocket upgrade"));
     });
     io.on("connection",socket=>{
-      const actor=fixtureUser(socket.request).id;
+      const actor=fixtureUser(socket.request)?.id ?? "visitor";
       const stream={socket,actor,code:null as string|null,version:0};streams.add(stream);notify();
       socket.on("watch",(input,ack)=>{
         stream.code=input.code ?? null;stream.version=input.afterVersion ?? 0;
@@ -78,7 +75,7 @@ export function matchesFixture() {
   },failNextResponse(){failAfterCommit=true;},async handler(request:IncomingMessage,response:ServerResponse){
     const url=new URL(request.url ?? "/","http://fixture"),path=url.pathname;
     if(!path.startsWith("/api/v1/matches") && path!=="/api/v1/auth/csrf")return false;
-    const actor=fixtureUser(request);
+    const actor=fixtureUser(request) ?? {id:"visitor",username:"Visitante",displayName:"Visitante"};
     response.setHeader("content-type","application/json");
     const send=(body:unknown,status=200)=>{response.statusCode=status;response.end(JSON.stringify(body));return true;};
     if(path==="/api/v1/auth/csrf"){
@@ -94,9 +91,10 @@ export function matchesFixture() {
       return send({items:candidates.filter(u=>!room?.participants.some(p=>p.userId===u.userId) && u.username.toLowerCase().includes((url.searchParams.get("q") ?? "").toLowerCase())).map(u=>({...u,invited:invitations.has(`${room?.code}:${u.userId}`)})),hasMore:false});
     }
 
-    if(request.method==="GET" && path==="/api/v1/matches")return send({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor.id))});
+    if(request.method==="GET" && path==="/api/v1/matches")return send({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing")});
     const code=path.split("/")[4];
     if(request.method==="GET")return states.has(code)?send(states.get(code)!.room):send({error:{message:"Sala não encontrada."}},404);
+    if(actor.id==="visitor")return send({error:{message:"Entre para jogar."}},401);
     let raw="";for await(const chunk of request)raw+=String(chunk);const body=raw?JSON.parse(raw):{};
     if(path.endsWith("/decline")){invitations.delete(`${code}:${actor.id}`);const saved=states.get(code);if(saved)saved.room.version++;notify();return send({ok:true});}
     if(path.endsWith("/invite")){invitations.set(`${code}:${body.targetUserId}`,{code,sender:actor.id,target:body.targetUserId});const saved=states.get(code);if(saved)saved.room.version++;notify();return send({ok:true});}

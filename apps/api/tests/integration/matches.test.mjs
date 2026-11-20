@@ -44,7 +44,8 @@ test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recupera
  assert.ok(started.state.players.every(p=>p.kind==="human"));
  assert.equal((await listLobbies(pool,actors[0])).items.some(r=>r.id===room.id),false);
  for(const actor of actors.slice(0,2))assert.ok((await listMatches(pool,actor)).items.some(m=>m.id===room.id));
- await assert.rejects(getMatch(pool,actors[2],room.code),{code:"NOT_FOUND"});
+ assert.equal((await getMatch(pool,null,room.code)).status,"playing");
+ assert.ok((await listMatches(pool,null)).items.some(m=>m.id===room.id));
  await assert.rejects(lobby(room.code,2,"join"),{code:"LOBBY_CLOSED"});
  const sync=await getRoomSync(pool,actors[1],room.code,joined.version);
  assert.equal(sync.reset,false);assert.equal(sync.frames[0].action.type,"start");assert.equal(sync.frames.at(-1).version,started.version);
@@ -140,8 +141,8 @@ test("PostgreSQL: rollback, sessão revogada e abandono individual",async t=>{
  const ended=await commandMatch(pool,actors[peer],sessions[peer],room.code,command,true);
  assert.equal(ended.match.status,"playing");assert.deepEqual(wire(await commandMatch(pool,actors[peer],sessions[peer],room.code,command,true)),wire(ended));
  assert.equal(ended.match.state.players[ended.match.participants.find(p=>p.userId===actors[peer]).seat].kind,"normal");
- assert.equal((await listMatches(pool,actors[peer])).items.some(m=>m.id===room.id),false);
- await assert.rejects(getRoomSync(pool,actors[peer],room.code,started.version),{code:"PARTICIPATION_ENDED"});
+ assert.equal((await listMatches(pool,actors[peer])).items.some(m=>m.id===room.id),true);
+ assert.equal((await getRoomSync(pool,actors[peer],room.code,started.version)).room.status,"playing");
 });
 
 test("PostgreSQL: expulsão no lobby e no jogo, bot sem controle pela conta e saída do último humano",async t=>{
@@ -165,7 +166,7 @@ test("PostgreSQL: expulsão no lobby e no jogo, bot sem controle pela conta e sa
  assert.deepEqual(frames[0].state.players[target.seat].cards,started.state.players[target.seat].cards);
  assert.equal(frames[0].state.players[target.seat].total,started.state.players[target.seat].total);
  await assert.rejects(commandMatch(pool,actors[1],sessions[1],room.code,{commandId:randomUUID(),expectedVersion:converted.version,action:{type:"draw"}}),{code:"PARTICIPATION_ENDED"});
- await assert.rejects(getMatch(pool,actors[1],room.code),{code:"PARTICIPATION_ENDED"});
+ assert.equal((await getMatch(pool,actors[1],room.code)).status,"playing");
  const gone=await commandMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:converted.version},true);
  assert.equal(gone.match.hostId,actors[2]);assert.equal(gone.match.status,"playing");
  const last=await commandMatch(pool,actors[2],sessions[2],room.code,{commandId:randomUUID(),expectedVersion:gone.match.version},true);
@@ -206,7 +207,8 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
   assert.equal(sync.room.status,"playing");assert.ok(sync.frames.some(frame=>frame.action.type==="start"));
   assert.equal(JSON.stringify(sync).includes('"deck":'),false);assert.equal(JSON.stringify(sync).includes('"seed":'),false);
  }
- const denied=await outsider.timeout(5000).emitWithAck("watch",{code:room.code,afterVersion:0});assert.equal(denied.ok,false);
+ const viewed=await outsider.timeout(5000).emitWithAck("watch",{code:room.code,afterVersion:0});assert.equal(viewed.ok,true);
+ const denied=await outsider.timeout(5000).emitWithAck("request",{type:"command",code:room.code,input:{commandId:randomUUID(),expectedVersion:started.version,action:{type:"draw"}}});assert.equal(denied.ok,false);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
  const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
  const actor=actors.indexOf(started.participants.find(p=>p.seat===seat).userId),sender=[host,peer][actor],receiver=[peer,host][actor];

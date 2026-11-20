@@ -212,7 +212,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || !!directory.current} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
           </Card></li>;
         })}</ul>}
-      </>}
+      </>
     </section>
     {matches.length>0 && <section className="space-y-5 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2">{matches.map(match=>{
       const playing=match.participants.some(person=>person.userId===userId && match.state.players[person.seat]?.kind==="human");

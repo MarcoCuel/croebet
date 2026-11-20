@@ -72,6 +72,9 @@ async function requireNoOtherLobby(client: PoolClient, actor: string, except?: s
   if(existing.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já está em um lobby. Saia dele antes de criar ou entrar em outro.");
 }
 export async function listMatches(pool: Pool, _actor: string | null) {
+  // Public listing is independent of the caller's participation.
+  void _actor;
+  void _actor;
   return read(pool,async client=>{
     const rows=await client.query<Row>(`select m.* from game_matches m where m.status='playing' order by m.updated_at desc,m.id limit 100`);
     const people=await participants(client,rows.rows.map(row=>row.id));
@@ -79,6 +82,7 @@ export async function listMatches(pool: Pool, _actor: string | null) {
   });
 }
 export async function getRoomSync(pool: Pool, actor: string | null, code: string, afterVersion=0) {
+  void actor;
   return read(pool,async client=>{
     const found=await client.query<Row>("select * from game_matches where code=$1",[code]); const row=found.rows[0];
     if(!row || (row.status==="abandoned" && row.state===null)) throw new MatchError("NOT_FOUND",404,"Sala encerrada ou não encontrada.");

@@ -4,6 +4,7 @@ import { realtimeReplySchema, type RealtimeRequest } from "@croebet/shared";
 
 let socket: Socket | undefined;
 let users = 0;
+let identity: string | null | undefined;
 let connecting: Socket | undefined;
 let connectController: AbortController | undefined;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -54,14 +55,22 @@ export function gameSocket(): Socket {
   }
   return socket;
 }
-export function retainGameSocket() {
+export function retainGameSocket(userId: string | null) {
   const connection = gameSocket();
-  // Only the first consumer starts the shared, asynchronous handshake.
-  if (users++ === 0) void connect(connection);
+  const changed = identity !== undefined && identity !== userId;
+  identity = userId;
+  users++;
+  if (changed) {
+    clearTimeout(retryTimer); retryTimer = undefined;
+    connectController?.abort(); connectController = undefined; connecting = undefined;
+    connection.disconnect();
+  }
+  // Session changes require a new handshake, including login while watching.
+  if (users === 1 || changed) void connect(connection);
   return () => {
     if (--users === 0) {
       clearTimeout(retryTimer); retryTimer = undefined; retryDelay = 300;
-      socket = undefined;
+      socket = undefined; identity = undefined;
       connectController?.abort(); connectController = undefined;
       connection.disconnect();
     }
