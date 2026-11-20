@@ -26,8 +26,7 @@ function subscribe(listener: () => void) {
 const sounds = {
   // Use single gestures: some pack variations contain several distinct hits.
   slide: [1, 2, 5, 6, 8].map(index => `card-slide-${index}`),
-  place: ["card-place-1"],
-  discard: ["card-shove-3", "card-shove-4"],
+  discard: ["card-shove-4"],
   entry: ["chip-lay-1", "chip-lay-2", "chip-lay-3"],
   prize: Array.from({ length: 6 }, (_, i) => `chips-stack-${i + 1}`),
 };

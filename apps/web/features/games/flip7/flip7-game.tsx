@@ -438,8 +438,8 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         .to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, scale: 1, duration: revealDuration, ease: "power2.out" }, extractionDuration)
         .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, departure);
     }
-    timeline.call(() => playSound("slide"), [], flight.parked ? 0 : departure);
-    timeline.call(() => { playSound("place"); setLanded(true); });
+    timeline.call(() => playSound("slide"), [], 0);
+    timeline.call(() => setLanded(true));
     if (flight.consumedChance) {
       const protection = board.querySelector<HTMLElement>(`[data-flight-card="${flight.consumedChance.id}"]`);
       if (protection) {
@@ -483,7 +483,6 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
       timeline.fromTo(ghost, { x: movement.origin.left, y: movement.origin.top, scale: movement.origin.width / ghost.offsetWidth, transformOrigin: "top left" },
         { x: movement.target === null ? movement.origin.left + (reduced ? 0 : 96) : rect.left, y: movement.target === null ? movement.origin.top - (reduced ? 0 : 128) : rect.top, scale: movement.target === null ? movement.origin.width / ghost.offsetWidth * (reduced ? 1 : 0.8) : rect.width / ghost.offsetWidth, rotation: movement.target === null && !reduced ? 18 : 0, opacity: movement.target === null ? 0 : 1, duration: reduced ? 0 : 0.35, ease: "power2.inOut" }, 0);
     }
-    if (movingCards.some(card => card.target !== null)) timeline.call(() => playSound("place"));
     return () => { if (timeline.progress() < 1) stopSounds(); timeline.kill(); timelines.delete(timeline); };
   }, [movingCards, playSound, stopSounds]);
 
@@ -594,7 +593,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
   const activeSeat = visibleGame.bonusChoice ?? visibleGame.forced?.target ?? visibleGame.pending?.source ?? visibleGame.turn;
 
   return (
-    <Surface ref={boardRef} className="relative @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
+    <Surface ref={boardRef} className="relative isolate @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
         <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4", replay?.active ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-8rem)]")}>
           {replay ? <>{replay.active ? replay.controls : <h2 className="text-sm font-medium">{replay.finished ? status : "Partida encerrada"}</h2>}{!replay.finished && !replay.active && <Button onClick={replay.restart}>Replay</Button>}{game.phase === "over" && !replay.loading && <Button ref={resultTriggerRef} size="sm" variant="secondary" onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}</> : <>

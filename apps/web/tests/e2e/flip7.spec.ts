@@ -118,6 +118,30 @@ async function start(page:Page,browser:Browser){
   await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
   return peer;
 }
+test("cartas e camadas de animação permanecem abaixo do navbar", async ({ page, browser }) => {
+  const peer = await start(page, browser);
+  try {
+    const board = page.getByRole("region", { name: "Mesa de Flip7" });
+    await expect(page.locator("[data-flying-card], [data-moving-card]")).toHaveCount(0);
+    for (const zIndex of [20, 30, 40]) {
+      // Force overlap at each card layer without depending on animation timing.
+      const coveredByNavbar = await board.evaluate((element, layer) => {
+        const header = document.querySelector("header")!;
+        const bounds = header.getBoundingClientRect();
+        const x = bounds.left + bounds.width / 2;
+        const y = bounds.top + bounds.height / 2;
+        const card = element.querySelector('[aria-label$="cartas no baralho"]')!.cloneNode(true) as HTMLElement;
+        Object.assign(card.style, { position: "fixed", left: `${x - 10}px`, top: `${y - 10}px`, width: "20px", height: "20px", zIndex: String(layer), pointerEvents: "auto" });
+        element.append(card);
+        const top = document.elementFromPoint(x, y);
+        const covered = top !== null && header.contains(top);
+        card.remove();
+        return covered;
+      }, zIndex);
+      expect(coveredByNavbar).toBe(true);
+    }
+  } finally { await peer.context.close(); }
+});
 test("vários lobbies aceitam a mesma conta e o primeiro início cancela as outras filas",async({page,browser})=>{
   await lobby(page);const firstCode=new URL(page.url()).searchParams.get("partida")!;
   const peer=await second(browser);
@@ -517,7 +541,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
     await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
     await expect(volume).toHaveValue("30");
-    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(17);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(15);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
     await expect(controls.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
     if (testInfo.project.name === "desktop") {
@@ -573,18 +597,18 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
   const controls = page.getByLabel("Controles de reprodução", { exact: true });
   await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
   await controls.getByRole("button", { name: "Pausar", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(17);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(15);
+  const effectsBeforeMove = await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects);
   await controls.getByRole("button", { name: "Próxima jogada", exact: true }).click();
   await expect(page.locator("[data-flying-card]")).toBeVisible();
   await expect(controls.getByText("Jogada 2 de 3", { exact: true })).toBeVisible();
   await expect(controls.getByRole("button", { name: "Próxima jogada", exact: true })).toBeDisabled();
   await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
   await expect(page.locator("[data-flying-card]")).toHaveCount(0);
-  const cues = await page.evaluate(() => (window as unknown as { cueEvents: { time: number; offset: number; duration: number; fileDuration: number }[] }).cueEvents.slice(-2));
-  expect(cues).toHaveLength(2);
-  // Movement and impact are separated by the actual 0.2s trip, not the reveal hold.
-  expect(cues[1].time - cues[0].time).toBeGreaterThan(100);
-  expect(cues[1].time - cues[0].time).toBeLessThan(400);
+  const cues = await page.evaluate(() => (window as unknown as { cueEvents: { time: number; offset: number; duration: number; fileDuration: number }[] }).cueEvents.slice(-1));
+  expect(cues).toHaveLength(1);
+  // A single card movement emits one effect, with no additional landing impact.
+  expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(effectsBeforeMove + 1);
   for (const cue of cues) {
     expect(cue.offset).toBeGreaterThan(0);
     expect(cue.duration).toBeLessThan(cue.fileDuration);
