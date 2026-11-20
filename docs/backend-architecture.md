@@ -51,6 +51,16 @@ Acesse `http://localhost:3000`; API em `127.0.0.1:3001`. `GET /api/v1/health` ve
 
 Compose publica PostgreSQL somente em `127.0.0.1`, com volume persistente. Alterar `POSTGRES_*` não reconfigura um volume já inicializado. Páginas, cupons, usuários e apostas não recebem dados de exemplo pelo seed; a navegação inicial é criada pela migration de menus.
 
+### Testar no celular pela rede local
+
+O Next dev já escuta em `0.0.0.0:3000`. Mantenha a API em `API_HOST=127.0.0.1` e `API_INTERNAL_URL=http://127.0.0.1:3001` no web: o proxy `/api/v1` atende HTTP e Socket.IO, sem abrir a porta da API para a rede.
+
+No Mac, identifique a interface da LAN com `route -n get <IP-do-roteador>` e consulte seu IPv4 com `ipconfig getifaddr <interface>` (a rota padrão pode apontar para uma VPN). Adicione `DEV_WEB_ORIGINS=http://<IP-do-Mac>:3000` tanto em `apps/api/.env` quanto em `apps/web/.env.local`, preservando `WEB_ORIGIN=http://localhost:3000`. Reinicie web e API (`pnpm dev` ou os comandos separados) e abra esse endereço no celular conectado à mesma LAN. Se o IP mudar, atualize os dois arquivos e reinicie novamente. Os arquivos locais de ambiente são ignorados pelo Git.
+
+A API aceita somente origens exatas configuradas, com CSRF obrigatório; produção rejeita `DEV_WEB_ORIGINS` e continua com uma única origem HTTPS. O Next libera os hostnames adicionais apenas no servidor de desenvolvimento. Cookies permanecem HttpOnly, SameSite=Lax e host-only: faça login separadamente em localhost e no IP. Os IDs das ações usam aleatoriedade criptográfica também em HTTP na LAN. A cópia automática de links depende da permissão de clipboard do navegador e pode não estar disponível sem HTTPS.
+
+Se o celular não alcançar o site, verifique se o firewall permite conexões ao Node, se o Wi-Fi isola clientes e se a VPN permite tráfego local. Não exponha a API nem desative CSRF para contornar problemas de rede.
+
 ### Dados descartáveis e reset
 
 Não há dados reais a migrar ou preservar. Recriar o banco e consolidar migrations de desenvolvimento é permitido; mantenha criação limpa reproduzível e seeds idempotentes. Não importe localStorage nem mantenha uma economia demo paralela para proteger dados antigos.
@@ -63,7 +73,7 @@ O comando recusa produção. Não há operação de produção a planejar nesta 
 
 - Username preservado, unicidade/login sem distinguir caixa; nome de exibição independente. Regras de produto em [CROEBET.md, seção 3](../CROEBET.md#3-público-e-acesso); limites exatos nos schemas compartilhados. Senha com Argon2id; sem e-mail, recuperação ou troca de senha implementados.
 - Sessão opaca aleatória em cookie HttpOnly, host-only, SameSite=Lax; apenas hash no banco. Expiração absoluta de 30 dias e inatividade de 7 dias. Em `APP_ENV=production`, usa Secure e prefixo `__Host-`.
-- Toda mutação exige Origin exata e token CSRF ligado à sessão/nonce, inclusive pré-login. Limites de tentativas são persistidos. Não registrar senhas, cookies ou tokens.
+- Toda mutação exige Origin na lista explícita (`WEB_ORIGIN` e extras apenas em development/test) e token CSRF ligado à sessão/nonce, inclusive pré-login. Limites de tentativas são persistidos. Não registrar senhas, cookies ou tokens.
 - Papéis `user` e `admin`, conferidos pela API. Sem acesso administrativo: 404. A renderização do Next não substitui autorização no serviço; revalide sessão/conta dentro da transação de escrita.
 - Nenhum cadastro, nome ou variável pública concede admin. A primeira promoção é operacional no banco de desenvolvimento; depois, Admin → Usuários gerencia papéis. Não há conta/senha administrativa no seed.
 - Alterar papel/status ou excluir conta usa lock de governança antes dos locks de usuário/sessão/carteira; não pode remover o último admin ativo. Suspender revoga sessões; reativação exige login.

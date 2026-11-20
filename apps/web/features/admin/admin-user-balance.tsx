@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 
 import { commandResultSchema } from "@croebet/shared";
 
@@ -75,7 +76,7 @@ export function AdminUserBalance({ userId }: { userId: string }) {
             const amount = Number(fields.get("amount"));
             const reason = String(fields.get("reason"));
             const payload = JSON.stringify([userId, direction, amount, reason]);
-            if (request.current?.payload !== payload) request.current = { payload, id: crypto.randomUUID() };
+            if (request.current?.payload !== payload) request.current = { payload, id: randomUUID() };
             const input = balanceAdjustmentSchema.safeParse({ requestId: request.current.id, amount, direction, reason });
             if (!input.success) return void toast.error(input.error.issues[0].message);
             setPending(true);

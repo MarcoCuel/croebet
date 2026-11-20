@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 import { useRef, useState } from "react";
 import type { KickMatch, Room } from "@croebet/shared";
 import { X } from "lucide-react";
@@ -21,7 +22,7 @@ export function KickPlayer({code,version,userId,name,duringGame=false,compact=fa
         <Button loading={busy} disabled={disabled} onClick={async()=>{
           if(busy)return;
           setBusy(true);
-          if(!pending.current || pending.current.expectedVersion!==version)pending.current={commandId:crypto.randomUUID(),expectedVersion:version,targetUserId:userId};
+          if(!pending.current || pending.current.expectedVersion!==version)pending.current={commandId:randomUUID(),expectedVersion:version,targetUserId:userId};
           try{const room=await kickServerPlayer(code,pending.current);pending.current=null;setOpen(false);onSuccess?.(room);}
           catch(error){toast.error(error instanceof Error?error.message:"Não foi possível expulsar esta pessoa.");}
           finally{setBusy(false);}

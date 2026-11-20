@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -25,7 +26,7 @@ export function useLobbyInvitations() {
       setInbox({userId:userId!,data});
       for(const [code,id] of shown)if(!data.items.some(i=>i.code===code)){toast.dismiss(id);shown.delete(code);}
       for(const invite of data.items)if(!shown.has(invite.code)){
-        const id=toast.custom(()=> <div role="alert" className="w-80 rounded-xl border border-contrast/6 bg-surface p-4 shadow-lg"><Invitation invite={invite} onRespond={()=>toast.dismiss(id)}/></div>,{duration:Infinity});
+        const id=toast.custom(()=> <div role="alert" className="min-w-0 flex-1"><Invitation invite={invite} onRespond={()=>toast.dismiss(id)}/></div>,{duration:Infinity});
         shown.set(invite.code,id);
       }
     }
@@ -53,7 +54,7 @@ function Invitation({invite,onRespond}:{invite:Invite;onRespond?:()=>void}) {
     if(busy)return;
     setBusy(true);
     try{
-      if(accept){await changeLobby(invite.code,"join",crypto.randomUUID());router.push(`/jogos/flip7?partida=${invite.code}`);}
+      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(`/jogos/flip7?partida=${invite.code}`);}
       else await realtimeRequest({type:"decline",code:invite.code},commandResultSchema);
       onRespond?.();
     }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível responder ao convite.");}

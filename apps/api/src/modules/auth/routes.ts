@@ -13,7 +13,7 @@ import cookie from "@fastify/cookie";
 import { hash, verify, argon2id } from "argon2";
 import type { Pool, PoolClient } from "pg";
 import { registerSchema, deleteAccountSchema, changeUsernameSchema, loginSchema, profileSchema, publicProfileSchema, publicUserSchema, sessionSchema, usernameSchema } from "@croebet/shared";
-import type { readConfig } from "../../config.ts";
+import { allowedWebOrigins, type readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
 
 type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null };
@@ -23,13 +23,14 @@ let dummyHash: Promise<string> | undefined;
 export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig>; avatarStorage?: AvatarStorage }> = async (app, { pool, config, avatarStorage }) => {
   await app.register(cookie);
   const secure = config.APP_ENV === "production";
+  const origins = allowedWebOrigins(config);
   const sessionName = secure ? "__Host-croebet-session" : "croebet-session";
   const csrfName = secure ? "__Host-croebet-csrf" : "croebet-csrf";
   const cookieOptions = { httpOnly: true, secure, sameSite: "lax" as const, path: "/" };
   app.addHook("onRequest", async (_request, reply) => { reply.header("Cache-Control", "no-store"); });
   app.addHook("onRequest", async (request, reply) => {
     if (["POST", "PATCH", "DELETE", "PUT"].includes(request.method)) {
-      if (request.headers.origin !== config.WEB_ORIGIN || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
+      if (!origins.includes(request.headers.origin ?? "") || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
         return reply.code(403).send({ error: { code: "CSRF_INVALID", message: "Atualize a página e tente novamente." } });
     }
     const identity = await pool.query("select environment from application_environment where id = 1");
@@ -55,7 +56,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   }
 
   await managementRoutes(app, { pool, current, sessionName, limit });
-  await matchRoutes(app, { pool, current, sessionName, limit, origin: config.WEB_ORIGIN, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
+  await matchRoutes(app, { pool, current, sessionName, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
 
   if (avatarStorage) {
     app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
@@ -97,7 +98,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       bodyLimit: avatarMaxBytes,
       onRequest: async (request, reply) => {
         // Reject unauthorized uploads before buffering/decoding an image.
-        if (request.headers.origin !== config.WEB_ORIGIN || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
+        if (!origins.includes(request.headers.origin ?? "") || !validCsrf(config.CSRF_SECRET, request.cookies[csrfName], request.cookies[sessionName] ?? "", request.headers["x-csrf-token"]))
           return reply.code(403).send({ error: { code: "CSRF_INVALID", message: "Atualize a página e tente novamente." } });
         const user = await current(request.cookies[sessionName]);
         if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });

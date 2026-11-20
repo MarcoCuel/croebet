@@ -8,10 +8,9 @@ export async function getInitialMatches(code: string | undefined): Promise<Initi
   const empty: InitialMatches = { revision: randomUUID(), match: null, lobby:null,currentLobby:null,lobbies:[],items: [], error: "", unavailable: false };
   const jar=await cookies();
   const cookie=jar.get("__Host-croebet-session") ?? jar.get("croebet-session");
-  if(!cookie)return {...empty,error:code?"Entre para acessar a sala.":""};
   if(code && !matchCodeSchema.safeParse(code).success)return {...empty,error:"Sala não encontrada."};
   const request=async(path:string)=>{
-    const response=await fetch(`${process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001"}/api/v1/matches${path}`,{headers:{cookie:`${cookie.name}=${encodeURIComponent(cookie.value)}`},cache:"no-store",redirect:"error",signal:AbortSignal.timeout(5000)});
+    const response=await fetch(`${process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001"}/api/v1/matches${path}`,{headers:cookie?{cookie:`${cookie.name}=${encodeURIComponent(cookie.value)}`} : {},cache:"no-store",redirect:"error",signal:AbortSignal.timeout(5000)});
     if(response.status===401)throw Error("Entre novamente para acessar as salas.");
     if(response.status===404)throw Error("Sala não encontrada.");
     if(!response.ok)throw Error("unavailable");

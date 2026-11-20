@@ -1,11 +1,13 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Crown, Plus, UserRound } from "lucide-react";
+import { Crown, Eye, Plus, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
@@ -14,7 +16,6 @@ import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
 import type { InitialMatches } from "./server-matches";
 import type { GameOptions } from "./types";
-import { modeLabel } from "./presentation";
 import { createServerMatch, changeLobby, rememberStart, updateServerLobby } from "./api";
 import { useMatchLive } from "./live";
 import { InvitePlayers } from "./invite-players";
@@ -27,6 +28,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const {userId,username,avatar,openLogin}=useSession();
   const [room,setRoom]=useState<Lobby|null>(initial.lobby);
   const [directory,setDirectory]=useState<LobbyList>({items:initial.lobbies,current:initial.currentLobby});
+  const [matches,setMatches]=useState(initial.items);
   const [preferences]=useState(readSetupPreferences);
   const [capacity,setCapacity]=useState(preferences.count);
   const [options,setOptions]=useState<GameOptions>({mode:preferences.mode,brutal:preferences.brutal});
@@ -68,11 +70,11 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       acceptLobby(next.current);visit(next.current.code);
     }
   }
-  const connected=useMatchLive(room?.code,room?.version ?? 0,!!userId,accept,acceptDirectory,message=>{
+  const connected=useMatchLive(room?.code,room?.version ?? 0,true,accept,acceptDirectory,message=>{
     if(leaving.current)return;
     setError(message);
     if(room){setRoom(null);visit(null);}
-  });
+  },setMatches);
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=room?.options ?? options;
@@ -87,7 +89,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     if(!room){setOptions(nextOptions);setCapacity(nextCapacity);return;}
     setBusy(true);setError("");
     const payload={capacity:nextCapacity,options:nextOptions,expectedVersion:room.version};
-    if(!pendingUpdate.current || JSON.stringify({...pendingUpdate.current,commandId:undefined})!==JSON.stringify(payload))pendingUpdate.current={...payload,commandId:crypto.randomUUID()};
+    if(!pendingUpdate.current || JSON.stringify({...pendingUpdate.current,commandId:undefined})!==JSON.stringify(payload))pendingUpdate.current={...payload,commandId:randomUUID()};
     try{
       const response=await updateServerLobby(room.code,pendingUpdate.current);
       pendingUpdate.current=null;
@@ -99,9 +101,10 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   }
   async function act(lobby:Lobby,action:"join"|"leave"|"start"){
     if(busy)return;
+    if(!userId){openLogin();return;}
     setBusy(true);setError("");leaving.current=action==="leave";
     const key=lobby.code+":"+action;
-    if(pending.current?.key!==key)pending.current={key,id:crypto.randomUUID(),version:action==="start"?lobby.version:undefined};
+    if(pending.current?.key!==key)pending.current={key,id:randomUUID(),version:action==="start"?lobby.version:undefined};
     try{
       const response=await changeLobby(lobby.code,action,pending.current.id,pending.current.version);
       pending.current=null;
@@ -130,7 +133,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     leaving.current=false;
     setBusy(true);setError("");
     const payload={game:"flip7" as const,capacity,options};
-    if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:crypto.randomUUID()};
+    if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
     try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
     finally{setBusy(false);}
@@ -140,7 +143,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     <Card className="space-y-5" aria-label="Configuração e regras">
       <Heading variant="section">Configuração</Heading>
       <fieldset disabled={!canEdit} className="space-y-4">
-        <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Versão<Select className="max-w-full" aria-label="Versão do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
+        <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label="Modo do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit)}/></Field>}
       </fieldset>
       {rules(settings)}
@@ -189,21 +192,31 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     </Card>
     <section className="space-y-5 lg:col-span-2" aria-label="Lobbies abertos">
       <Heading variant="section">Lobbies abertos</Heading>
-      {!userId?<p className="text-sm text-muted">Entre na sua conta para ver as salas.</p>:<>
+      <>
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
         {directory.items.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className="grid gap-4 sm:grid-cols-2">{directory.items.map(lobby=>{
+          const people=[...lobby.participants,...lobby.pendingInvitations];
           const joined=lobby.participants.some(p=>p.userId===userId);
+          const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
+          const available=lobby.capacity-people.length;
           return <li key={lobby.code}><Card className="h-full space-y-5">
-            <div><p className="truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p><p className="mt-1 text-xs text-muted">{modeLabel(lobby.options)} · {lobby.participants.length+lobby.pendingInvitations.length}/{lobby.capacity} jogadores</p></div>
-            <ul className="flex flex-wrap gap-3" aria-label="Jogadores do lobby">{[...lobby.participants,...lobby.pendingInvitations].map(person=><li key={person.userId} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",(!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
-              <Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
-              <span title={person.username} className={cn("w-full truncate text-center text-xs",person.userId===lobby.hostId && "text-brand")}>{person.username}</span>
-            </li>)}</ul>
-            {joined?<Button className="w-full" size="sm" variant="secondary" onClick={()=>visit(lobby.code)}>Voltar ao lobby</Button>:<Button className="w-full" size="sm" variant="secondary" loading={busy} disabled={busy || !connected || !!directory.current || lobby.participants.length+lobby.pendingInvitations.length>=lobby.capacity && !lobby.pendingInvitations.some(p=>p.userId===userId)} onClick={()=>void act(lobby,"join")}>{lobby.participants.length+lobby.pendingInvitations.length>=lobby.capacity && !lobby.pendingInvitations.some(p=>p.userId===userId)?"Lotado":"Entrar"}</Button>}
+            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p><Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}</div>
+            <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
+              const person=people[i];
+              return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
+                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="size-11 rounded-full! border border-dashed border-field-border p-0" aria-label={`Entrar na sala de ${lobby.participants.find(p=>p.userId===lobby.hostId)?.username}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.current} onClick={()=>void act(lobby,"join")}><Plus className="size-4" aria-hidden="true"/></Button>}
+                <span title={person?.username} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person?.username ?? "Disponível"}</span>
+              </li>;
+            })}</ul>
+            <p className="text-xs text-muted">{available===0?"Sala cheia":`${available} ${available===1?"vaga disponível":"vagas disponíveis"}`}</p>
+            {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || !!directory.current} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
           </Card></li>;
         })}</ul>}
       </>}
     </section>
-    {initial.items.length>0 && <Card className="space-y-4 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="divide-y divide-contrast/6">{initial.items.map(match=><li key={match.code} className="flex flex-wrap items-center justify-between gap-3 py-3"><span className="text-sm">{modeLabel(match.options)} · Rodada {match.state.round} · {match.participants.length} jogadores</span><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}>Continuar partida</Button></li>)}</ul></Card>}
+    {matches.length>0 && <section className="space-y-5 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2">{matches.map(match=>{
+      const playing=match.participants.some(person=>person.userId===userId && match.state.players[person.seat]?.kind==="human");
+      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}</div><p className="text-xs text-muted">Rodada {match.state.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
+    })}</ul></section>}
   </div>;
 }

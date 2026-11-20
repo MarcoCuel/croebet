@@ -114,6 +114,16 @@ test("sala de seis começa com duas contas e sincroniza turnos e retorno após r
     expect(await page.evaluate(()=>localStorage.getItem("croebet:flip7:match"))).toBeNull();
   }finally{await peer.context.close();}
 });
+test("HTTP na LAN permite criar e jogar sem crypto.randomUUID",async({page,context,browser})=>{
+  await context.addInitScript(()=>{Object.defineProperty(Crypto.prototype,"randomUUID",{configurable:true,value:undefined});});
+  const peer=await start(page,browser);
+  try{
+    expect(await page.evaluate(()=>typeof crypto.randomUUID)).toBe("undefined");
+    await page.getByRole("button",{name:"Parar",exact:true}).click();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+    await expect.poll(()=>fixture.commands.length).toBe(1);
+  }finally{await peer.context.close();}
+});
 test("Socket.IO reconecta sem reload e recupera a decisão recebida durante a queda",async({page,browser})=>{
   const sockets:string[]=[];page.on("websocket",socket=>sockets.push(socket.url()));
   const peer=await start(page,browser);

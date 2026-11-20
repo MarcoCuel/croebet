@@ -175,7 +175,7 @@ test("PostgreSQL: expulsão no lobby e no jogo, bot sem controle pela conta e sa
 
 test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam comandos e revogam sessão",async t=>{
  const {pool,actors,sessions,tokens,cleanup}=await environment(t);
- const config={APP_ENV:"test",WEB_ORIGIN:"http://localhost:3000",CSRF_SECRET:"test-secret-multiplayer-32-characters"};
+ const config={APP_ENV:"test",WEB_ORIGIN:"http://localhost:3000",DEV_WEB_ORIGINS:"http://192.168.1.2:3000",CSRF_SECRET:"test-secret-multiplayer-32-characters"};
  const apps=[createApp(async()=>{}),createApp(async()=>{})],origins=[],sockets=[];
  cleanup.push(async()=>{for(const socket of sockets)socket.disconnect();await Promise.all(apps.map(app=>app.close()));});
  for(const app of apps){await app.register(authRoutes,{pool,config});origins.push(await app.listen({host:"127.0.0.1",port:0}));}
@@ -183,7 +183,7 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  const connect=async(index,server=0,overrides={})=>{
   const nonce=newToken();
   const socket=io(origins[server],{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"],reconnection:false,autoConnect:false,
-   extraHeaders:{origin:config.WEB_ORIGIN,cookie:`croebet-session=${tokens[index]}; croebet-csrf=${nonce}`},
+   extraHeaders:{origin:server===1?config.DEV_WEB_ORIGINS:config.WEB_ORIGIN,cookie:`croebet-session=${tokens[index]}; croebet-csrf=${nonce}`},
    auth:{csrf:csrfToken(config.CSRF_SECRET,nonce,tokens[index])},...overrides});
   sockets.push(socket);socket.rooms=[];socket.closed=[];
   socket.on("room",value=>socket.rooms.push(value));socket.on("closed",value=>socket.closed.push(value));

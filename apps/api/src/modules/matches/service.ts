@@ -58,7 +58,7 @@ async function read<T>(pool: Pool, action: (client: PoolClient) => Promise<T>) {
   try { await client.query("begin isolation level repeatable read read only"); const result=await action(client); await client.query("commit"); return result; }
   catch(error) { await client.query("rollback"); throw error; } finally { client.release(); }
 }
-export async function listLobbies(pool: Pool, actor: string) {
+export async function listLobbies(pool: Pool, actor: string | null) {
   return read(pool,async client => {
     const result=await client.query<Row>(`select m.* from game_matches m join games g on g.id=m.game_id where m.status='lobby' and g.enabled=true order by m.created_at desc,m.id limit 100`);
     const current=await client.query<Row>(`select m.* from game_matches m where m.status='lobby' and exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1) order by m.created_at,m.id limit 1`,[actor]);
@@ -71,22 +71,19 @@ async function requireNoOtherLobby(client: PoolClient, actor: string, except?: s
   const existing=await client.query("select 1 from game_match_players p join game_matches m on m.id=p.match_id where p.user_id=$1 and m.status='lobby' and ($2::uuid is null or m.id<>$2) limit 1",[actor,except ?? null]);
   if(existing.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já está em um lobby. Saia dele antes de criar ou entrar em outro.");
 }
-export async function listMatches(pool: Pool, actor: string) {
+export async function listMatches(pool: Pool, _actor: string | null) {
   return read(pool,async client=>{
-    const rows=await client.query<Row>(`select m.* from game_matches m where m.status='playing' and exists(select 1 from game_match_players p where p.match_id=m.id and p.controller_id=$1) order by m.updated_at desc,m.id limit 30`,[actor]);
+    const rows=await client.query<Row>(`select m.* from game_matches m where m.status='playing' order by m.updated_at desc,m.id limit 100`);
     const people=await participants(client,rows.rows.map(row=>row.id));
     return matchListSchema.parse({ items:rows.rows.map(row=>view(row,people.get(row.id) ?? [])) });
   });
 }
-export async function getRoomSync(pool: Pool, actor: string, code: string, afterVersion=0) {
+export async function getRoomSync(pool: Pool, actor: string | null, code: string, afterVersion=0) {
   return read(pool,async client=>{
     const found=await client.query<Row>("select * from game_matches where code=$1",[code]); const row=found.rows[0];
     if(!row || (row.status==="abandoned" && row.state===null)) throw new MatchError("NOT_FOUND",404,"Sala encerrada ou não encontrada.");
     const people=(await participants(client,[row.id])).get(row.id) ?? [];
-    if(row.status!=="lobby" && !people.some(person=>person.userId===actor)) throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
     const room=await roomView(client,row,people);
-    const member=people.find(person=>person.userId===actor);
-    if(room.status==="playing" && member && room.state.players[member.seat].kind!=="human") throw new MatchError("PARTICIPATION_ENDED",403,"Um bot assumiu sua vaga. Você não participa mais desta partida.");
     if(room.status==="lobby" || afterVersion===0 || afterVersion>row.version) return roomSyncSchema.parse({ room,frames:[],reset:true });
     const events=await client.query<{ event: unknown }>("select event from game_match_events where match_id=$1 and version>$2 and version<=$3 order by version limit 1001",[row.id,afterVersion,row.version]);
     const frames=events.rows.map(event=>event.event);
@@ -95,7 +92,7 @@ export async function getRoomSync(pool: Pool, actor: string, code: string, after
     return continuous ? parsed : roomSyncSchema.parse({ room,frames:[],reset:true });
   });
 }
-export async function getMatch(pool: Pool, actor: string, code: string) {
+export async function getMatch(pool: Pool, actor: string | null, code: string) {
   const room=(await getRoomSync(pool,actor,code)).room;
   if(room.status==="abandoned")throw new MatchError("NOT_FOUND",404,"Partida encerrada.");
   return room;

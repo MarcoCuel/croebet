@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
@@ -246,7 +247,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     if (pendingCommand.current && JSON.stringify(pendingCommand.current.action) !== JSON.stringify(action)) {
       toast.error("Confirme a ação pendente ou recarregue a partida."); return;
     }
-    pendingCommand.current ??= { commandId: crypto.randomUUID(), expectedVersion: match.version, action };
+    pendingCommand.current ??= { commandId: randomUUID(), expectedVersion: match.version, action };
     locked.current = true; setBusy(true); setCommandError("");
     try {
       await sendMatchCommand(match.code, pendingCommand.current);
@@ -261,7 +262,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     setLeaving(true);
     try {
       const match = serverMatch.current;
-      pendingAbandon.current ??= { commandId: crypto.randomUUID(), expectedVersion: match.version };
+      pendingAbandon.current ??= { commandId: randomUUID(), expectedVersion: match.version };
       await abandonServerMatch(match.code, pendingAbandon.current.commandId, pendingAbandon.current.expectedVersion);
       pendingAbandon.current = null;
     }
@@ -426,6 +427,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
   const ownSeat=matchInfo?.participants.find(person=>person.userId===userId)?.seat;
+  const spectator = ownSeat == null || game.players[ownSeat]?.kind !== "human";
   const human = connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
@@ -494,7 +496,8 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
         <div className="min-w-0 pb-32 sm:pb-24">
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
-            {game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
+            {spectator && <><Badge variant="outline">Espectador</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={()=>router.push("/jogos/flip7")}>Sair da visualização</Button></>}
+            {!spectator && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">

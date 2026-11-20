@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -21,7 +22,7 @@ export function CouponDialog({ onRedeemed }: { onRedeemed: () => void }) {
     <form className="mt-5 grid gap-4" onSubmit={async event => {
       event.preventDefault(); if (pending) return;
       const code = String(new FormData(event.currentTarget).get("coupon")).trim().toUpperCase();
-      if (request.current?.code !== code) request.current = { code, id: crypto.randomUUID() };
+      if (request.current?.code !== code) request.current = { code, id: randomUUID() };
       const input = redeemCouponSchema.safeParse({ code, requestId: request.current.id });
       if (!input.success) return void toast.error(input.error.issues[0].message);
       setPending(true);

@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUp, ArrowDown, ChevronDown, Trash2 } from "lucide-react";
@@ -47,7 +48,7 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
           <Field>Página fixa<Select aria-label="Página fixa" value={fixed} onChange={event => setFixed(event.target.value as keyof typeof fixedMenuPages)} disabled={saving}>
             {Object.entries(fixedMenuPages).map(([key, value]) => <option key={key} value={key}>{value.label}{value.disabled ? " — Em breve" : ""}</option>)}
           </Select></Field>
-          <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => add({ id: crypto.randomUUID(), type: "fixed", target: fixed, label: fixedMenuPages[fixed].label, newTab: false })}>Adicionar</Button>
+          <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => add({ id: randomUUID(), type: "fixed", target: fixed, label: fixedMenuPages[fixed].label, newTab: false })}>Adicionar</Button>
         </div>
         <div role="group" aria-label="Páginas criadas" className="grid gap-4 p-5 sm:p-6">
           {initial.pages.length ? <>
@@ -56,7 +57,7 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
             </Select></Field>
             <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || !pageId || current.items.length >= 50} onClick={() => {
               const page = initial.pages.find(page => page.id === pageId);
-              if (page) add({ id: crypto.randomUUID(), type: "page", pageId, label: page.title, newTab: false });
+              if (page) add({ id: randomUUID(), type: "page", pageId, label: page.title, newTab: false });
             }}>Adicionar</Button>
           </> : <p className="text-sm text-muted">Nenhuma página criada ainda.</p>}
         </div>
@@ -64,7 +65,7 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
           <Field>Rótulo do link<Input value={customLabel} maxLength={80} disabled={saving} onChange={event => setCustomLabel(event.target.value)} /></Field>
           <Field>URL do link<Input value={customUrl} maxLength={2000} disabled={saving} placeholder="https:// ou /endereco" onChange={event => setCustomUrl(event.target.value)} /></Field>
           <Button type="button" variant="secondary" size="sm" className="justify-self-start" disabled={saving || current.items.length >= 50} onClick={() => {
-            const result = menuWriteSchema.safeParse({ version: current.version, items: [...current.items, { id: crypto.randomUUID(), type: "custom", label: customLabel, url: customUrl, newTab: false }] });
+            const result = menuWriteSchema.safeParse({ version: current.version, items: [...current.items, { id: randomUUID(), type: "custom", label: customLabel, url: customUrl, newTab: false }] });
             if (!result.success) return void toast.error(result.error.issues[0].message);
             update(result.data.items); setCustomLabel(""); setCustomUrl("");
           }}>Adicionar</Button>

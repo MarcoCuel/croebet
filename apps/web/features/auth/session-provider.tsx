@@ -1,4 +1,5 @@
 "use client";
+import { randomUUID } from "@/lib/uuid";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -109,7 +110,7 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
       pendingClaim.current = true; setClaimingDaily(true);
       const accountId = user.id;
       const version = revision.current;
-      if (claimRequest.current?.userId !== accountId) claimRequest.current = { userId: accountId, id: crypto.randomUUID() };
+      if (claimRequest.current?.userId !== accountId) claimRequest.current = { userId: accountId, id: randomUUID() };
       try {
         const next = await requestDailyClaim(claimRequest.current.id);
         if (revision.current === version) {

@@ -5,11 +5,11 @@ import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import { matchWatchSchema, realtimeRequestSchema, type RealtimeReply } from "@croebet/shared";
 import { tokenHash, validCsrf } from "../auth/security.ts";
-import { getRoomSync, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
+import { getRoomSync, listMatches, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
 import { applyRealtimeRequest } from "./realtime-actions.ts";
 
-type Options = { sessionName: string; csrfName: string; csrfSecret: string; environment: string; origin?: string; limit: (key: string, maximum: number) => Promise<boolean> };
-type Connection = { actor: string; session: string; id: string; code?: string; version: number; signature: string; directory: string; invitations: string; watching: boolean; tail: Promise<void> };
+type Options = { sessionName: string; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
+type Connection = { actor: string | null; session: string; id: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; watching: boolean; tail: Promise<void> };
 type LiveSocket = Omit<Socket, "data"> & { data: Connection };
 const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
 
@@ -17,7 +17,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   const io = new Server(app.server, {
     path: "/api/v1/realtime", addTrailingSlash: false, serveClient: false, transports: ["websocket"],
     maxHttpBufferSize: 65536, pingInterval: 15000, pingTimeout: 10000,
-    allowRequest: (request, done) => done(null, !!options.origin && request.headers.origin === options.origin),
+    allowRequest: (request, done) => done(null, !!request.headers.origin && !!options.origins?.includes(request.headers.origin)),
   });
   let listener: PoolClient | undefined;
   let listening: Promise<void> | undefined;
@@ -25,6 +25,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   let maintenance: Promise<void> | undefined;
 
   async function authorize(c: Connection) {
+    if (!c.actor) return;
     const result = await pool.query(`select 1 from sessions s join users u on u.id=s.user_id
       where s.token_hash=$1 and s.user_id=$2 and u.status='active'
       and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp()
@@ -61,9 +62,12 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
         await pool.query("delete from match_presence where id=$1", [c.id]);
       }
     }
-    const [directory, invitations] = await Promise.all([listLobbies(pool, c.actor), readLobbyInvitations(pool, c.actor)]);
+    const [directory, invitations] = await Promise.all([listLobbies(pool, c.actor), c.actor ? readLobbyInvitations(pool, c.actor) : Promise.resolve({items:[]})]);
     const signature = JSON.stringify(directory);
     if (signature !== c.directory) { socket.emit("lobbies", directory); c.directory = signature; }
+    const matches = await listMatches(pool, c.actor);
+    const tables = JSON.stringify(matches);
+    if (tables !== c.matches) { socket.emit("matches", matches); c.matches = tables; }
     const inbox = JSON.stringify(invitations);
     if (inbox !== c.invitations) { socket.emit("invitations", invitations); c.invitations = inbox; }
   }
@@ -92,13 +96,13 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       await ensureListener();
       const cookies = app.parseCookie(socket.request.headers.cookie ?? "");
       const token = cookies[options.sessionName];
-      if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || !validCsrf(options.csrfSecret, cookies[options.csrfName], token, socket.handshake.auth.csrf))
+      if (token && (!/^[A-Za-z0-9_-]{43}$/.test(token) || !validCsrf(options.csrfSecret, cookies[options.csrfName], token, socket.handshake.auth.csrf)))
         throw new MatchError("UNAUTHENTICATED", 401, "Atualize a página e entre novamente.");
-      const result = await pool.query<{ user_id: string }>("select user_id from sessions where token_hash=$1", [tokenHash(token)]);
-      if (!result.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
-      const data: Connection = { actor: result.rows[0].user_id, session: tokenHash(token), id: randomUUID(), version: 0, signature: "", directory: "", invitations: "", watching: false, tail: Promise.resolve() };
+      const result = token ? await pool.query<{ user_id: string }>("select user_id from sessions where token_hash=$1", [tokenHash(token)]) : {rows: []};
+      if (token && !result.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
+      const data: Connection = { actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", id: randomUUID(), version: 0, signature: "", directory: "", invitations: "", matches: "", watching: false, tail: Promise.resolve() };
       await authorize(data);
-      if (io.sockets.sockets.size >= 200 || [...io.sockets.sockets.values()].filter(s => s.data.actor === data.actor).length >= 6)
+      if (io.sockets.sockets.size >= 200 || [...io.sockets.sockets.values()].filter(s => (data.actor ? s.data.actor === data.actor : s.handshake.address === socket.handshake.address)).length >= 6)
         throw new MatchError("CONNECTION_LIMIT", 429, "Muitas conexões abertas.");
       socket.data = data; next();
     })().catch(error => {
@@ -108,14 +112,14 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   });
   io.on("connection", raw => {
     const socket = raw as LiveSocket;
-    void socket.join(`user:${socket.data.actor}`);
+    if (socket.data.actor) void socket.join(`user:${socket.data.actor}`);
     enqueue(socket, () => refresh(socket));
     socket.on("watch", (value: unknown, ack: (reply: RealtimeReply) => void) => {
       if (typeof ack !== "function") return;
       enqueue(socket, async () => {
         try {
           await authorize(socket.data);
-          if (!await options.limit(`watch:${socket.data.actor}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
+          if (!await options.limit(`watch:${socket.data.actor ?? socket.handshake.address}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
           const input = matchWatchSchema.parse(value);
           const initial = input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
           if (socket.data.code) await socket.leave(`match:${socket.data.code}`);
@@ -123,7 +127,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
           socket.data.code = input.code; socket.data.version = input.afterVersion; socket.data.signature = ""; socket.data.watching = true;
           if (initial) {
             await socket.join(`match:${initial.room.code}`);
-            await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')", [socket.data.id, initial.room.id, socket.data.actor]);
+            if (socket.data.actor && initial.room.participants.some(p => p.userId === socket.data.actor)) await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')", [socket.data.id, initial.room.id, socket.data.actor]);
           }
           await refresh(socket);
           ack({ ok: true, data: { ok: true } });
@@ -135,6 +139,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       enqueue(socket, async () => {
         try {
           await authorize(socket.data);
+          if (!socket.data.actor) throw new MatchError("UNAUTHENTICATED", 401, "Entre para jogar.");
           const request = realtimeRequestSchema.parse(value);
           if (!await options.limit(`matches:${socket.data.actor}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas ações. Aguarde e tente novamente.");
           if (request.type === "invite" && !await options.limit(`invitations:${socket.data.actor}`, 30)) throw new MatchError("RATE_LIMIT", 429, "Muitos convites. Aguarde antes de enviar outros.");

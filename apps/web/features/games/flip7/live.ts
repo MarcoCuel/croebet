@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
+import { matchListSchema, type Match, lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
 import { gameSocket, retainGameSocket } from "../realtime";
 
-export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void) {
-  const handlers = useRef({ onRoom, onLobbies, onClosed });
-  useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed }; });
+export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void, onMatches?: (matches: Match[]) => void) {
+  const handlers = useRef({ onRoom, onLobbies, onClosed, onMatches });
+  useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed, onMatches }; });
   const key = enabled ? code ?? "directory" : null;
   const [connection, setConnection] = useState<{ key: string | null; connected: boolean }>({ key: null, connected: false });
   const confirmedVersion = useRef(version);
@@ -38,15 +38,16 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
       const result = lobbyListSchema.safeParse(value);
       if (result.success) handlers.current.onLobbies(result.data);
     };
+    const matches = (value: unknown) => { const result = matchListSchema.safeParse(value); if(result.success) handlers.current.onMatches?.(result.data.items); };
     const disconnected = () => status(false);
     socket.on("connect", watch).on("disconnect", disconnected).on("connect_error", disconnected)
-      .on("room", room).on("lobbies", directory).on("room-closed", closed).on("closed", closed);
+      .on("matches", matches).on("room", room).on("lobbies", directory).on("room-closed", closed).on("closed", closed);
     const release = retainGameSocket();
     if (socket.connected) watch();
     return () => {
       active = false;
       socket.off("connect", watch).off("disconnect", disconnected).off("connect_error", disconnected)
-        .off("room", room).off("lobbies", directory).off("room-closed", closed).off("closed", closed);
+        .off("matches", matches).off("room", room).off("lobbies", directory).off("room-closed", closed).off("closed", closed);
       if(socket.connected) socket.emit("watch",{afterVersion:0},()=>{});
       release();
     };
