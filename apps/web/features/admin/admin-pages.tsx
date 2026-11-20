@@ -55,7 +55,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
     finally { setPending(null); }
   }
   return <div className="grid min-w-0 gap-4">
-    <AdminListHeader filterLabel="Filtrar páginas por status" filters={<>
+    <AdminListHeader create={{ href: "/admin/paginas/nova", label: "Criar página" }} filterLabel="Filtrar páginas por status" filters={<>
         {filters.map(({ value, label }) => <Button key={value} size="sm" variant={filter === value ? "secondary" : "ghost"} aria-current={filter === value ? "page" : undefined} onClick={() => setFilter(value)}>
           {label} {filter === value && <AdminFilterCount count={pages.filter(page => matchesFilter(page, value)).length} />}
         </Button>)}

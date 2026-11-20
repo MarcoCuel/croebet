@@ -10,6 +10,7 @@ const replayState = flip7Driver.project(flip7Driver.create({ setup: [{name:"Ana"
 const replayFrames = Array.from({length:105},(_,index)=>({ version:index+1, action:{type:"step" as const}, state:{...replayState, round:index+1, log:[{message:`Jogada registrada ${index+1}.`}]}}));
 const historyMatch = { id:matchId, gameId:id, code:"ABCDEF123456",rulesVersion:1,status:"finished",options:{mode:"classic",brutal:false},startedAt:"2026-11-20T01:00:00Z",endedAt:"2026-11-20T02:00:00Z",players:[{seat:0,userId:id,name:"Ana",score:210,winner:true,bot:false},{seat:1,userId:null,name:"Beto",score:180,winner:false,bot:false}],frameCount:105 };
 let game: GameRecord;
+let upcoming: GameRecord | null = null;
 let failure = false;
 let api: Server;
 function respond(path: string, method: string, body: Record<string, unknown> = {}): { status: number; data: unknown } {
@@ -27,7 +28,21 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   if (path === "/api/v1/pages") return { status: 200, data: { items: [] } };
   if (path === "/api/v1/navigation") return { status: 200, data: { main: [], footer: [] } };
   if (failure && path.includes("games")) return { status: 503, data: {} };
-  if (path === "/api/v1/admin/games") return { status: 200, data: { items: [game] } };
+  if (path === "/api/v1/admin/pages" || path === "/api/v1/admin/markets") return {status:200,data:{items:[]}};
+  if (path === "/api/v1/admin/coupons") return {status:200,data:{items:[],hasMore:false,total:0,counts:{Todos:0,Ativo:0,Agendado:0,Pausado:0,Expirado:0,Esgotado:0}}};
+  if (path === "/api/v1/admin/games") {
+    if (method === "POST") {
+      upcoming = {...body,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",version:1} as GameRecord;
+      return {status:200,data:upcoming};
+    }
+    return { status: 200, data: { items: [game, ...(upcoming ? [upcoming] : [])] } };
+  }
+  if (upcoming && path === `/api/v1/admin/games/${upcoming.id}/matches`) return {status:200,data:{items:[],hasMore:false}};
+  if (upcoming && path === `/api/v1/admin/games/${upcoming.id}`) {
+    if(method === "PATCH") upcoming = {...upcoming,...body,version:upcoming.version+1} as GameRecord;
+    return {status:200,data:upcoming};
+  }
+  if (upcoming?.enabled && path === `/api/v1/games/${upcoming.slug}`) return {status:200,data:upcoming};
   if (path === `/api/v1/admin/games/${id}`) {
     if (method === "PATCH") {
       if (body.version !== game.version) return { status: 409, data: { error: { message: "O jogo foi alterado." } } };
@@ -35,7 +50,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
     }
     return { status: 200, data: game };
   }
-  if (path === "/api/v1/games") return { status: 200, data: { items: game.enabled ? [game] : [] } };
+  if (path === "/api/v1/games") return { status: 200, data: { items: [...(game.enabled ? [game] : []), ...(upcoming?.enabled ? [upcoming] : [])] } };
   if (path === "/api/v1/games/flip7" && game.enabled) return { status: 200, data: game };
   return { status: 404, data: {} };
 }
@@ -48,7 +63,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false;
+  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null;
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const req = route.request(); const result = respond(new URL(req.url()).pathname+new URL(req.url()).search, req.method(), req.postDataJSON() ?? {});
@@ -132,4 +147,56 @@ test("admin consulta vencedores e reproduz jogadas sem alterar a partida", async
   await expect(page.getByText("Jogada registrada 105.",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Início",exact:true}).click();
   await expect(page.getByText("Jogada registrada 1.",{exact:true})).toBeVisible();
+});
+
+
+test("ações de criação ficam após a busca nas quatro listagens, com layout responsivo", async ({page},testInfo) => {
+  for (const [section,label,destination] of [
+    ["paginas","Criar página","nova"], ["apostas","Criar aposta","nova"],
+    ["cupons","Criar cupom","novo"], ["jogos","Criar jogo","novo"],
+  ]) {
+    await page.goto(`/admin/${section}`);
+    const toolbar = page.locator('[data-slot="admin-list-header"]');
+    const action = toolbar.getByRole("link",{name:label,exact:true});
+    await expect(action).toBeVisible();
+    await expect(action).toHaveAttribute("href",`/admin/${section}/${destination}`);
+    await expect(page.locator("header").getByRole("link",{name:label,exact:true})).toHaveCount(0);
+    await expect(action).toHaveCSS("background-image","none");
+    const search = await toolbar.getByRole("searchbox").boundingBox();
+    const button = await action.boundingBox();
+    expect(button!.x).toBeGreaterThan(search!.x + search!.width);
+    expect(Math.abs(button!.y-search!.y)).toBeLessThan(2);
+    if(testInfo.project.name === "mobile") await expect(action.locator("span")).toBeHidden();
+    else await expect(action.locator("span")).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await action.click();
+    await expect(page).toHaveURL(`/admin/${section}/${destination}`);
+  }
+});
+
+test("admin cadastra um jogo em desenvolvimento e publica página em breve sem lobby",async ({page})=>{
+  await page.goto("/admin/jogos");
+  await page.getByRole("link",{name:"Criar jogo",exact:true}).click();
+  await expect(page.getByRole("heading",{name:"Criar jogo",exact:true})).toBeVisible();
+  await page.getByLabel("Nome do jogo",{exact:true}).fill("Blackjack");
+  await page.getByLabel("Endereço do jogo",{exact:true}).fill("blackjack");
+  await page.getByLabel("Descrição",{exact:true}).fill("Um novo jogo para a comunidade.");
+  await page.getByRole("button",{name:"Criar jogo",exact:true}).click();
+  await expect(page).toHaveURL("/admin/jogos");
+  const row = page.getByRole("listitem").filter({has:page.getByRole("link",{name:"Blackjack",exact:true})});
+  await expect(row.getByText("Em breve",{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("link",{name:"Blackjack",exact:true})).toBeVisible();
+  await page.goto("/jogos/blackjack");
+  await expect(page.getByRole("heading",{name:"Blackjack",exact:true})).toBeVisible();
+  await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
+  await expect(page.getByText("Um novo jogo para a comunidade.",{exact:true})).toBeVisible();
+  await expect(page.getByText("Lobbies abertos",{exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Jogar",exact:true})).toHaveCount(0);
+  await page.goto(`/admin/jogos/${upcoming!.id}`);
+  await page.getByRole("switch",{name:"Jogo ativo"}).uncheck();
+  await page.getByRole("button",{name:"Salvar jogo",exact:true}).click();
+  await expect(page).toHaveURL("/admin/jogos");
+  await page.goto("/jogos");
+  await expect(page.getByRole("link",{name:/Blackjack/})).toHaveCount(0);
 });

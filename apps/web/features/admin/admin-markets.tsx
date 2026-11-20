@@ -26,7 +26,7 @@ export function AdminMarkets({ markets: items }: { markets: CatalogMarket[] }) {
   return (
     <div className="grid min-w-0 gap-4">
       <h1 className="sr-only">Apostas</h1>
-      <AdminListHeader
+      <AdminListHeader create={{ href: "/admin/apostas/nova", label: "Criar aposta" }}
         filterLabel="Status das apostas"
         search={
           <SearchInput
@@ -58,6 +58,7 @@ export function AdminMarkets({ markets: items }: { markets: CatalogMarket[] }) {
           ))}
         </>}
       />
+      {markets.length > 0 ? (
         <ul className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
           {markets.map((market) => {
             return (
@@ -95,7 +96,7 @@ export function AdminMarkets({ markets: items }: { markets: CatalogMarket[] }) {
             );
           })}
         </ul>
-      {markets.length === 0 && (
+      ) : (
         <Card className="p-0 sm:p-0"><EmptyState title="Nenhuma aposta encontrada." /></Card>
       )}
     </div>

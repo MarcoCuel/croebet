@@ -28,13 +28,6 @@ export function Topbar({
   const games = useGameLinks();
   const pages = usePageLinks() ?? [];
   const { permissions } = useSession();
-  const pageAction = permissions.canManageSite
-    ? ({
-        [adminRoutes.coupons]: { href: "/admin/cupons/novo", label: "Novo cupom" },
-        [adminRoutes.pages]: { href: "/admin/paginas/nova", label: "Nova página" },
-        [adminRoutes.markets]: { href: "/admin/apostas/nova", label: "Nova aposta" },
-      } as Record<string, { href: string; label: string }>)[pathname]
-    : undefined;
   const pageTitle =
     (pathname.startsWith("/admin/") && permissions.canManageSite
       ? pathname.startsWith("/admin/cupons/")
@@ -48,7 +41,7 @@ export function Topbar({
         : pathname.startsWith("/admin/paginas/")
           ? pathname.endsWith("/nova") ? "Nova página" : "Editar página"
         : pathname.startsWith("/admin/jogos/")
-          ? "Editar jogo"
+          ? pathname.endsWith("/novo") ? "Criar jogo" : "Editar jogo"
           : (
               {
                 [adminRoutes.seo]: "Configurações",
@@ -133,11 +126,7 @@ export function Topbar({
             <span className="truncate text-sm font-medium md:text-base">
               {pageTitle}
             </span>
-            {pageAction && (
-              <Button asChild variant="secondary" size="sm">
-                <Link href={pageAction.href}>{pageAction.label}</Link>
-              </Button>
-            )}
+
           </>
         )}
       </div>

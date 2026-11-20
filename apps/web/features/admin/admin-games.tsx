@@ -19,7 +19,7 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
   const visible = games.filter(game => matches(game, status) && normalize(game.name).includes(normalize(search.trim())));
   return <div className="grid min-w-0 gap-4">
     <h1 className="sr-only">Jogos</h1>
-    <AdminListHeader filterLabel="Status dos jogos" filters={<>
+    <AdminListHeader create={{ href: "/admin/jogos/novo", label: "Criar jogo" }} filterLabel="Status dos jogos" filters={<>
       {[["all", "Todos"], ["active", "Ativos"], ["inactive", "Inativos"]].map(([value, label]) => <Button key={value} size="sm" variant={status === value ? "secondary" : "ghost"} aria-pressed={status === value} onClick={() => setStatus(value)}>
         {label} {status === value && <AdminFilterCount count={games.filter(game => matches(game, value)).length} />}
       </Button>)}
@@ -33,6 +33,7 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
             </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <span className="break-words font-semibold">{game.name}</span>
+              {game.slug !== "flip7" && <Badge variant="secondary">Em breve</Badge>}
               <Badge variant={game.enabled ? "default" : "secondary"}>{game.enabled ? "Ativo" : "Inativo"}</Badge>
             </div>
           </Link>

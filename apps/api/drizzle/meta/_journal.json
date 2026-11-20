@@ -176,6 +176,13 @@
       "when": 1795160079534,
       "tag": "0024_odd_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795161528251,
+      "tag": "0025_redundant_gorgon",
+      "breakpoints": true
     }
   ]
 }

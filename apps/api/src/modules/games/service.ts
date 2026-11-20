@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import type { z } from "zod";
-import { gameSchema, gamesSchema, type gameWriteSchema } from "@croebet/shared";
+import { gameSchema, gamesSchema, type gameCreateSchema, type gameWriteSchema } from "@croebet/shared";
 import { adminTransaction, audit, ManagementError } from "../admin/service.ts";
 
 function project(row: Record<string, unknown>) {
@@ -23,6 +23,18 @@ export async function saveGame(pool: Pool, actorId: string, hash: string, id: st
     const result = await client.query("update games set name=$1,enabled=$2,image_url=$3,seo=$5,description=$6,version=version+1 where id=$4 returning *", [input.name, input.enabled, input.imageUrl, id, JSON.stringify(input.seo ?? {}), input.description]);
     const game = project(result.rows[0]);
     await audit(client, actorId, game.id, "game.updated", "Edição de jogo", { before: project(before), after: game });
+    return game;
+  });
+}
+
+export async function createGame(pool: Pool, actorId: string, hash: string, input: z.infer<typeof gameCreateSchema>) {
+  return adminTransaction(pool, actorId, hash, null, async client => {
+    const result = await client.query(
+      "insert into games (slug,name,description,enabled,image_url,seo) values ($1,$2,$3,$4,$5,$6) returning *",
+      [input.slug, input.name, input.description, input.enabled, input.imageUrl, JSON.stringify(input.seo)],
+    );
+    const game = project(result.rows[0]);
+    await audit(client, actorId, game.id, "game.created", "Criação de jogo", { after: game });
     return game;
   });
 }

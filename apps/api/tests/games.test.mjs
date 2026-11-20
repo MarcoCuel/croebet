@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { gameWriteSchema } from '@croebet/shared';
+import { gameCreateSchema, createMatchSchema, gameWriteSchema } from '@croebet/shared';
 import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
-import { readGames, readGame, saveGame } from '../dist/modules/games/service.js';
+import { createGame, readGames, readGame, saveGame } from '../dist/modules/games/service.js';
 
 const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'flip7', name: 'Nome cadastrado', description: 'Descrição cadastrada.', enabled: true, image_url: null, version: 1 };
 const input = { name: 'Flip 7', enabled: true, imageUrl: null, version: 1 };
@@ -25,10 +25,11 @@ test('consulta pública só permite jogos ativos e não inventa jogos ou imagens
 });
 test('endpoints administrativos de jogos exigem sessão e proteção de escrita', async t => {
   const app = createApp(async () => {}); t.after(() => app.close());
-  const pool = { query: async () => ({ rows: [{ environment: 'test' }] }) };
+  const pool = { query: async sql => ({ rows: sql.includes('from games') ? [] : [{ environment: 'test' }] }) };
   await app.register(authRoutes, { pool, config: { APP_ENV: 'test' } });
   assert.equal((await app.inject('/api/v1/admin/games')).statusCode, 404);
   assert.equal((await app.inject('/api/v1/games/roleta')).statusCode, 404);
+  assert.equal((await app.inject({ url: "/api/v1/admin/games", method: "POST", payload: { ...input, slug: "roleta" } })).statusCode, 403);
   assert.equal((await app.inject({ url: `/api/v1/admin/games/${row.id}`, method: 'PATCH', payload: input })).statusCode, 403);
 });
 function transaction(version, failAudit = false) {
@@ -73,5 +74,42 @@ test('consulta administrativa identifica jogo pelo UUID e consulta pública pelo
       return { rows: [row] };
     } };
     assert.equal((await readGame(pool, identifier, admin)).id, row.id);
+  }
+});
+
+
+test('cadastro aceita jogos em desenvolvimento sem permitir criar partidas sem motor', () => {
+  const fields = { name: 'Roleta', description: 'Em desenvolvimento.', enabled: true, imageUrl: null };
+  assert.equal(gameCreateSchema.parse({ ...fields, slug: 'roleta' }).slug, 'roleta');
+  for (const slug of ['Flip 7', '../admin', '', '-roleta', 'roleta-', 'a'.repeat(101)]) {
+    assert.equal(gameCreateSchema.safeParse({ ...fields, slug }).success, false);
+  }
+  assert.equal(createMatchSchema.safeParse({ requestId: row.id, game: 'roleta', capacity: 2, options: {mode:'classic',brutal:false} }).success, false);
+});
+
+test('criação persiste catálogo e auditoria na mesma transação, com rollback se auditoria falhar', async () => {
+  for (const failAudit of [false, true]) {
+    const tx = transaction(1, failAudit);
+    const pool = { connect: async () => {
+      const client = await tx.pool.connect();
+      const query = client.query;
+      client.query = async (sql, params) => {
+        if (sql.startsWith('insert into games')) return { rows: [{...row,slug:params[0],name:params[1],description:params[2],enabled:params[3],image_url:params[4],seo:JSON.parse(params[5])}] };
+        return query(sql, params);
+      };
+      return client;
+    } };
+    const input = gameCreateSchema.parse({name:'Roleta',slug:'roleta',description:'Em desenvolvimento.',enabled:true,imageUrl:null});
+    if (failAudit) {
+      await assert.rejects(createGame(pool,'admin','hash',input), /audit unavailable/);
+      assert.ok(tx.calls.includes('rollback'));
+      assert.equal(tx.calls.includes('commit'),false);
+    } else {
+      const created = await createGame(pool,'admin','hash',input);
+      assert.equal(created.slug,'roleta');
+      assert.equal(created.version,1);
+      assert.ok(tx.calls.includes('commit'));
+      assert.ok(tx.calls.some(sql=>sql.startsWith('insert into admin_audit')));
+    }
   }
 });

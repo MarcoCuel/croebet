@@ -118,7 +118,7 @@ test("lista vazia, modais, rascunho, publicação e exclusão", async ({ page })
   pages = [];
   await page.goto("/admin/paginas");
   await expect(page.getByText("Nenhuma página criada ainda.")).toBeVisible();
-  await page.getByRole("link", { name: "Nova página", exact: true }).click();
+  await page.getByRole("link", { name: "Criar página", exact: true }).click();
   await expect(page.getByRole("button", { name: "Mover para o lixo", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Publicar", exact: true })).toBeVisible();
   await page.getByLabel("Título", { exact: true }).fill("Ajuda");

@@ -1,3 +1,6 @@
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Heading } from "@/components/shared/heading";
 import { getInitialMatches } from "@/features/games/flip7/server-matches";
 import { publicMetadata } from "@/features/seo/metadata";
 import type { Metadata } from "next";
@@ -17,6 +20,15 @@ export default async function Game({ params, searchParams }: Props) {
   const { slug } = await params;
   const data = await getPublicGames(slug);
   if (data && data.items.length === 0) notFound();
+  if (data && slug !== "flip7") {
+    const game = data.items[0];
+    return <PageShell><Card className="space-y-4">
+      <Badge variant="secondary">Em breve</Badge>
+      <Heading variant="display" asChild><h1>{game.name}</h1></Heading>
+      {game.description && <p className="whitespace-pre-line text-muted">{game.description}</p>}
+      <p className="text-sm text-muted">Este jogo está em desenvolvimento.</p>
+    </Card></PageShell>;
+  }
   const initial = data ? await getInitialMatches((await searchParams).partida) : null;
   return <PageShell>{data ? <><h1 className="sr-only">{data.items[0].name}</h1><Flip7Loader game={data.items[0]} initial={initial!} /></> : <ManagementUnavailable />}</PageShell>;
 }

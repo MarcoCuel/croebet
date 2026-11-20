@@ -1,0 +1,2 @@
+ALTER TABLE "games" DROP CONSTRAINT "game_slug_supported";--> statement-breakpoint
+ALTER TABLE "games" ADD CONSTRAINT "game_slug_valid" CHECK (length("games"."slug") between 1 and 100 and "games"."slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$');
