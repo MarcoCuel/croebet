@@ -5,6 +5,7 @@ import { Maximize, Minimize, SlidersHorizontal, Volume2, VolumeX } from "lucide-
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { GameAudioDevPanel } from "./game-audio-dev-panel";
 import type { useGameAudio } from "./use-game-audio";
 
 export function GameControls({ audio, children }: { audio: ReturnType<typeof useGameAudio>; children?: ReactNode }) {
@@ -27,6 +28,7 @@ export function GameControls({ audio, children }: { audio: ReturnType<typeof use
   const silent = audio.muted || audio.volume === 0;
   return <div className="ml-auto flex flex-wrap items-center justify-end gap-1" aria-label="Controles da partida">
     {children}
+    {process.env.NODE_ENV === "development" && <GameAudioDevPanel audio={audio} />}
     {supported && <Button size="icon" variant="ghost" aria-label={fullscreen ? "Sair da tela cheia" : "Tela cheia"} title={fullscreen ? "Sair da tela cheia" : "Tela cheia"} aria-pressed={fullscreen} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize className="size-4" aria-hidden="true" /> : <Maximize className="size-4" aria-hidden="true" />}</Button>}
     <Button size="icon" variant="ghost" aria-label={silent ? "Ativar som" : "Silenciar som"} title={silent ? "Ativar som" : "Silenciar som"} aria-pressed={!silent} onClick={() => { if (audio.volume === 0) audio.setVolume(45); else audio.toggle(); }}>{silent ? <VolumeX className="size-4" aria-hidden="true" /> : <Volume2 className="size-4" aria-hidden="true" />}</Button>
     <Button size="icon" variant="ghost" aria-label="Ajustar volume" title="Ajustar volume" aria-expanded={volumeOpen} onClick={() => setVolumeOpen(value => !value)}><SlidersHorizontal className="size-4" aria-hidden="true" /></Button>

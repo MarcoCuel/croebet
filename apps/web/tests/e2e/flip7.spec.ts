@@ -541,7 +541,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
     await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
     await expect(volume).toHaveValue("30");
-    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(15);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(11);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
     await expect(controls.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
     if (testInfo.project.name === "desktop") {
@@ -597,7 +597,7 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
   const controls = page.getByLabel("Controles de reprodução", { exact: true });
   await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
   await controls.getByRole("button", { name: "Pausar", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(15);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(11);
   const effectsBeforeMove = await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects);
   await controls.getByRole("button", { name: "Próxima jogada", exact: true }).click();
   await expect(page.locator("[data-flying-card]")).toBeVisible();

@@ -1,3 +1,5 @@
+import { readRanking } from "../rankings/service.ts";
+import { rankingQuerySchema } from "@croebet/shared";
 import { refundAccountMatches } from "../matches/economy.ts";
 import { matchLifecycleLock } from "../matches/service.ts";
 import { matchRoutes } from "../matches/routes.ts";
@@ -62,6 +64,13 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     return token;
   }
 
+  app.get("/api/v1/rankings", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const input = rankingQuerySchema.safeParse(request.query);
+    if (!input.success) return reply.code(400).send({ error: { code: "INVALID_REQUEST", message: "Filtros de ranking inválidos." } });
+    const user = await current(request.cookies[sessionName]);
+    return readRanking(pool, input.data, user?.id ?? null);
+  });
   await managementRoutes(app, { pool, current, sessionName, limit, mediaStorage });
   await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
 

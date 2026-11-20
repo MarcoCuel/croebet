@@ -22,7 +22,7 @@ test('ordem e rótulos são independentes; IDs seguem renomeação e rascunhos s
   const resolved = resolveMenu(items, [{ id: pageId, slug: 'novo-endereco', published: true }]);
   assert.deepEqual(resolved.map(item => item.label), ['Comunidade', 'Quem somos']);
   assert.equal(resolved[1].href, '/novo-endereco');
-  assert.equal(resolveMenu([{ id, type: 'fixed', target: 'rankings', label: 'Ranking', newTab: false }], [])[0].disabled, true);
+  assert.equal(resolveMenu([{ id, type: 'fixed', target: 'rankings', label: 'Ranking', newTab: false }], [])[0].disabled, false);
 });
 test('menu ausente não é tratado como um menu vazio confirmado', async () => {
   await assert.rejects(readNavigation({ query: async () => ({ rows: [] }) }), /Menus indisponíveis/);

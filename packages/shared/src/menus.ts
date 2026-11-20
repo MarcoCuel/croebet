@@ -5,7 +5,7 @@ export const fixedMenuPages = {
   home: { label: "Início", href: "/", disabled: false },
   games: { label: "Jogos", href: "/jogos", disabled: false },
   betting: { label: "Apostas", href: "/apostas", disabled: true },
-  rankings: { label: "Rankings", href: "/rankings", disabled: true },
+  rankings: { label: "Rankings", href: "/rankings", disabled: false },
   achievements: { label: "Conquistas", href: "/conquistas", disabled: true },
   history: { label: "Carteira", href: "/carteira", disabled: false },
   profile: { label: "Perfil", href: "/perfil", disabled: false },
