@@ -274,13 +274,12 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
   if(instrumented.has(client))return;instrumented.add(client);
   const query=client.query;
   client.query=function(...args){
-   const sql=typeof args[0]==="string"?args[0]:args[0]?.text ?? "";
+   const sql=(typeof args[0]==="string"?args[0]:args[0]?.text ?? "").trimStart();
    if(sql.startsWith("select"))reads.push({sql,values:args[1]});
    return query.apply(this,args);
   };
  };
- pool.on("connect",instrument);
- const probe=await pool.connect();instrument(probe);probe.release();
+ pool.on("acquire",instrument);
  const room=await request(host,{type:"create",input:{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"vengeance",brutal:true}}});
  await watch(host,room.code);
  const joined=await request(peer,{type:"join",code:room.code,input:{commandId:randomUUID()}});
@@ -316,7 +315,8 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  await delay(100);
  assert.equal(reads.some(r=>r.sql==="select * from game_matches where code=$1" && r.values?.[0]===unrelated.code),false);
  assert.equal(reads.some(r=>r.sql.includes("m.status='lobby' and g.enabled=true")),false);
- assert.equal(reads.some(r=>r.sql.includes("from game_match_invitations i join")),false);
+ assert.equal(reads.some(r=>r.sql.includes("from game_match_invitations i")),false);
+ assert.equal(reads.some(r=>r.sql.includes("array(select p.controller_id")),false);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
  const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
  const actor=actors.indexOf(started.participants.find(p=>p.seat===seat).userId),sender=[host,peer][actor],receiver=[peer,host][actor];
