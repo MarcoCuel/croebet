@@ -1,87 +1,168 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import type { Pool } from "pg";
-import type { ServerResponse } from "node:http";
-import { matchCodeSchema } from "@croebet/shared";
-import { tokenHash } from "../auth/security.ts";
-import { getRoomSync, listLobbies, MatchError } from "./service.ts";
+import type { FastifyInstance } from "fastify";
+import type { Pool, PoolClient } from "pg";
+import { Server, type Socket } from "socket.io";
+import { z } from "zod";
+import { matchWatchSchema, realtimeRequestSchema, type RealtimeReply } from "@croebet/shared";
+import { tokenHash, validCsrf } from "../auth/security.ts";
+import { getRoomSync, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
+import { applyRealtimeRequest } from "./realtime-actions.ts";
 
-type Connection = { id:string; roomSignature:string; response: ServerResponse; actor: string; session: string; code?: string; version: number; directory: string; checked: number };
-/** One database watcher per API process; clients receive SSE, never poll HTTP.
- * Versions/events remain in PostgreSQL, so reconnect and process restart catch up.
- */
-export function matchLive(app: FastifyInstance, pool: Pool, sessionName: string, origin: string | undefined) {
-  const connections = new Set<Connection>();
-  let running: Promise<void> | undefined;
-  let renewed=0;
-  const write = (c: Connection, event: string, data: unknown, version?: number) => {
-    if (c.response.destroyed || c.response.writableLength > 1024 * 1024) { c.response.destroy(); connections.delete(c); return false; }
-    c.response.write(`${version===undefined?"":`id: ${version}\n`}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); return true;
-  };
-  async function update() {
-    if (!connections.size) return;
-    if(Date.now()-renewed>15000){
-      const rooms=[...connections].filter(c=>c.code);
-      await pool.query(`insert into match_presence(id,match_id,user_id,expires_at)
-        select c.id,m.id,c.actor,clock_timestamp()+interval '30 seconds'
-        from unnest($1::uuid[],$2::text[],$3::uuid[]) as c(id,code,actor) join game_matches m on m.code=c.code
-        on conflict(id) do update set expires_at=excluded.expires_at`,[rooms.map(c=>c.id),rooms.map(c=>c.code),rooms.map(c=>c.actor)]);
-      await pool.query("delete from match_presence where expires_at<=clock_timestamp()");
-      renewed=Date.now();
-    }
-    const codes = [...new Set([...connections].flatMap(c => c.code ? [c.code] : []))];
-    const versions = await pool.query<{code:string;version:number;status:string}>("select code,version,status from game_matches where code=any($1::text[])",[codes]);
-    const byCode = new Map(versions.rows.map(row => [row.code,row.version]));
-    const directory = await pool.query("select m.code,m.version,g.enabled from game_matches m join games g on g.id=m.game_id where m.status='lobby' order by m.code");
-    const presence=await pool.query("select distinct match_id,user_id from match_presence where expires_at>clock_timestamp() order by match_id,user_id");
-    const invitations=await pool.query("select id from game_match_invitations where expires_at>clock_timestamp() order by id");
-    const signature = JSON.stringify([directory.rows,presence.rows,invitations.rows]);
-    const lobbies = new Map<string,Awaited<ReturnType<typeof listLobbies>>>();
-    for (const c of connections) {
+type Options = { sessionName: string; csrfName: string; csrfSecret: string; environment: string; origin?: string; limit: (key: string, maximum: number) => Promise<boolean> };
+type Connection = { actor: string; session: string; id: string; code?: string; version: number; signature: string; directory: string; invitations: string; watching: boolean; tail: Promise<void> };
+type LiveSocket = Socket & { data: Connection };
+const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
+
+export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
+  const io = new Server(app.server, {
+    path: "/api/v1/realtime", serveClient: false, transports: ["websocket"],
+    maxHttpBufferSize: 65536, pingInterval: 15000, pingTimeout: 10000,
+    allowRequest: (request, done) => done(null, !!options.origin && request.headers.origin === options.origin),
+  });
+  let listener: PoolClient | undefined;
+  let listening: Promise<void> | undefined;
+  let stopping = false;
+  let maintenance: Promise<void> | undefined;
+
+  async function authorize(c: Connection) {
+    const result = await pool.query(`select 1 from sessions s join users u on u.id=s.user_id
+      where s.token_hash=$1 and s.user_id=$2 and u.status='active'
+      and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp()
+      and exists(select 1 from application_environment where id=1 and environment=$3)`, [c.session, c.actor, options.environment]);
+    if (!result.rows.length) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
+  }
+  function close(socket: LiveSocket, error: unknown) {
+    const reply = errorReply(error);
+    if (!reply.ok) socket.emit("closed", reply.error);
+    socket.disconnect(true);
+  }
+  function enqueue(socket: LiveSocket, action: () => Promise<void>) {
+    socket.data.tail = socket.data.tail.then(async () => {
+      if (socket.connected) await action();
+    }).catch(error => close(socket, error));
+  }
+  async function refresh(socket: LiveSocket) {
+    const c = socket.data;
+    await authorize(c);
+    if (c.watching && c.code) {
       try {
-        const changed=(c.code && (c.version===0 || byCode.get(c.code)!==c.version)) || c.directory!==signature;
-        if (changed || Date.now()-c.checked > 15000) {
-          const session=await pool.query("select 1 from sessions s join users u on u.id=s.user_id where s.token_hash=$1 and s.user_id=$2 and u.status='active' and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp()",[c.session,c.actor]);
-          if (!session.rows.length) throw new MatchError("UNAUTHENTICATED",401,"Entre novamente.");
-          c.checked=Date.now(); c.response.write(": heartbeat\n\n");
+        const sync = await getRoomSync(pool, c.actor, c.code, c.version);
+        const signature = JSON.stringify(sync.room);
+        if (signature !== c.signature || sync.room.version !== c.version) {
+          socket.emit("room", sync);
+          c.version = sync.room.version; c.signature = signature;
         }
-        if (c.code && (c.version===0 || byCode.get(c.code)!==c.version || (c.directory!==signature && versions.rows.some(r=>r.code===c.code && r.status==="lobby")))) {
-          const data=await getRoomSync(pool,c.actor,c.code,c.version);
-          const serialized=JSON.stringify(data);
-          if(c.roomSignature!==serialized && write(c,"room",data,data.room.version)){c.version=data.room.version;c.roomSignature=serialized;}
-        }
-        if (c.directory!==signature) {
-          let data=lobbies.get(c.actor);
-          if(!data){data=await listLobbies(pool,c.actor);lobbies.set(c.actor,data);}
-          if(write(c,"lobbies",data)) c.directory=signature;
-        }
-      } catch(error) {
-        if(error instanceof MatchError) { write(c,"closed",{code:error.code,message:error.message}); c.response.end(); connections.delete(c); }
-        else { c.response.destroy(); connections.delete(c); }
+      } catch (error) {
+        // Losing a table does not remove the user's global invitation connection.
+        if (!(error instanceof MatchError)) throw error;
+        socket.emit("room-closed", { code: error.code, message: error.message });
+        await socket.leave(`match:${c.code}`);
+        c.code = undefined; c.signature = "";
+        await pool.query("delete from match_presence where id=$1", [c.id]);
       }
     }
+    const [directory, invitations] = await Promise.all([listLobbies(pool, c.actor), readLobbyInvitations(pool, c.actor)]);
+    const signature = JSON.stringify(directory);
+    if (signature !== c.directory) { socket.emit("lobbies", directory); c.directory = signature; }
+    const inbox = JSON.stringify(invitations);
+    if (inbox !== c.invitations) { socket.emit("invitations", invitations); c.invitations = inbox; }
   }
-  const timer=setInterval(()=>{ running ??= update().catch(()=>{ for(const c of connections) c.response.destroy(); connections.clear(); }).finally(()=>{running=undefined;}); },750);
+  function changed() {
+    for (const socket of io.sockets.sockets.values()) enqueue(socket as LiveSocket, () => refresh(socket as LiveSocket));
+  }
+  // LISTEN is a wake-up signal, never a source of game state or secret cards.
+  // A reconnect performs a complete authorized refresh to recover missed signals.
+  function ensureListener(): Promise<void> {
+    return listening ??= (async () => {
+      const client = await pool.connect();
+      const lost = () => {
+        if (listener !== client) return;
+        listener = undefined; listening = undefined; client.release(true);
+        for (const socket of io.sockets.sockets.values()) socket.conn.close();
+      };
+      client.on("error", lost);
+      client.on("end", lost);
+      client.on("notification", message => { if (message.channel === "croebet_matches") changed(); });
+      try { await client.query("LISTEN croebet_matches"); listener = client; }
+      catch (error) { client.release(true); throw error; }
+    })().catch(error => { listening = undefined; throw error; });
+  }
+  io.use((socket, next) => {
+    void (async () => {
+      await ensureListener();
+      const cookies = app.parseCookie(socket.request.headers.cookie ?? "");
+      const token = cookies[options.sessionName];
+      if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token) || !validCsrf(options.csrfSecret, cookies[options.csrfName], token, socket.handshake.auth.csrf))
+        throw new MatchError("UNAUTHENTICATED", 401, "Atualize a página e entre novamente.");
+      const result = await pool.query<{ user_id: string }>("select user_id from sessions where token_hash=$1", [tokenHash(token)]);
+      if (!result.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
+      const data: Connection = { actor: result.rows[0].user_id, session: tokenHash(token), id: randomUUID(), version: 0, signature: "", directory: "", invitations: "", watching: false, tail: Promise.resolve() };
+      await authorize(data);
+      if (io.sockets.sockets.size >= 200 || [...io.sockets.sockets.values()].filter(s => s.data.actor === data.actor).length >= 6)
+        throw new MatchError("CONNECTION_LIMIT", 429, "Muitas conexões abertas.");
+      socket.data = data; next();
+    })().catch(error => {
+      const reply = errorReply(error);
+      next(Object.assign(new Error(reply.ok ? "Conexão indisponível." : reply.error.message), { data: reply }));
+    });
+  });
+  io.on("connection", raw => {
+    const socket = raw as LiveSocket;
+    void socket.join(`user:${socket.data.actor}`);
+    enqueue(socket, () => refresh(socket));
+    socket.on("watch", (value: unknown, ack: (reply: RealtimeReply) => void) => {
+      if (typeof ack !== "function") return;
+      enqueue(socket, async () => {
+        try {
+          await authorize(socket.data);
+          if (!await options.limit(`watch:${socket.data.actor}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
+          const input = matchWatchSchema.parse(value);
+          const initial = input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
+          if (socket.data.code) await socket.leave(`match:${socket.data.code}`);
+          await pool.query("delete from match_presence where id=$1", [socket.data.id]);
+          socket.data.code = input.code; socket.data.version = input.afterVersion; socket.data.signature = ""; socket.data.watching = true;
+          if (initial) {
+            await socket.join(`match:${initial.room.code}`);
+            await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')", [socket.data.id, initial.room.id, socket.data.actor]);
+          }
+          await refresh(socket);
+          ack({ ok: true, data: { ok: true } });
+        } catch (error) { ack(errorReply(error)); }
+      });
+    });
+    socket.on("request", (value: unknown, ack: (reply: RealtimeReply) => void) => {
+      if (typeof ack !== "function") return;
+      enqueue(socket, async () => {
+        try {
+          await authorize(socket.data);
+          const request = realtimeRequestSchema.parse(value);
+          if (!await options.limit(`matches:${socket.data.actor}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas ações. Aguarde e tente novamente.");
+          if (request.type === "invite" && !await options.limit(`invitations:${socket.data.actor}`, 30)) throw new MatchError("RATE_LIMIT", 429, "Muitos convites. Aguarde antes de enviar outros.");
+          const data = await applyRealtimeRequest(pool, socket.data.actor, socket.data.session, request);
+          // Every player, including the sender, receives committed frames here.
+          // The acknowledgement is a receipt; it is not a second presentation path.
+          await refresh(socket);
+          ack({ ok: true, data });
+        } catch (error) { ack(errorReply(error)); }
+      });
+    });
+    socket.on("disconnect", () => { void socket.data.tail.finally(() => pool.query("delete from match_presence where id=$1", [socket.data.id])).catch(error => app.log.error(error)); });
+  });
+  const timer = setInterval(() => {
+    if (stopping || maintenance) return;
+    maintenance = (async () => {
+      if (!io.sockets.sockets.size) return;
+      await pool.query("update match_presence set expires_at=clock_timestamp()+interval '30 seconds' where id=any($1::uuid[])", [[...io.sockets.sockets.values()].map(s => s.data.id)]);
+      await pool.query("delete from match_presence where expires_at<=clock_timestamp()");
+      changed(); // Lease expiry, invitation expiry and session expiry; no gameplay polling.
+    })().catch(error => { app.log.error(error); for (const socket of io.sockets.sockets.values()) socket.conn.close(); }).finally(() => { maintenance = undefined; });
+  }, 15000);
   timer.unref();
-  app.addHook("preClose",async()=>{clearInterval(timer);for(const c of connections)c.response.end();connections.clear();await running;});
-  return async (request: FastifyRequest, reply: FastifyReply, actor: string) => {
-    if (request.headers.origin && request.headers.origin!==origin) return reply.code(403).send({error:{code:"ORIGIN_INVALID",message:"Origem inválida."}});
-    if (connections.size>=200 || [...connections].filter(c=>c.actor===actor).length>=6) return reply.code(429).send({error:{code:"CONNECTION_LIMIT",message:"Muitas conexões abertas."}});
-    const query=request.query as Record<string,string>;
-    const code=query.code===undefined ? undefined : matchCodeSchema.parse(query.code);
-    const version=Number(request.headers["last-event-id"] ?? query.afterVersion ?? 0);
-    if(!Number.isSafeInteger(version) || version<0) return reply.code(400).send({error:{code:"INVALID_INPUT",message:"Versão inválida."}});
-    // Authorize and load before committing headers; never expose another table.
-    const initial=code ? await getRoomSync(pool,actor,code,version) : null;
-    const directory=await listLobbies(pool,actor);
-    const connectionId=randomUUID();
-    if(initial)await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')",[connectionId,initial.room.id,actor]);
-    reply.hijack();
-    reply.raw.writeHead(200,{"Content-Type":"text/event-stream; charset=utf-8","Cache-Control":"no-cache, no-store, no-transform","Connection":"keep-alive","X-Accel-Buffering":"no"});
-    const c:Connection={id:connectionId,roomSignature:"",response:reply.raw,actor,session:tokenHash(request.cookies[sessionName]!),code,version:0,directory:"",checked:Date.now()};
-    connections.add(c);
-    if(initial){write(c,"room",initial,initial.room.version);c.version=initial.room.version;}
-    write(c,"lobbies",directory);
-    reply.raw.on("close",()=>{connections.delete(c);void pool.query("delete from match_presence where id=$1",[c.id]).catch(error=>app.log.error(error));});
-  };
+  app.addHook("preClose", async () => {
+    stopping = true; clearInterval(timer);
+    const tails = [...io.sockets.sockets.values()].map(s => s.data.tail as Promise<void>);
+    await new Promise<void>(resolve => io.close(() => resolve()));
+    await Promise.allSettled(tails); await maintenance;
+    if (listener) { const client = listener; listener = undefined; await client.query("UNLISTEN croebet_matches"); client.release(); }
+  });
 }

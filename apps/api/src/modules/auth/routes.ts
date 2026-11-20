@@ -55,7 +55,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   }
 
   await managementRoutes(app, { pool, current, sessionName, limit });
-  await matchRoutes(app, { pool, current, sessionName, limit, origin: config.WEB_ORIGIN });
+  await matchRoutes(app, { pool, current, sessionName, limit, origin: config.WEB_ORIGIN, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
 
   if (avatarStorage) {
     app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));

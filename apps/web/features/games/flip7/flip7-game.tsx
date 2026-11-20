@@ -152,7 +152,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const receivedVersion=useRef(initial.match?.version ?? 0);
   const incoming=useRef<RoomSync|null>(null);
   const [liveRevision,setLiveRevision]=useState(0);
-  const connected=useMatchLive(initial.match?.code,initial.match?.version ?? 0,true,sync=>{
+  const connected=useMatchLive(initial.match?.code,matchInfo?.version ?? 0,true,sync=>{
     if(sync.room.version<=receivedVersion.current)return;
     const prior=incoming.current;
     incoming.current=prior && !sync.reset ? {...sync,frames:[...prior.frames,...sync.frames.filter(frame=>frame.version>prior.room.version)],reset:prior.reset} : sync;
@@ -249,14 +249,9 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     pendingCommand.current ??= { commandId: crypto.randomUUID(), expectedVersion: match.version, action };
     locked.current = true; setBusy(true); setCommandError("");
     try {
-      const response = await sendMatchCommand(match.code, pendingCommand.current);
+      await sendMatchCommand(match.code, pendingCommand.current);
       pendingCommand.current = null;
-      if(response.match.version>receivedVersion.current){
-        receivedVersion.current=response.match.version;
-        serverMatch.current = response.match;
-        setMatchInfo(response.match);
-        setFrames(response.frames);
-      }
+      // Confirmed frames arrive through the same Socket.IO event for everyone.
     } catch (error) { setCommandError(error instanceof Error ? error.message : "Não foi possível enviar a jogada."); }
     finally { locked.current = false; setBusy(false); }
   }, [busy, connected, frames.length, resolvingCardFinished]);
@@ -399,7 +394,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     const timer = setTimeout(() => {
       setFrames(previous => previous.slice(1));
       present(frame.action, frame.state);
-    }, game.phase === "summary" ? 1600 : !game.players[game.turn].hasDrawn ? 60 : 100);
+    }, game.phase === "summary" ? 1600 : 0);
     return () => clearTimeout(timer);
   }, [game, resolvingCardFinished, flight, movingCards, exitOpen, leaving, busy, frames, present]);
 
@@ -413,7 +408,14 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
     // Fill a gap from persisted events. Large gaps reload a confirmed snapshot.
     const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
-    if(!complete){router.refresh();return;}
+    if(!complete || fresh.length>12 || document.visibilityState==="hidden"){
+      // Recover directly to the confirmed snapshot instead of replaying a long
+      // animation backlog after a slow connection or a suspended browser tab.
+      receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
+      setMatchInfo(sync.room);gameRef.current=sync.room.state;setGame(sync.room.state);
+      setResolvingCard(forcedActionPresentation(sync.room.state));
+      setFrames([]);pendingCommand.current=null;setCommandError("");return;
+    }
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
     setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);

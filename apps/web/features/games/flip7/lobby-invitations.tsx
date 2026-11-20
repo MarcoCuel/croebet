@@ -6,7 +6,7 @@ import { commandResultSchema, lobbyInvitationsSchema, type LobbyInvitations } fr
 import { changeLobby } from "./api";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
-import { managementRequest } from "@/features/admin/management-api";
+import { gameSocket, retainGameSocket, realtimeRequest } from "../realtime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 
@@ -15,29 +15,31 @@ export function useLobbyInvitations() {
   const [inbox,setInbox]=useState<{userId:string;data:LobbyInvitations}|null>(null);
   useEffect(()=>{
     if(!userId)return;
-    let active=true,pending=false;
+    const socket=gameSocket();
+    let active=true;
     const shown=new Map<string,string|number>();
-    async function refresh(){
-      if(document.visibilityState!=="visible" || pending)return;
-      pending=true;
-      try{
-        const data=await managementRequest("/matches/presence",lobbyInvitationsSchema,"POST");
-        if(active){
-          setInbox({userId:userId!,data});
-          for(const [code,id] of shown)if(!data.items.some(i=>i.code===code)){toast.dismiss(id);shown.delete(code);}
-          for(const invite of data.items)if(!shown.has(invite.code)){
-            const id=toast.custom(()=> <div role="alert" className="w-80 rounded-xl border border-contrast/6 bg-surface p-4 shadow-lg"><Invitation invite={invite} onRespond={()=>{toast.dismiss(id);void refresh();}}/></div>,{duration:Infinity});
-            shown.set(invite.code,id);
-          }
-        }
-      }catch{/* Retain confirmed invitations until the connection recovers. */}
-      finally{pending=false;}
+    function receive(value:unknown){
+      const result=lobbyInvitationsSchema.safeParse(value);
+      if(!active || !result.success)return;
+      const data=result.data;
+      setInbox({userId:userId!,data});
+      for(const [code,id] of shown)if(!data.items.some(i=>i.code===code)){toast.dismiss(id);shown.delete(code);}
+      for(const invite of data.items)if(!shown.has(invite.code)){
+        const id=toast.custom(()=> <div role="alert" className="w-80 rounded-xl border border-contrast/6 bg-surface p-4 shadow-lg"><Invitation invite={invite} onRespond={()=>toast.dismiss(id)}/></div>,{duration:Infinity});
+        shown.set(invite.code,id);
+      }
     }
+    async function refresh(){
+      if(document.visibilityState!=="visible" || !socket.connected)return;
+      try{receive(await realtimeRequest({type:"presence"},lobbyInvitationsSchema));}
+      catch{/* Keep the last confirmed inbox while reconnecting. */}
+    }
+    socket.on("invitations",receive).on("connect",refresh);
+    const release=retainGameSocket();
     void refresh();
-    const timer=window.setInterval(()=>void refresh(),5000);
+    const timer=window.setInterval(()=>void refresh(),15000);
     document.addEventListener("visibilitychange",refresh);
-    window.addEventListener("lobby-invitation-response",refresh);
-    return()=>{active=false;window.clearInterval(timer);document.removeEventListener("visibilitychange",refresh);window.removeEventListener("lobby-invitation-response",refresh);for(const id of shown.values())toast.dismiss(id);};
+    return()=>{active=false;window.clearInterval(timer);document.removeEventListener("visibilitychange",refresh);socket.off("invitations",receive).off("connect",refresh);for(const id of shown.values())toast.dismiss(id);release();};
   },[userId]);
   const items=inbox?.userId===userId?inbox.data.items:[];
   return items;
@@ -52,8 +54,8 @@ function Invitation({invite,onRespond}:{invite:Invite;onRespond?:()=>void}) {
     setBusy(true);
     try{
       if(accept){await changeLobby(invite.code,"join",crypto.randomUUID());router.push(`/jogos/flip7?partida=${invite.code}`);}
-      else await managementRequest(`/matches/${invite.code}/decline`,commandResultSchema,"POST");
-      onRespond?.();window.dispatchEvent(new Event("lobby-invitation-response"));
+      else await realtimeRequest({type:"decline",code:invite.code},commandResultSchema);
+      onRespond?.();
     }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível responder ao convite.");}
     finally{setBusy(false);}
   }

@@ -1,11 +1,11 @@
 import { lobbySchema, lobbyActionResultSchema, roomSchema, matchResultSchema, type MatchCommand, type CreateMatch, type Match, type MatchResult, type RoomSync, type UpdateLobby, type KickMatch } from "@croebet/shared";
-import { managementRequest } from "@/features/admin/management-api";
+import { realtimeRequest } from "../realtime";
 
 let created: MatchResult | null = null;
-export const createServerMatch = (input: CreateMatch) => managementRequest("/matches",lobbySchema,"POST",input);
-export const updateServerLobby = (code: string, input: UpdateLobby) => managementRequest(`/matches/${code}/update`, lobbyActionResultSchema, "POST", input);
-export const kickServerPlayer = (code: string, input: KickMatch) => managementRequest(`/matches/${code}/kick`, roomSchema, "POST", input);
-export const changeLobby = (code: string, action: "join"|"leave"|"start", commandId: string, expectedVersion?: number) => managementRequest(`/matches/${code}/${action}`,lobbyActionResultSchema,"POST",{commandId,...(expectedVersion===undefined?{}:{expectedVersion})});
+export const createServerMatch = (input: CreateMatch) => realtimeRequest({type:"create",input},lobbySchema);
+export const updateServerLobby = (code: string, input: UpdateLobby) => realtimeRequest({type:"update",code,input},lobbyActionResultSchema);
+export const kickServerPlayer = (code: string, input: KickMatch) => realtimeRequest({type:"kick",code,input},roomSchema);
+export const changeLobby = (code: string, action: "join"|"leave"|"start", commandId: string, expectedVersion?: number) => realtimeRequest(action==="start"?{type:"start",code,input:{commandId,expectedVersion:expectedVersion!}}:{type:action,code,input:{commandId}},lobbyActionResultSchema);
 export function rememberStart(sync: RoomSync) {
   if(sync.room.status==="lobby")return;
   const start=sync.frames.findIndex(frame=>frame.action.type==="start");
@@ -17,5 +17,5 @@ export function createdPresentation(match: Match | null) {
 export function clearCreatedPresentation(code: string | undefined) {
   if (created?.match.code === code) created = null;
 }
-export const sendMatchCommand = (code: string, input: MatchCommand) => managementRequest(`/matches/${code}/commands`, matchResultSchema, "POST", input);
-export const abandonServerMatch = (code: string, commandId: string, expectedVersion: number) => managementRequest(`/matches/${code}/abandon`, matchResultSchema, "POST", { commandId, expectedVersion });
+export const sendMatchCommand = (code: string, input: MatchCommand) => realtimeRequest({type:"command",code,input},matchResultSchema);
+export const abandonServerMatch = (code: string, commandId: string, expectedVersion: number) => realtimeRequest({type:"abandon",code,input:{commandId,expectedVersion}},matchResultSchema);

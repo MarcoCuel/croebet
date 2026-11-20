@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Check, Copy, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { commandResultSchema, lobbyPlayersSchema, type LobbyPlayers } from "@croebet/shared";
+import { realtimeRequest } from "../realtime";
 import { managementRequest } from "@/features/admin/management-api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -34,7 +35,7 @@ export function InvitePlayers({code,open,onOpenChange}:{code:string;open:boolean
     if(sending)return;
     setSending(userId);
     try{
-      await managementRequest(`/matches/${code}/invite`,commandResultSchema,"POST",{targetUserId:userId});
+      await realtimeRequest({type:"invite",code,input:{targetUserId:userId}},commandResultSchema);
       setPlayers(current=>current && {...current,items:current.items.map(person=>person.userId===userId?{...person,invited:true}:person)});
       toast.success("Convite enviado.");
     }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível enviar o convite.");}

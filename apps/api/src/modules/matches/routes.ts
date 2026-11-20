@@ -6,7 +6,7 @@ import { matchLive } from "./live.ts";
 import { tokenHash } from "../auth/security.ts";
 import { declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
 
-type Options = { pool: Pool; sessionName: string; origin?: string; current: (token: string | undefined) => Promise<{ id: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
+type Options = { pool: Pool; sessionName: string; origin?: string; current: (token: string | undefined) => Promise<{ id: string } | null>; csrfName: string; csrfSecret: string; environment: string; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function matchRoutes(app: FastifyInstance, options: Options) {
   const { pool, current, sessionName, limit } = options;
   // Registered inside authRoutes: the same Origin/CSRF/environment hooks apply.
@@ -22,7 +22,7 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
       throw error;
     }
   }
-  const live=matchLive(app,pool,sessionName,options.origin);
+  matchLive(app,pool,options);
   app.post("/api/v1/matches/presence",(req,reply)=>run(req,reply,(id,hash)=>refreshPresence(pool,id,hash)));
   app.get<{Params:{code:string}}>("/api/v1/matches/:code/players",(req,reply)=>run(req,reply,id=>listLobbyPlayers(pool,id,matchCodeSchema.parse(req.params.code),lobbyPlayersQuerySchema.parse(req.query).q)));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/invite",(req,reply)=>run(req,reply,async(id,hash)=>{
@@ -30,7 +30,6 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
     return inviteLobbyPlayer(pool,id,hash,matchCodeSchema.parse(req.params.code),invitePlayerSchema.parse(req.body).targetUserId);
   }));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/decline",(req,reply)=>run(req,reply,(id,hash)=>declineInvitation(pool,id,hash,matchCodeSchema.parse(req.params.code))));
-  app.get("/api/v1/matches/live",(req,reply)=>run(req,reply,id=>live(req,reply,id)));
   app.get("/api/v1/matches/lobbies",(req,reply)=>run(req,reply,id=>listLobbies(pool,id)));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/update",(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),"update",updateLobbySchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/kick",(req,reply)=>run(req,reply,(id,hash)=>kickMatch(pool,id,hash,matchCodeSchema.parse(req.params.code),kickMatchSchema.parse(req.body))));

@@ -260,15 +260,19 @@ export async function refreshPresence(pool: Pool, actor: string, sessionHash: st
   return transaction(pool, actor, sessionHash, async client => {
     await client.query(`insert into user_presence(user_id,expires_at) values($1,clock_timestamp()+interval '75 seconds')
       on conflict(user_id) do update set expires_at=excluded.expires_at`, [actor]);
-    const result=await client.query<{code:string;username:string;avatar_key:string|null}>(`
-      select m.code,u.username,u.avatar_key from game_match_invitations i
-      join game_matches m on m.id=i.match_id join games g on g.id=m.game_id join users u on u.id=i.sender_id
-      where i.recipient_id=$1 and i.expires_at>clock_timestamp() and m.status='lobby' and g.enabled and u.status='active'
-      and not exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)
-      order by i.expires_at desc,i.id limit 50`,[actor]);
-    return lobbyInvitationsSchema.parse({items:result.rows.map(row=>({code:row.code,username:row.username,avatarUrl:avatarUrl(row.avatar_key)}))});
+    return readLobbyInvitations(client, actor);
   });
 }
+export async function readLobbyInvitations(client: Client, actor: string) {
+  const result=await client.query<{code:string;username:string;avatar_key:string|null}>(`
+    select m.code,u.username,u.avatar_key from game_match_invitations i
+    join game_matches m on m.id=i.match_id join games g on g.id=m.game_id join users u on u.id=i.sender_id
+    where i.recipient_id=$1 and i.expires_at>clock_timestamp() and m.status='lobby' and g.enabled and u.status='active'
+    and not exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)
+    order by i.expires_at desc,i.id limit 50`,[actor]);
+  return lobbyInvitationsSchema.parse({items:result.rows.map(row=>({code:row.code,username:row.username,avatarUrl:avatarUrl(row.avatar_key)}))});
+}
+
 export async function listLobbyPlayers(pool: Pool, actor: string, code: string, q: string) {
   return read(pool, async client => {
     const room=await client.query("select m.id from game_matches m join games g on g.id=m.game_id where m.code=$1 and m.owner_id=$2 and m.status='lobby' and g.enabled",[code,actor]);
