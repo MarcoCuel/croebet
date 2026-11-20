@@ -61,6 +61,12 @@ A API aceita somente origens exatas configuradas, com CSRF obrigatório; produç
 
 Se o celular não alcançar o site, verifique se o firewall permite conexões ao Node, se o Wi-Fi isola clientes e se a VPN permite tráfego local. Não exponha a API nem desative CSRF para contornar problemas de rede.
 
+### Compartilhar com amigos pela internet
+
+Com web e API em execução, abra um túnel temporário para o Next: `cloudflared tunnel --no-autoupdate --url http://127.0.0.1:3000 --protocol http2`. Adicione a URL HTTPS exata gerada a `DEV_WEB_ORIGINS` em `apps/api/.env` e `apps/web/.env.local`, mantendo localhost e LAN. No web, use essa URL também em `WEB_ORIGIN` para os links de compartilhamento e metadados. Recarregue os processos web/API e compartilhe `<URL-gerada>/jogos/flip7`; login, cadastro e Socket.IO passam pelo mesmo proxy, com CSRF e origens explícitas. A API continua em loopback.
+
+O Quick Tunnel funciona enquanto o Mac estiver acordado e os processos web, API e `cloudflared` estiverem ativos. Reiniciar o túnel gera outro endereço: substitua a origem antiga nos dois arquivos locais e atualize `WEB_ORIGIN` do web. Ao encerrar o compartilhamento, remova essa origem e restaure o `WEB_ORIGIN` do web para localhost. Não use wildcard de `trycloudflare.com`. Os arquivos locais de ambiente continuam fora do Git. Referência: [Quick Tunnels da Cloudflare](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+
 ### Dados descartáveis e reset
 
 Não há dados reais a migrar ou preservar. Recriar o banco e consolidar migrations de desenvolvimento é permitido; mantenha criação limpa reproduzível e seeds idempotentes. Não importe localStorage nem mantenha uma economia demo paralela para proteger dados antigos.

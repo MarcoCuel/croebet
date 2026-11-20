@@ -7,9 +7,11 @@ export async function authRequest(path: string, method = "GET", body?: unknown) 
     const data = await csrf.json();
     headers["x-csrf-token"] = data.token;
     if (body instanceof File) headers["Content-Type"] = body.type;
-    else if (body !== undefined) headers["Content-Type"] = "application/json";
+    else headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(`/api/v1${path}`, { method, headers, credentials: "same-origin", cache: "no-store", body: body instanceof File ? body : body === undefined ? undefined : JSON.stringify(body) });
+  // Explicit JSON also works when a reverse proxy streams an otherwise empty POST.
+  const payload = body instanceof File ? body : body === undefined ? (method === "GET" ? undefined : "{}") : JSON.stringify(body);
+  const response = await fetch(`/api/v1${path}`, { method, headers, credentials: "same-origin", cache: "no-store", body: payload });
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.error?.message ?? "Serviço indisponível. Tente novamente.");
