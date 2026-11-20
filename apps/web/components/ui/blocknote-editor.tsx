@@ -24,7 +24,7 @@ const schema = BlockNoteSchema.create({
 
 const theme = {
   "--bn-colors-editor-text": "var(--color-foreground)",
-  "--bn-colors-editor-background": "var(--color-background)",
+  "--bn-colors-editor-background": "color-mix(in oklab, var(--color-contrast) 6%, transparent)",
   "--bn-colors-menu-text": "var(--color-foreground)",
   "--bn-colors-menu-background": "var(--color-surface)",
   "--bn-colors-tooltip-text": "var(--color-foreground)",
@@ -52,7 +52,7 @@ export function BlockNoteEditor({ initialValue, onChange, label }: RichTextEdito
     editor={editor}
     theme="dark"
     style={theme}
-    className="rounded-panel [&_.bn-editor]:min-h-[32rem] [&_.bn-editor]:px-10 [&_.bn-editor]:outline-none"
+    className="rounded-lg border-(length:--border-width-hairline) border-transparent transition-colors focus-within:border-brand motion-reduce:transition-none [&_.bn-editor]:min-h-[32rem] [&_.bn-editor]:rounded-lg [&_.bn-editor]:px-10 [&_.bn-editor]:outline-none"
     data-lenis-prevent
     formattingToolbar={false}
     onChange={() => onChange(fromEditorBlocks(editor.document))}
