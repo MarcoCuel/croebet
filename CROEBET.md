@@ -38,7 +38,7 @@ O projeto está em operação, com usuários reais; contas, saldos, partidas e d
 
 ### 4.1. Jogos
 
-O primeiro jogo é o **Flip 7**, com motor e partidas persistidos no servidor e lobbies públicos entre usuários da Croebet. Cada conta pode participar de vários lobbies abertos e manter apenas um lobby criado por ela enquanto continua como host dele. A primeira dessas salas que iniciar passa a ser sua única partida ativa e remove automaticamente suas participações e reservas nos demais lobbies. Salas têm limite de 2 a 12 pessoas e podem iniciar com apenas duas. O host pode alterar versão, modo e capacidade antes do início e expulsar participantes no lobby ou durante o jogo. Abandono ou expulsão durante a partida transfere a vaga para um bot; desconexões aguardam indefinidamente. Primeiro será concluído o modo gratuito; Croins permanecem bloqueados até a integração econômica. Regras, apresentação e decisões econômicas futuras estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
+O primeiro jogo é o **Flip 7**, com motor e partidas persistidos no servidor e lobbies públicos entre usuários da Croebet. Cada conta pode participar de vários lobbies abertos e manter apenas um lobby criado por ela enquanto continua como host dele. A primeira dessas salas que iniciar passa a ser sua única partida ativa e remove automaticamente suas participações e reservas nos demais lobbies. Salas têm limite de 2 a 12 pessoas e podem iniciar com apenas duas. O host pode alterar versão, modo e capacidade antes do início e expulsar participantes no lobby ou durante o jogo. Abandono ou expulsão durante a partida transfere a vaga para um bot; desconexões aguardam indefinidamente. Partidas gratuitas continuam disponíveis; o host pode ativar entrada em Croins com confirmação de todos, cobrança conjunta no início e prêmio sem taxa aos vencedores. Prêmios de vagas assumidas por bots vão para a casa. Regras, apresentação e detalhes econômicos estão em [docs/flip7.md](docs/flip7.md). O catálogo é gerenciado pelo administrador e começa somente com Flip 7, sem imagem de capa.
 
 Haverá outros jogos funcionais, com identidade visual e referências próprias da comunidade. Exemplos previstos:
 
@@ -86,7 +86,7 @@ Valores iniciais aprovados em 19 de novembro de 2026:
 
 - Ao criar uma conta: **30 Croins**, registrados como bônus de cadastro.
 - Resgate diário: **10 Croins uma vez por dia, com liberação à meia-noite no fuso America/Sao_Paulo**, independentemente do saldo. O primeiro resgate fica disponível após o cadastro; não há teto de saldo. Resgatar às 22h permite novo resgate à 1h do dia seguinte.
-- Sugestões de aposta: **1, 5, 10 e 50 Croins**, com **5 Croins** como valor padrão. São sugestões, não uma lista obrigatória de valores aceitos.
+- Sugestões de aposta: **1, 5, 10, 15, 20, 25 e 50 Croins**, com **5 Croins** como valor padrão. São sugestões, não uma lista obrigatória de valores aceitos.
 - Cupons: código definido pelo administrador, valor inteiro positivo escolhido por cupom, sem valor padrão ou tabela fixa. Um resgate por conta, limite global opcional, pausa e início/término opcionais; sem datas, validade indefinida. Edições não alteram os valores já concedidos.
 
 As configurações são centralizadas no backend. Cadastro e resgate devem creditar a carteira e gerar movimentações auditáveis na mesma transação. Probabilidades e demais aspectos de balanceamento continuam sujeitos a definição.
@@ -240,7 +240,7 @@ A acidez deve ser calibrada conforme o contexto: mensagens de erro e regras prec
 - Balanceamento futuro da economia; valores iniciais e cupons já foram definidos na seção 4.3;
 - Regras de novos jogos, probabilidades e equilíbrio; Flip 7 já tem regras documentadas;
 - Permissões adicionais da moderação; formatos e rateio das apostas seguem a seção 4.2;
-- Recuperação de conta sem e-mail e eventual suporte a espectadores; o Flip 7 atual aguarda desconexões sem timeout e suas pendências econômicas estão em [Economia pendente](docs/flip7.md#economia-pendente);
+- Recuperação de conta sem e-mail; o Flip 7 já permite espectadores e aguarda desconexões sem timeout, com regras econômicas em [Economia](docs/flip7.md#economia);
 - Critérios e periodicidade dos rankings;
 - Lista e requisitos de emblemas/conquistas;
 - Política de contas, abuso e múltiplos cadastros;

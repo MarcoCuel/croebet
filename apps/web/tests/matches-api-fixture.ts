@@ -113,7 +113,7 @@ export function matchesFixture() {
     if(path==="/api/v1/matches"){
       if(directory(actor.id).owned || directory(actor.id).active)return send({error:{message:"Você já tem um lobby criado ou uma partida em andamento."}},409);
       const input=createMatchSchema.parse(body),code=(++createdCount).toString(16).padStart(12,"0").toUpperCase();
-      const room:Room={id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
+      const room:Room={entryAmount:input.entryAmount,potTotal:0,payouts:[],settlement:null,confirmedUserIds:[],id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
       creators.set(code,actor.id);states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
     }
     const saved=states.get(code);if(!saved)return send({error:{message:"Sala não encontrada."}},404);
@@ -124,11 +124,16 @@ export function matchesFixture() {
       else replace(saved,target.seat);
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
+    if(path.endsWith("/confirm-entry")){
+      if(saved.room.status!=="lobby" || !saved.room.participants.some(p=>p.userId===actor.id) || saved.room.version!==body.expectedVersion || saved.room.entryAmount!==body.entryAmount)return send({error:{message:"A sala mudou. Confira o valor."}},409);
+      saved.room={...saved.room,version:saved.room.version+1,confirmedUserIds:[...new Set([...saved.room.confirmedUserIds,actor.id])]};
+      receipts.set(key,saved.room);notify();return send(saved.room);
+    }
     if(path.endsWith("/update")){
       const settings=updateLobbySchema.parse(body);
       if(saved.room.status!=="lobby" || saved.room.hostId!==actor.id)return send({error:{message:"Somente o host pode alterar uma sala aberta."}},403);
       if(settings.expectedVersion!==saved.room.version || settings.capacity<saved.room.participants.length)return send({error:{message:"Confira os participantes e tente novamente."}},409);
-      saved.room={...saved.room,version:saved.room.version+1,capacity:settings.capacity,options:settings.options};
+      saved.room={...saved.room,version:saved.room.version+1,capacity:settings.capacity,options:settings.options,entryAmount:settings.entryAmount,confirmedUserIds:settings.entryAmount===saved.room.entryAmount?saved.room.confirmedUserIds:[]};
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/join")){
@@ -145,6 +150,7 @@ export function matchesFixture() {
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/start")){
+      if(saved.room.status==="lobby" && saved.room.entryAmount>0 && saved.room.confirmedUserIds.length!==saved.room.participants.length)return send({error:{message:"Todos precisam confirmar a entrada."}},409);
       if(saved.room.hostId!==actor.id || saved.room.participants.length<2 || (saved.room.status==="lobby" && (saved.room.pendingInvitations.length>0 || saved.room.participants.some(p=>![...streams].some(s=>s.active && s.actor===p.userId)))))return send({error:{message:"Aguarde mais jogadores."}},409);
       const game=createGame(saved.room.participants.map(p=>({name:p.username,kind:"human" as const})),42,saved.room.options);
       for(const value of [11,10]){const index=game.deck.findIndex(c=>c.type==="number" && c.value===value);game.deck.push(...game.deck.splice(index,1));}
@@ -152,7 +158,7 @@ export function matchesFixture() {
       saved.privateState=result.state;saved.frames.push({action:{type:"start"},state:result.before,version},...result.frames);
       const {pendingInvitations: _pending,onlineUserIds: _online,...base}=saved.room as Extract<Room,{status:"lobby"}>;
       void _pending;void _online;
-      saved.room={...base,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
+      saved.room={...base,potTotal:base.entryAmount*base.participants.length,settlement:base.entryAmount?"pending":null,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
       const actors=new Set(saved.room.participants.map(person=>person.userId));
       for(const [otherCode,other] of states)if(otherCode!==code && other.room.status==="lobby"){
         const people=other.room.participants.filter(person=>!actors.has(person.userId));

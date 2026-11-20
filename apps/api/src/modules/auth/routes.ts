@@ -1,3 +1,4 @@
+import { refundAccountMatches } from "../matches/economy.ts";
 import { matchLifecycleLock } from "../matches/service.ts";
 import { matchRoutes } from "../matches/routes.ts";
 import { managementRoutes } from "../admin/routes.ts";
@@ -286,6 +287,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       await protectLastAdmin(client, locked.rows[0], { role: "user", status: "suspended" });
       await client.query("delete from sessions where user_id = $1", [user.id]);
       if (locked.rows[0].avatar_key) await client.query("insert into avatar_cleanup (key) values ($1) on conflict do nothing", [locked.rows[0].avatar_key]);
+      await refundAccountMatches(client,user.id);
       await client.query("delete from game_matches where created_by=$1 or owner_id=$1 or id in (select match_id from game_match_players where user_id=$1)", [user.id]);
       await client.query("delete from users where id = $1", [user.id]);
       await client.query("commit");

@@ -23,7 +23,7 @@ O código descreve o que existe; a documentação registra decisões e limites. 
 ## Responsabilidades
 
 - Monorepo pnpm: `apps/web` (Next.js App Router/React), `apps/api` (Fastify) e `packages/shared` (contratos Zod). Preserve a stack; versões e scripts estão nos respectivos `package.json`.
-- Regras de negócio, autenticação, permissões e persistência pertencem à API. Next consulta endpoints HTTP; não importa serviços internos nem acessa o banco. O motor do Flip 7 executa na API; o frontend apresenta estados confirmados. Croins em partidas continuam bloqueados.
+- Regras de negócio, autenticação, permissões e persistência pertencem à API. Next consulta endpoints HTTP; não importa serviços internos nem acessa o banco. O motor do Flip 7 executa na API; o frontend apresenta estados confirmados. Entradas, potes, prêmios e devoluções em Croins são autoritativos e transacionais na API.
 - `shared` não depende de frameworks, banco, segredos ou módulos internos das aplicações. Crie módulos e abstrações somente quando utilizados.
 
 ## Validação e manutenção

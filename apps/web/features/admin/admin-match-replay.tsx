@@ -38,6 +38,7 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
   function seek(value:number) {setPlaying(false);setError("");setIndex(value);}
   return <div className="grid gap-6">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold">Partida {initial.match.code}</h1><p className="text-sm text-muted">{matchStatusLabels[initial.match.status]} · Regras v{initial.match.rulesVersion}</p></div><Button asChild variant="outline"><Link href={`/admin/jogos/${initial.match.gameId}`}>Voltar ao jogo</Link></Button></div>
+    {initial.match.entryAmount>0 && <Card className="space-y-2 text-sm"><p>Entrada: {initial.match.entryAmount.toLocaleString("pt-BR")} Croins · Pote: {initial.match.potTotal.toLocaleString("pt-BR")} Croins</p><p>{{pending:"Prêmio pendente",paid:"Pote distribuído",refunded:"Entradas devolvidas"}[initial.match.settlement ?? "pending"]}</p>{initial.match.payouts.map(payout=><p key={payout.seat}>{initial.match.players.find(p=>p.seat===payout.seat)?.name}: {payout.amount.toLocaleString("pt-BR")} Croins{payout.house?" para a casa (vaga com bot)":" recebidos"}</p>)}</Card>}
     <Card className="grid gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" onClick={()=>seek(0)} disabled={index===0}>Início</Button>

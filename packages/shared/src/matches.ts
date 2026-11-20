@@ -25,18 +25,22 @@ export const flip7ActionSchema = z.discriminatedUnion("type", [
 ]);
 export const flip7EventActionSchema = z.union([flip7ActionSchema, z.object({ type: z.literal("step") }).strict(), z.object({ type: z.literal("next") }).strict(), z.object({ type: z.literal("start") }).strict(), z.object({ type: z.literal("replace"), seat }).strict()]);
 // Bots remain available to engine tests, never to public room creation.
-export const createMatchSchema = z.object({ requestId: z.uuid(), game: z.literal("flip7"), capacity: integer.min(2).max(12), options: flip7OptionsSchema }).strict();
+export const createMatchSchema = z.object({ requestId: z.uuid(), game: z.literal("flip7"), capacity: integer.min(2).max(12), options: flip7OptionsSchema, entryAmount: integer.min(0).default(0) }).strict();
 export const lobbyCommandSchema = z.object({ commandId: z.uuid() }).strict();
-export const updateLobbySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema }).strict();
+export const updateLobbySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema, entryAmount: integer.min(0).default(0) }).strict();
 export type UpdateLobby = z.infer<typeof updateLobbySchema>;
+export const confirmEntrySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), entryAmount: integer.positive() }).strict();
+export type ConfirmEntry = z.infer<typeof confirmEntrySchema>;
+export const matchPayoutSchema = z.object({ seat, amount: integer.min(0), house: z.boolean() }).strict();
+export const matchEconomyFields = { entryAmount: integer.min(0).default(0), potTotal: integer.min(0).default(0), payouts: z.array(matchPayoutSchema).max(12).default([]), settlement: z.enum(["pending", "paid", "refunded"]).nullable().default(null) };
 export const kickMatchSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), targetUserId: z.uuid() }).strict();
 export type KickMatch = z.infer<typeof kickMatchSchema>;
 export const matchCommandSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), action: flip7ActionSchema }).strict();
 export const matchAbandonSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive() }).strict();
 export const matchCodeSchema = z.string().regex(/^[A-F0-9]{12}$/);
 export const matchParticipantSchema = z.object({ userId: z.uuid(), username: z.string(), displayName: z.string(), avatarUrl: z.string().nullable(), seat: integer.min(0).max(11) }).strict();
-const roomFields = { id: z.uuid(), code: matchCodeSchema, game: z.literal("flip7"), rulesVersion: integer.positive(), version: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema, hostId: z.uuid(), participants: z.array(matchParticipantSchema).max(12) };
-export const lobbySchema = z.object({ ...roomFields, status: z.literal("lobby"), state: z.null(), pendingInvitations: z.array(z.object({userId:z.uuid(),username:z.string(),avatarUrl:z.string().nullable()}).strict()).default([]), onlineUserIds:z.array(z.uuid()).default([]) }).strict();
+const roomFields = { ...matchEconomyFields, id: z.uuid(), code: matchCodeSchema, game: z.literal("flip7"), rulesVersion: integer.positive(), version: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema, hostId: z.uuid(), participants: z.array(matchParticipantSchema).max(12) };
+export const lobbySchema = z.object({ ...roomFields, status: z.literal("lobby"), state: z.null(), pendingInvitations: z.array(z.object({userId:z.uuid(),username:z.string(),avatarUrl:z.string().nullable()}).strict()).default([]), onlineUserIds:z.array(z.uuid()).default([]), confirmedUserIds:z.array(z.uuid()).default([]) }).strict();
 export const matchSchema = z.object({ ...roomFields, status: z.enum(["playing", "finished", "abandoned"]), state: flip7ViewSchema }).strict();
 export const roomSchema = z.discriminatedUnion("status", [lobbySchema, matchSchema]);
 export const lobbyListSchema = z.object({ items: z.array(lobbySchema).max(100), joined: z.array(lobbySchema), owned: lobbySchema.nullable(), active: matchSchema.nullable() }).strict();

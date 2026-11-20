@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { kickServerPlayer } from "./api";
 
-export function KickPlayer({code,version,userId,name,duringGame=false,compact=false,disabled,onSuccess}:{code:string;version:number;userId:string;name:string;duringGame?:boolean;compact?:boolean;disabled?:boolean;onSuccess?:(room:Room)=>void}) {
+export function KickPlayer({code,version,userId,name,duringGame=false,withCroins=false,compact=false,disabled,onSuccess}:{code:string;version:number;userId:string;name:string;duringGame?:boolean;withCroins?:boolean;compact?:boolean;disabled?:boolean;onSuccess?:(room:Room)=>void}) {
   const [open,setOpen]=useState(false);
   const [busy,setBusy]=useState(false);
   const pending=useRef<KickMatch|null>(null);
@@ -16,7 +16,7 @@ export function KickPlayer({code,version,userId,name,duringGame=false,compact=fa
     <DialogTrigger asChild><Button size={compact?"icon-sm":"sm"} variant="ghost" className={compact?"absolute -top-2 right-0 rounded-full":undefined} disabled={disabled} aria-label={`Expulsar ${name}`}>{compact?<X className="size-3" aria-hidden="true"/>:"Expulsar"}</Button></DialogTrigger>
     <DialogContent>
       <DialogTitle>Expulsar {name}?</DialogTitle>
-      <DialogDescription className="mt-3 text-sm text-muted">{duringGame?"Um bot assumirá as cartas e os pontos desta pessoa. A partida continuará para os demais.":"Esta pessoa será removida do lobby."}</DialogDescription>
+      <DialogDescription className="mt-3 text-sm text-muted">{duringGame?"Um bot assumirá as cartas e os pontos desta pessoa. A partida continuará para os demais.":"Esta pessoa será removida do lobby."}{duringGame && withCroins && " A entrada não será devolvida. Se a vaga vencer, o prêmio irá para a casa."}</DialogDescription>
       <div className="mt-6 flex flex-wrap justify-end gap-3">
         <DialogClose asChild><Button variant="secondary" disabled={busy}>Cancelar</Button></DialogClose>
         <Button loading={busy} disabled={disabled} onClick={async()=>{

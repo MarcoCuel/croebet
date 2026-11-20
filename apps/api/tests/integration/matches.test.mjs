@@ -430,3 +430,120 @@ test("PostgreSQL: arquivo transacional, replay completo, idempotência e preserv
  await pool.query("delete from users where id=$1",[actors[0]]);
  assert.deepEqual((await readMatchReplay(pool,gameId,room.id,0,100)).match,replay.match);
 });
+
+async function paidEnvironment(t, entry=5) {
+ const env=await environment(t),{pool,actors,sessions}=env;
+ const {transferCroins}=await import("../../dist/modules/wallet/service.js");
+ for(const userId of actors){
+   const account=(await pool.query("insert into wallet_accounts(user_id,kind) values($1,'user') returning id",[userId])).rows[0].id;
+   await transferCroins(pool,{scope:"match-test-grant",idempotencyKey:randomUUID(),from:"00000000-0000-4000-8000-000000000001",to:account,actorAccountId:account,amount:30,reason:"Test grant",reference:userId});
+ }
+ env.cleanup.push(async()=>{
+   const {refundAccountMatches}=await import("../../dist/modules/matches/economy.js");
+   const client=await pool.connect();
+   try{await client.query("begin");await client.query("select pg_advisory_xact_lock(47851234)");for(const actor of actors)await refundAccountMatches(client,actor);await client.query("commit");}catch(error){await client.query("rollback");throw error;}finally{client.release();}
+ });
+ const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"flip7",capacity:4,options:{mode:"classic",brutal:false},entryAmount:entry});
+ await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);
+ await env.lobby(room.code,1,"join");
+ const balances=async()=> (await pool.query("select user_id,balance from wallet_accounts where user_id=any($1::uuid[]) order by user_id",[actors])).rows;
+ const confirm=async(index)=>{
+   const current=await getMatch(pool,actors[index],room.code);
+   return env.lobby(room.code,index,"confirm-entry",{expectedVersion:current.version,entryAmount:current.entryAmount});
+ };
+ return {...env,room,balances,confirm};
+}
+
+test("PostgreSQL: entrada confirmada, alterações invalidam aceite, saldo insuficiente e rollback sem cobrança parcial",async t=>{
+ const {pool,actors,sessions,lobby,room,balances,confirm}=await paidEnvironment(t);
+ const original=await balances();
+ let current=await getMatch(pool,null,room.code);
+ await assert.rejects(lobby(room.code,0,"start",{expectedVersion:current.version}),{code:"ENTRY_NOT_CONFIRMED"});
+ await confirm(0);current=await confirm(1);
+ current=await lobby(room.code,0,"update",{expectedVersion:current.version,capacity:4,options:current.options,entryAmount:31});
+ assert.deepEqual(current.confirmedUserIds,[]);
+ await assert.rejects(lobby(room.code,1,"confirm-entry",{expectedVersion:current.version,entryAmount:5}),{code:"VERSION_CONFLICT"});
+ await confirm(0);current=await confirm(1);
+ await assert.rejects(lobby(room.code,0,"start",{expectedVersion:current.version}),{code:"INSUFFICIENT_FUNDS"});
+ assert.deepEqual(await balances(),original);
+ assert.equal((await pool.query("select 1 from game_match_stakes where match_id=$1",[room.id])).rowCount,0);
+ current=await lobby(room.code,0,"update",{expectedVersion:current.version,capacity:4,options:current.options,entryAmount:5});
+ await confirm(0);current=await confirm(1);
+ const input={commandId:randomUUID(),expectedVersion:current.version};
+ const failingPool={connect:async()=>{const client=await pool.connect();return {query:(sql,args)=>sql.startsWith("insert into game_match_events")?Promise.reject(Error("event failure")):client.query(sql,args),release:()=>client.release()};}};
+ await assert.rejects(lobbyAction(failingPool,actors[0],sessions[0],room.code,"start",input),/event failure/);
+ assert.deepEqual(await balances(),original);
+ const [started,retry]=await Promise.all([1,2].map(()=>lobbyAction(pool,actors[0],sessions[0],room.code,"start",input)));
+ assert.deepEqual(wire(started),wire(retry));assert.equal(started.potTotal,10);assert.equal(started.settlement,"pending");
+ assert.equal((await pool.query("select count(*)::int n from wallet_operations where scope='match-entry' and reference=$1",[room.code])).rows[0].n,2);
+ assert.ok((await balances()).filter(a=>actors.slice(0,2).includes(a.user_id)).every(a=>a.balance==='25'));
+ // Cleanup is an explicit administrative cancellation: refund before removal.
+ const {refundAccountMatches}=await import("../../dist/modules/matches/economy.js");
+ const client=await pool.connect();
+ try{await client.query("begin");await client.query("select pg_advisory_xact_lock(47851234)");await refundAccountMatches(client,actors[0]);await refundAccountMatches(client,actors[0]);await client.query("commit");}finally{client.release();}
+ assert.deepEqual(await balances(),original);
+ assert.equal((await getMatch(pool,null,room.code)).settlement,"refunded");
+});
+
+test("PostgreSQL: prêmio autoritativo, pote vazio, retry e arquivo financeiro preservado",async t=>{
+ const {pool,actors,sessions,lobby,room,confirm}=await paidEnvironment(t);
+ await confirm(0);let current=await confirm(1);
+ let match=await lobby(room.code,0,"start",{expectedVersion:current.version});
+ let lastInput,lastActor,lastResult;
+ for(let step=0;match.status==='playing' && step<2000;step++){
+   const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
+   const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
+   lastActor=actors.indexOf(match.participants.find(p=>p.seat===seat).userId);
+   lastInput={commandId:randomUUID(),expectedVersion:match.version,action:botAction(state)};
+   lastResult=await commandMatch(pool,actors[lastActor],sessions[lastActor],room.code,lastInput);match=lastResult.match;
+ }
+ assert.equal(match.status,'finished');assert.equal(match.settlement,'paid');
+ assert.equal(match.payouts.reduce((sum,p)=>sum+p.amount,0),10);
+ assert.ok(match.payouts.every(p=>match.state.players[p.seat].total===Math.max(...match.state.players.map(p=>p.total)) && !p.house));
+ assert.deepEqual(wire(await commandMatch(pool,actors[lastActor],sessions[lastActor],room.code,lastInput)),wire(lastResult));
+ assert.equal((await pool.query("select balance from wallet_accounts where id=(select pot_account_id from game_match_stakes where match_id=$1)",[room.id])).rows[0].balance,'0');
+ const {readGameHistory}=await import("../../dist/modules/admin/match-history.js");
+ const gameId=(await pool.query("select game_id from game_matches where id=$1",[room.id])).rows[0].game_id;
+ await pool.query("delete from game_matches where id=$1",[room.id]);
+ const archived=(await readGameHistory(pool,gameId,{offset:0,limit:20,q:room.code,status:'finished'})).items[0];
+ assert.equal(archived.entryAmount,5);assert.deepEqual(archived.payouts,match.payouts);
+});
+
+test("PostgreSQL: empates com bot vão à casa; todos abandonam sem reembolso e liquidam pote",async t=>{
+ const {pool,actors,sessions,lobby,room,confirm}=await paidEnvironment(t);
+ await confirm(0);const ready=await confirm(1);
+ const started=await lobby(room.code,0,"start",{expectedVersion:ready.version});
+ const first=await commandMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:started.version},true);
+ const last=await commandMatch(pool,actors[1],sessions[1],room.code,{commandId:randomUUID(),expectedVersion:first.match.version},true);
+ assert.equal(last.match.status,'abandoned');assert.equal(last.match.settlement,'paid');
+ assert.equal(last.match.payouts.reduce((sum,p)=>sum+p.amount,0),10);assert.ok(last.match.payouts.every(p=>p.house));
+ assert.equal((await pool.query("select balance from wallet_accounts where id=(select pot_account_id from game_match_stakes where match_id=$1)",[room.id])).rows[0].balance,'0');
+ // Exercise tied seats directly in a rolled-back domain transaction, using real ledger constraints.
+ const {settleMatch}=await import("../../dist/modules/matches/economy.js");
+ const {fundMatch}=await import("../../dist/modules/matches/economy.js");
+ const client=await pool.connect(),id=randomUUID();
+ try{
+   await client.query("begin");
+   await fundMatch(client,id,room.code,5,started.participants);
+   const state=structuredClone(started.state);state.phase='over';state.players.forEach((p,i)=>{p.total=200;p.kind=i===0?'normal':'human';});
+   await settleMatch(client,id,room.code,'finished',state);await settleMatch(client,id,room.code,'finished',state);
+   const result=(await client.query("select payouts from game_match_stakes where match_id=$1",[id])).rows[0].payouts;
+   assert.deepEqual(result,[{seat:0,amount:5,house:true},{seat:1,amount:5,house:false}]);
+ }finally{await client.query("rollback");client.release();}
+});
+
+
+test("PostgreSQL: inícios concorrentes em salas com Croins cobram somente a partida escolhida",async t=>{
+ const {pool,actors,sessions,room,lobby,confirm,balances}=await paidEnvironment(t);
+ const other=await createMatch(pool,actors[2],sessions[2],{requestId:randomUUID(),game:"flip7",capacity:4,options:{mode:"classic",brutal:false},entryAmount:5});
+ await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),other.id,actors[2]]);
+ await lobby(other.code,0,"join");
+ await confirm(0);const firstReady=await confirm(1);
+ let secondReady=await getMatch(pool,null,other.code);
+ secondReady=await lobby(other.code,0,"confirm-entry",{expectedVersion:secondReady.version,entryAmount:5});
+ secondReady=await lobby(other.code,2,"confirm-entry",{expectedVersion:secondReady.version,entryAmount:5});
+ const results=await Promise.allSettled([lobby(room.code,0,"start",{expectedVersion:firstReady.version}),lobby(other.code,2,"start",{expectedVersion:secondReady.version})]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal((await balances()).find(a=>a.user_id===actors[0]).balance,'25');
+ assert.equal((await pool.query("select count(*)::int n from game_match_stakes where match_id=any($1::uuid[])",[[room.id,other.id]])).rows[0].n,1);
+});

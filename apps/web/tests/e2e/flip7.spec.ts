@@ -280,10 +280,10 @@ test("resposta perdida permite repetir o mesmo comando sem comprar duas vezes",a
     expect(room.state.players[0].cards).toHaveLength(2);
   }finally{await peer.context.close();}
 });
-test("não oferece bots, jogadores locais nem entrada com Croins",async({page})=>{
+test("não oferece bots nem jogadores locais e mantém Croins opcionais",async({page})=>{
   await page.goto("/jogos/flip7");
   await expect(page.getByRole("button",{name:/Adicionar jogador/})).toHaveCount(0);
-  await expect(page.getByRole("switch",{name:"Jogar com Croins"})).toHaveCount(0);
+  await expect(page.getByRole("switch",{name:"Jogar apostando"})).not.toBeChecked();
   expect(fixture.states.size).toBe(0);
 });
 
@@ -414,4 +414,58 @@ test("visitante vê vagas e acompanha uma partida sem controles",async({page,bro
     await view.reload();
     await expect(view.getByText("Espectador",{exact:true})).toBeVisible();
   } finally { await visitor.close(); await peer.context.close(); }
+});
+
+
+test("entrada em Croins exige confirmação de todos e alterações invalidam os aceites",async({page,browser})=>{
+  await page.goto("/jogos/flip7");
+  await page.getByRole("switch",{name:"Jogar apostando"}).check();
+  await expect(page.getByLabel("Entrada por jogador",{exact:true})).toHaveValue("5");
+  await page.getByRole("button",{name:"Jogar",exact:true}).click();
+  await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
+  const peer=await second(browser);
+  try{
+    await peer.page.goto(page.url());
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
+    await page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();
+    await peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
+    await page.getByLabel("Entrada por jogador",{exact:true}).fill("10");
+    await page.getByLabel("Entrada por jogador",{exact:true}).blur();
+    await expect(page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toBeVisible();
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
+    await page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
+    await peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
+    await page.getByRole("button",{name:"Jogar",exact:true}).click();
+    await expect(page.getByText("Pote: 20 Croins",{exact:true})).toBeVisible();
+  }finally{await peer.context.close();}
+});
+
+
+test("campo de aposta reutilizável soma, subtrai e seleciona valores sugeridos",async({page})=>{
+  await page.goto("/jogos/flip7");
+  const box=page.getByRole("group",{name:"Aposta da partida",exact:true});
+  await box.getByRole("switch",{name:"Jogar apostando"}).check();
+  const input=box.getByLabel("Entrada por jogador",{exact:true});
+  await expect(input).toHaveValue("5");
+  const presets=box.getByRole("group",{name:"Valores de aposta sugeridos"});
+  await expect(presets.getByRole("button")).toHaveCount(7);
+  await box.getByRole("button",{name:"Aumentar aposta",exact:true}).click();
+  await expect(input).toHaveValue("6");
+  await box.getByRole("button",{name:"Diminuir aposta",exact:true}).click();
+  await expect(input).toHaveValue("5");
+  await presets.getByRole("button",{name:"Apostar 25 Croins",exact:true}).click();
+  await expect(input).toHaveValue("25");
+  await expect(presets.getByRole("button",{name:"Apostar 25 Croins",exact:true})).toHaveAttribute("aria-pressed","true");
+  await input.fill("12");await input.press("Enter");
+  await expect(input).toHaveValue("12");
+  await input.fill("0");await input.blur();
+  await expect(input).toHaveValue("12");
+  await presets.getByRole("button",{name:"Apostar 1 Croins",exact:true}).click();
+  await expect(box.getByRole("button",{name:"Diminuir aposta",exact:true})).toBeDisabled();
+  await box.getByRole("switch",{name:"Jogar apostando"}).uncheck();
+  await expect(input).toHaveCount(0);
 });

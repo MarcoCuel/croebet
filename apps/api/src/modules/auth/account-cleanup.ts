@@ -1,3 +1,4 @@
+import { refundAccountMatches } from "../matches/economy.ts";
 import type { Pool } from "pg";
 import { governanceLock } from "../admin/service.ts";
 
@@ -17,6 +18,7 @@ export async function cleanupDeletedAccounts(pool: Pool, environment: "developme
       await client.query("delete from sessions where user_id=$1", [user.id]);
       if (user.avatar_key) await client.query("insert into avatar_cleanup (key) values ($1) on conflict do nothing", [user.avatar_key]);
       // Operational rooms may reference the account; archives have no user FK.
+      await refundAccountMatches(client,user.id);
       await client.query("delete from game_matches where created_by=$1 or owner_id=$1 or id in (select match_id from game_match_players where user_id=$1)", [user.id]);
       await client.query(`insert into admin_audit (actor_id,target_id,action,reason,details)
         values ($1,$1,'user.deleted','','{}')`, [user.id]);

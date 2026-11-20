@@ -43,7 +43,7 @@ test("listagem consulta somente resumo e controles, sem projetar estado privado"
       queries.push(sql);
       if(sql.includes("array(select p.controller_id"))return {rows:[{
         id,code:"ABCDEF123456",game_slug:"flip7",owner_id:actor,rules_version:1,version:5,
-        capacity:6,options:{mode:"classic",brutal:false},round:2,controller_ids:[actor],
+        entry_amount:"0",capacity:6,options:{mode:"classic",brutal:false},round:2,controller_ids:[actor],
       }]};
       if(sql.includes("select p.match_id"))return {rows:[{match_id:id,user_id:actor,username:"Marco",display_name:"Marco",avatar_key:null,seat:0}]};
       return {rows:[]};

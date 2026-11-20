@@ -147,7 +147,9 @@ export default function Flip7Game({ initial, game }: { initial: InitialMatches; 
 function Flip7Table({ initial }: { initial: InitialMatches }) {
   const router = useRouter();
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
-  const {userId}=useSession();
+  const {userId,refreshWallet}=useSession();
+  const refreshWalletRef=useRef(refreshWallet);
+  useEffect(()=>{refreshWalletRef.current=refreshWallet;},[refreshWallet]);
   const serverMatch = useRef(initial.match);
   const [matchInfo,setMatchInfo]=useState(initial.match);
   const receivedVersion=useRef(initial.match?.version ?? 0);
@@ -170,6 +172,14 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
   const [resultReady, setResultReady] = useState(false);
+  const refreshedEconomy=useRef("");
+  useEffect(()=>{
+    if(!userId || !initial.match?.entryAmount || (matchInfo?.status==="finished" && !resultReady))return;
+    const key=`${userId}:${matchInfo?.id}:${matchInfo?.settlement}`;
+    if(refreshedEconomy.current===key)return;
+    refreshedEconomy.current=key;
+    void refreshWalletRef.current();
+  },[matchInfo?.settlement,matchInfo?.status,matchInfo?.id,resultReady,userId,initial.match?.entryAmount]);
   const resultTriggerRef = useRef<HTMLButtonElement>(null);
   const [game, setGame] = useState<Game | null>(creation?.before ?? initial.match?.state ?? null);
   const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(creation?.before ?? initial.match?.state ?? null));
@@ -483,6 +493,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
             <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!resolvingCardFinished && !flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
+          {!!matchInfo?.entryAmount && <span className="text-sm text-muted">Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</span>}
           {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
         </div>
       </div>
@@ -528,7 +539,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
                     <p className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand")}>{player.name}</p>
                     <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
                     {player.kind!=="human" && <Badge variant="secondary">Bot</Badge>}
-                    {matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/>}
+                    {matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/>}
                   </div>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
                     <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
@@ -601,6 +612,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
           <DialogDescription className="mt-3 text-lg font-semibold text-brand">
             {winners.map(player => player.name).join(" e ")} {winners.length > 1 ? "venceram" : "venceu"}!
           </DialogDescription>
+          {!!matchInfo?.entryAmount && <div className="mt-4 space-y-2 text-sm"><p>Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</p>{matchInfo.payouts.map(payout=><p key={payout.seat}>{matchInfo.state.players[payout.seat].name}: {payout.amount.toLocaleString("pt-BR")} Croins{payout.house?" para a casa (vaga com bot)":" recebidos"}</p>)}</div>}
           <ol aria-label="Classificação final" className="mt-5 max-h-[50dvh] space-y-2 overflow-y-auto" data-lenis-prevent>
             {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-contrast/6 p-3 text-sm", player.total === maxScore && "bg-selected")}>
               <span className="w-6 shrink-0 text-muted tabular-nums">{standings.findIndex(p => p.total === player.total) + 1}º</span>
@@ -617,7 +629,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Abandonar partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">Um bot assumirá suas cartas e seus pontos. A partida continuará para os demais e você não poderá voltar a controlar esta vaga.</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">Um bot assumirá suas cartas e seus pontos. A partida continuará para os demais e você não poderá voltar a controlar esta vaga.{!!matchInfo?.entryAmount && " Sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
             <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {

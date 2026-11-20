@@ -169,17 +169,19 @@ export const gameMatches = pgTable("game_matches", {
   id: uuid("id").primaryKey().defaultRandom(), code: text("code").notNull().unique(),
   gameId: uuid("game_id").notNull().references(() => games.id), gameSlug: text("game_slug").notNull(),
   createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  entryAmount: bigint("entry_amount", { mode: "bigint" }).notNull().default(sql`0`),
   capacity: integer("capacity").notNull(), options: jsonb("options").notNull(),
   ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   rulesVersion: integer("rules_version").notNull(), version: integer("version").notNull(), status: text("status").notNull(), state: jsonb("state"),
   creationRequestId: uuid("creation_request_id").notNull(), creationHash: text("creation_hash").notNull(), creationResponse: jsonb("creation_response").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [uniqueIndex("match_creation_request").on(table.createdBy, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), check("match_status", sql`${table.status} in ('lobby','playing','finished','abandoned')`), check("match_capacity", sql`${table.capacity} between 2 and 12`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
+}, table => [check("match_entry_range", sql`${table.entryAmount} between 0 and 9007199254740991`), uniqueIndex("match_creation_request").on(table.createdBy, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), check("match_status", sql`${table.status} in ('lobby','playing','finished','abandoned')`), check("match_capacity", sql`${table.capacity} between 2 and 12`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
 export const gameMatchPlayers = pgTable("game_match_players", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }),
+  confirmedEntryAmount: bigint("confirmed_entry_amount", { mode: "bigint" }),
   joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
   seat: integer("seat").notNull(), userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }), controllerId: uuid("controller_id").references(() => users.id, { onDelete: "set null" }), name: text("name").notNull(), kind: text("kind").notNull(),
-}, table => [uniqueIndex("match_seat").on(table.matchId,table.seat), uniqueIndex("match_member").on(table.matchId,table.userId), check("match_seat_valid", sql`${table.seat}>=0`),check("match_player_kind",sql`${table.kind} in ('user','guest','bot')`)]);
+}, table => [check("match_confirmation_range", sql`${table.confirmedEntryAmount} is null or ${table.confirmedEntryAmount} between 1 and 9007199254740991`), uniqueIndex("match_seat").on(table.matchId,table.seat), uniqueIndex("match_member").on(table.matchId,table.userId), check("match_seat_valid", sql`${table.seat}>=0`),check("match_player_kind",sql`${table.kind} in ('user','guest','bot')`)]);
 export const gameMatchCommands = pgTable("game_match_commands", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }), actorId: uuid("actor_id").notNull().references(() => users.id, { onDelete: "cascade" }), commandId: uuid("command_id").notNull(), payloadHash: text("payload_hash").notNull(), response: jsonb("response").notNull(),
 }, table => [uniqueIndex("match_command_once").on(table.matchId,table.actorId,table.commandId)]);
@@ -227,3 +229,17 @@ export const mediaAssets = pgTable("media_assets", {
 }, table => [check("media_state", sql`${table.state} in ('uploading','ready','deleted')`),
   check("media_dimensions", sql`${table.width}>0 and ${table.height}>0 and ${table.bytes}>0`),
   index("media_listing").on(table.state, table.createdAt, table.id)]);
+
+// Independent of operational rooms/users so settlement audit survives deletion.
+export const gameMatchStakes = pgTable("game_match_stakes", {
+  matchId: uuid("match_id").primaryKey(),
+  potAccountId: uuid("pot_account_id").notNull().unique().references(() => walletAccounts.id),
+  entryAmount: bigint("entry_amount", { mode: "bigint" }).notNull(),
+  potTotal: bigint("pot_total", { mode: "bigint" }).notNull(),
+  contributions: jsonb("contributions").notNull(),
+  payouts: jsonb("payouts").notNull().default(sql`'[]'::jsonb`),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  settledAt: timestamp("settled_at", { withTimezone: true }),
+}, table => [check("match_stake_status", sql`${table.status} in ('pending','paid','refunded')`),
+  check("match_stake_amounts", sql`${table.entryAmount}>0 and ${table.potTotal}>=${table.entryAmount} and ${table.potTotal}<=9007199254740991`)]);

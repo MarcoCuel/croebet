@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { createMatchSchema, matchCommandSchema, matchSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
+import { confirmEntrySchema, createMatchSchema, matchCommandSchema, matchSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
 import { createApp } from "../dist/app.js";
 import { authRoutes } from "../dist/modules/auth/routes.js";
 import { flip7Driver } from "../dist/modules/games/flip7/driver.js";
@@ -10,8 +10,12 @@ import { execute } from "../dist/modules/matches/execution.js";
 
 const setup = [{ name: "Impostor", kind: "human" }, { name: "Bot", kind: "normal" }];
 const input = { requestId: randomUUID(), game: "flip7", capacity:6, options: { mode: "classic", brutal: false } };
-test("contratos não aceitam estado do cliente, seed, Croins, comandos internos ou cartas duplicadas", () => {
+test("contratos não aceitam estado do cliente, seed, saldo, comandos internos ou cartas duplicadas", () => {
   assert.ok(createMatchSchema.safeParse(input).success);
+  for(const entryAmount of [0,1,5,Number.MAX_SAFE_INTEGER])assert.ok(createMatchSchema.safeParse({...input,entryAmount}).success);
+  for(const entryAmount of [-1,1.5,Number.MAX_SAFE_INTEGER+1])assert.equal(createMatchSchema.safeParse({...input,entryAmount}).success,false);
+  assert.ok(confirmEntrySchema.safeParse({commandId:randomUUID(),expectedVersion:1,entryAmount:5}).success);
+  assert.equal(confirmEntrySchema.safeParse({commandId:randomUUID(),expectedVersion:1,entryAmount:0}).success,false);
   for (const capacity of [1,13,2.5]) assert.equal(createMatchSchema.safeParse({...input,capacity}).success,false);
   for (const extra of [{ seed: 1 }, { stake: 5 }, { state: {} }, {setup}]) assert.equal(createMatchSchema.safeParse({ ...input, ...extra }).success,false);
   for (const action of [{ type: "step" },{ type: "next" },{type:"replace",seat:0},{ type: "cards", cards: [1,1] },{ type: "draw", card: 10 }]) assert.equal(matchCommandSchema.safeParse({ commandId: randomUUID(), expectedVersion: 1, action }).success,false);

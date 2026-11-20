@@ -1,7 +1,7 @@
 "use client";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Eye, Plus, UserRound } from "lucide-react";
+import { Coins, Eye, Plus, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { GameRecord, CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
@@ -12,13 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
+import { BetInput } from "@/components/ui/bet-input";
+import { formatBalance } from "@/features/wallet/wallet";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
 import type { InitialMatches } from "./server-matches";
 import type { GameOptions } from "./types";
-import { createServerMatch, changeLobby, rememberStart, updateServerLobby } from "./api";
+import { createServerMatch, changeLobby, rememberStart, updateServerLobby, confirmServerEntry } from "./api";
 import { useMatchLive } from "./live";
 import { InvitePlayers } from "./invite-players";
 import { KickPlayer } from "./kick-player";
@@ -34,13 +36,14 @@ function SeatOutline() {
 export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:GameRecord;rules:(options:GameOptions)=>ReactNode}) {
   const router=useRouter();
   const searchParams=useSearchParams();
-  const {userId,username,avatar,openLogin}=useSession();
+  const {userId,username,avatar,openLogin,economy}=useSession();
   const [room,setRoom]=useState<Lobby|null>(initial.lobby);
   const [directory,setDirectory]=useState<LobbyList>(initial.directory);
   const [matches,setMatches]=useState(initial.items);
   const [preferences]=useState(readSetupPreferences);
   const [capacity,setCapacity]=useState(preferences.count);
   const [options,setOptions]=useState<GameOptions>({mode:preferences.mode,brutal:preferences.brutal});
+  const [entryAmount,setEntryAmount]=useState(0);
   const [busy,setBusy]=useState(false);
   const [inviting,setInviting]=useState(searchParams.get("convidar")==="1");
   const [error,setError]=useState(initial.error);
@@ -102,17 +105,20 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=room?.options ?? options;
   const limit=room?.capacity ?? capacity;
+  const entry=room?.entryAmount ?? entryAmount;
+  const confirmed=!!userId && !!room?.confirmedUserIds.includes(userId);
+  const allConfirmed=!entry || !!room?.participants.every(p=>room.confirmedUserIds.includes(p.userId));
   const seats=room?[...room.participants,...room.pendingInvitations]:[];
   const occupied=room?seats.length:1;
   const allOnline=!!room && room.pendingInvitations.length===0 && room.participants.every(p=>room.onlineUserIds.includes(p.userId));
   const showSettings=!!userId && (!room || host);
   const canEdit=showSettings && !busy && (!room || connected);
 
-  async function configure(nextOptions:GameOptions,nextCapacity:number){
+  async function configure(nextOptions:GameOptions,nextCapacity:number,nextEntry=entry){
     if(!canEdit)return;
-    if(!room){setOptions(nextOptions);setCapacity(nextCapacity);return;}
+    if(!room){setOptions(nextOptions);setCapacity(nextCapacity);setEntryAmount(nextEntry);return;}
     setBusy(true);setError("");
-    const payload={capacity:nextCapacity,options:nextOptions,expectedVersion:room.version};
+    const payload={capacity:nextCapacity,options:nextOptions,entryAmount:nextEntry,expectedVersion:room.version};
     if(!pendingUpdate.current || JSON.stringify({...pendingUpdate.current,commandId:undefined})!==JSON.stringify(payload))pendingUpdate.current={...payload,commandId:randomUUID()};
     try{
       const response=await updateServerLobby(room.code,pendingUpdate.current);
@@ -121,6 +127,15 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
         acceptLobby(response);setOptions(response.options);setCapacity(response.capacity);
       }
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível alterar a sala.");}
+    finally{setBusy(false);}
+  }
+  async function confirmEntry(){
+    if(!room || busy || !entry)return;
+    setBusy(true);setError("");
+    try{
+      const response=await confirmServerEntry(room.code,{commandId:randomUUID(),expectedVersion:room.version,entryAmount:entry});
+      if(response.status==="lobby")acceptLobby(response);
+    }catch(e){setError(e instanceof Error?e.message:"Não foi possível confirmar a entrada.");}
     finally{setBusy(false);}
   }
   async function act(lobby:Lobby,action:"join"|"leave"|"start"){
@@ -159,7 +174,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
-    const payload={game:"flip7" as const,capacity:room?.capacity ?? capacity,options:room?.options ?? options};
+    const payload={game:"flip7" as const,capacity:room?.capacity ?? capacity,options:room?.options ?? options,entryAmount:room?.entryAmount ?? entryAmount};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
     try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;setCapacity(lobby.capacity);setOptions(lobby.options);acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
@@ -173,6 +188,10 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       <fieldset disabled={!canEdit} className="space-y-4">
         <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label="Modo do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit)}/></Field>}
+        <div className="min-w-0 space-y-4 rounded-xl border border-line p-4" role="group" aria-label="Aposta da partida">
+          <Field className="grid-cols-[1fr_auto] items-center gap-3">Jogar apostando<Switch aria-label="Jogar apostando" checked={entry>0} disabled={!economy && !entry} onCheckedChange={enabled=>{if(!enabled || economy)void configure(settings,limit,enabled?economy!.defaultBet:0);}}/></Field>
+          {entry>0 && <BetInput label="Entrada por jogador" value={entry} presets={economy?.suggestedBets ?? []} disabled={!canEdit} onValueChange={amount=>void configure(settings,limit,amount)}/>}
+        </div>
       </fieldset>
       {rules(settings)}
     </Card>}
@@ -180,6 +199,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       {showSettings?<fieldset disabled={!canEdit}>
         <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
       </fieldset>:<div className="flex flex-wrap items-center gap-2" aria-label="Modo da sala"><Badge variant="secondary">{settings.mode==="classic"?"Clássico":"Vingança"}</Badge>{settings.brutal && <Badge>Brutal</Badge>}</div>}
+      {entry>0 && <div className="space-y-2 rounded-lg bg-contrast/6 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span>Entrada por jogador</span><span className="flex items-center gap-2 tabular-nums"><Coins className="size-4 text-brand" aria-hidden="true"/>{formatBalance.format(entry)} Croins</span></div><p className="text-xs text-muted">Pote com {room?.participants.length ?? 1} jogadores: {formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins. Cobrança ao iniciar.</p><p className="text-xs text-muted">Vencedores dividem o pote, sem taxa. Prêmios de vagas com bot vão para a casa.</p></div>}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
           const person=seats[i];
@@ -201,6 +221,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
               {isHost && <span className="absolute -top-3 -left-1" title="Host"><Image src="/host.svg" width={25} height={24} className="h-6 w-auto" alt="Host"/></span>}
             </div>
             <span className={cn("w-full truncate text-center text-xs font-medium",isHost?"text-brand":!name && "text-muted")} title={waiting?`${name} · Aguardando entrada`:name ?? undefined}>{name ?? "Disponível"}</span>
+            {entry>0 && person && room?.participants.some(p=>p.userId===person.userId) && <span className="text-center text-xs text-muted">{room.confirmedUserIds.includes(person.userId)?"Confirmado":"A confirmar"}</span>}
             {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={person.username} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
           </li>;
         })}
@@ -208,12 +229,14 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="space-y-3">
+        {room && member && entry>0 && !confirmed && <Button className="w-full" variant="secondary" loading={busy} disabled={busy || !connected} onClick={()=>void confirmEntry()}>Confirmar entrada de {formatBalance.format(entry)} Croins</Button>}
         {!room?<Button className="w-full" loading={busy} disabled={!!directory.owned || !!directory.active || (!!userId && !connected)} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
           :!member?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || !!directory.active} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
           :<div className="flex items-center gap-3">
-            <Button className="min-w-0 flex-1" loading={busy} disabled={busy || !connected || !host || room.participants.length<2 || !allOnline} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
+            <Button className="min-w-0 flex-1" loading={busy} disabled={busy || !connected || !host || room.participants.length<2 || !allOnline || !allConfirmed} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
             <Button className="shrink-0" variant="secondary" disabled={busy || !connected} onClick={()=>void act(room,"leave")}>Cancelar</Button>
           </div>}
+        {room && host && entry>0 && !allConfirmed && <p className="text-sm text-muted" role="status">Aguardando todos confirmarem o valor da entrada.</p>}
         {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
         {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}
         {userId && room && !directory.owned && !directory.active && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
@@ -228,7 +251,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
           const joined=lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
           return <li key={lobby.code}><Card className="h-full space-y-5">
-            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}</div>
+            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary">{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
@@ -243,7 +266,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     </section>
     {matches.length>0 && <section className="min-w-0 space-y-5 xl:col-span-3" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{matches.map(match=>{
       const playing=!!userId && match.controllerIds.includes(userId);
-      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
+      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}{match.entryAmount>0 && <Badge variant="secondary">{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
     })}</ul></section>}
     </div>
     {!userId && !room && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
