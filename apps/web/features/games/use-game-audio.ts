@@ -25,6 +25,7 @@ function subscribe(listener: () => void) {
 }
 
 const sounds = {
+  notification: ["notification"],
   slide: [defaultCardSound],
   discard: ["card-shove-4"],
   entry: ["chip-lay-1", "chip-lay-2", "chip-lay-3"],
@@ -32,7 +33,7 @@ const sounds = {
 };
 type Sound = keyof typeof sounds;
 
-export function useGameAudio() {
+export function useGameAudio(scope: "game" | "notifications" = "game") {
   const settings = useSyncExternalStore(subscribe, () => preferences, () => defaults);
   const engine = useRef<{ context: AudioContext; gain: GainNode; player: ReturnType<typeof createGameAudioPlayer> } | null>(null);
   const buffers = useRef(new Map<string, ReturnType<typeof prepareAudioCue>>());
@@ -55,8 +56,9 @@ export function useGameAudio() {
         gain.gain.value = preferences.muted ? 0 : preferences.volume / 100;
         // Fetch only after interaction. Playback never waits for a download,
         // so a delayed load cannot make an old action sound later.
-        for (const name of new Set([...Object.values(sounds).flat(), preferences.cardSound])) {
-          void fetch(`/audio/cards/Audio/${name}.ogg`, { signal: controller.signal })
+        for (const name of new Set(scope === "notifications" ? sounds.notification : [...Object.values(sounds).flat(), preferences.cardSound])) {
+          const url = name === "notification" ? "/audio/notification.mp3" : `/audio/cards/Audio/${name}.ogg`;
+          void fetch(url, { signal: controller.signal })
             .then(response => { if (!response.ok) throw new Error("Audio unavailable"); return response.arrayBuffer(); })
             .then(data => context.decodeAudioData(data))
             .then(buffer => { if (!disposed) buffers.current.set(name, prepareAudioCue(buffer)); })
@@ -87,7 +89,7 @@ export function useGameAudio() {
       engine.current = null;
       if (audio) void audio.context.close().catch(() => {});
     };
-  }, [stop]);
+  }, [stop, scope]);
 
   useEffect(() => {
     const audio = engine.current;

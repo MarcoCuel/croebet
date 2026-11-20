@@ -546,6 +546,22 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
   },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds]);
 
+  const notifiedTurn = useRef<string | null>(null);
+  const turnSeat = game ? game.bonusChoice ?? game.pending?.source ?? game.turn : -1;
+  const turnOwner = matchInfo?.participants.find(person => person.seat === turnSeat)?.userId;
+  const ownsTurn = !replay && game?.phase === "playing" && turnOwner === userId && userId != null && game.players[turnSeat]?.kind === "human";
+  const turnKey = ownsTurn ? `${game.round}:${turnSeat}` : null;
+  const turnReady = ownsTurn && connected && !busy && !frames.length && !commandError && !flight && !movingCards && !resolvingCardFinished &&
+    (game.bonusChoice != null || !!game.pending || (!game.forced && game.players[game.turn].hasDrawn && !(game.mode === "vengeance" && game.players[game.turn].cards.some(card => card.type === "zero"))));
+  useEffect(() => {
+    if (!ownsTurn) { notifiedTurn.current = null; return; }
+    // Busy, animation and connection changes during the same turn must not
+    // announce it again. Wait until the confirmed action is available.
+    if (!turnReady || notifiedTurn.current === turnKey) return;
+    notifiedTurn.current = turnKey;
+    playSound("notification");
+  }, [ownsTurn, turnReady, turnKey, playSound]);
+
   if (!game) return null;
   const tableParticipants = replay?.metadata.participants ?? matchInfo?.participants ?? initial.match?.participants ?? [];
   const displayGame = gameWithPlayerNames(game, tableParticipants);
@@ -691,7 +707,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
                 && player.cards.some(card => card.type === "number" && card.value === 7);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id} data-resolving-action={resolvingCard?.card.id === card.id || undefined}
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
-                <div className={cn(sixSeven && card.type === "number" && (card.value === 6 || card.value === 7) && "motion-safe:animate-flip-six-seven")} style={{ animationDirection: card.type === "number" && card.value === 7 ? "reverse" : undefined }}>
+                <div className={cn(sixSeven && card.type === "number" && (card.value === 6 || card.value === 7) && "motion-safe:animate-flip-six-seven")} style={{ animationDelay: card.type === "number" && card.value === 7 ? "-1.2s" : undefined }}>
                 <PlayingCard card={card} flipped={flipped && card.id !== resolvingCard?.card.id && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={sideways && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
                 </div>
                 {!resolvingCardFinished && !flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-brand hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {

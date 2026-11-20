@@ -83,9 +83,8 @@
   }
 
   @keyframes flip-six-seven {
-    0%, 50%, 100% { transform: translateY(0); }
-    25% { transform: translateY(-0.25rem); }
-    75% { transform: translateY(0.25rem); }
+    0%, 100% { transform: translateY(-0.25rem); }
+    50% { transform: translateY(0.25rem); }
   }
 
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(255 255 255 / 10%);

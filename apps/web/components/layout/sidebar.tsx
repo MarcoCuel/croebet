@@ -60,7 +60,7 @@ export function Sidebar({
                   className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
                 >
                   <Link href="/carteira" aria-label="Ver carteira">
-                    <Balance key={username} value={walletReady ? balance : null} />
+                    <Balance key={username} value={walletReady ? balance : null} showCurrency />
                   </Link>
                 </Button>
                 <RedeemButton />

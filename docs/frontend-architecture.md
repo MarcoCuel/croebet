@@ -58,6 +58,7 @@ A página `/rankings` carrega os três rankings na API durante SSR, sem cache co
 - Preserve gradiente e sombra interna dos primários/Croin. Foco de controles altera apenas a borda; sem focus rings ou bordas coloridas decorativas nos modais/dropdowns.
 - Preserve layout, imagens, textos e comportamento ao refatorar. Página entra diretamente, sem animação de entrada; Lenis e GSAP respeitam `prefers-reduced-motion`. Cancele timers/timelines ao desmontar.
 - Valores em Croins usam o ícone próprio `components/shared/croin-icon.tsx`, compartilhado com o saldo; não usar ícones monetários do Lucide para representar Croins.
+- A navbar exibe Gift ao lado das notificações quando o bônus diário está disponível para o usuário logado. O botão reutiliza o resgate da sessão e desaparece após a confirmação; o prazo informado pela API também libera o ícone sem recarregar a página.
 - Saldos de usuário usam `BalanceValue`/`Balance`: primeira exibição mostra o total; alterações animam por 1 segundo com ease out e indicação da diferença. Resgate de cupom fecha o modal antes de atualizar o saldo. Não duplicar animação nos consumidores.
 
 ## Administração e conteúdo

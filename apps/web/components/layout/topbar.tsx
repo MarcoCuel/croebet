@@ -8,6 +8,7 @@ import { useSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
 import { Balance } from "@/features/wallet/balance";
 import { RedeemButton } from "@/features/wallet/redeem-button";
+import { DailyBonusButton } from "@/features/wallet/daily-bonus-button";
 import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
@@ -147,7 +148,7 @@ export function Topbar({
               className="min-h-0 min-w-0 shrink px-0.5 py-0 font-normal text-foreground"
             >
               <Link href="/carteira" aria-label="Ver carteira">
-                <Balance key={username} value={walletReady ? balance : null} />
+                <Balance key={username} value={walletReady ? balance : null} showCurrency />
               </Link>
             </Button>
             <RedeemButton />
@@ -159,9 +160,10 @@ export function Topbar({
               className="min-w-0 shrink px-2 font-normal md:hidden"
             >
               <Link href="/carteira" aria-label="Ver carteira">
-                <Balance key={username} value={walletReady ? balance : null} />
+                <Balance key={username} value={walletReady ? balance : null} showCurrency />
               </Link>
             </Button>
+            <DailyBonusButton />
             <NotificationsMenu />
             <AccountMenu name={username} />
           </div>

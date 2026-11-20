@@ -1,4 +1,5 @@
 "use client";
+import { useGameAudio } from "../use-game-audio";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function useLobbyInvitations() {
   const {userId}=useSession();
+  const {play}=useGameAudio("notifications");
   const [inbox,setInbox]=useState<{userId:string;data:LobbyInvitations}|null>(null);
   useEffect(()=>{
     if(!userId)return;
@@ -28,6 +30,7 @@ export function useLobbyInvitations() {
       for(const invite of data.items)if(!shown.has(invite.code)){
         const id=toast.custom(()=> <div role="alert" className="min-w-0 flex-1"><Invitation invite={invite} onRespond={()=>toast.dismiss(id)}/></div>,{duration:Infinity});
         shown.set(invite.code,id);
+        play("notification");
       }
     }
     async function refresh(){
@@ -41,7 +44,7 @@ export function useLobbyInvitations() {
     const timer=window.setInterval(()=>void refresh(),15000);
     document.addEventListener("visibilitychange",refresh);
     return()=>{active=false;window.clearInterval(timer);document.removeEventListener("visibilitychange",refresh);socket.off("invitations",receive).off("connect",refresh);for(const id of shown.values())toast.dismiss(id);release();};
-  },[userId]);
+  },[userId,play]);
   const items=inbox?.userId===userId?inbox.data.items:[];
   return items;
 }

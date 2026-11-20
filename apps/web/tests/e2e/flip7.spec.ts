@@ -540,7 +540,7 @@ test("six seven oscila em sentidos opostos apenas com o par e respeita movimento
   const offsets = await page.locator("[data-hand-card]").evaluateAll(elements => elements.map(element => {
     const animation = element.getAnimations({ subtree: true })[0];
     if (!animation) return 0;
-    animation.pause(); animation.currentTime = 600;
+    animation.pause(); animation.currentTime = 0;
     const target = (animation.effect as KeyframeEffect).target as HTMLElement;
     return new DOMMatrix(getComputedStyle(target).transform).m42;
   }));

@@ -60,11 +60,14 @@ export function BalanceValue({ value }: { value: number | null }) {
   );
 }
 
-export function Balance({ value }: { value: number | null }) {
+export function Balance({ value, showCurrency = false }: { value: number | null; showCurrency?: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-2 tabular-nums">
       <CroinIcon />
-      <BalanceValue value={value} />
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        <BalanceValue value={value} />
+        {showCurrency && <span aria-hidden="true">{value === 1 ? "Croin" : "Croins"}</span>}
+      </span>
     </span>
   );
 }
