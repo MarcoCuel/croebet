@@ -51,6 +51,7 @@ export function Topbar({
           ? "Editar jogo"
           : (
               {
+                [adminRoutes.seo]: "Configurações",
                 "/admin/cupons": "Cupons",
                 "/admin/jogos": "Jogos",
                 "/admin/apostas": "Apostas",

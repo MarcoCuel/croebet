@@ -23,5 +23,5 @@ export default async function AdminUserPage({
   }
   if (!resourceIdSchema.safeParse(id).success) notFound();
   const data = await getManagement(`/admin/users/${id}`, adminUserDetailSchema);
-  return <AdminAccess section="users" content={data ? <AdminUserDetail key={`${data.user.id}:${data.user.role}:${data.user.status}:${data.user.balance}:${data.audit.items[0]?.id}`} initial={data} /> : <ManagementUnavailable />} />;
+  return <AdminAccess section="users" content={data ? <AdminUserDetail key={`${data.user.id}:${data.user.username}:${data.user.displayName}:${data.user.role}:${data.user.status}:${data.user.balance}:${data.audit.items[0]?.id}`} initial={data} /> : <ManagementUnavailable />} />;
 }

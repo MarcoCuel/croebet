@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { z } from "zod";
 import { adminUserSchema, adminUsersSchema, auditPageSchema, couponSchema, couponsSchema, redemptionsSchema,
-  type adminQuerySchema, type userChangeSchema, type balanceAdjustmentSchema, type couponWriteSchema, type couponsQuerySchema } from "@croebet/shared";
+  type adminUserIdentitySchema, type adminQuerySchema, type userChangeSchema, type balanceAdjustmentSchema, type couponWriteSchema, type couponsQuerySchema } from "@croebet/shared";
 import { avatarUrl } from "../avatars/storage.ts";
 import { transferCroinsInTransaction } from "../wallet/service.ts";
 import { issuanceAccountId } from "../economy/config.ts";
@@ -74,6 +74,30 @@ export async function changeUser(pool: Pool, actorId: string, hash: string, targ
     await client.query("update users set role=$1,status=$2 where id=$3", [input.role, input.status, targetId]);
     if (input.status === "suspended") await client.query("delete from sessions where user_id=$1", [targetId]);
     await audit(client, actorId, targetId, "user.permissions", input.reason, { before: { role: target!.role, status: target!.status }, after: { role: input.role, status: input.status } });
+  });
+}
+export async function changeUserIdentity(pool: Pool, actorId: string, hash: string, targetId: string, input: z.infer<typeof adminUserIdentitySchema>) {
+  await adminTransaction(pool, actorId, hash, targetId, async client => {
+    // adminTransaction holds the account locks through validation, update and audit.
+    const before = (await client.query("select username,display_name from users where id=$1", [targetId])).rows[0];
+    if (before.username !== input.expectedUsername || before.display_name !== input.expectedDisplayName) {
+      throw new ManagementError(409, "VERSION_CONFLICT", "O usuário foi alterado. Recarregue antes de salvar.");
+    }
+    if (before.username === input.username && before.display_name === input.displayName) return;
+    try {
+      await client.query(`update users set display_name=$1,
+        username_changed_at=case when username<>$2 then clock_timestamp() else username_changed_at end,
+        username=$2 where id=$3`, [input.displayName, input.username, targetId]);
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "23505") {
+        throw new ManagementError(409, "USERNAME_TAKEN", "Este nome de usuário já está em uso.");
+      }
+      throw error;
+    }
+    await audit(client, actorId, targetId, "user.identity", "", {
+      before: { displayName: before.display_name, username: before.username },
+      after: { displayName: input.displayName, username: input.username },
+    });
   });
 }
 export async function adjustBalance(pool: Pool, actorId: string, hash: string, targetId: string, input: z.infer<typeof balanceAdjustmentSchema>) {

@@ -20,7 +20,7 @@ export function AdminSeo({ initial }: { initial: SeoSettings }) {
     catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível salvar."); }
     finally { setPending(false); }
   }}>
-    <div className="flex items-center justify-between gap-4"><h1 className="text-xl font-semibold">SEO</h1><Button type="submit" loading={pending}>Salvar alterações</Button></div>
+    <div className="flex items-center justify-between gap-4"><h1 className="text-xl font-semibold">Configurações</h1><Button type="submit" loading={pending}>Salvar alterações</Button></div>
     <Card className="grid gap-5"><h2 className="font-medium">Padrões do site</h2>
       <Field>Nome do site<Input required value={value.siteName} maxLength={80} onChange={e => setValue({ ...value, siteName: e.target.value })} /></Field>
       <Field>Formato dos títulos<Input value={value.titleTemplate} maxLength={200} onChange={e => setValue({ ...value, titleTemplate: e.target.value })} /></Field>

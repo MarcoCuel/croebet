@@ -37,7 +37,7 @@ export function AuditHistory({ targetId, initial }: { targetId: string; initial:
   const [loading, setLoading] = useState(false);
   return <Card className="min-w-0"><h2 className="font-semibold">Registro administrativo</h2>
     <ul className="mt-4 divide-y divide-contrast/6">{data.items.map((item: ReturnType<typeof auditSchema.parse>) => <li key={item.id} className="grid gap-1 py-4 text-sm">
-      <p className="font-medium">{({ "user.permissions": "Permissão ou status alterado", "wallet.adjustment": "Ajuste de Croins", "coupon.created": "Cupom criado", "coupon.updated": "Cupom atualizado" } as Record<string, string>)[item.action] ?? item.action}</p>
+      <p className="font-medium">{({ "user.permissions": "Permissão ou status alterado", "user.identity": "Nome ou usuário alterado", "wallet.adjustment": "Ajuste de Croins", "coupon.created": "Cupom criado", "coupon.updated": "Cupom atualizado" } as Record<string, string>)[item.action] ?? item.action}</p>
       {item.reason && <p className="break-words">{item.reason}</p>}<p className="text-xs text-muted">{item.actorUsername ? `@${item.actorUsername}` : "Conta removida"} · {adminDate(item.createdAt)}</p>
       {item.action === "wallet.adjustment" && <p className="text-xs text-muted">{item.details.direction === "add" ? "+" : "−"}{String(item.details.amount)} Croins</p>}
     </li>)}</ul>

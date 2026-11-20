@@ -72,6 +72,12 @@ export const adminQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 }).strict();
+export const adminUserIdentitySchema = z.object({
+  displayName: profileSchema.shape.displayName,
+  username: usernameSchema,
+  expectedDisplayName: z.string(),
+  expectedUsername: usernameSchema,
+}).strict();
 export const userChangeSchema = z.object({ role: roleSchema, status: userStatusSchema, expectedRole: roleSchema, expectedStatus: userStatusSchema, reason: reasonSchema }).strict();
 export const balanceAdjustmentSchema = z.object({ requestId: z.uuid(), direction: z.enum(["add", "remove"]), amount: couponAmountSchema, reason: reasonSchema }).strict();
 export const adminUserSchema = z.object({

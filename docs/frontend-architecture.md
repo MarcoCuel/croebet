@@ -31,6 +31,7 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 
 - Procure em `components/ui` e `components/shared` antes de criar. Adaptação de um domínio fica na feature; padrão visual comum vai para shared; controle genérico vai para ui. Não instalar primitives sem uso.
 - Use `Button`, `Input`, `PasswordInput`, `Field`, `Card`, `Dialog`, `DropdownMenu`, `Tooltip` e `toast` do Sonner. Busca usa `SearchInput`; seleção de ícone usa `IconPicker`. O código do primitive é a referência de props/variantes.
+- `components/shared/editable-row.tsx` apresenta rótulo, valor e lápis com modal controlado. Configurações de conta e dados do usuário no admin reutilizam a mesma linha; formulário, validação e salvamento permanecem na feature. Não duplicar esse layout em cada tela.
 - Sem `button`, `input`, `textarea` ou `select` nativos fora de ui; lint aplica isso às telas/componentes de produto. Links com aparência de botão: `<Button asChild><Link href="...">...</Link></Button>`; não aninhar controles interativos.
 - Variantes reutilizáveis com CVA; classes com `cn()` para permitir overrides. Ações usam `loading`/`disabled`. Campos/botões padrão têm altura mínima de 2.75rem, permitindo quebra e ampliação de fonte.
 - Modais de formulário: título, campos com labels e botões; sem descrições, ícones decorativos ou textos auxiliares permanentes. Validação aparece quando necessária. Sem descrição, use `aria-describedby={undefined}` em `DialogContent`.
@@ -51,7 +52,7 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 ## Administração e conteúdo
 
 - Layout de `/admin` consulta sessão/papel no servidor; API autoriza cada operação. Seções e URLs ficam em `features/admin/routes.ts`. Entidades existentes usam UUID na interna; slugs só nos endereços públicos.
-- Listagens reutilizam `AdminListHeader`, busca/filtros e uma superfície com linhas/divisórias, no padrão existente. Sidebar administrativa e painéis laterais de edição usam sticky abaixo da navbar quando há espaço.
+- Listagens reutilizam `AdminListHeader`, busca/filtros e uma superfície com linhas/divisórias, no padrão existente. Na listagem de jogos, toda a linha abre a interna pelo UUID; exibe capa, nome e status, sem slug ou ações de edição/ativação na lista. Sidebar administrativa e painéis laterais de edição usam sticky abaixo da navbar quando há espaço.
 - O topo público de entrada usa `features/games/game-entry-header.tsx`, compartilhável pelos jogos e visível também para contas autenticadas, com nome e descrição vindos do catálogo administrativo. O botão de login aparece somente para visitantes; o header aceita ações do jogo, como o botão de regras para visitantes. O lobby usa toda a largura disponível, com três colunas em telas largas e blocos empilhados no mobile. Descrição vazia não exibe texto substituto; regras, tabuleiro e configurações específicas permanecem na feature do jogo.
 - Páginas, jogos, apostas, usuários, cupons e menus carregam pela API; visão geral também. Não montar novamente o provider de configuração demo global.
 - `RichTextEditor` carrega BlockNote dinamicamente sem SSR, apenas no admin. Schema do editor e `lib/blocknote-content.ts` limitam recursos ao documento rico compartilhado; público usa renderização React validada, sem HTML arbitrário e sem BlockNote no bundle.

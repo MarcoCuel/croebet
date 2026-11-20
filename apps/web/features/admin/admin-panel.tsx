@@ -6,7 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   FileText,
-  Search,
+  Settings,
   Ticket,
   LayoutDashboard,
   PlayingCards,
@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
 
 const sections = [
-  { id: "seo", label: "SEO", Icon: Search },
   { id: "overview", label: "Visão geral", Icon: LayoutDashboard },
   { id: "games", label: "Jogos", Icon: PlayingCards },
   { id: "markets", label: "Apostas", Icon: Tickets },
@@ -26,6 +25,7 @@ const sections = [
   { id: "users", label: "Usuários", Icon: Users },
   { id: "pages", label: "Páginas", Icon: FileText },
   { id: "menus", label: "Menus", Icon: ListTree },
+  { id: "seo", label: "Configurações", Icon: Settings },
 ] as const;
 
 export function AdminPanel({

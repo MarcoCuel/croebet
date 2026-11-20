@@ -19,7 +19,7 @@ import { seoSettingsSchema } from "@croebet/shared";
 import { AdminSeo } from "@/features/admin/admin-seo";
 
 const titles = {
-  seo: "SEO",
+  seo: "Configurações",
   overview: "Visão geral",
   games: "Jogos",
   markets: "Apostas",

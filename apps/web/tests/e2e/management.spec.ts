@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 
@@ -33,6 +34,11 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
     const q = (query.get("q") ?? "").toLowerCase(); const status = query.get("status") ?? "all";
     const items = user.username.toLowerCase().includes(q) && (status === "all" || status === user.status) ? [user] : [];
     return { items, total: items.length, hasMore: false, counts: { all: user.username.toLowerCase().includes(q) ? 1 : 0, active: user.username.toLowerCase().includes(q) && user.status === "active" ? 1 : 0, suspended: user.username.toLowerCase().includes(q) && user.status === "suspended" ? 1 : 0 } };
+  }
+  if (path === `/api/v1/admin/users/${userId}/identity` && method === "PATCH") {
+    lastBody=body;user={...user,displayName:String(body.displayName),username:String(body.username)};
+    audit.unshift({id:randomUUID(),actorId:adminId,actorUsername:"Marco",action:"user.identity",reason:"",details:{},createdAt:new Date().toISOString()});
+    return {ok:true};
   }
   if (path === `/api/v1/admin/users/${userId}` && method === "PATCH") {
     lastBody = body; user = { ...user, role: String(body.role), status: String(body.status) };
@@ -84,7 +90,7 @@ test("lista de usuários reais já está no HTML sem JavaScript", async ({ brows
 });
 test("alteração de permissão envia motivo e estado esperado ao backend", async ({ page }) => {
   await page.goto(`/admin/usuarios/${userId}`);
-  await page.getByRole("button", { name: "Editar permissão e status" }).click();
+  await page.getByRole("button", { name: "Editar permissão", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: /^Permissão/ }).selectOption("admin");
   await dialog.getByLabel("Motivo").fill("Equipe de moderação");
@@ -157,4 +163,28 @@ test("pausa do cupom envia versão e motivo e permanece após reload", async ({ 
   await expect(page.getByText("Pausado", { exact: true })).toBeVisible();
   expect(lastBody.version).toBe(0); expect(lastBody.paused).toBe(true);
   await page.reload(); await expect(page.getByLabel("Cupom pausado")).toBeChecked();
+});
+
+test("linhas editáveis alteram nome e usuário pelo admin", async ({page}) => {
+  await page.goto(`/admin/usuarios/${userId}`);
+  await page.getByRole("button",{name:"Editar nome",exact:true}).click();
+  let dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Nome",{exact:true}).fill("Tonho da comunidade");
+  await dialog.getByRole("button",{name:"Salvar alterações"}).click();
+  await expect(page.getByRole("heading",{name:"Tonho da comunidade",exact:true})).toBeVisible();
+  expect(lastBody.expectedDisplayName).toBe("Tonho");expect(lastBody.username).toBe("Tonho");
+  await page.getByRole("button",{name:"Editar nome de usuário",exact:true}).click();
+  dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Nome de usuário",{exact:true}).fill("Tonho_Novo");
+  await dialog.getByRole("button",{name:"Salvar alterações"}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(lastBody.expectedUsername).toBe("Tonho");expect(lastBody.displayName).toBe("Tonho da comunidade");
+  await page.reload();
+  await expect(page.getByText("@Tonho_Novo",{exact:true}).first()).toBeVisible();
+  await page.getByRole("button",{name:"Editar status",exact:true}).click();
+  dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Status",{exact:true}).selectOption("suspended");
+  await dialog.getByRole("button",{name:"Salvar alterações"}).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(lastBody.role).toBe("user");expect(lastBody.status).toBe("suspended");
 });

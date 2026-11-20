@@ -63,7 +63,11 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   await page.getByRole("searchbox", { name: "Buscar jogos no admin" }).fill("roleta");
   await expect(page.getByText("Nenhum jogo encontrado.")).toBeVisible();
   await page.getByRole("searchbox", { name: "Buscar jogos no admin" }).fill("");
-  await list.getByRole("link", { name: "Editar", exact: true }).click();
+  await expect(list.getByRole("button")).toHaveCount(0);
+  await expect(list.getByText("/jogos/flip7", { exact: true })).toHaveCount(0);
+  const gameLink = list.getByRole("link", { name: "Flip 7", exact: true });
+  // Click the row padding, away from the title and cover.
+  await gameLink.click({ position: { x: 5, y: 5 } });
   await expect(page).toHaveURL(`/admin/jogos/${id}`);
   await expect(page.getByLabel("Imagem de capa")).toHaveValue("");
   await page.getByLabel("Nome do jogo").fill("Flip da comunidade");
@@ -78,14 +82,20 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   await publicPage.goto("/jogos");
   await expect(publicPage.getByRole("link", { name: "Flip da comunidade" })).toBeVisible();
   await expect(publicPage.getByRole("main").locator("img")).toHaveCount(0);
-  await list.getByRole("button", { name: "Pausar" }).click();
+  await list.getByRole("link", { name: "Flip da comunidade", exact: true }).click();
+  await page.getByRole("switch", { name: "Jogo ativo" }).uncheck();
+  await page.getByRole("button", { name: "Salvar jogo" }).click();
+  await expect(page).toHaveURL("/admin/jogos");
   await expect(list.getByText("Inativo", { exact: true })).toBeVisible();
   expect(game.description).toBe("Compre cartas com seus amigos.");
   await publicPage.reload();
   await expect(publicPage.getByText("Nenhum jogo disponível.")).toBeVisible();
   await publicPage.goto("/jogos/flip7");
   await expect(publicPage.getByRole("heading", { name: "404", exact: true })).toBeVisible();
-  await list.getByRole("button", { name: "Ativar" }).click();
+  await list.getByRole("link", { name: "Flip da comunidade", exact: true }).click();
+  await page.getByRole("switch", { name: "Jogo ativo" }).check();
+  await page.getByRole("button", { name: "Salvar jogo" }).click();
+  await expect(page).toHaveURL("/admin/jogos");
   await expect(list.getByText("Ativo", { exact: true })).toBeVisible();
   await visitor.close();
 });

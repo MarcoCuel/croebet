@@ -1,23 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
-import { gameSchema, type GameRecord } from "@croebet/shared";
+import { type GameRecord } from "@croebet/shared";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
 import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
-import { managementRequest } from "@/features/admin/management-api";
 import { GameCover } from "@/features/games/game-cover";
 
 export function AdminGames({ games }: { games: GameRecord[] }) {
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
-  const [pending, setPending] = useState<string | null>(null);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
   const matches = (game: GameRecord, value: string) => value === "all" || game.enabled === (value === "active");
   const visible = games.filter(game => matches(game, status) && normalize(game.name).includes(normalize(search.trim())));
@@ -30,31 +25,16 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
     </>} search={<SearchInput aria-label="Buscar jogos no admin" placeholder="Buscar jogos…" value={search} onChange={event => setSearch(event.target.value)} />} />
     <Card className="overflow-hidden p-0 sm:p-0">
       {visible.length ? <ul aria-label="Jogos" className="divide-y divide-contrast/6">
-        {visible.map(game => <li key={game.slug} className="flex flex-wrap items-center gap-x-5 gap-y-3 p-5">
-          <div className="flex min-w-0 flex-1 basis-48 items-center gap-4">
+        {visible.map(game => <li key={game.id}>
+          <Link href={`/admin/jogos/${game.id}`} aria-label={game.name} className="flex items-center gap-4 p-5 transition-colors hover:bg-contrast/4 focus-visible:bg-contrast/4 focus-visible:outline-none">
             <div className="size-14 shrink-0">
               <GameCover imageUrl={game.imageUrl} name={game.name} iconClassName="size-4" />
             </div>
-            <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link className="break-words font-semibold hover:underline" href={`/admin/jogos/${game.id}`}>{game.name}</Link>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <span className="break-words font-semibold">{game.name}</span>
               <Badge variant={game.enabled ? "default" : "secondary"}>{game.enabled ? "Ativo" : "Inativo"}</Badge>
             </div>
-            <p className="mt-1 text-xs text-muted">/jogos/{game.slug}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild size="sm" variant="outline"><Link href={`/admin/jogos/${game.id}`}>Editar</Link></Button>
-            <Button size="sm" variant="outline" loading={pending === game.slug} disabled={!!pending} onClick={async () => {
-              if (pending) return;
-              setPending(game.slug);
-              try {
-                await managementRequest(`/admin/games/${game.id}`, gameSchema, "PATCH", { name: game.name, description: game.description, seo: game.seo, imageUrl: game.imageUrl, enabled: !game.enabled, version: game.version });
-                toast.success(game.enabled ? "Jogo pausado." : "Jogo ativado."); router.refresh();
-              } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar o jogo."); }
-              finally { setPending(null); }
-            }}>{game.enabled ? "Pausar" : "Ativar"}</Button>
-          </div>
+          </Link>
         </li>)}
       </ul> : <p className="p-5 text-sm text-muted">Nenhum jogo encontrado.</p>}
     </Card>

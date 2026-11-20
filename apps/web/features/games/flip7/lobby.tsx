@@ -168,7 +168,6 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     <GameEntryHeader game={game} actions={!userId?rules(settings):undefined}/>
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
     {showSettings && <Card className="min-w-0 space-y-5" aria-label="Configuração e regras">
-      <Heading variant="section">Configuração</Heading>
       <fieldset disabled={!canEdit} className="space-y-4">
         <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label="Modo do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit)}/></Field>}
@@ -179,7 +178,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       {showSettings?<fieldset disabled={!canEdit}>
         <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
       </fieldset>:<div className="flex flex-wrap items-center gap-2" aria-label="Modo da sala"><Badge variant="secondary">{settings.mode==="classic"?"Clássico":"Vingança"}</Badge>{settings.brutal && <Badge>Brutal</Badge>}</div>}
-      <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 xl:grid-cols-3" aria-label="Vagas da sala">
+      <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
           const person=seats[i];
           const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || (person.userId!==userId && !room.onlineUserIds.includes(person.userId)));

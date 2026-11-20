@@ -1,8 +1,9 @@
 "use client";
 
+import { EditableRow } from "@/components/shared/editable-row";
 import { toast } from "sonner";
 import { useEffect, useId, useState } from "react";
-import { Monitor, Moon, Pencil, Sun, X } from "lucide-react";
+import { Monitor, Moon, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -163,38 +164,13 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AccountEditRow({ label, value, children, open, onOpenChange }: {
-  label: string;
-  value: string;
-  children: React.ReactNode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-contrast/6 py-3 last:border-0">
-      <span className="shrink-0 text-sm">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-sm text-muted">{value}</span>
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={`Editar ${label.toLocaleLowerCase("pt-BR")}`}>
-              <Pencil className="size-4" aria-hidden="true" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent aria-describedby={undefined}>{children}</DialogContent>
-        </Dialog>
-      </div>
-    </div>
-  );
-}
-
 function AccountIdentity() {
   const { displayName, updateDisplayName } = useSession();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(displayName ?? "");
   const [saving, setSaving] = useState(false);
   return (
-    <AccountEditRow label="Nome" value={displayName ?? ""} open={open} onOpenChange={value => {
+    <EditableRow label="Nome" value={displayName ?? ""} open={open} onOpenChange={value => {
       setOpen(value);
       if (value) setName(displayName ?? "");
     }}>
@@ -214,7 +190,7 @@ function AccountIdentity() {
         <Field>Nome<Input value={name} onChange={event => setName(event.target.value)} required maxLength={40} autoComplete="nickname" disabled={saving} /></Field>
         <Button type="submit" loading={saving} disabled={saving || name.trim() === displayName}>Salvar</Button>
       </form>
-    </AccountEditRow>
+    </EditableRow>
   );
 }
 
@@ -234,7 +210,7 @@ function AccountUsername() {
   const blocked = !!usernameChangeAvailableAt && new Date(usernameChangeAvailableAt).getTime() > now;
   const availabilityId = useId();
   return (
-    <AccountEditRow label="Nome de usuário" value={`@${username}`} open={open} onOpenChange={next => {
+    <EditableRow label="Nome de usuário" value={`@${username}`} open={open} onOpenChange={next => {
       setOpen(next);
       if (next) { setValue(username ?? ""); setNow(Date.now()); }
     }}>
@@ -254,7 +230,7 @@ function AccountUsername() {
         {blocked && usernameChangeAvailableAt && <p id={availabilityId} className="text-sm text-muted">Você poderá alterar seu usuário novamente em {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(usernameChangeAvailableAt))}.</p>}
         <Button type="submit" loading={saving} disabled={saving || blocked || value.trim() === username}>Salvar usuário</Button>
       </form>
-    </AccountEditRow>
+    </EditableRow>
   );
 }
 

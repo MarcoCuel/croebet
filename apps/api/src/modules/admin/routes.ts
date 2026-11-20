@@ -1,3 +1,5 @@
+import { adminUserIdentitySchema } from "@croebet/shared";
+import { changeUserIdentity } from "./service.ts";
 import { matchHistoryQuerySchema } from "@croebet/shared";
 import { readGameHistory, readMatchReplay } from "./match-history.ts";
 import { catalogMarketWriteSchema, catalogMarketDeleteSchema } from "@croebet/shared";
@@ -97,6 +99,9 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
   }));
   app.get("/api/v1/admin/audit/:id", (request, reply) => run(request, reply, true, async () => {
     const query = adminQuerySchema.parse(request.query); return readAudit(pool, id(request), query.offset, query.limit);
+  }));
+  app.patch("/api/v1/admin/users/:id/identity", (request, reply) => run(request, reply, true, async (actor, hash) => {
+    await changeUserIdentity(pool, actor.id, hash, id(request), adminUserIdentitySchema.parse(request.body)); return { ok: true };
   }));
   app.patch("/api/v1/admin/users/:id", (request, reply) => run(request, reply, true, async (actor, hash) => {
     await changeUser(pool, actor.id, hash, id(request), userChangeSchema.parse(request.body)); return { ok: true };

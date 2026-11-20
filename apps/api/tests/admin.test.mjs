@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { z } from 'zod';
 import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
-import { readAdminUsers, readCoupons, protectLastAdmin, adminTransaction, changeUser, saveCoupon, couponAvailability, adjustBalance } from '../dist/modules/admin/service.js';
+import { changeUserIdentity, readAdminUsers, readCoupons, protectLastAdmin, adminTransaction, changeUser, saveCoupon, couponAvailability, adjustBalance } from '../dist/modules/admin/service.js';
 import { redeemCoupon } from '../dist/modules/admin/redeem.js';
-import { couponWriteSchema, redeemCouponSchema, balanceAdjustmentSchema, userChangeSchema, adminUserSchema } from '@croebet/shared';
+import { adminUserIdentitySchema, couponWriteSchema, redeemCouponSchema, balanceAdjustmentSchema, userChangeSchema, adminUserSchema } from '@croebet/shared';
 
 const actor = '00000000-0000-4000-8000-000000000010';
 const target = '00000000-0000-4000-8000-000000000020';
@@ -119,7 +119,7 @@ test('rotas administrativas escondem recursos de visitantes e usuários comuns e
   const session = 'a'.repeat(43);
   const csrf = await app.inject({ url: '/api/v1/auth/csrf', cookies: { 'croebet-session': session } });
   const cookies = { 'croebet-session': session, ...Object.fromEntries(csrf.cookies.map(c => [c.name, c.value])) };
-  for (const [url, method] of [[`/api/v1/admin/users/${target}`, 'PATCH'], [`/api/v1/admin/users/${target}/adjustments`, 'POST'], ['/api/v1/admin/coupons', 'POST']]) {
+  for (const [url, method] of [[`/api/v1/admin/users/${target}/identity`, 'PATCH'], [`/api/v1/admin/users/${target}`, 'PATCH'], [`/api/v1/admin/users/${target}/adjustments`, 'POST'], ['/api/v1/admin/coupons', 'POST']]) {
     assert.equal((await app.inject({ url, method, cookies, headers: { origin: 'http://localhost:3000', 'x-csrf-token': csrf.json().token }, payload: { role: 'admin' } })).statusCode, 404);
   }
 
@@ -183,5 +183,34 @@ test('crédito e retirada sem motivo geram lançamento e auditoria na mesma tran
     assert.equal(audit[1][3], '');
     assert.ok(db.calls.some(([sql]) => sql.startsWith('insert into wallet_entries')));
     assert.ok(db.calls.some(([sql]) => sql === 'commit'));
+  }
+});
+
+const identityInput = { displayName: 'Novo nome', username: 'Novo.Tonho', expectedDisplayName: 'Tonho', expectedUsername: 'Tonho' };
+test('edição administrativa de identidade valida nomes e não aceita campos de permissão', () => {
+  assert.equal(adminUserIdentitySchema.parse({ ...identityInput, displayName: ' Novo nome ' }).displayName, 'Novo nome');
+  for (const input of [{ ...identityInput, displayName: '' }, { ...identityInput, username: 'espaço invalido' }, { ...identityInput, role: 'admin' }, { ...identityInput, expectedUsername: undefined }]) assert.equal(adminUserIdentitySchema.safeParse(input).success, false);
+});
+test('identidade é atualizada e auditada na mesma transação com valores anteriores', async () => {
+  const {pool,calls} = database(async sql => sql.startsWith('select username,display_name') ? {rows:[{username:'Tonho',display_name:'Tonho'}]} : {rows:[]});
+  await changeUserIdentity(pool,actor,'hash',target,identityInput);
+  const update=calls.find(([sql])=>sql.startsWith('update users set display_name'));
+  assert.deepEqual(update[1],['Novo nome','Novo.Tonho',target]);
+  assert.ok(update[0].includes('username_changed_at=case'));
+  const entry=calls.find(([sql])=>sql.startsWith('insert into admin_audit'));
+  assert.equal(entry[1][2],'user.identity');
+  assert.deepEqual(JSON.parse(entry[1][4]),{before:{displayName:'Tonho',username:'Tonho'},after:{displayName:'Novo nome',username:'Novo.Tonho'}});
+  assert.equal(calls.at(-2)[0],'commit');
+});
+test('edição obsoleta e username ocupado revertem sem confirmar identidade', async () => {
+  for (const conflict of ['stale','duplicate','audit']) {
+    const {pool,calls}=database(async sql=>{
+      if(sql.startsWith('select username,display_name'))return {rows:[{username:'Tonho',display_name:conflict==='stale'?'Outro':'Tonho'}]};
+      if(sql.startsWith('update users')&&conflict==='duplicate')throw Object.assign(new Error('unique'),{code:'23505'});
+      if(sql.startsWith('insert into admin_audit')&&conflict==='audit')throw new Error('audit unavailable');
+      return {rows:[]};
+    });
+    await assert.rejects(changeUserIdentity(pool,actor,'hash',target,identityInput), conflict==='audit'?/audit unavailable/:{code:conflict==='stale'?'VERSION_CONFLICT':'USERNAME_TAKEN'});
+    assert.equal(calls.at(-2)[0],'rollback');assert.equal(calls.some(([sql])=>sql==='commit'),false);
   }
 });
