@@ -5,16 +5,18 @@ import { createDatabase } from "../../dist/db/client.js";
 import { createMatch, commandMatch, getMatch, getRoomSync, listMatches, listLobbies, lobbyAction, kickMatch } from "../../dist/modules/matches/service.js";
 import { createApp } from "../../dist/app.js";
 import { authRoutes } from "../../dist/modules/auth/routes.js";
-import { tokenHash, newToken } from "../../dist/modules/auth/security.js";
+import { csrfToken, tokenHash, newToken } from "../../dist/modules/auth/security.js";
+import { io } from "socket.io-client";
+import { setTimeout as delay } from "node:timers/promises";
 import { botAction } from "../../dist/modules/games/flip7/engine.js";
 
 const wire=value=>JSON.parse(JSON.stringify(value));
 
 async function environment(t) {
   if(!process.env.TEST_DATABASE_URL)throw Error("Configure TEST_DATABASE_URL para banco isolado, migrado e identificado como test.");
-  const {pool}=createDatabase(process.env.TEST_DATABASE_URL),actors=[],sessions=[],tokens=[];
+  const {pool}=createDatabase(process.env.TEST_DATABASE_URL),actors=[],sessions=[],tokens=[],cleanup=[];
   assert.equal((await pool.query("select environment from application_environment where id=1")).rows[0]?.environment,"test");
-  t.after(async()=>{try{await pool.query("delete from game_matches where id in (select match_id from game_match_players where user_id=any($1::uuid[])) or created_by=any($1::uuid[])",[actors]);await pool.query("delete from sessions where user_id=any($1::uuid[])",[actors]);await pool.query("delete from users where id=any($1::uuid[])",[actors]);}finally{await pool.end();}});
+  t.after(async()=>{try{for(const close of cleanup.reverse())await close();await pool.query("delete from game_matches where id in (select match_id from game_match_players where user_id=any($1::uuid[])) or created_by=any($1::uuid[])",[actors]);await pool.query("delete from sessions where user_id=any($1::uuid[])",[actors]);await pool.query("delete from users where id=any($1::uuid[])",[actors]);}finally{await pool.end();}});
   for(let i=0;i<4;i++){
     actors.push((await pool.query("insert into users(username,display_name,password_hash) values($1,$1,'test') returning id",[`Match_${randomBytes(6).toString("hex")}`])).rows[0].id);
     tokens.push(newToken());sessions.push(tokenHash(tokens[i]));
@@ -26,7 +28,7 @@ async function environment(t) {
     if(action==="join")await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[index]]);
     return room;
   };
-  return {pool,actors,sessions,tokens,create,lobby};
+  return {pool,actors,sessions,tokens,create,lobby,cleanup};
 }
 test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recuperação de eventos",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create();
@@ -171,49 +173,56 @@ test("PostgreSQL: expulsão no lobby e no jogo, bot sem controle pela conta e sa
  await assert.rejects(getMatch(pool,actors[2],room.code),{code:"NOT_FOUND"});
 });
 
-test("HTTP/SSE: autentica assinatura, transmite commits e revoga conexão sem expor mesa alheia",async t=>{
- const {pool,actors,sessions,tokens,create,lobby}=await environment(t);
- const app=createApp(async()=>{});
- await app.register(authRoutes,{pool,config:{APP_ENV:"test",WEB_ORIGIN:"http://localhost:3000",CSRF_SECRET:"test-secret-multiplayer-32-characters"}});
- const origin=await app.listen({host:"127.0.0.1",port:0});
- const aborts=[];
- // Close streams before the app, before environment() deletes its accounts.
- t.after(async()=>{for(const controller of aborts)controller.abort();await app.close();});
- assert.equal((await fetch(`${origin}/api/v1/matches/live`)).status,401);
- const room=await create();
- const connect=async(index,path)=>{
-  const controller=new AbortController();aborts.push(controller);
-  const response=await fetch(`${origin}/api/v1/matches/live${path}`,{headers:{cookie:`croebet-session=${tokens[index]}`},signal:controller.signal});
-  return {response,controller};
+test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam comandos e revogam sessão",async t=>{
+ const {pool,actors,sessions,tokens,cleanup}=await environment(t);
+ const config={APP_ENV:"test",WEB_ORIGIN:"http://localhost:3000",CSRF_SECRET:"test-secret-multiplayer-32-characters"};
+ const apps=[createApp(async()=>{}),createApp(async()=>{})],origins=[],sockets=[];
+ cleanup.push(async()=>{for(const socket of sockets)socket.disconnect();await Promise.all(apps.map(app=>app.close()));});
+ for(const app of apps){await app.register(authRoutes,{pool,config});origins.push(await app.listen({host:"127.0.0.1",port:0}));}
+ const wait=async(check)=>{const end=Date.now()+5000;while(Date.now()<end){const value=check();if(value)return value;await delay(10);}throw Error("Socket.IO event timeout");};
+ const connect=async(index,server=0,overrides={})=>{
+  const nonce=newToken();
+  const socket=io(origins[server],{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"],reconnection:false,autoConnect:false,
+   extraHeaders:{origin:config.WEB_ORIGIN,cookie:`croebet-session=${tokens[index]}; croebet-csrf=${nonce}`},
+   auth:{csrf:csrfToken(config.CSRF_SECRET,nonce,tokens[index])},...overrides});
+  sockets.push(socket);socket.rooms=[];socket.closed=[];
+  socket.on("room",value=>socket.rooms.push(value));socket.on("closed",value=>socket.closed.push(value));
+  await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("connect_error",error=>reject(new Error(`connect actor=${index} server=${server} overrides=${Object.keys(overrides)}: ${error.message}`,{cause:error})));socket.connect();});
+  assert.equal(socket.io.engine.transport.name,"websocket");return socket;
  };
- const denied=await fetch(`${origin}/api/v1/matches/live?code=${room.code}`,{headers:{cookie:`croebet-session=${tokens[0]}`,origin:"https://another-origin.invalid"}});
- assert.equal(denied.status,403);
- const {response}=await connect(0,`?code=${room.code}&afterVersion=${room.version}`);
- assert.equal(response.headers.get("content-type"),"text/event-stream; charset=utf-8");
- const reader=response.body.getReader();let buffer="";
- async function event(name,accept=()=>true){
-  const timeout=AbortSignal.timeout(5000);
-  while(true){
-   const split=buffer.indexOf("\n\n");
-   if(split>=0){const block=buffer.slice(0,split);buffer=buffer.slice(split+2);if(block.includes(`event: ${name}\n`)){const line=block.split("\n").find(line=>line.startsWith("data: "));const data=JSON.parse(line.slice(6));if(accept(data))return data;}continue;}
-   const chunk=await new Promise((resolve,reject)=>{const fail=()=>reject(Error("SSE timeout"));timeout.addEventListener("abort",fail,{once:true});reader.read().then(resolve,reject).finally(()=>timeout.removeEventListener("abort",fail));});
-   if(chunk.done)throw Error("SSE closed unexpectedly");buffer+=new TextDecoder().decode(chunk.value);
-  }
+ const request=async(socket,value)=>{const reply=await socket.timeout(5000).emitWithAck("request",value);assert.equal(reply.ok,true,JSON.stringify(reply));return reply.data;};
+ const watch=async(socket,code,afterVersion=0)=>{const reply=await socket.timeout(5000).emitWithAck("watch",{code,afterVersion});assert.equal(reply.ok,true,JSON.stringify(reply));};
+ await assert.rejects(connect(0,0,{auth:{csrf:"invalid"}}));
+ await assert.rejects(connect(0,0,{extraHeaders:{origin:"https://another-origin.invalid"}}));
+ const host=await connect(0),peer=await connect(1,1),outsider=await connect(2,1);
+ const room=await request(host,{type:"create",input:{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"vengeance",brutal:true}}});
+ await watch(host,room.code);
+ const joined=await request(peer,{type:"join",code:room.code,input:{commandId:randomUUID()}});
+ await watch(peer,room.code);
+ await wait(()=>host.rooms.find(value=>value.room.version===joined.version && value.room.onlineUserIds.includes(actors[1])));
+ const started=await request(host,{type:"start",code:room.code,input:{commandId:randomUUID(),expectedVersion:joined.version}});
+ for(const socket of [host,peer]){
+  const sync=await wait(()=>socket.rooms.find(value=>value.room.version===started.version));
+  assert.equal(sync.room.status,"playing");assert.ok(sync.frames.some(frame=>frame.action.type==="start"));
+  assert.equal(JSON.stringify(sync).includes('"deck":'),false);assert.equal(JSON.stringify(sync).includes('"seed":'),false);
  }
- assert.equal((await event("room")).room.status,"lobby");
- assert.equal((await event("lobbies")).current.code,room.code);
- const joined=await lobby(room.code,1,"join");assert.equal((await event("room",data=>data.room.version===joined.version)).room.participants.length,2);
- await lobby(room.code,0,"start",{expectedVersion:joined.version});
- const started=await event("room",data=>data.room.status==="playing");assert.equal(started.room.status,"playing");assert.ok(started.frames.some(frame=>frame.action.type==="start"));
- assert.equal((await connect(2,`?code=${room.code}`)).response.status,404);
+ const denied=await outsider.timeout(5000).emitWithAck("watch",{code:room.code,afterVersion:0});assert.equal(denied.ok,false);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
  const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
- const actor=actors.indexOf(started.room.participants.find(p=>p.seat===seat).userId);
- const command={commandId:randomUUID(),expectedVersion:started.room.version,action:botAction(state)};
- await pool.query("delete from sessions where token_hash=$1",[sessions[0]]);
- if(actor===0)await commandMatch(pool,actors[1],sessions[1],room.code,{commandId:randomUUID(),expectedVersion:started.room.version},true);
- else await commandMatch(pool,actors[actor],sessions[actor],room.code,command);
- assert.equal((await event("closed")).code,"UNAUTHENTICATED");
+ const actor=actors.indexOf(started.participants.find(p=>p.seat===seat).userId),sender=[host,peer][actor],receiver=[peer,host][actor];
+ receiver.disconnect();
+ const input={commandId:randomUUID(),expectedVersion:started.version,action:botAction(state)};
+ const result=await request(sender,{type:"command",code:room.code,input});
+ assert.deepEqual(await request(sender,{type:"command",code:room.code,input}),result);
+ const rejected=await sender.timeout(5000).emitWithAck("request",{type:"command",code:room.code,input:{...input,commandId:randomUUID()}});
+ assert.equal(rejected.ok,false);assert.equal(rejected.error.code,"VERSION_CONFLICT");
+ const resumed=await connect(actor===0?1:0,1);
+ await watch(resumed,room.code,started.version);
+ const recovered=await wait(()=>resumed.rooms.find(value=>value.room.version===result.match.version));
+ assert.equal(recovered.reset,false);assert.deepEqual(recovered.frames,result.frames);
+ await pool.query("delete from sessions where token_hash=$1",[sessions[actor]]);
+ assert.equal((await wait(()=>sender.closed[0])).code,"UNAUTHENTICATED");
+ await wait(()=>!sender.connected);
 });
 
 test("PostgreSQL: convites autorizados, presença, repetição e reserva de vaga, recusa e entrada",async t=>{

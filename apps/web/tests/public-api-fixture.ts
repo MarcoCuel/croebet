@@ -1,9 +1,9 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { fixedMenuPages } from "@croebet/shared";
 
 // HTTP fixtures support both Server Components and browser requests. Account
 // state never comes from localStorage; each spec owns its fixture lifetime.
-export async function startPublicApi(session: (request: IncomingMessage) => unknown, handler?: (request: IncomingMessage, response: ServerResponse) => Promise<boolean>) {
+export async function startPublicApi(session: (request: IncomingMessage) => unknown, handler?: (request: IncomingMessage, response: ServerResponse) => Promise<boolean>, attach?: (server: Server) => () => void) {
   const main = Object.entries(fixedMenuPages).map(([fixed, item], index) => ({
     id: `93089d02-0b34-4b78-9d3e-f2679c190b${60 + index}`,
     ...item, fixed, newTab: false,
@@ -32,6 +32,7 @@ export async function startPublicApi(session: (request: IncomingMessage) => unkn
     if (body === null) response.statusCode = 404;
     response.end(JSON.stringify(body));
   });
+  const detach = attach?.(server);
   await new Promise<void>((resolve,reject) => { server.once("error",reject); server.listen(3201,"127.0.0.1",resolve); });
-  return () => new Promise<void>((resolve,reject) => { server.closeAllConnections(); server.close(error => error ? reject(error) : resolve()); });
+  return () => new Promise<void>((resolve,reject) => { detach?.(); server.closeAllConnections(); server.close(error => error ? reject(error) : resolve()); });
 }

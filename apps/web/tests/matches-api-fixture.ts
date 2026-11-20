@@ -1,6 +1,7 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse, Server as HttpServer } from "node:http";
+import { Server, type Socket } from "socket.io";
 import { randomUUID } from "node:crypto";
-import { createMatchSchema, updateLobbySchema, matchCommandSchema, matchResultSchema, type Room, type MatchFrame, type MatchParticipant } from "@croebet/shared";
+import { realtimeRequestSchema, createMatchSchema, updateLobbySchema, matchCommandSchema, matchResultSchema, type Room, type MatchFrame, type MatchParticipant } from "@croebet/shared";
 import { flip7Driver } from "../../api/src/modules/games/flip7/driver";
 import { createGame, replaceWithBot, type Game } from "../../api/src/modules/games/flip7/engine";
 import { execute } from "../../api/src/modules/matches/execution";
@@ -12,9 +13,10 @@ export function matchesFixture() {
   const receipts=new Map<string,unknown>();
   const commands:unknown[]=[];
   const invitations=new Map<string,{code:string;sender:string;target:string}>();
-  const streams=new Set<{response:ServerResponse;code:string|null;actor:string;version:number}>();
+  const streams=new Set<{socket:Socket;code:string|null;actor:string;version:number}>();
   let failAfterCommit=false;
   let createdCount=0;
+  let csrfCount=0;
   const directory=(actor:string)=>{
     for(const {room} of states.values())if(room.status==="lobby"){
       room.onlineUserIds=[...new Set([...streams].filter(s=>s.code===room.code).map(s=>s.actor))];
@@ -34,36 +36,55 @@ export function matchesFixture() {
     return {match:saved.room,before,frames};
   }
   function notify(){for(const stream of streams){
-    stream.response.write(`event: lobbies\ndata: ${JSON.stringify(directory(stream.actor))}\n\n`);
+    stream.socket.emit("lobbies",directory(stream.actor));
+    stream.socket.emit("invitations",{items:[...invitations.values()].filter(i=>i.target===stream.actor && states.get(i.code)?.room.status==="lobby").map(i=>({code:i.code,username:matchUsers.find(u=>u.id===i.sender)!.username,avatarUrl:null}))});
     if(!stream.code)continue;
     const saved=states.get(stream.code);
-    if(!saved){stream.response.write(`event: closed\ndata: ${JSON.stringify({message:"Sala encerrada."})}\n\n`);stream.response.end();continue;}
+    if(!saved){stream.socket.emit("room-closed",{message:"Sala encerrada."});stream.code=null;continue;}
     if(saved.room.version<=stream.version && saved.room.status!=="lobby")continue;
-    if(saved.room.status!=="lobby" && !saved.room.participants.some(p=>p.userId===stream.actor)){stream.response.end();continue;}
+    if(saved.room.status!=="lobby" && !saved.room.participants.some(p=>p.userId===stream.actor)){stream.socket.emit("room-closed",{message:"Sala indisponível."});stream.code=null;continue;}
     if(saved.room.status==="playing" && saved.room.state.players[saved.room.participants.find(p=>p.userId===stream.actor)!.seat].kind!=="human"){
-      stream.response.write(`event: closed\ndata: ${JSON.stringify({message:"Um bot assumiu sua vaga."})}\n\n`);stream.response.end();continue;
+      stream.socket.emit("room-closed",{message:"Um bot assumiu sua vaga."});stream.code=null;continue;
     }
     const frames=saved.frames.filter(f=>f.version>stream.version);
     const reset=!frames.length || frames[0].version!==stream.version+1;
-    stream.response.write(`event: room\ndata: ${JSON.stringify({room:saved.room,frames:reset?[]:frames,reset})}\n\n`);stream.version=saved.room.version;
+    stream.socket.emit("room",{room:saved.room,frames:reset?[]:frames,reset});stream.version=saved.room.version;
   }}
-  return {commands,states,failNextResponse(){failAfterCommit=true;},async handler(request:IncomingMessage,response:ServerResponse){
+  return {commands,states,disconnectUser(userId:string){for(const stream of streams)if(stream.actor===userId)stream.socket.conn.close();},attach(server:HttpServer){
+    const io=new Server(server,{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"]});
+    io.use((socket,next)=>{
+      const csrf=socket.request.headers.cookie?.match(/(?:^|; )fixture-csrf=([^;]+)/)?.[1];
+      next(csrf && socket.handshake.auth.csrf===csrf?undefined:new Error("CSRF must precede WebSocket upgrade"));
+    });
+    io.on("connection",socket=>{
+      const actor=fixtureUser(socket.request).id;
+      const stream={socket,actor,code:null as string|null,version:0};streams.add(stream);notify();
+      socket.on("watch",(input,ack)=>{
+        stream.code=input.code ?? null;stream.version=input.afterVersion ?? 0;
+        notify();ack({ok:true,data:{ok:true}});
+      });
+      socket.on("request",async(value,ack)=>{
+        try{
+          const request=realtimeRequestSchema.parse(value);
+          const suffix=request.type==="create"?"":request.type==="presence"?"/presence":`/${"code" in request?request.code:""}/${request.type==="command"?"commands":request.type}`;
+          const response=await fetch(`http://127.0.0.1:3201/api/v1/matches${suffix}`,{method:"POST",headers:{cookie:socket.request.headers.cookie ?? "","content-type":"application/json"},body:JSON.stringify("input" in request?request.input:{})});
+          const data=await response.json();
+          ack(response.ok?{ok:true,data}:{ok:false,error:{code:"FIXTURE_ERROR",message:data.error.message}});
+        }catch{ack({ok:false,error:{code:"FIXTURE_ERROR",message:"Ação indisponível."}});}
+      });
+      socket.on("disconnect",()=>{streams.delete(stream);notify();});
+    });
+    return ()=>{io.disconnectSockets(true);io.engine.close();};
+  },failNextResponse(){failAfterCommit=true;},async handler(request:IncomingMessage,response:ServerResponse){
     const url=new URL(request.url ?? "/","http://fixture"),path=url.pathname;
     if(!path.startsWith("/api/v1/matches") && path!=="/api/v1/auth/csrf")return false;
     const actor=fixtureUser(request);
     response.setHeader("content-type","application/json");
     const send=(body:unknown,status=200)=>{response.statusCode=status;response.end(JSON.stringify(body));return true;};
-    if(path==="/api/v1/auth/csrf")return send({token:"test-csrf"});
-    if(path==="/api/v1/matches/live"){
-      response.writeHead(200,{"content-type":"text/event-stream","cache-control":"no-cache, no-store, no-transform","connection":"keep-alive","x-accel-buffering":"no"});
-      response.flushHeaders();
-      const code=url.searchParams.get("code"),version=Number(url.searchParams.get("afterVersion") ?? 0);
-      const stream={response,code,actor:actor.id,version};streams.add(stream);response.on("close",()=>{streams.delete(stream);notify();});
-      directory(actor.id);notify();
-      const saved=code?states.get(code):null;
-      if(saved)response.write(`event: room\ndata: ${JSON.stringify({room:saved.room,frames:saved.frames.filter(f=>f.version>version),reset:false})}\n\n`);
-      response.write(`event: lobbies\ndata: ${JSON.stringify(directory(actor.id))}\n\n`);
-      return true;
+    if(path==="/api/v1/auth/csrf"){
+      const token=`test-csrf-${++csrfCount}`;
+      response.setHeader("set-cookie",`fixture-csrf=${token}; Path=/; HttpOnly; SameSite=Lax`);
+      return send({token});
     }
     if(path==="/api/v1/matches/lobbies")return send(directory(actor.id));
     if(path==="/api/v1/matches/presence")return send({items:[...invitations.values()].filter(i=>i.target===actor.id && states.get(i.code)?.room.status==="lobby" && !states.get(i.code)?.room.participants.some(p=>p.userId===actor.id)).map(i=>({code:i.code,username:matchUsers.find(u=>u.id===i.sender)!.username,avatarUrl:null}))});

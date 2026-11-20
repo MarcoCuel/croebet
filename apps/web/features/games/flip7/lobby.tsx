@@ -118,7 +118,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const autoJoin=useRef("");
   useEffect(()=>{
     const code=searchParams.get("partida");
-    if(!userId || !room || room.code!==code || member || busy || leaving.current)return;
+    if(!userId || !connected || !room || room.code!==code || member || busy || leaving.current)return;
     const key=userId+":"+code;
     if(autoJoin.current===key)return;
     autoJoin.current=key;
@@ -161,7 +161,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
           return <li key={person?.userId ?? (preview?userId:undefined) ?? "seat-"+i} className={cn("relative flex min-w-0 flex-col items-center gap-2",waiting && "opacity-40")}>
             <div className="relative">
               {name?<Avatar className="size-16"><AvatarImage src={person?.avatarUrl ?? (preview?avatar ?? undefined:undefined)}/><AvatarFallback className="text-lg">{name[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
-                :next && (!room || host)?<Button variant="ghost" size="icon" className="size-16 rounded-full! border border-dashed border-field-border p-0" aria-label="Convidar jogadores" disabled={busy || (!!room && !connected)} onClick={async()=>{
+                :next && (!room || host)?<Button variant="ghost" size="icon" className="size-16 rounded-full! border border-dashed border-field-border p-0" aria-label="Convidar jogadores" disabled={busy || (!!userId && !connected)} onClick={async()=>{
                   if(!userId){openLogin();return;}
                   if(room){setInviting(true);return;}
                   const created=await create(true);if(created)setInviting(true);
@@ -177,11 +177,11 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="space-y-3">
-        {!room?<Button className="w-full" loading={busy} disabled={!!directory.current} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
+        {!room?<Button className="w-full" loading={busy} disabled={!!directory.current || (!!userId && !connected)} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
           :!member?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || !!directory.current} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
           :<div className="flex items-center gap-3">
             <Button className="min-w-0 flex-1" loading={busy} disabled={busy || !connected || !host || room.participants.length<2 || !allOnline} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
-            <Button className="shrink-0" variant="secondary" disabled={busy} onClick={()=>void act(room,"leave")}>Cancelar</Button>
+            <Button className="shrink-0" variant="secondary" disabled={busy || !connected} onClick={()=>void act(room,"leave")}>Cancelar</Button>
           </div>}
         {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
         {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}

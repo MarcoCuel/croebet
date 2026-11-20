@@ -5,10 +5,10 @@ import { matchesFixture, fixtureUser } from "../matches-api-fixture";
 let fixture:ReturnType<typeof matchesFixture>;
 let close:(()=>Promise<void>)|undefined;
 test.beforeEach(async({context})=>{
-  fixture=matchesFixture();close=await startPublicApi(fixtureUser,fixture.handler);
+  fixture=matchesFixture();close=await startPublicApi(fixtureUser,fixture.handler,fixture.attach);
   await context.addCookies([{name:"croebet-session",value:"game-fixture-marco",url:"http://127.0.0.1:3100"}]);
 });
-test.afterEach(async()=>{await close?.();});
+test.afterEach(async({context})=>{await context.close();await close?.();});
 test("painel único mantém configuração, vagas e lista abaixo ao criar e retomar o lobby",async({page,context},testInfo)=>{
   await page.goto("/jogos/flip7");
   const settings=page.getByLabel("Configuração e regras"),players=page.getByLabel("Jogadores e vagas"),list=page.getByLabel("Lobbies abertos");
@@ -58,6 +58,21 @@ test("painel único mantém configuração, vagas e lista abaixo ao criar e reto
     for(const client of [page,other])await expect(client).toHaveURL(new RegExp("partida="+reopened.code));
   }finally{await other.close();}
 });
+test("lobby e notificações compartilham o handshake mesmo com CSRF lento",async({page})=>{
+  let requests=0,completed=0,release!:()=>void;
+  page.on("response",response=>{if(new URL(response.url()).pathname==="/api/v1/auth/csrf" && response.ok())completed++;});
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  await page.route("**/api/v1/auth/csrf",async route=>{requests++;await gate;await route.continue();});
+  try{
+    await page.goto("/jogos/flip7");
+    await expect.poll(()=>requests).toBeGreaterThan(0);
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
+    release();
+    await page.getByRole("button",{name:"Jogar",exact:true}).click();
+    await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
+    expect(completed).toBe(1);
+  }finally{release();}
+});
 async function lobby(page:Page){
   await page.goto("/jogos/flip7");
   await page.getByLabel("Número de jogadores").selectOption("6");
@@ -97,6 +112,23 @@ test("sala de seis começa com duas contas e sincroniza turnos e retorno após r
     const url=page.url();await page.reload();await expect(page).toHaveURL(url);
     expect(JSON.stringify(room)).not.toContain('"deck":');expect(JSON.stringify(room)).not.toContain('"seed":');
     expect(await page.evaluate(()=>localStorage.getItem("croebet:flip7:match"))).toBeNull();
+  }finally{await peer.context.close();}
+});
+test("Socket.IO reconecta sem reload e recupera a decisão recebida durante a queda",async({page,browser})=>{
+  const sockets:string[]=[];page.on("websocket",socket=>sockets.push(socket.url()));
+  const peer=await start(page,browser);
+  try{
+    await peer.context.setOffline(true);
+    fixture.disconnectUser("93089d02-0b34-4b78-9d3e-f2679c190b5d");
+    await expect(peer.page.getByRole("status").filter({hasText:"Reconectando à partida"})).toBeVisible();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toHaveCount(0);
+    await page.getByRole("button",{name:"Parar",exact:true}).click();
+    await expect.poll(()=>fixture.commands.length).toBe(1);
+    await peer.context.setOffline(false);
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible({timeout:15000});
+    await peer.page.getByRole("button",{name:"Comprar",exact:true}).click();
+    await expect.poll(()=>fixture.commands.length).toBe(2);
+    expect(sockets.some(url=>new URL(url).pathname==="/api/v1/realtime")).toBe(true);
   }finally{await peer.context.close();}
 });
 test("saída do host transfere a sala para o outro participante",async({page,browser})=>{

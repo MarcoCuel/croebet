@@ -10,12 +10,12 @@ import { applyRealtimeRequest } from "./realtime-actions.ts";
 
 type Options = { sessionName: string; csrfName: string; csrfSecret: string; environment: string; origin?: string; limit: (key: string, maximum: number) => Promise<boolean> };
 type Connection = { actor: string; session: string; id: string; code?: string; version: number; signature: string; directory: string; invitations: string; watching: boolean; tail: Promise<void> };
-type LiveSocket = Socket & { data: Connection };
+type LiveSocket = Omit<Socket, "data"> & { data: Connection };
 const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
 
 export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   const io = new Server(app.server, {
-    path: "/api/v1/realtime", serveClient: false, transports: ["websocket"],
+    path: "/api/v1/realtime", addTrailingSlash: false, serveClient: false, transports: ["websocket"],
     maxHttpBufferSize: 65536, pingInterval: 15000, pingTimeout: 10000,
     allowRequest: (request, done) => done(null, !!options.origin && request.headers.origin === options.origin),
   });

@@ -1,7 +1,8 @@
 "use client";
 
 import { useLobbyInvitations, LobbyInvitationItems } from "@/features/games/flip7/lobby-invitations";
-import { ArrowUpRight, Bell, Construction, Play } from "lucide-react";
+import { ArrowUpRight, Bell } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,9 +40,7 @@ export function NotificationsMenu() {
             </span>
             <span className="mt-3 block text-xs text-muted">18 de Nov. 2026</span>
           </span>
-          <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-contrast/6 text-foreground" aria-hidden="true">
-            <Construction className="size-8" />
-          </span>
+          <Image src="/dev.png" alt="" width={96} height={68} sizes="96px" className="h-17 w-24 shrink-0 rounded-lg object-cover" />
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="mx-4 my-1" />
         <DropdownMenuItem asChild className="items-start gap-4 rounded-xl border-0 px-3 py-3.5 whitespace-normal">
@@ -57,9 +56,7 @@ export function NotificationsMenu() {
                 <span className="sr-only"> (abre em nova aba)</span>
               </span>
             </span>
-            <span className="flex h-17 w-24 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand" aria-hidden="true">
-              <Play className="size-8" />
-            </span>
+            <Image src="/yt.png" alt="" width={96} height={68} sizes="96px" className="h-17 w-24 shrink-0 rounded-lg object-cover" />
           </a>
         </DropdownMenuItem>
       </DropdownMenuContent>
