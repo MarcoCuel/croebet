@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadProfile } from "../features/profile/profile-request.ts";
 
-const profile = { username: "Tonho", displayName: "Tonho Público", avatarUrl: null };
+const activity = { timeZone: "America/Sao_Paulo", days: Array.from({ length: 365 }, (_, index) => ({ date: new Date(Date.UTC(2025, 10, 21 + index)).toISOString().slice(0, 10), games: 0, wins: 0, dailyBonuses: 0, coupons: 0 })) };
+const profile = { username: "Tonho", displayName: "Tonho Público", avatarUrl: null, activity };
 
 test("perfil inicial consulta somente endpoint público sem cookies e sem cache", async () => {
   const result = await loadProfile("Tonho", "http://api", async (url, options) => {

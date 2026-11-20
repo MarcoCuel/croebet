@@ -5,7 +5,9 @@ const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", di
 
 // Server rendering must be exercised against an HTTP fixture, not page.route.
 // Run with --config playwright.session.config.ts.
+const activity = { timeZone: "America/Sao_Paulo", days: Array.from({ length: 391 }, (_, index) => ({ date: new Date(Date.UTC(2025, 9, 26 + index)).toISOString().slice(0, 10), games: index === 390 ? 3 : 0, wins: index === 390 ? 1 : 0, dailyBonuses: index >= 389 ? 1 : 0, coupons: index === 390 ? 1 : 0 })) };
 let api: Server;
+let hasActivity = true;
 let sessionActive = true;
 let profileStatus = 200;
 let storedAvatar: string | null = null;
@@ -25,13 +27,13 @@ test.beforeAll(async () => {
     const name = decodeURIComponent(request.url?.split("/").at(-1) ?? "");
     response.statusCode = profileStatus;
     response.end(JSON.stringify(profileStatus === 200
-      ? { username: name.toLowerCase() === "tonho" ? "Tonho" : "Outro", displayName: name.toLowerCase() === "tonho" ? user.displayName : "Outra pessoa", avatarUrl: storedAvatar }
+      ? { username: name.toLowerCase() === "tonho" ? "Tonho" : "Outro", displayName: name.toLowerCase() === "tonho" ? user.displayName : "Outra pessoa", avatarUrl: storedAvatar, activity: hasActivity ? activity : { ...activity, days: activity.days.map(day => ({ ...day, games: 0, wins: 0, dailyBonuses: 0, coupons: 0 })) } }
       : {}));
   });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
 test.beforeEach(async ({ context }) => {
-  sessionActive = true; profileStatus = 200; storedAvatar = null;
+  hasActivity = true; sessionActive = true; profileStatus = 200; storedAvatar = null;
   await context.addCookies([{ name: "croebet-session", value: "profile-test", url: "http://127.0.0.1:3100" }]);
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve())); });
@@ -171,4 +173,43 @@ test("avatar com erro mostra fallback e uma nova foto volta a aparecer", async (
   await page.reload();
   await expect(page.locator("main img")).toBeVisible();
   await expect(page.locator("main [data-slot=avatar-fallback]")).toBeHidden();
+});
+
+
+test("heatmap mostra histórico, detalhes por toque e navegação pelo teclado sem alargar a página", async ({ page }) => {
+  await page.goto("/perfil/Tonho");
+  const calendar = page.getByRole("region", { name: "Calendário de atividades" });
+  await expect(calendar.getByRole("button")).toHaveCount(391);
+  const latest = calendar.getByRole("button", { name: "20 de novembro de 2026: 3 partidas, 1 vitória, 1 bônus diário e 1 cupom.", exact: true });
+  await expect(latest).toBeVisible();
+  const background = await latest.evaluate(element => getComputedStyle(element).backgroundColor);
+  await latest.hover();
+  await expect(latest).toHaveCSS("background-color", background);
+  await latest.click();
+  await expect(page.getByRole("tooltip")).toHaveText("20 de novembro de 2026: 3 partidas, 1 vitória, 1 bônus diário e 1 cupom.");
+  await expect(calendar.getByRole("button").first()).toHaveAccessibleName("26 de outubro de 2025: Nenhuma atividade.");
+  await latest.focus();
+  await latest.press("ArrowLeft");
+  await expect(calendar.getByRole("button", { name: /^13 de novembro de 2026:/ })).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(latest).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+
+test("dias vazios mostram uma mensagem simples sem contagens zeradas", async ({ page }) => {
+  hasActivity = false;
+  await page.goto("/perfil/Tonho");
+  const calendar = page.getByRole("region", { name: "Calendário de atividades" });
+  await calendar.getByRole("button").last().click();
+  await expect(page.getByRole("tooltip")).toHaveText("20 de novembro de 2026: Nenhuma atividade.");
+});
+
+
+test("dia com apenas bônus omite as atividades que não ocorreram", async ({ page }) => {
+  await page.goto("/perfil/Tonho");
+  const calendar = page.getByRole("region", { name: "Calendário de atividades" });
+  await expect(calendar.getByRole("button", { name: /0 partidas|0 vitórias|0 bônus|0 cupons/ })).toHaveCount(0);
+  await calendar.getByRole("button", { name: "19 de novembro de 2026: 1 bônus diário.", exact: true }).click();
+  await expect(page.getByRole("tooltip")).toHaveText("19 de novembro de 2026: 1 bônus diário.");
 });

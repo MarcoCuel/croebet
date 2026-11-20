@@ -16,6 +16,7 @@ import type { Pool, PoolClient } from "pg";
 import { registerSchema, deleteAccountSchema, changeUsernameSchema, loginSchema, profileSchema, publicProfileSchema, publicUserSchema, sessionSchema, usernameSchema } from "@croebet/shared";
 import { allowedWebOrigins, type readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
+import { readProfileActivity } from "./profile-activity.ts";
 
 type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null };
 const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
@@ -178,9 +179,9 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
     const parsed = usernameSchema.safeParse(request.params.username);
     if (parsed.success) {
-      const result = await pool.query("select username, display_name, avatar_key from users where lower(username) = $1 and status = 'active'", [parsed.data.toLowerCase()]);
+      const result = await pool.query("select id, username, display_name, avatar_key from users where lower(username) = $1 and status = 'active'", [parsed.data.toLowerCase()]);
       const user = result.rows[0];
-      if (user) return publicProfileSchema.parse({ username: user.username, displayName: user.display_name, avatarUrl: avatarUrl(user.avatar_key) });
+      if (user) return publicProfileSchema.parse({ username: user.username, displayName: user.display_name, avatarUrl: avatarUrl(user.avatar_key), activity: await readProfileActivity(pool, user.id) });
     }
     return reply.code(404).send({ error: { code: "PROFILE_NOT_FOUND", message: "Perfil não encontrado." } });
   });

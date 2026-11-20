@@ -25,7 +25,16 @@ export const avatarUrlSchema = z.string().regex(/^\/api\/v1\/avatars\/[0-9a-f-]{
 export const publicUserSchema = z.object({ id: z.uuid(), username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema, usernameChangeAvailableAt: z.iso.datetime().nullable().default(null), role: z.enum(["user", "admin"]) }).strict();
 export const sessionSchema = z.object({ user: publicUserSchema.nullable() }).strict();
 export type PublicUser = z.infer<typeof publicUserSchema>;
-export const publicProfileSchema = z.object({ username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema }).strict();
+export const profileActivityDaySchema = z.object({
+  date: z.iso.date(), games: z.number().int().nonnegative(), wins: z.number().int().nonnegative(),
+  dailyBonuses: z.number().int().nonnegative(), coupons: z.number().int().nonnegative(),
+}).strict();
+export const profileActivitySchema = z.object({
+  timeZone: z.literal("America/Sao_Paulo"), days: z.array(profileActivityDaySchema).min(365).max(403),
+}).strict();
+export type ProfileActivity = z.infer<typeof profileActivitySchema>;
+export type ProfileActivityDay = z.infer<typeof profileActivityDaySchema>;
+export const publicProfileSchema = z.object({ username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema, activity: profileActivitySchema }).strict();
 export type PublicProfile = z.infer<typeof publicProfileSchema>;
 
 export const croinsSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);

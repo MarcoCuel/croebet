@@ -11,7 +11,7 @@ export function Card({
   return (
     <Component
       data-slot="card"
-      className={cn("rounded-panel bg-surface p-5 sm:p-6", className)}
+      className={cn("rounded-panel bg-surface p-4", className)}
       {...props}
     />
   );

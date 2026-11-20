@@ -52,6 +52,7 @@ async function fixture(t) {
   let failUpload = false, active = true, failUpdate = false, attempts = 0;
   const query = async (sql, params) => {
     if (sql.includes("application_environment")) return { rows: [{ environment: "test" }] };
+    if (sql.includes("with bounds as")) return { rows: Array.from({ length: 365 }, (_, index) => ({ date: new Date(Date.UTC(2025, 10, 21 + index)).toISOString().slice(0, 10), games: 0, wins: 0, dailyBonuses: 0, coupons: 0 })) };
     if (sql.includes("auth_rate_limits")) return { rows: [{ attempts: ++attempts }] };
     if (sql.startsWith("update sessions") || sql.startsWith("select u.*")) return { rows: active ? [{ ...user }] : [] };
     if (sql.startsWith("update users set avatar_key")) {
@@ -60,7 +61,7 @@ async function fixture(t) {
     }
     if (sql.startsWith("insert into avatar_cleanup")) { pending.add(params[0]); return { rows: [] }; }
     if (sql.startsWith("delete from avatar_cleanup")) { pending.delete(params[0]); return { rows: [] }; }
-    if (sql.startsWith("select username")) return { rows: active ? [{ ...user }] : [] };
+    if (sql.startsWith("select id, username")) return { rows: active ? [{ ...user }] : [] };
     if (sql.startsWith("select 1 from users")) return { rows: active && user.avatar_key === params[0] ? [{ exists: 1 }] : [] };
     if (sql.startsWith("select key from avatar_cleanup")) return { rows: [...pending].map(key => ({ key })) };
     assert.ok(["begin", "commit", "rollback"].includes(sql), sql); return { rows: [] };

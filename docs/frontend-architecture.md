@@ -25,6 +25,8 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 - `SessionProvider`/`useSession` expõem identidade, permissões e saldo confirmados pela API; não contêm métodos nem carteiras de demonstração. Não reintroduzir fallback de contas/Croins em localStorage.
 - Preferências de tema/painéis e configuração do Flip 7 continuam locais; partidas e comandos vêm da API. [Limites do jogo](flip7.md#escopo).
 
+O perfil renderiza o calendário de atividade com os dados da primeira consulta pública, sem busca adicional no cliente. `features/profile/activity-heatmap.tsx` usa intensidades de 0, 1, 2, 3 e 4 ou mais atividades, cores semânticas, detalhes por hover/foco ou seleção por toque e navegação por setas/Home/End. No celular, a rolagem horizontal inicia nos dias recentes. Datas seguem o calendário de Brasília informado pela API; o período começa com o mês e a semana iniciais completos. Os detalhes omitem contagens zeradas e mostram “Nenhuma atividade” para dias vazios; o hover preserva a intensidade do dia.
+
 ## Componentes e acessibilidade
 
 - App instalável: `app/manifest.ts` define identidade, ícones e abertura standalone; metadata raiz inclui ícone e configuração Apple. `components/layout/app-install.tsx` oferece instalação quando o navegador emite `beforeinstallprompt` e orienta a instalação manual no Safari do iOS. Ocultar por 7 dias ao dispensar; não mostrar em standalone. Exige HTTPS (ou localhost). A instalação/abertura fica sob controle do navegador; jogos continuam exigindo conexão, sem cache offline de sessões ou partidas.

@@ -87,6 +87,8 @@ Admin → Usuários agenda exclusão em 30 dias (`DELETE /admin/users/:id`): sus
 
 Implantação: aplique a migration incremental `0024_odd_hydra.sql` antes de atualizar API/web; contas existentes recebem prazo nulo. Preserve backup antes da implantação. Para interromper a limpeza, pare os processos da API; durante os 30 dias, reativar a conta cancela o prazo. Após a exclusão definitiva, recuperar identidade exige restauração controlada de backup. Em rollback de aplicação, mantenha a coluna para não perder agendamentos; não reverta migrations anteriores.
 
+O perfil público retorna identidade e um calendário do último ano em `America/Sao_Paulo`, ampliado até o início do primeiro mês e da primeira semana para evitar recortes no começo. A API agrega partidas concluídas do arquivo, recibos de bônus diário e cupons, incluindo dias vazios. Cada evento vale uma atividade; vitórias (incluindo empates na maior pontuação, sem bot no resultado) são apenas detalhes. Partidas em andamento/abandonadas e ações administrativas não contam. O histórico usa exclusivamente os registros disponíveis, sem inventar eventos anteriores, e não expõe códigos de cupons, valores, IDs ou estados das partidas. Não requer migration; a agregação acompanha o histórico persistido.
+
 ### Avatares
 
 API recebe JPG/PNG/WebP, valida e reprocessa com Sharp para WebP 256 × 256 sem metadados (limites em `modules/avatars/image.ts`). Banco guarda chave aleatória; perfil/sessão retornam apenas URL pública. Desenvolvimento usa arquivos locais; adaptador S3 privado já existe, configurado pelos `.env.example`.
