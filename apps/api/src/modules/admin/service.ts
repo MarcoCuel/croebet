@@ -1,8 +1,9 @@
+import { hash as hashPassword, argon2id } from "argon2";
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { z } from "zod";
 import { adminUserSchema, adminUsersSchema, auditPageSchema, couponSchema, couponsSchema, redemptionsSchema,
-  type adminUserIdentitySchema, type adminQuerySchema, type userChangeSchema, type balanceAdjustmentSchema, type couponWriteSchema, type couponsQuerySchema } from "@croebet/shared";
+  type adminUserPasswordSchema, type adminUserIdentitySchema, type adminQuerySchema, type userChangeSchema, type balanceAdjustmentSchema, type couponWriteSchema, type couponsQuerySchema } from "@croebet/shared";
 import { avatarUrl } from "../avatars/storage.ts";
 import { transferCroinsInTransaction } from "../wallet/service.ts";
 import { issuanceAccountId } from "../economy/config.ts";
@@ -98,6 +99,18 @@ export async function changeUserIdentity(pool: Pool, actorId: string, hash: stri
       before: { displayName: before.display_name, username: before.username },
       after: { displayName: input.displayName, username: input.username },
     });
+  });
+}
+export async function changeUserPassword(pool: Pool, actorId: string, sessionHash: string, targetId: string, input: z.infer<typeof adminUserPasswordSchema>) {
+  const before = (await pool.query("select password_hash from users where id=$1", [targetId])).rows[0];
+  if (!before) throw new ManagementError(404, "NOT_FOUND", "Usuário não encontrado.");
+  const nextHash = await hashPassword(input.newPassword, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
+  await adminTransaction(pool, actorId, sessionHash, targetId, async client => {
+    const locked = (await client.query("select password_hash from users where id=$1", [targetId])).rows[0];
+    if (locked.password_hash !== before.password_hash) throw new ManagementError(409, "VERSION_CONFLICT", "A senha foi alterada. Recarregue antes de salvar.");
+    await client.query("update users set password_hash=$1 where id=$2", [nextHash, targetId]);
+    await client.query("delete from sessions where user_id=$1 and ($1<>$2 or token_hash<>$3)", [targetId, actorId, sessionHash]);
+    await audit(client, actorId, targetId, "user.password", "", {});
   });
 }
 export async function adjustBalance(pool: Pool, actorId: string, hash: string, targetId: string, input: z.infer<typeof balanceAdjustmentSchema>) {

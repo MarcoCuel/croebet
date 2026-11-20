@@ -20,6 +20,7 @@ export function matchesFixture() {
   let csrfCount=0;
   const directory=(actor:string)=>{
     for(const {room} of states.values())if(room.status==="lobby"){
+      room.confirmedUserIds=room.entryAmount>0?[...new Set([room.hostId,...room.confirmedUserIds.filter(id=>room.participants.some(p=>p.userId===id))])]:[];
       room.onlineUserIds=[...new Set([...streams].filter(s=>s.active && room.participants.some(p=>p.userId===s.actor)).map(s=>s.actor))];
       room.pendingInvitations=[...invitations.values()].filter(i=>i.code===room.code && !room.participants.some(p=>p.userId===i.target)).map(i=>({userId:i.target,username:matchUsers.find(u=>u.id===i.target)?.username ?? "Ana",avatarUrl:null}));
     }
@@ -113,7 +114,7 @@ export function matchesFixture() {
     if(path==="/api/v1/matches"){
       if(directory(actor.id).owned || directory(actor.id).active)return send({error:{message:"Você já tem um lobby criado ou uma partida em andamento."}},409);
       const input=createMatchSchema.parse(body),code=(++createdCount).toString(16).padStart(12,"0").toUpperCase();
-      const room:Room={entryAmount:input.entryAmount,potTotal:0,payouts:[],settlement:null,confirmedUserIds:[],id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
+      const room:Room={entryAmount:input.entryAmount,potTotal:0,payouts:[],settlement:null,confirmedUserIds:input.entryAmount>0?[actor.id]:[],id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
       creators.set(code,actor.id);states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
     }
     const saved=states.get(code);if(!saved)return send({error:{message:"Sala não encontrada."}},404);
@@ -133,7 +134,7 @@ export function matchesFixture() {
       const settings=updateLobbySchema.parse(body);
       if(saved.room.status!=="lobby" || saved.room.hostId!==actor.id)return send({error:{message:"Somente o host pode alterar uma sala aberta."}},403);
       if(settings.expectedVersion!==saved.room.version || settings.capacity<saved.room.participants.length)return send({error:{message:"Confira os participantes e tente novamente."}},409);
-      saved.room={...saved.room,version:saved.room.version+1,capacity:settings.capacity,options:settings.options,entryAmount:settings.entryAmount,confirmedUserIds:settings.entryAmount===saved.room.entryAmount?saved.room.confirmedUserIds:[]};
+      saved.room={...saved.room,version:saved.room.version+1,capacity:settings.capacity,options:settings.options,entryAmount:settings.entryAmount,confirmedUserIds:settings.entryAmount===saved.room.entryAmount?saved.room.confirmedUserIds:settings.entryAmount>0?[saved.room.hostId]:[]};
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/join")){

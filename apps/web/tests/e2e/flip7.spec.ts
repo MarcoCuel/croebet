@@ -417,7 +417,7 @@ test("visitante vê vagas e acompanha uma partida sem controles",async({page,bro
 });
 
 
-test("entrada em Croins exige confirmação de todos e alterações invalidam os aceites",async({page,browser})=>{
+test("host confirma automaticamente e demais participantes reconfirmam alterações da entrada",async({page,browser})=>{
   await page.goto("/jogos/flip7");
   await page.getByRole("switch",{name:"Jogar apostando"}).check();
   await expect(page.getByLabel("Entrada por jogador",{exact:true})).toHaveValue("5");
@@ -432,15 +432,15 @@ test("entrada em Croins exige confirmação de todos e alterações invalidam os
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toBeVisible();
     await expect(prize).toContainText("10 Croins");
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
-    await page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();
+    await expect(page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toHaveCount(0);
     await peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
     await page.getByLabel("Entrada por jogador",{exact:true}).fill("10");
     await page.getByLabel("Entrada por jogador",{exact:true}).blur();
-    await expect(page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toHaveCount(0);
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toBeVisible();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
-    await page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
+
     await peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
     await page.getByRole("button",{name:"Jogar",exact:true}).click();

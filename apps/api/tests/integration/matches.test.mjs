@@ -458,17 +458,19 @@ test("PostgreSQL: entrada confirmada, alterações invalidam aceite, saldo insuf
  const {pool,actors,sessions,lobby,room,balances,confirm}=await paidEnvironment(t);
  const original=await balances();
  let current=await getMatch(pool,null,room.code);
+ assert.deepEqual(room.confirmedUserIds,[actors[0]]);
+ assert.deepEqual(current.confirmedUserIds,[actors[0]]);
  await assert.rejects(lobby(room.code,0,"start",{expectedVersion:current.version}),{code:"ENTRY_NOT_CONFIRMED"});
- await confirm(0);current=await confirm(1);
+ current=await confirm(1);
  current=await lobby(room.code,0,"update",{expectedVersion:current.version,capacity:4,options:current.options,entryAmount:31});
- assert.deepEqual(current.confirmedUserIds,[]);
+ assert.deepEqual(current.confirmedUserIds,[actors[0]]);
  await assert.rejects(lobby(room.code,1,"confirm-entry",{expectedVersion:current.version,entryAmount:5}),{code:"VERSION_CONFLICT"});
- await confirm(0);current=await confirm(1);
+ current=await confirm(1);
  await assert.rejects(lobby(room.code,0,"start",{expectedVersion:current.version}),{code:"INSUFFICIENT_FUNDS"});
  assert.deepEqual(await balances(),original);
  assert.equal((await pool.query("select 1 from game_match_stakes where match_id=$1",[room.id])).rowCount,0);
  current=await lobby(room.code,0,"update",{expectedVersion:current.version,capacity:4,options:current.options,entryAmount:5});
- await confirm(0);current=await confirm(1);
+ current=await confirm(1);
  const input={commandId:randomUUID(),expectedVersion:current.version};
  const failingPool={connect:async()=>{const client=await pool.connect();return {query:(sql,args)=>sql.startsWith("insert into game_match_events")?Promise.reject(Error("event failure")):client.query(sql,args),release:()=>client.release()};}};
  await assert.rejects(lobbyAction(failingPool,actors[0],sessions[0],room.code,"start",input),/event failure/);
@@ -487,7 +489,7 @@ test("PostgreSQL: entrada confirmada, alterações invalidam aceite, saldo insuf
 
 test("PostgreSQL: prêmio autoritativo, pote vazio, retry e arquivo financeiro preservado",async t=>{
  const {pool,actors,sessions,lobby,room,confirm}=await paidEnvironment(t);
- await confirm(0);let current=await confirm(1);
+ let current=await confirm(1);
  let match=await lobby(room.code,0,"start",{expectedVersion:current.version});
  let lastInput,lastActor,lastResult;
  for(let step=0;match.status==='playing' && step<2000;step++){
@@ -511,7 +513,7 @@ test("PostgreSQL: prêmio autoritativo, pote vazio, retry e arquivo financeiro p
 
 test("PostgreSQL: empates com bot vão à casa; todos abandonam sem reembolso e liquidam pote",async t=>{
  const {pool,actors,sessions,lobby,room,confirm}=await paidEnvironment(t);
- await confirm(0);const ready=await confirm(1);
+ const ready=await confirm(1);
  const started=await lobby(room.code,0,"start",{expectedVersion:ready.version});
  const first=await commandMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:started.version},true);
  const last=await commandMatch(pool,actors[1],sessions[1],room.code,{commandId:randomUUID(),expectedVersion:first.match.version},true);
@@ -538,12 +540,25 @@ test("PostgreSQL: inícios concorrentes em salas com Croins cobram somente a par
  const other=await createMatch(pool,actors[2],sessions[2],{requestId:randomUUID(),game:"flip7",capacity:4,options:{mode:"classic",brutal:false},entryAmount:5});
  await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),other.id,actors[2]]);
  await lobby(other.code,0,"join");
- await confirm(0);const firstReady=await confirm(1);
+ const firstReady=await confirm(1);
  let secondReady=await getMatch(pool,null,other.code);
  secondReady=await lobby(other.code,0,"confirm-entry",{expectedVersion:secondReady.version,entryAmount:5});
- secondReady=await lobby(other.code,2,"confirm-entry",{expectedVersion:secondReady.version,entryAmount:5});
+ assert.ok(secondReady.confirmedUserIds.includes(actors[2]));
  const results=await Promise.allSettled([lobby(room.code,0,"start",{expectedVersion:firstReady.version}),lobby(other.code,2,"start",{expectedVersion:secondReady.version})]);
  assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
  assert.equal((await balances()).find(a=>a.user_id===actors[0]).balance,'25');
  assert.equal((await pool.query("select count(*)::int n from game_match_stakes where match_id=any($1::uuid[])",[[room.id,other.id]])).rows[0].n,1);
+});
+
+test("PostgreSQL: novo host fica confirmado e antigo host volta a precisar aceitar a entrada",async t=>{
+ const {actors,lobby,room}=await paidEnvironment(t);
+ await lobby(room.code,2,"join");
+ let current=await lobby(room.code,0,"leave");
+ assert.equal(current.hostId,actors[1]);
+ assert.deepEqual(current.confirmedUserIds,[actors[1]]);
+ current=await lobby(room.code,0,"join");
+ assert.deepEqual(current.confirmedUserIds,[actors[1]]);
+ current=await lobby(room.code,1,"update",{expectedVersion:current.version,capacity:4,options:current.options,entryAmount:10});
+ assert.deepEqual(current.confirmedUserIds,[actors[1]]);
+ await assert.rejects(lobby(room.code,1,"start",{expectedVersion:current.version}),{code:"ENTRY_NOT_CONFIRMED"});
 });

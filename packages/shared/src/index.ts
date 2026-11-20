@@ -18,6 +18,7 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 export const usernameSchema = z.string().trim().min(3, "Use pelo menos 3 caracteres no usuário.").max(24).regex(/^[A-Za-z0-9._]+$/, "Use letras, números, ponto ou sublinhado.");
 const passwordSchema = z.string().refine(value => Array.from(value).length >= 8 && Array.from(value).length <= 128, "Use uma senha de 8 a 128 caracteres.");
 export const registerSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
+export const adminUserPasswordSchema = z.object({ newPassword: passwordSchema }).strict();
 export const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(512) }).strict();
 export const deleteAccountSchema = z.object({ password: z.string().min(1).max(512) }).strict();
 export const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(512), newPassword: passwordSchema }).strict()

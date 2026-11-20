@@ -27,3 +27,14 @@ test("troca de usuário valida apenas o novo nome; prazo e identidade pertencem 
    assert.equal(changeUsernameSchema.safeParse(body).success, false);
  }
 });
+
+import { adminUserPasswordSchema } from "../dist/index.js";
+test("senha administrativa preserva espaços, conta caracteres Unicode e rejeita campos extras", () => {
+  const newPassword = "  senha com espaços  ";
+  assert.deepEqual(adminUserPasswordSchema.parse({ newPassword }), { newPassword });
+  assert.equal(adminUserPasswordSchema.safeParse({ newPassword: "🔑".repeat(7) }).success, false);
+  assert.equal(adminUserPasswordSchema.safeParse({ newPassword: "🔑".repeat(8) }).success, true);
+  assert.equal(adminUserPasswordSchema.safeParse({ newPassword: "🔑".repeat(128) }).success, true);
+  assert.equal(adminUserPasswordSchema.safeParse({ newPassword: "🔑".repeat(129) }).success, false);
+  assert.equal(adminUserPasswordSchema.safeParse({ newPassword, role: "admin" }).success, false);
+});

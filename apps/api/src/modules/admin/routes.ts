@@ -2,8 +2,8 @@ import { mediaQuerySchema, mediaMaxBytes, mediaContentTypes } from "@croebet/sha
 import type { ImageStorage } from "../storage/images.ts";
 import { validImageKey } from "../storage/images.ts";
 import { readMedia, uploadMedia, deleteMedia } from "../media/service.ts";
-import { adminUserIdentitySchema } from "@croebet/shared";
-import { scheduleUserDeletion, changeUserIdentity } from "./service.ts";
+import { adminUserPasswordSchema, adminUserIdentitySchema } from "@croebet/shared";
+import { scheduleUserDeletion, changeUserPassword, changeUserIdentity } from "./service.ts";
 import { matchHistoryQuerySchema } from "@croebet/shared";
 import { readGameHistory, readMatchReplay } from "./match-history.ts";
 import { catalogMarketWriteSchema, catalogMarketDeleteSchema } from "@croebet/shared";
@@ -138,6 +138,11 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
   }));
   app.delete("/api/v1/admin/users/:id", (request, reply) => run(request, reply, true, async (actor, hash) => {
     await scheduleUserDeletion(pool, actor.id, hash, id(request)); return { ok: true };
+  }));
+  app.patch("/api/v1/admin/users/:id/password", (request, reply) => run(request, reply, true, async (actor, hash) => {
+    if (!await limit(`admin-password:${actor.id}`, 10)) throw new ManagementError(429, "RATE_LIMIT", "Muitas tentativas. Tente novamente mais tarde.");
+    await changeUserPassword(pool, actor.id, hash, id(request), adminUserPasswordSchema.parse(request.body));
+    return { ok: true };
   }));
   app.patch("/api/v1/admin/users/:id/identity", (request, reply) => run(request, reply, true, async (actor, hash) => {
     await changeUserIdentity(pool, actor.id, hash, id(request), adminUserIdentitySchema.parse(request.body)); return { ok: true };

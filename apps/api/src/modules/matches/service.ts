@@ -39,7 +39,7 @@ async function reservations(client: Client, id: string) {
 async function roomView(client: Client, row: Row, members: MatchParticipant[]): Promise<Room> {
   const room=roomSchema.parse({...view(row,members),...(Number(row.entry_amount)>0?await readMatchEconomy(client,row.id):{})});
   if(room.status!=="lobby")return room;
-  room.confirmedUserIds=Number(row.entry_amount)>0?(await client.query<{user_id:string}>("select user_id from game_match_players where match_id=$1 and confirmed_entry_amount=$2 order by seat",[row.id,row.entry_amount])).rows.map(p=>p.user_id):[];
+  room.confirmedUserIds=Number(row.entry_amount)>0?(await client.query<{user_id:string}>("select user_id from game_match_players where match_id=$1 and (confirmed_entry_amount=$2 or user_id=$3) order by seat",[row.id,row.entry_amount,row.owner_id])).rows.map(p=>p.user_id):[];
   room.pendingInvitations=await reservations(client,row.id);
   room.onlineUserIds=(await client.query<{user_id:string}>("select distinct user_id from match_presence where match_id=$1 and expires_at>clock_timestamp() order by user_id",[row.id])).rows.map(p=>p.user_id);
   return room;
@@ -154,7 +154,7 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
     const id=randomUUID(),code=randomBytes(6).toString("hex").toUpperCase();
     const account=await client.query("select display_name,avatar_key from users where id=$1",[actor]);
     const host={ userId:actor,username,displayName:account.rows[0].display_name,avatarUrl:avatarUrl(account.rows[0].avatar_key),seat:0 };
-    const response=lobbySchema.parse({ entryAmount:input.entryAmount ?? 0,id,code,game:input.game,rulesVersion:driver.rulesVersion,version:1,status:"lobby",state:null,hostId:actor,capacity:input.capacity,options:input.options,participants:[host] });
+    const response=lobbySchema.parse({ confirmedUserIds:input.entryAmount>0?[actor]:[],entryAmount:input.entryAmount ?? 0,id,code,game:input.game,rulesVersion:driver.rulesVersion,version:1,status:"lobby",state:null,hostId:actor,capacity:input.capacity,options:input.options,participants:[host] });
     await client.query(`insert into game_matches(id,code,game_id,game_slug,owner_id,created_by,rules_version,version,status,state,capacity,options,creation_request_id,creation_hash,creation_response,entry_amount) values($1,$2,$3,$4,$5,$5,$6,1,'lobby',null,$7,$8,$9,$10,$11,$12)`,[id,code,catalog.rows[0].id,input.game,actor,driver.rulesVersion,input.capacity,JSON.stringify(input.options),input.requestId,payloadHash,JSON.stringify(response),input.entryAmount ?? 0]);
     await client.query("insert into game_match_players(match_id,seat,user_id,controller_id,name,kind) values($1,0,$2,$2,$3,'user')",[id,actor,username]);
     return response;
@@ -259,7 +259,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
       if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
       if(Number(row.entry_amount)>0){
-        const confirmed=await client.query("select count(*)::int total from game_match_players where match_id=$1 and confirmed_entry_amount=$2",[row.id,row.entry_amount]);
+        const confirmed=await client.query("select count(*)::int total from game_match_players where match_id=$1 and (confirmed_entry_amount=$2 or user_id=$3)",[row.id,row.entry_amount,row.owner_id]);
         if(confirmed.rows[0].total!==people.length)throw new MatchError("ENTRY_NOT_CONFIRMED",409,"Todos os participantes precisam confirmar o valor da entrada.");
       }
       await requireAvailable(client,people.map(person=>person.userId));

@@ -35,6 +35,11 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
     const items = user.username.toLowerCase().includes(q) && (status === "all" || status === user.status) ? [user] : [];
     return { items, total: items.length, hasMore: false, counts: { all: user.username.toLowerCase().includes(q) ? 1 : 0, active: user.username.toLowerCase().includes(q) && user.status === "active" ? 1 : 0, suspended: user.username.toLowerCase().includes(q) && user.status === "suspended" ? 1 : 0 } };
   }
+  if (path === `/api/v1/admin/users/${userId}/password` && method === "PATCH") {
+    lastBody = body;
+    audit.unshift({ id: randomUUID(), actorId: adminId, actorUsername: "Marco", action: "user.password", reason: "", details: {}, createdAt: new Date().toISOString() });
+    return { ok: true };
+  }
   if (path === `/api/v1/admin/users/${userId}/identity` && method === "PATCH") {
     lastBody=body;user={...user,displayName:String(body.displayName),username:String(body.username)};
     audit.unshift({id:randomUUID(),actorId:adminId,actorUsername:"Marco",action:"user.identity",reason:"",details:{},createdAt:new Date().toISOString()});
@@ -233,4 +238,27 @@ test("cadastro é fixo; exclusão exige confirmação e reativação cancela o p
   await page.getByRole("dialog").getByRole("button", { name: "Salvar alterações" }).click();
   await expect(page.getByRole("button", { name: "Excluir conta", exact: true })).toBeVisible();
   expect(user.deletionScheduledAt).toBeNull();
+});
+
+test("admin altera senha com confirmação, validação e auditoria", async ({ page }) => {
+  await page.goto(`/admin/usuarios/${userId}`);
+  await page.getByRole("button", { name: "Editar senha", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  const password = "nova senha de teste";
+  await dialog.getByLabel("Nova senha", { exact: true }).fill("curta");
+  await dialog.getByLabel("Confirmar nova senha").fill("curta");
+  await dialog.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(page.getByText("Use uma senha de 8 a 128 caracteres.", { exact: true })).toBeVisible();
+  expect(lastBody).toEqual({});
+  await dialog.getByLabel("Nova senha", { exact: true }).fill(password);
+  await dialog.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(page.getByText("As senhas não coincidem.", { exact: true })).toBeVisible();
+  expect(lastBody).toEqual({});
+  await dialog.getByLabel("Confirmar nova senha").fill(password);
+  await dialog.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("Senha alterada", { exact: true })).toBeVisible();
+  expect(lastBody).toEqual({ newPassword: password });
+  await page.getByRole("button", { name: "Editar senha", exact: true }).click();
+  await expect(dialog.getByLabel("Nova senha", { exact: true })).toHaveValue("");
 });

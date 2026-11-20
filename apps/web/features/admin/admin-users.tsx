@@ -4,7 +4,7 @@ import { Balance } from "@/features/wallet/balance";
 import { AdminUserDelete } from "@/features/admin/admin-user-delete";
 import { EmptyState } from "@/components/shared/empty-state";
 import { EditableRow } from "@/components/shared/editable-row";
-import { adminUserIdentitySchema, commandResultSchema } from "@croebet/shared";
+import { adminUserPasswordSchema, adminUserIdentitySchema, commandResultSchema } from "@croebet/shared";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DialogTitle } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatBalance } from "@/features/wallet/wallet";
@@ -78,6 +79,32 @@ function UserIdentity({ user, field }: { user: AdminUser; field: "displayName" |
     </form>
   </EditableRow>;
 }
+function UserPassword({ user }: { user: AdminUser }) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
+  return <EditableRow label="Senha" value="••••••••" open={open} onOpenChange={value => { if (!pending) setOpen(value); }}>
+    <DialogTitle>Editar senha</DialogTitle>
+    <p className="mt-2 text-sm text-muted">Use de 8 a 128 caracteres. As sessões do usuário serão encerradas, exceto a atual se você estiver editando a própria conta.</p>
+    <form className="mt-5 grid gap-4" onSubmit={async event => {
+      event.preventDefault(); if (pending) return;
+      const form = new FormData(event.currentTarget);
+      const input = adminUserPasswordSchema.safeParse({ newPassword: form.get("newPassword") });
+      if (!input.success) return void toast.error(input.error.issues[0].message);
+      if (input.data.newPassword !== form.get("confirmPassword")) return void toast.error("As senhas não coincidem.");
+      setPending(true);
+      try {
+        await managementRequest(`/admin/users/${user.id}/password`, commandResultSchema, "PATCH", input.data);
+        setOpen(false); toast.success("Senha alterada."); router.refresh();
+      } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar a senha."); }
+      finally { setPending(false); }
+    }}>
+      <Field>Nova senha<PasswordInput name="newPassword" autoComplete="new-password" required disabled={pending} /></Field>
+      <Field>Confirmar nova senha<PasswordInput name="confirmPassword" autoComplete="new-password" required disabled={pending} /></Field>
+      <Button type="submit" loading={pending}>Salvar senha</Button>
+    </form>
+  </EditableRow>;
+}
 function UserPermissions({ user, field }: { user: AdminUser; field: "role" | "status" }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -110,7 +137,7 @@ export function AdminUserDetail({ initial }: { initial: ReturnType<typeof adminU
     <Card className="flex flex-wrap items-center gap-4"><UserAvatar user={user} large /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h1 className="break-words text-xl font-semibold">{user.displayName}</h1><div className="rounded-xl bg-contrast/5 px-3 py-2 text-sm"><Balance value={user.balance} /></div></div><p className="mt-1 text-sm text-muted">@{user.username}</p></div><Status user={user} /></Card>
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
       <Card className="grid gap-5 xl:sticky xl:top-20"><h2 className="font-semibold">Dados da conta</h2>
-        <div><UserIdentity user={user} field="displayName" /><UserIdentity user={user} field="username" /><EditableRow label="Cadastro" value={adminDate(user.createdAt)} /><UserPermissions user={user} field="status" /><UserPermissions user={user} field="role" /><AdminUserBalance userId={user.id} balance={user.balance} /></div>
+        <div><UserIdentity user={user} field="displayName" /><UserIdentity user={user} field="username" /><EditableRow label="Cadastro" value={adminDate(user.createdAt)} /><UserPermissions user={user} field="status" /><UserPermissions user={user} field="role" /><UserPassword user={user} /><AdminUserBalance userId={user.id} balance={user.balance} /></div>
         <AdminUserDelete user={user} />
       </Card>
       <Card className="min-w-0"><h2 className="font-semibold">Movimentações</h2><ul className="mt-3 divide-y divide-contrast/6">{transactions.items.map(entry => <li key={entry.id} className="flex items-start justify-between gap-4 py-4"><div className="min-w-0"><p className="break-words text-sm font-medium">{entry.description}</p><p className="mt-1 text-xs text-muted">{adminDate(entry.createdAt)}</p>{entry.reference && <p className="mt-1 break-words text-xs text-muted">{entry.reference}</p>}</div><div className="shrink-0 text-right"><p className={entry.amount > 0 ? "text-sm font-semibold tabular-nums text-brand" : "text-sm font-semibold tabular-nums"}>{entry.amount > 0 ? "+" : "−"}{formatBalance.format(Math.abs(entry.amount))} Croins</p><p className="mt-1 text-xs text-muted">Saldo: {formatBalance.format(entry.balance)}</p></div></li>)}</ul>
