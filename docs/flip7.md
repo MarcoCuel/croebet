@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Jogo com partidas gratuitas ou com Croins em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots não são adicionados na criação: assumem vagas após abandono ou expulsão durante o jogo. Motor, partidas e movimentações de Croins ficam na API/PostgreSQL. Pontos não viram Croins nem atualizam rankings/conquistas.
+Jogo com partidas gratuitas ou com Croins em `/jogos/flip7`, com lobbies públicos entre contas da Croebet. Quem cria escolhe modalidade e limite de 2 a 12 vagas; o host inicia com qualquer quantidade entre duas pessoas e esse limite. Cada pessoa ocupa uma vaga e controla somente suas decisões. Bots não são adicionados na criação: assumem vagas após abandono ou expulsão durante o jogo. Motor, partidas e movimentações de Croins ficam na API/PostgreSQL. Pontos não viram Croins. Rankings consultam vitórias arquivadas e perdas liquidadas; conquistas permanecem pendentes.
 
 A execução segue a [base compartilhada dos jogos](backend-architecture.md#base-compartilhada-dos-jogos), com regras específicas do Flip 7. Não há importação de snapshots locais. [Operação e contratos](backend-architecture.md#partidas-integradas).
 
@@ -46,7 +46,7 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 - Decisão humana usa ID de comando e versão esperada. Resposta incerta permite repetir o mesmo ID; atualizações remotas recuperam eventos ordenados ou snapshot. Não enviar `step`, `next`, seed, pontuação ou snapshot para autorizar jogadas.
 - Preferências em `croebet:flip7:setup`: modalidade, Brutal e limite de lugares; sem nomes/tipos. Fallback: Clássico, dois lugares, sem Brutal. Não ler nem converter partidas do localStorage; não é necessário preencher todas as vagas para iniciar.
 
-O admin consulta as partidas dentro de cada jogo, incluindo participantes, pontuações, vencedores e reprodução dos estados confirmados com controles de pausa, avanço e retorno. Os registros sobrevivem à exclusão de contas e salas. A reprodução não interfere no jogo; rankings continuam pendentes. Persistência e limites em [Histórico administrativo](backend-architecture.md#histórico-administrativo-de-partidas).
+O admin consulta as partidas dentro de cada jogo, incluindo participantes, pontuações, vencedores e reprodução dos estados confirmados com controles de pausa, avanço e retorno. Os registros sobrevivem à exclusão de contas e salas. A reprodução não interfere no jogo; os rankings consultam o resultado arquivado conforme os [critérios de classificação](../CROEBET.md#44-rankings-e-gamificação). Persistência e limites em [Histórico administrativo](backend-architecture.md#histórico-administrativo-de-partidas).
 
 ## Apresentação
 

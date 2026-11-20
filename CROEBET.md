@@ -241,7 +241,7 @@ A acidez deve ser calibrada conforme o contexto: mensagens de erro e regras prec
 - Regras de novos jogos, probabilidades e equilíbrio; Flip 7 já tem regras documentadas;
 - Permissões adicionais da moderação; formatos e rateio das apostas seguem a seção 4.2;
 - Recuperação de conta sem e-mail; o Flip 7 já permite espectadores e aguarda desconexões sem timeout, com regras econômicas em [Economia](docs/flip7.md#economia);
-- Critérios e periodicidade dos rankings;
+- Futuras categorias e recompensas dos rankings;
 - Lista e requisitos de emblemas/conquistas;
 - Política de contas, abuso e múltiplos cadastros;
 - Se haverá ou não prêmios reais no futuro e quais requisitos seriam necessários.

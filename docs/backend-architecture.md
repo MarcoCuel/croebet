@@ -11,7 +11,7 @@ Inspeção do código em 19/11/2026. Implementado não significa validado nesta 
 | Administração | Visão geral, usuários/permissões/suspensão, cupons, páginas, menus, catálogo de jogos e catálogo de apostas via API |
 | Jogos | Seed com Flip 7 ativo e sem capa; motor e partidas livres na API/PostgreSQL, com lobbies públicos editáveis pelo host, sincronização Socket.IO e bots assumindo vagas após abandono/expulsão |
 | Apostas | Apenas catálogo administrativo persistido; sem palpites, apuração ou pagamentos no backend; acesso público desabilitado |
-| Rankings e conquistas | Fora da primeira versão; menus com “Em breve” e rotas redirecionadas ao início |
+| Rankings e conquistas | Rankings públicos de vitórias, saldo e perdas líquidas; conquistas com “Em breve” e redirecionamento ao início |
 
 ## Arquitetura
 
