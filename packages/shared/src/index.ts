@@ -19,6 +19,19 @@ const passwordSchema = z.string().refine(value => Array.from(value).length >= 8 
 export const registerSchema = z.object({ username: usernameSchema, password: passwordSchema }).strict();
 export const loginSchema = z.object({ username: usernameSchema, password: z.string().min(1).max(512) }).strict();
 export const deleteAccountSchema = z.object({ password: z.string().min(1).max(512) }).strict();
+export const changePasswordSchema = z.object({ currentPassword: z.string().min(1).max(512), newPassword: passwordSchema }).strict()
+  .refine(value => value.currentPassword !== value.newPassword, "Escolha uma senha diferente da atual.");
+export const accountHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).max(1000000).default(0),
+}).strict();
+export const accountHistorySchema = z.object({
+  items: z.array(z.object({
+    id: z.string(), kind: z.enum(["transaction", "game"]), description: z.string(), createdAt: z.iso.datetime(),
+    amount: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).nullable(),
+  }).strict()), hasMore: z.boolean(),
+}).strict();
+export type AccountHistory = z.infer<typeof accountHistorySchema>;
 export const changeUsernameSchema = z.object({ username: usernameSchema }).strict();
 export const profileSchema = z.object({ displayName: z.string().trim().min(1).max(40).regex(/^[^\u0000-\u001f\u007f]+$/u) }).strict();
 export const avatarUrlSchema = z.string().regex(/^\/api\/v1\/avatars\/[0-9a-f-]{36}\.webp$/).nullable().default(null);

@@ -19,11 +19,13 @@ import { Input } from "@/components/ui/input";
 import { AvatarSettings } from "@/features/settings/avatar-settings";
 import { useSession } from "@/features/auth/session-context";
 import { useTheme } from "@/features/theme/theme-provider";
-import Link from "next/link";
+import { authRequest } from "@/features/auth/api";
+import { changePasswordSchema } from "@croebet/shared";
+import { AccountHistoryPanel } from "@/features/settings/account-history";
 import { BalanceValue } from "@/features/wallet/balance";
 import { cn } from "@/lib/utils";
 
-const sections = ["Geral", "Aparência", "Conta", "Carteira"] as const;
+const sections = ["Geral", "Aparência", "Conta", "Histórico"] as const;
 const themes = [
   { value: "light", label: "Claro", icon: Sun },
   { value: "dark", label: "Escuro", icon: Moon },
@@ -66,7 +68,7 @@ export function SettingsDialog({
 
 function SettingsContent({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<(typeof sections)[number]>("Geral");
-  const { username, displayName, balance, walletReady, dailyClaimed } =
+  const { userId, username, displayName, balance, walletReady, dailyClaimed } =
     useSession();
   const { theme, setTheme } = useTheme();
   const panelId = useId();
@@ -155,11 +157,12 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <Card className="bg-contrast/3 px-4 py-0 sm:px-4 sm:py-0">
               <AccountIdentity />
               <AccountUsername />
+              <AccountPassword />
             </Card>
             <DeleteAccount onDeleted={onClose} />
           </div>
         )}
-        {section === "Carteira" && <Button asChild variant="secondary"><Link href="/carteira" onClick={onClose}>Ver carteira</Link></Button>}
+        {section === "Histórico" && userId && <AccountHistoryPanel key={userId} />}
       </section>
     </>
   );
@@ -233,6 +236,41 @@ function AccountUsername() {
       </form>
     </EditableRow>
   );
+}
+
+function AccountPassword() {
+  const [open, setOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    setCurrentPassword(""); setNewPassword(""); setConfirmation(""); setError(null);
+  }
+  return <EditableRow label="Senha" value="••••••••" open={open} onOpenChange={changeOpen}>
+    <DialogTitle>Alterar senha</DialogTitle>
+    <form className="mt-6 grid gap-4" onSubmit={async event => {
+      event.preventDefault();
+      if (saving) return;
+      const parsed = changePasswordSchema.safeParse({ currentPassword, newPassword });
+      if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
+      if (newPassword !== confirmation) { setError("As senhas não coincidem."); return; }
+      setSaving(true); setError(null);
+      try {
+        await authRequest("/me/password", "PATCH", parsed.data);
+        changeOpen(false); toast.success("Senha atualizada. As outras sessões foram encerradas.");
+      } catch (error) { setError(error instanceof Error ? error.message : "Não foi possível alterar a senha."); }
+      finally { setSaving(false); }
+    }}>
+      <Field>Senha atual<PasswordInput value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" maxLength={512} required disabled={saving} /></Field>
+      <Field>Nova senha<PasswordInput value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" maxLength={256} required disabled={saving} /></Field>
+      <Field>Confirmar nova senha<PasswordInput value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="new-password" maxLength={256} required disabled={saving} /></Field>
+      {error && <p role="alert" className="text-sm text-muted">{error}</p>}
+      <Button type="submit" loading={saving} disabled={saving || !currentPassword || !newPassword || !confirmation}>Salvar senha</Button>
+    </form>
+  </EditableRow>;
 }
 
 function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {

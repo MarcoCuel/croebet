@@ -17,6 +17,8 @@ import { registerSchema, deleteAccountSchema, changeUsernameSchema, loginSchema,
 import { allowedWebOrigins, type readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
 import { readProfileActivity } from "./profile-activity.ts";
+import { readAccountHistory } from "./account-history.ts";
+import { accountHistoryQuerySchema, changePasswordSchema } from "@croebet/shared";
 
 type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null };
 const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
@@ -176,6 +178,13 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
     return readTransactions(pool, user.id, query.data.limit, query.data.offset, query.data.direction);
   });
+  app.get("/api/v1/me/history", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const query = accountHistoryQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
+    return readAccountHistory(pool, user.id, query.data.limit, query.data.offset);
+  });
   app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
     const parsed = usernameSchema.safeParse(request.params.username);
     if (parsed.success) {
@@ -221,8 +230,8 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const client = await pool.connect();
     try {
       await client.query("begin");
-      const active = await client.query("select status from users where id = $1 for update", [user.id]);
-      if (active.rows[0]?.status !== "active") { await client.query("rollback"); return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Usuário ou senha inválidos." } }); }
+      const active = await client.query("select status, password_hash from users where id = $1 for update", [user.id]);
+      if (active.rows[0]?.status !== "active" || active.rows[0].password_hash !== user.password_hash) { await client.query("rollback"); return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Usuário ou senha inválidos." } }); }
       if (request.cookies[sessionName]) await client.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
       const token = await issue(client, user.id); await client.query("commit");
       reply.setCookie(sessionName, token, { ...cookieOptions, maxAge: 30 * 86400 });
@@ -232,6 +241,30 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   app.post("/api/v1/auth/logout", async (request, reply) => {
     if (request.cookies[sessionName]) await pool.query("delete from sessions where token_hash = $1", [tokenHash(request.cookies[sessionName])]);
     reply.clearCookie(sessionName, cookieOptions); reply.clearCookie(csrfName, cookieOptions); return reply.code(204).send();
+  });
+  app.patch("/api/v1/me/password", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    if (!await limit(`password:${user.id}`, 10)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    const parsed = changePasswordSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: parsed.error.issues[0].message } });
+    if (!await verify(user.password_hash, parsed.data.currentPassword)) return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Senha atual incorreta." } });
+    const nextHash = await passwordHash(parsed.data.newPassword);
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const locked = await client.query("select status, password_hash from users where id=$1 for update", [user.id]);
+      const session = await client.query(`select 1 from sessions where user_id=$1 and token_hash=$2
+        and expires_at > clock_timestamp() and idle_expires_at > clock_timestamp() for update`, [user.id, tokenHash(request.cookies[sessionName]!)]);
+      if (locked.rows[0]?.status !== "active" || locked.rows[0].password_hash !== user.password_hash || !session.rows.length) {
+        await client.query("rollback");
+        return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+      }
+      await client.query("update users set password_hash=$1 where id=$2", [nextHash, user.id]);
+      await client.query("delete from sessions where user_id=$1 and token_hash<>$2", [user.id, tokenHash(request.cookies[sessionName]!)]);
+      await client.query("commit");
+      return reply.code(204).send();
+    } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
   });
   app.delete("/api/v1/me", async (request, reply) => {
     const user = await current(request.cookies[sessionName]);

@@ -75,7 +75,7 @@ O projeto está em operação com usuários reais. Preserve contas, economia, pa
 
 ## Conta e autorização
 
-- Username preservado, unicidade/login sem distinguir caixa; nome de exibição independente. Regras de produto em [CROEBET.md, seção 3](../CROEBET.md#3-público-e-acesso); limites exatos nos schemas compartilhados. Senha com Argon2id; sem e-mail, recuperação ou troca de senha implementados.
+- Username preservado, unicidade/login sem distinguir caixa; nome de exibição independente. Regras de produto em [CROEBET.md, seção 3](../CROEBET.md#3-público-e-acesso); limites exatos nos schemas compartilhados. Senha com Argon2id; sem e-mail ou recuperação implementados. `PATCH /me/password` exige senha atual, valida a nova senha e limita tentativas; revalida hash, conta e sessão dentro da transação, altera o hash e revoga as outras sessões, preservando a atual. Login revalida o hash antes de emitir sessão para impedir autenticação concorrente com senha substituída.
 - Sessão opaca aleatória em cookie HttpOnly, host-only, SameSite=Lax; apenas hash no banco. Expiração absoluta de 30 dias e inatividade de 7 dias. Em `APP_ENV=production`, usa Secure e prefixo `__Host-`.
 - Toda mutação exige Origin na lista explícita (`WEB_ORIGIN` e extras apenas em development/test) e token CSRF ligado à sessão/nonce, inclusive pré-login. Limites de tentativas são persistidos. Não registrar senhas, cookies ou tokens.
 - Papéis `user` e `admin`, conferidos pela API. Sem acesso administrativo: 404. A renderização do Next não substitui autorização no serviço; revalide sessão/conta dentro da transação de escrita.
@@ -88,6 +88,8 @@ Admin → Usuários agenda exclusão em 30 dias (`DELETE /admin/users/:id`): sus
 Implantação: aplique a migration incremental `0024_odd_hydra.sql` antes de atualizar API/web; contas existentes recebem prazo nulo. Preserve backup antes da implantação. Para interromper a limpeza, pare os processos da API; durante os 30 dias, reativar a conta cancela o prazo. Após a exclusão definitiva, recuperar identidade exige restauração controlada de backup. Em rollback de aplicação, mantenha a coluna para não perder agendamentos; não reverta migrations anteriores.
 
 O perfil público retorna identidade e um calendário do último ano em `America/Sao_Paulo`, ampliado até o início do primeiro mês e da primeira semana para evitar recortes no começo. A API agrega partidas concluídas do arquivo, recibos de bônus diário e cupons, incluindo dias vazios. Cada evento vale uma atividade; vitórias (incluindo empates na maior pontuação, sem bot no resultado) são apenas detalhes. Partidas em andamento/abandonadas e ações administrativas não contam. O histórico usa exclusivamente os registros disponíveis, sem inventar eventos anteriores, e não expõe códigos de cupons, valores, IDs ou estados das partidas. Não requer migration; a agregação acompanha o histórico persistido.
+
+O histórico privado em `GET /me/history` reúne lançamentos da carteira (incluindo bônus e cupons) e partidas concluídas/encerradas em que a conta participou, com paginação e ordem cronológica decrescente. Usa os registros existentes, sem migration ou cópia de eventos. Retorna apenas descrição, data, tipo e valor quando houver movimentação; não expõe estados do motor nem dados de outros participantes.
 
 ### Avatares
 

@@ -22,7 +22,7 @@ export default async function Game({ params, searchParams }: Props) {
   if (data && data.items.length === 0) notFound();
   if (data && slug !== "flip7") {
     const game = data.items[0];
-    return <PageShell><Card className="space-y-4">
+    return <PageShell><Card className="space-y-4 p-10">
       <Badge variant="secondary">Em breve</Badge>
       <Heading variant="display" asChild><h1>{game.name}</h1></Heading>
       {game.description && <p className="whitespace-pre-line text-muted">{game.description}</p>}
