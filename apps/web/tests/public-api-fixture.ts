@@ -20,7 +20,7 @@ export async function startPublicApi(session: (request: IncomingMessage) => unkn
     const path = new URL(request.url ?? "/", "http://fixture").pathname;
     response.setHeader("content-type", "application/json");
     const body = path === "/api/v1/matches" ? { items: [] } : path === "/api/v1/me" ? { user: session(request) }
-      : path === "/api/v1/matches/lobbies" ? { items: [], current: null }
+      : path === "/api/v1/matches/lobbies" ? { items: [], joined: [], owned: null, active: null }
       : path === "/api/v1/games" ? { items: [game] }
       : path === "/api/v1/games/flip7" ? game
       : path === "/api/v1/navigation" ? { main, footer: [] }

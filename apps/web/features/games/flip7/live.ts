@@ -50,7 +50,7 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
       active = false;
       socket.off("connect", watch).off("disconnect", disconnected).off("connect_error", disconnected)
         .off("matches", matches).off("room", room).off("lobbies", directory).off("room-closed", closed).off("closed", closed);
-      if(socket.connected) socket.emit("watch",{afterVersion:0},()=>{});
+      if(socket.connected) socket.emit("watch",{active:false,afterVersion:0},()=>{});
       release();
     };
   }, [code, enabled, key, userId]);

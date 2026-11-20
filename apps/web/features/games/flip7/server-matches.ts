@@ -1,11 +1,11 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
-import { matchCodeSchema, roomSchema, matchListSchema, lobbyListSchema, type Match, type Lobby } from "@croebet/shared";
+import { matchCodeSchema, roomSchema, matchListSchema, lobbyListSchema, type Match, type Lobby, type LobbyList } from "@croebet/shared";
 
-export type InitialMatches = { revision: string; match: Match | null; lobby: Lobby | null; currentLobby: Lobby | null; lobbies: Lobby[]; items: Match[]; error: string; unavailable: boolean };
+export type InitialMatches = { revision: string; match: Match | null; lobby: Lobby | null; directory: LobbyList; items: Match[]; error: string; unavailable: boolean };
 export async function getInitialMatches(code: string | undefined): Promise<InitialMatches> {
-  const empty: InitialMatches = { revision: randomUUID(), match: null, lobby:null,currentLobby:null,lobbies:[],items: [], error: "", unavailable: false };
+  const empty: InitialMatches = { revision: randomUUID(), match: null, lobby:null,directory:{items:[],joined:[],owned:null,active:null},items: [], error: "", unavailable: false };
   const jar=await cookies();
   const cookie=jar.get("__Host-croebet-session") ?? jar.get("croebet-session");
   if(code && !matchCodeSchema.safeParse(code).success)return {...empty,error:"Sala não encontrada."};
@@ -19,8 +19,8 @@ export async function getInitialMatches(code: string | undefined): Promise<Initi
   try {
     const [data,lobbies]=await Promise.all([request(code?`/${code}`:""),request("/lobbies")]);
     const directory=lobbyListSchema.parse(lobbies);
-    const base={...empty,lobbies:directory.items,currentLobby:directory.current};
-    if(code){const room=roomSchema.parse(data);return room.status==="lobby"?{...base,lobby:directory.current ?? room}:{...base,match:room};}
-    return {...base,lobby:directory.current,items:matchListSchema.parse(data).items};
+    const base={...empty,directory};
+    if(code){const room=roomSchema.parse(data);return room.status==="lobby"?{...base,lobby:room}:{...base,match:room};}
+    return {...base,lobby:directory.owned,items:matchListSchema.parse(data).items};
   }catch(error){const message=error instanceof Error?error.message:"unavailable";return {...empty,unavailable:message==="unavailable" || !["Entre novamente para acessar as salas.","Sala não encontrada."].includes(message),error:message==="unavailable"?"Não foi possível carregar as salas.":message};}
 }

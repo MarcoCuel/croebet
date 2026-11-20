@@ -9,7 +9,7 @@ import { getRoomSync, listMatches, listLobbies, MatchError, readLobbyInvitations
 import { applyRealtimeRequest } from "./realtime-actions.ts";
 
 type Options = { sessionName: string; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
-type Connection = { actor: string | null; session: string; id: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; watching: boolean; tail: Promise<void> };
+type Connection = { actor: string | null; session: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; watching: boolean; tail: Promise<void>; presence: Map<string,string> };
 type LiveSocket = Omit<Socket, "data"> & { data: Connection };
 const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
 
@@ -42,9 +42,22 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       if (socket.connected) await action();
     }).catch(error => close(socket, error));
   }
+  async function syncPresence(c: Connection) {
+    const joined=c.actor && c.watching ? await pool.query<{id:string}>(`select m.id from game_matches m join game_match_players p on p.match_id=m.id where p.controller_id=$1 and m.status in ('lobby','playing')`,[c.actor]) : {rows:[]};
+    const wanted=new Set(joined.rows.map(row=>row.id));
+    for(const [room,id] of c.presence)if(!wanted.has(room)){
+      await pool.query("delete from match_presence where id=$1",[id]);c.presence.delete(room);
+    }
+    for(const room of wanted)if(!c.presence.has(room)){
+      const id=randomUUID();
+      await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')",[id,room,c.actor]);
+      c.presence.set(room,id);
+    }
+  }
   async function refresh(socket: LiveSocket) {
     const c = socket.data;
     await authorize(c);
+    await syncPresence(c);
     if (c.watching && c.code) {
       try {
         const sync = await getRoomSync(pool, c.actor, c.code, c.version);
@@ -59,7 +72,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
         socket.emit("room-closed", { code: error.code, message: error.message });
         await socket.leave(`match:${c.code}`);
         c.code = undefined; c.signature = "";
-        await pool.query("delete from match_presence where id=$1", [c.id]);
+
       }
     }
     const [directory, invitations] = await Promise.all([listLobbies(pool, c.actor), c.actor ? readLobbyInvitations(pool, c.actor) : Promise.resolve({items:[]})]);
@@ -100,7 +113,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
         throw new MatchError("UNAUTHENTICATED", 401, "Atualize a página e entre novamente.");
       const result = token ? await pool.query<{ user_id: string }>("select user_id from sessions where token_hash=$1", [tokenHash(token)]) : {rows: []};
       if (token && !result.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
-      const data: Connection = { actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", id: randomUUID(), version: 0, signature: "", directory: "", invitations: "", matches: "", watching: false, tail: Promise.resolve() };
+      const data: Connection = { actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", version: 0, signature: "", directory: "", invitations: "", matches: "", watching: false, tail: Promise.resolve(), presence: new Map() };
       await authorize(data);
       if (io.sockets.sockets.size >= 200 || [...io.sockets.sockets.values()].filter(s => (data.actor ? s.data.actor === data.actor : s.handshake.address === socket.handshake.address)).length >= 6)
         throw new MatchError("CONNECTION_LIMIT", 429, "Muitas conexões abertas.");
@@ -121,13 +134,11 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
           await authorize(socket.data);
           if (!await options.limit(`watch:${socket.data.actor ?? socket.handshake.address}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
           const input = matchWatchSchema.parse(value);
-          const initial = input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
+          const initial = input.active && input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
           if (socket.data.code) await socket.leave(`match:${socket.data.code}`);
-          await pool.query("delete from match_presence where id=$1", [socket.data.id]);
-          socket.data.code = input.code; socket.data.version = input.afterVersion; socket.data.signature = ""; socket.data.watching = true;
+          socket.data.code = input.active ? input.code : undefined; socket.data.version = input.afterVersion; socket.data.signature = ""; socket.data.watching = input.active;
           if (initial) {
             await socket.join(`match:${initial.room.code}`);
-            if (socket.data.actor && initial.room.participants.some(p => p.userId === socket.data.actor)) await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '30 seconds')", [socket.data.id, initial.room.id, socket.data.actor]);
           }
           await refresh(socket);
           ack({ ok: true, data: { ok: true } });
@@ -151,13 +162,13 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
         } catch (error) { ack(errorReply(error)); }
       });
     });
-    socket.on("disconnect", () => { void socket.data.tail.finally(() => pool.query("delete from match_presence where id=$1", [socket.data.id])).catch(error => app.log.error(error)); });
+    socket.on("disconnect", () => { void socket.data.tail.finally(() => pool.query("delete from match_presence where id=any($1::uuid[])", [[...socket.data.presence.values()]])).catch(error => app.log.error(error)); });
   });
   const timer = setInterval(() => {
     if (stopping || maintenance) return;
     maintenance = (async () => {
       if (!io.sockets.sockets.size) return;
-      await pool.query("update match_presence set expires_at=clock_timestamp()+interval '30 seconds' where id=any($1::uuid[])", [[...io.sockets.sockets.values()].map(s => s.data.id)]);
+      await pool.query("update match_presence set expires_at=clock_timestamp()+interval '30 seconds' where id=any($1::uuid[])", [[...io.sockets.sockets.values()].flatMap(s => [...(s as LiveSocket).data.presence.values()])]);
       await pool.query("delete from match_presence where expires_at<=clock_timestamp()");
       changed(); // Lease expiry, invitation expiry and session expiry; no gameplay polling.
     })().catch(error => { app.log.error(error); for (const socket of io.sockets.sockets.values()) socket.conn.close(); }).finally(() => { maintenance = undefined; });

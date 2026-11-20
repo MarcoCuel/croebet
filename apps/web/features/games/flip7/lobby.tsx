@@ -27,7 +27,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const searchParams=useSearchParams();
   const {userId,username,avatar,openLogin}=useSession();
   const [room,setRoom]=useState<Lobby|null>(initial.lobby);
-  const [directory,setDirectory]=useState<LobbyList>({items:initial.lobbies,current:initial.currentLobby});
+  const [directory,setDirectory]=useState<LobbyList>(initial.directory);
   const [matches,setMatches]=useState(initial.items);
   const [preferences]=useState(readSetupPreferences);
   const [capacity,setCapacity]=useState(preferences.count);
@@ -39,13 +39,16 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const pendingUpdate=useRef<UpdateLobby|null>(null);
   const pending=useRef<{key:string;id:string;version?:number}|null>(null);
   const navigating=useRef(false);
+  const refreshed=useRef<string|null>(null);
   const leaving=useRef(false);
   const visit=(code:string|null,invite=false)=>{
     if(!code)navigating.current=false;
     window.history.replaceState(null,"",code?"/jogos/flip7?partida="+code+(invite?"&convidar=1":""):"/jogos/flip7");
   };
   const openMatch=(code:string)=>{
-    if(searchParams.get("partida")===code)router.refresh();
+    if(searchParams.get("partida")===code){
+      if(refreshed.current!==code){refreshed.current=code;router.refresh();}
+    }
     else router.replace("/jogos/flip7?partida="+code,{scroll:false});
   };
   useEffect(()=>{try{saveSetupPreferences({count:capacity,...options});}catch{/* Preferences are optional. */}},[capacity,options]);
@@ -61,20 +64,31 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       acceptLobby(next.room);return;
     }
     navigating.current=true;
-    if(next.room.status==="abandoned"){setRoom(null);setDirectory(current=>({...current,current:null}));visit(null);return;}
+    if(next.room.status==="abandoned"){setRoom(null);setDirectory(current=>({...current,owned:current.owned?.code===next.room.code?null:current.owned,joined:current.joined.filter(lobby=>lobby.code!==next.room.code)}));visit(null);return;}
     rememberStart(next);openMatch(next.room.code);
   }
   function acceptDirectory(next:LobbyList){
     setDirectory(next);
-    if(next.current && !leaving.current && !navigating.current && next.current.code!==room?.code){
-      acceptLobby(next.current);visit(next.current.code);
+    if(next.active && !navigating.current){
+      navigating.current=true;openMatch(next.active.code);return;
     }
   }
+  useEffect(()=>{
+    // Returning to a lobby URL can reuse the pre-start RSC entry. Refresh once
+    // after the URL changes so a cached lobby cannot trap an active player.
+    if(directory.active && (!navigating.current || searchParams.get("partida")===directory.active.code)){
+      navigating.current=true;openMatch(directory.active.code);
+    }
+    else if(directory.owned && !room && !leaving.current && !navigating.current && !searchParams.get("partida")){
+      acceptLobby(directory.owned);visit(directory.owned.code);
+    }
+  });
   const connected=useMatchLive(room?.code,room?.version ?? 0,true,accept,acceptDirectory,message=>{
-    if(leaving.current)return;
+    if(leaving.current || navigating.current)return;
     setError(message);
     if(room){setRoom(null);visit(null);}
   },setMatches);
+  const lobbies=[...new Map([...directory.items,...directory.joined].map(lobby=>[lobby.id,lobby])).values()];
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=room?.options ?? options;
@@ -109,7 +123,7 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       const response=await changeLobby(lobby.code,action,pending.current.id,pending.current.version);
       pending.current=null;
       if(action==="leave"){
-        setRoom(null);setDirectory(current=>({...current,current:null}));visit(null);
+        setRoom(null);setDirectory(current=>({...current,owned:current.owned?.code===lobby.code?null:current.owned,joined:current.joined.filter(room=>room.code!==lobby.code)}));visit(null);leaving.current=false;
       }else if(response.status==="lobby"){
         acceptLobby(response);
         if(action==="join")visit(response.code);
@@ -128,13 +142,13 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     void act(room,"join");
   });
   async function create(invite=false){
-    if(busy || room || directory.current)return;
+    if(busy || directory.owned || directory.active)return;
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
-    const payload={game:"flip7" as const,capacity,options};
+    const payload={game:"flip7" as const,capacity:room?.capacity ?? capacity,options:room?.options ?? options};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
-    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
+    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;setCapacity(lobby.capacity);setOptions(lobby.options);acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
     finally{setBusy(false);}
   }
@@ -180,21 +194,23 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
       {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="space-y-3">
-        {!room?<Button className="w-full" loading={busy} disabled={!!directory.current || (!!userId && !connected)} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
-          :!member?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || !!directory.current} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
+        {!room?<Button className="w-full" loading={busy} disabled={!!directory.owned || !!directory.active || (!!userId && !connected)} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
+          :!member?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || !!directory.active} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
           :<div className="flex items-center gap-3">
             <Button className="min-w-0 flex-1" loading={busy} disabled={busy || !connected || !host || room.participants.length<2 || !allOnline} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
             <Button className="shrink-0" variant="secondary" disabled={busy || !connected} onClick={()=>void act(room,"leave")}>Cancelar</Button>
           </div>}
         {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
         {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}
+        {room && !directory.owned && !directory.active && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
+        {room && directory.owned && directory.owned.code!==room.code && <Button className="w-full" variant="secondary" disabled={busy} onClick={()=>{acceptLobby(directory.owned!);visit(directory.owned!.code);}}>Meu lobby</Button>}
       </div>
     </Card>
     <section className="space-y-5 lg:col-span-2" aria-label="Lobbies abertos">
       <Heading variant="section">Lobbies abertos</Heading>
       <>
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {directory.items.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className="grid gap-4 sm:grid-cols-2">{directory.items.map(lobby=>{
+        {lobbies.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className="grid gap-4 sm:grid-cols-2">{lobbies.map(lobby=>{
           const people=[...lobby.participants,...lobby.pendingInvitations];
           const joined=lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
@@ -204,12 +220,13 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
-                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="size-11 rounded-full! border border-dashed border-field-border p-0" aria-label={`Entrar na sala de ${lobby.participants.find(p=>p.userId===lobby.hostId)?.username}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.current} onClick={()=>void act(lobby,"join")}><Plus className="size-4" aria-hidden="true"/></Button>}
+                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="size-11 rounded-full! border border-dashed border-field-border p-0" aria-label={`Entrar na sala de ${lobby.participants.find(p=>p.userId===lobby.hostId)?.username}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.active} onClick={()=>void act(lobby,"join")}><Plus className="size-4" aria-hidden="true"/></Button>}
                 <span title={person?.username} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person?.username ?? "Disponível"}</span>
               </li>;
             })}</ul>
             <p className="text-xs text-muted">{available===0?"Sala cheia":`${available} ${available===1?"vaga disponível":"vagas disponíveis"}`}</p>
-            {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || !!directory.current} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
+            {joined && <Button size="sm" variant="secondary" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Ver lobby</Button>}
+            {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || !!directory.active} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
           </Card></li>;
         })}</ul>}
       </>

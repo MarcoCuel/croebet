@@ -1,3 +1,4 @@
+import { matchLifecycleLock } from "../matches/service.ts";
 import { matchRoutes } from "../matches/routes.ts";
 import { managementRoutes } from "../admin/routes.ts";
 import { governanceLock, protectLastAdmin, ManagementError } from "../admin/service.ts";
@@ -241,6 +242,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const client = await pool.connect();
     try {
       await client.query("begin");
+      await client.query(matchLifecycleLock);
       await client.query(governanceLock);
       const locked = await client.query(`select u.id, u.avatar_key, u.role, u.status from users u join sessions s on s.user_id = u.id
         where u.id = $1 and u.status = 'active' and u.password_hash = $2 and s.token_hash = $3

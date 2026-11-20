@@ -1,7 +1,7 @@
 import { publicMetadata } from "@/features/seo/metadata";
 import { GameLinksProvider } from "@/features/games/game-links";
 import { getPublicGames } from "@/features/games/server-games";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import "lenis/dist/lenis.css";
@@ -21,6 +21,13 @@ const inter = localFont({
   style: "normal",
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const metadata = await publicMetadata("/");

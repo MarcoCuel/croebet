@@ -10,20 +10,24 @@ export const matchUsers=[{id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",username:"Ma
 export const fixtureUser=(req:IncomingMessage)=>!req.headers.cookie?.includes("game-fixture-")?null:matchUsers[req.headers.cookie?.includes("game-fixture-beto")?1:0];
 export function matchesFixture() {
   const states=new Map<string,{room:Room;privateState?:Game;frames:MatchFrame[]}>();
+  const creators=new Map<string,string>();
   const receipts=new Map<string,unknown>();
   const commands:unknown[]=[];
   const invitations=new Map<string,{code:string;sender:string;target:string}>();
-  const streams=new Set<{socket:Socket;code:string|null;actor:string;version:number}>();
+  const streams=new Set<{socket:Socket;code:string|null;actor:string;version:number;active:boolean}>();
   let failAfterCommit=false;
   let createdCount=0;
   let csrfCount=0;
   const directory=(actor:string)=>{
     for(const {room} of states.values())if(room.status==="lobby"){
-      room.onlineUserIds=[...new Set([...streams].filter(s=>s.code===room.code).map(s=>s.actor))];
+      room.onlineUserIds=[...new Set([...streams].filter(s=>s.active && room.participants.some(p=>p.userId===s.actor)).map(s=>s.actor))];
       room.pendingInvitations=[...invitations.values()].filter(i=>i.code===room.code && !room.participants.some(p=>p.userId===i.target)).map(i=>({userId:i.target,username:matchUsers.find(u=>u.id===i.target)?.username ?? "Ana",avatarUrl:null}));
     }
     const items=[...states.values()].map(s=>s.room).filter(room=>room.status==="lobby");
-    return {items,current:items.find(room=>room.participants.some(person=>person.userId===actor)) ?? null};
+    const joined=items.filter(room=>room.participants.some(person=>person.userId===actor));
+    const owned=joined.find(room=>creators.get(room.code)===actor && room.hostId===actor) ?? null;
+    const active=[...states.values()].map(s=>s.room).find(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor && room.state.players[p.seat].kind==="human")) ?? null;
+    return {items,joined,owned,active};
   };
   function replace(saved:{room:Room;privateState?:Game;frames:MatchFrame[]},seat:number){
     if(!saved.privateState)throw Error("Partida não iniciada");
@@ -55,9 +59,9 @@ export function matchesFixture() {
     });
     io.on("connection",socket=>{
       const actor=fixtureUser(socket.request)?.id ?? "visitor";
-      const stream={socket,actor,code:null as string|null,version:0};streams.add(stream);notify();
+      const stream={socket,actor,code:null as string|null,version:0,active:false};streams.add(stream);notify();
       socket.on("watch",(input,ack)=>{
-        stream.code=input.code ?? null;stream.version=input.afterVersion ?? 0;
+        stream.active=input.active!==false;stream.code=stream.active?input.code ?? null:null;stream.version=input.afterVersion ?? 0;
         notify();ack({ok:true,data:{ok:true}});
       });
       socket.on("request",async(value,ack)=>{
@@ -102,10 +106,10 @@ export function matchesFixture() {
     if(receipts.has(key)){notify();return send(receipts.get(key));}
     const person=(seat:number):MatchParticipant=>({userId:actor.id,username:actor.username,displayName:actor.displayName,avatarUrl:null,seat});
     if(path==="/api/v1/matches"){
-      if(directory(actor.id).current)return send({error:{message:"Você já está em um lobby."}},409);
+      if(directory(actor.id).owned || directory(actor.id).active)return send({error:{message:"Você já tem um lobby criado ou uma partida em andamento."}},409);
       const input=createMatchSchema.parse(body),code=(++createdCount).toString(16).padStart(12,"0").toUpperCase();
       const room:Room={id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
-      states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
+      creators.set(code,actor.id);states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
     }
     const saved=states.get(code);if(!saved)return send({error:{message:"Sala não encontrada."}},404);
     if(path.endsWith("/kick")){
@@ -123,7 +127,7 @@ export function matchesFixture() {
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/join")){
-      if(directory(actor.id).current && directory(actor.id).current?.code!==code)return send({error:{message:"Você já está em um lobby."}},409);
+      if(directory(actor.id).active)return send({error:{message:"Há uma partida em andamento."}},409);
       if(saved.room.status!=="lobby" || saved.room.participants.length>=saved.room.capacity)return send({error:{message:"Sala indisponível."}},409);
       if(!saved.room.participants.some(p=>p.userId===actor.id))saved.room={...saved.room,version:saved.room.version+1,participants:[...saved.room.participants,person(saved.room.participants.length)]};
       invitations.delete(`${code}:${actor.id}`);
@@ -136,7 +140,7 @@ export function matchesFixture() {
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/start")){
-      if(saved.room.hostId!==actor.id || saved.room.participants.length<2 || (saved.room.status==="lobby" && (saved.room.pendingInvitations.length>0 || saved.room.participants.some(p=>![...streams].some(s=>s.code===code && s.actor===p.userId)))))return send({error:{message:"Aguarde mais jogadores."}},409);
+      if(saved.room.hostId!==actor.id || saved.room.participants.length<2 || (saved.room.status==="lobby" && (saved.room.pendingInvitations.length>0 || saved.room.participants.some(p=>![...streams].some(s=>s.active && s.actor===p.userId)))))return send({error:{message:"Aguarde mais jogadores."}},409);
       const game=createGame(saved.room.participants.map(p=>({name:p.username,kind:"human" as const})),42,saved.room.options);
       for(const value of [11,10]){const index=game.deck.findIndex(c=>c.type==="number" && c.value===value);game.deck.push(...game.deck.splice(index,1));}
       const version=saved.room.version+1,result=execute(flip7Driver,game,version);
@@ -144,6 +148,16 @@ export function matchesFixture() {
       const {pendingInvitations: _pending,onlineUserIds: _online,...base}=saved.room as Extract<Room,{status:"lobby"}>;
       void _pending;void _online;
       saved.room={...base,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
+      const actors=new Set(saved.room.participants.map(person=>person.userId));
+      for(const [otherCode,other] of states)if(otherCode!==code && other.room.status==="lobby"){
+        const people=other.room.participants.filter(person=>!actors.has(person.userId));
+        const reserved=[...invitations.values()].some(invite=>invite.code===otherCode && actors.has(invite.target));
+        if(people.length!==other.room.participants.length || reserved){
+          for(const [id,invite] of invitations)if(invite.code===otherCode && actors.has(invite.target))invitations.delete(id);
+          if(!people.length)states.delete(otherCode);
+          else other.room={...other.room,participants:people,version:other.room.version+1,hostId:people.some(p=>p.userId===other.room.hostId)?other.room.hostId:people[0].userId};
+        }
+      }
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(saved.room.status==="lobby" || !saved.privateState)return send({error:{message:"A partida não começou."}},409);

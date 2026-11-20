@@ -97,6 +97,34 @@ async function start(page:Page,browser:Browser){
   await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
   return peer;
 }
+test("vários lobbies aceitam a mesma conta e o primeiro início cancela as outras filas",async({page,browser})=>{
+  await lobby(page);const firstCode=new URL(page.url()).searchParams.get("partida")!;
+  const peer=await second(browser);
+  try{
+    await peer.page.goto(page.url());
+    await expect(peer.page.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
+    await peer.page.getByRole("button",{name:"Criar meu lobby",exact:true}).click();
+    await expect(peer.page).not.toHaveURL(page.url());
+    await expect(peer.page.getByRole("button",{name:"Cancelar",exact:true})).toBeVisible();
+    expect(fixture.states.size).toBe(2);
+    await page.getByRole("button",{name:"Entrar na sala de Beto, vaga 2",exact:true}).click();
+    await expect(page).toHaveURL(peer.page.url());
+    await page.reload();
+    await expect(page.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
+    for(const saved of fixture.states.values())expect(saved.room.participants).toHaveLength(2);
+    await page.getByRole("button",{name:"Meu lobby",exact:true}).click();
+    await expect(page).toHaveURL(new RegExp("partida="+firstCode));
+    await page.getByRole("button",{name:"Jogar",exact:true}).click();
+    for(const client of [page,peer.page]){
+      await expect(client).toHaveURL(new RegExp("partida="+firstCode));
+      await expect(client.getByRole("region",{name:"Mesa de Flip7"})).toBeVisible();
+    }
+    expect(fixture.states.size).toBe(1);
+    expect([...fixture.states.values()][0].room.status).toBe("playing");
+    await peer.page.reload();
+    await expect(peer.page.getByRole("region",{name:"Mesa de Flip7"})).toBeVisible();
+  }finally{await peer.context.close();}
+});
 test("sala de seis começa com duas contas e sincroniza turnos e retorno após reload",async({page,browser})=>{
   const peer=await start(page,browser);
   try{

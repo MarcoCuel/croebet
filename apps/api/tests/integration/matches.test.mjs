@@ -22,13 +22,14 @@ async function environment(t) {
     tokens.push(newToken());sessions.push(tokenHash(tokens[i]));
     await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')",[sessions[i],actors[i]]);
   }
-  const create=async(capacity=6)=>{const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"flip7",capacity,options:{mode:"vengeance",brutal:true}});await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);return room;};
+  const createFor=async(index,capacity=6)=>{const room=await createMatch(pool,actors[index],sessions[index],{requestId:randomUUID(),game:"flip7",capacity,options:{mode:"vengeance",brutal:true}});await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[index]]);return room;};
+  const create=capacity=>createFor(0,capacity);
   const lobby=async(code,index,action,extra={})=>{
     const room=await lobbyAction(pool,actors[index],sessions[index],code,action,{commandId:randomUUID(),...extra});
     if(action==="join")await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[index]]);
     return room;
   };
-  return {pool,actors,sessions,tokens,create,lobby,cleanup};
+  return {pool,actors,sessions,tokens,create,createFor,lobby,cleanup};
 }
 test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recuperação de eventos",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create();
@@ -64,8 +65,8 @@ test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recupera
  await pool.query("delete from game_match_events where match_id=$1 and version=$2",[room.id,catchup.frames[0].version]);
  assert.equal((await getRoomSync(pool,actors[actor],room.code,started.version)).reset,true);
 });
-test("PostgreSQL: uma conta ocupa só um lobby, mesmo com criação e entrada concorrentes",async t=>{
- const {pool,actors,sessions,lobby}=await environment(t);
+test("PostgreSQL: várias filas por conta, uma criação própria e concorrência entre abas",async t=>{
+ const {pool,actors,sessions,lobby,createFor}=await environment(t);
  const input=()=>({requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"classic",brutal:false}});
  const first=input(),second=input();
  const attempts=await Promise.allSettled([first,second].map(data=>createMatch(pool,actors[0],sessions[0],data)));
@@ -73,24 +74,88 @@ test("PostgreSQL: uma conta ocupa só um lobby, mesmo com criação e entrada co
  assert.equal(attempts.find(result=>result.status==="rejected").reason.code,"LOBBY_EXISTS");
  const room=attempts.find(result=>result.status==="fulfilled").value;
  assert.deepEqual(await createMatch(pool,actors[0],sessions[0],attempts[0].status==="fulfilled"?first:second),room);
- assert.equal((await listLobbies(pool,actors[0])).current.id,room.id);
- assert.equal((await listLobbies(pool,actors[1])).current,null);
- const other=await createMatch(pool,actors[2],sessions[2],input());
- await assert.rejects(lobby(other.code,0,"join"),{code:"LOBBY_EXISTS"});
- await lobby(room.code,1,"join");
- await assert.rejects(createMatch(pool,actors[1],sessions[1],input()),{code:"LOBBY_EXISTS"});
+ assert.equal((await listLobbies(pool,actors[0])).owned.id,room.id);
+ const other=await createFor(2);
+ await lobby(other.code,0,"join");await lobby(room.code,1,"join");
+ const own=await createFor(1);
+ assert.equal((await listLobbies(pool,actors[1])).owned.code,own.code);
+ assert.equal((await listLobbies(pool,actors[0])).joined.length,2);
+ assert.equal((await listLobbies(pool,actors[1])).joined.length,2);
+ const race=await Promise.allSettled([createFor(3),lobby(other.code,3,"join")]);
+ assert.ok(race.every(result=>result.status==="fulfilled"));
  await lobby(room.code,0,"leave");
- assert.equal((await listLobbies(pool,actors[0])).current,null);
- assert.equal((await listLobbies(pool,actors[1])).current.hostId,actors[1]);
- await lobby(other.code,0,"join");
- const race=await Promise.allSettled([createMatch(pool,actors[3],sessions[3],input()),lobby(other.code,3,"join")]);
- assert.equal(race.filter(result=>result.status==="fulfilled").length,1);
- assert.equal(race.find(result=>result.status==="rejected").reason.code,"LOBBY_EXISTS");
- const count=await pool.query("select count(*)::int as total from game_match_players p join game_matches m on m.id=p.match_id where p.user_id=$1 and m.status='lobby'",[actors[3]]);
- assert.equal(count.rows[0].total,1);
- await lobby(room.code,1,"leave");
- assert.equal((await createMatch(pool,actors[1],sessions[1],input())).status,"lobby");
+ assert.equal((await listLobbies(pool,actors[0])).owned,null);
+ assert.equal((await getMatch(pool,actors[1],room.code)).hostId,actors[1]);
+ assert.equal((await listLobbies(pool,actors[1])).owned.code,own.code);
+ const newOwn=await createFor(0);
+ await lobby(room.code,0,"join");
+ assert.equal((await listLobbies(pool,actors[0])).owned.code,newOwn.code);
 });
+
+test("PostgreSQL: iniciar retira todos das outras filas, libera reservas e transfere host atomicamente",async t=>{
+ const {pool,actors,sessions,lobby,createFor}=await environment(t);
+ const {inviteLobbyPlayer}=await import("../../dist/modules/matches/service.js");
+ const old=await createFor(0);await lobby(old.code,3,"join");
+ await inviteLobbyPlayer(pool,actors[0],sessions[0],old.code,actors[1]);
+ const solo=await createFor(1),winner=await createFor(2);
+ await lobby(winner.code,0,"join");const ready=await lobby(winner.code,1,"join");
+ const input={commandId:randomUUID(),expectedVersion:ready.version};
+ const started=await lobbyAction(pool,actors[2],sessions[2],winner.code,"start",input);
+ assert.equal(started.status,"playing");
+ const remaining=await getMatch(pool,actors[3],old.code);
+ assert.deepEqual(remaining.participants.map(p=>p.userId),[actors[3]]);assert.equal(remaining.hostId,actors[3]);
+ assert.equal(remaining.pendingInvitations.length,0);
+ await assert.rejects(getMatch(pool,actors[1],solo.code),{code:"NOT_FOUND"});
+ for(const actor of actors.slice(0,3)){
+  const directory=await listLobbies(pool,actor);
+  assert.deepEqual(directory.joined,[]);assert.equal(directory.owned,null);assert.equal(directory.active.code,winner.code);
+ }
+ const version=remaining.version;
+ assert.deepEqual(wire(await lobbyAction(pool,actors[2],sessions[2],winner.code,"start",input)),wire(started));
+ assert.equal((await getMatch(pool,actors[3],old.code)).version,version);
+ await assert.rejects(createFor(0),{code:"ALREADY_PLAYING"});
+ await assert.rejects(lobby(old.code,0,"join"),{code:"ALREADY_PLAYING"});
+ const after=await commandMatch(pool,actors[0],sessions[0],winner.code,{commandId:randomUUID(),expectedVersion:started.version},true);
+ assert.equal(after.match.state.players.find(p=>p.name===started.participants.find(p=>p.userId===actors[0]).username).kind,"normal");
+ assert.equal((await createFor(0)).status,"lobby");
+});
+
+test("PostgreSQL: dois inícios simultâneos com a mesma pessoa confirmam só uma partida",async t=>{
+ const {pool,actors,sessions,lobby,createFor}=await environment(t);
+ const a=await createFor(0),b=await createFor(2);
+ const ra=await lobby(a.code,1,"join"),rb=await lobby(b.code,1,"join");
+ const starts=[{room:ra,actor:0},{room:rb,actor:2}];
+ const results=await Promise.allSettled(starts.map(({room,actor})=>lobbyAction(pool,actors[actor],sessions[actor],room.code,"start",{commandId:randomUUID(),expectedVersion:room.version})));
+ assert.equal(results.filter(result=>result.status==="fulfilled").length,1);
+ assert.equal(results.find(result=>result.status==="rejected").reason.code,"VERSION_CONFLICT");
+ const count=(await pool.query("select count(*)::int total from game_matches m join game_match_players p on p.match_id=m.id where p.controller_id=$1 and m.status='playing'",[actors[1]])).rows[0].total;
+ assert.equal(count,1);
+ const loser=starts[results.findIndex(result=>result.status==="rejected")].room;
+ assert.equal((await getMatch(pool,null,loser.code)).participants.length,1);
+});
+
+test("PostgreSQL: salas sem participantes em comum podem iniciar simultaneamente",async t=>{
+ const {pool,actors,sessions,lobby,createFor}=await environment(t);
+ const a=await createFor(0),b=await createFor(2);
+ const ra=await lobby(a.code,1,"join"),rb=await lobby(b.code,3,"join");
+ const results=await Promise.all([{room:ra,actor:0},{room:rb,actor:2}].map(({room,actor})=>lobbyAction(pool,actors[actor],sessions[actor],room.code,"start",{commandId:randomUUID(),expectedVersion:room.version})));
+ assert.ok(results.every(room=>room.status==="playing"));
+ for(const [actor,code] of [[0,a.code],[1,a.code],[2,b.code],[3,b.code]])assert.equal((await listLobbies(pool,actors[actor])).active.code,code);
+});
+
+test("PostgreSQL: falha no início reverte também saídas, reservas, presença e versões das outras filas",async t=>{
+ const {pool,actors,sessions,lobby,createFor}=await environment(t);
+ const {inviteLobbyPlayer}=await import("../../dist/modules/matches/service.js");
+ const a=await createFor(0),b=await createFor(2);
+ const ra=await lobby(a.code,1,"join");await lobby(b.code,1,"join");
+ await inviteLobbyPlayer(pool,actors[2],sessions[2],b.code,actors[0]);
+ const before=wire(await getMatch(pool,null,b.code));
+ const failingPool={connect:async()=>{const client=await pool.connect();return {query:(sql,args)=>sql.startsWith("insert into game_match_events")?Promise.reject(Error("event failure")):client.query(sql,args),release:()=>client.release()};}};
+ await assert.rejects(lobbyAction(failingPool,actors[0],sessions[0],a.code,"start",{commandId:randomUUID(),expectedVersion:ra.version}),/event failure/);
+ assert.deepEqual(wire(await getMatch(pool,null,b.code)),before);
+ assert.equal((await getMatch(pool,null,a.code)).status,"lobby");
+});
+
 test("PostgreSQL: capacidade concorrente, transferência de host, compactação e fechamento",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(2);
  const results=await Promise.allSettled([1,2].map(i=>lobby(room.code,i,"join")));
@@ -101,6 +166,8 @@ test("PostgreSQL: capacidade concorrente, transferência de host, compactação 
  const rejoined=await lobby(room.code,0,"join");
  const started=await lobby(room.code,actors.indexOf(next.hostId),"start",{expectedVersion:rejoined.version});
  assert.deepEqual(started.participants.map(p=>p.seat),[0,1]);assert.equal(started.participants[0].userId,survivor.userId);
+ let closing=started;
+ for(const person of started.participants){const index=actors.indexOf(person.userId);closing=(await commandMatch(pool,person.userId,sessions[index],room.code,{commandId:randomUUID(),expectedVersion:closing.version},true)).match;}
  const alone=await create();assert.equal((await lobby(alone.code,0,"leave")).status,"closed");
  await assert.rejects(getMatch(pool,actors[0],alone.code),{code:"NOT_FOUND"});
  const input={requestId:randomUUID(),game:"flip7",capacity:3,options:{mode:"classic",brutal:false}};
@@ -186,8 +253,8 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
   const socket=io(origins[server],{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"],reconnection:false,autoConnect:false,
    extraHeaders:{origin:server===1?config.DEV_WEB_ORIGINS:config.WEB_ORIGIN,cookie:`croebet-session=${tokens[index]}; croebet-csrf=${nonce}`},
    auth:{csrf:csrfToken(config.CSRF_SECRET,nonce,tokens[index])},...overrides});
-  sockets.push(socket);socket.rooms=[];socket.closed=[];
-  socket.on("room",value=>socket.rooms.push(value));socket.on("closed",value=>socket.closed.push(value));
+  sockets.push(socket);socket.rooms=[];socket.closed=[];socket.directories=[];
+  socket.on("lobbies",value=>socket.directories.push(value));socket.on("room",value=>socket.rooms.push(value));socket.on("closed",value=>socket.closed.push(value));
   await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("connect_error",error=>reject(new Error(`connect actor=${index} server=${server} overrides=${Object.keys(overrides)}: ${error.message}`,{cause:error})));socket.connect();});
   assert.equal(socket.io.engine.transport.name,"websocket");return socket;
  };
@@ -200,8 +267,14 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  await watch(host,room.code);
  const joined=await request(peer,{type:"join",code:room.code,input:{commandId:randomUUID()}});
  await watch(peer,room.code);
+ const waiting=await request(peer,{type:"create",input:{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"classic",brutal:false}}});
+ await watch(peer,waiting.code);
+ assert.equal((await pool.query("select count(*)::int total from match_presence where user_id=$1 and match_id=any($2::uuid[])",[actors[1],[room.id,waiting.id]])).rows[0].total,2);
  await wait(()=>host.rooms.find(value=>value.room.version===joined.version && value.room.onlineUserIds.includes(actors[1])));
  const started=await request(host,{type:"start",code:room.code,input:{commandId:randomUUID(),expectedVersion:joined.version}});
+ await wait(()=>peer.directories.some(directory=>directory.active?.code===room.code));
+ await assert.rejects(getMatch(pool,actors[1],waiting.code),{code:"NOT_FOUND"});
+ await watch(peer,room.code,joined.version);
  for(const socket of [host,peer]){
   const sync=await wait(()=>socket.rooms.find(value=>value.room.version===started.version));
   assert.equal(sync.room.status,"playing");assert.ok(sync.frames.some(frame=>frame.action.type==="start"));

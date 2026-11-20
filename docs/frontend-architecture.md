@@ -38,6 +38,7 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 ## Estilos e movimento
 
 - Tailwind 4 nos componentes. `app/globals.css` centraliza tokens e base global; não adicionar classes globais de componentes/layout nem seletores acoplados ao DOM. Consultas de container da sidebar ficam no componente.
+- O viewport raiz solicita escala fixa no celular; `touch-action: pan-x pan-y` impede gestos de zoom preservando rolagem e toques. O navegador pode manter opções próprias de ampliação por acessibilidade.
 - Cores, tipografia fluida, espaçamentos especiais, bordas, raios, sombras e gradientes usam tokens. Demais espaçamentos seguem Tailwind; dimensões próprias em `rem`, preferindo passos de 0.25rem. Proporções/viewports podem usar %, vw, dvh e cqi.
 - Use tokens semânticos existentes (`background`, `surface`, `foreground`, `muted`, `brand`, `contrast`) em vez de novos aliases para as mesmas cores. Controles e divisórias usam as opacidades existentes de `contrast`; não espalhar hexadecimais no TSX, inclusive 3D.
 - Identidade aprovada em [CROEBET.md, seção 6](../CROEBET.md#6-identidade-visual-e-experiência). Há divergência a resolver em tarefa de design: o documento define `#AD158F`, enquanto `--color-brand` no código está em `#FF2C67`. Não alterar a aparência silenciosamente para reconciliá-los.
