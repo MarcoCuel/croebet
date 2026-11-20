@@ -1,11 +1,12 @@
 "use client";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Coins, Eye, Plus, UserRound } from "lucide-react";
+import { Eye, Plus, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { GameRecord, CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
+import { CroinIcon } from "@/components/shared/croin-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -188,7 +189,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       <fieldset disabled={!canEdit} className="space-y-4">
         <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label="Modo do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit)}/></Field>}
-        <div className="min-w-0 space-y-4 rounded-xl border border-line p-4" role="group" aria-label="Aposta da partida">
+        <div className="min-w-0 space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
           <Field className="grid-cols-[1fr_auto] items-center gap-3">Jogar apostando<Switch aria-label="Jogar apostando" checked={entry>0} disabled={!economy && !entry} onCheckedChange={enabled=>{if(!enabled || economy)void configure(settings,limit,enabled?economy!.defaultBet:0);}}/></Field>
           {entry>0 && <BetInput label="Entrada por jogador" value={entry} presets={economy?.suggestedBets ?? []} disabled={!canEdit} onValueChange={amount=>void configure(settings,limit,amount)}/>}
         </div>
@@ -199,7 +200,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       {showSettings?<fieldset disabled={!canEdit}>
         <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
       </fieldset>:<div className="flex flex-wrap items-center gap-2" aria-label="Modo da sala"><Badge variant="secondary">{settings.mode==="classic"?"Clássico":"Vingança"}</Badge>{settings.brutal && <Badge>Brutal</Badge>}</div>}
-      {entry>0 && <div className="space-y-2 rounded-lg bg-contrast/6 p-3 text-sm"><div className="flex items-center justify-between gap-3"><span>Entrada por jogador</span><span className="flex items-center gap-2 tabular-nums"><Coins className="size-4 text-brand" aria-hidden="true"/>{formatBalance.format(entry)} Croins</span></div><p className="text-xs text-muted">Pote com {room?.participants.length ?? 1} jogadores: {formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins. Cobrança ao iniciar.</p><p className="text-xs text-muted">Vencedores dividem o pote, sem taxa. Prêmios de vagas com bot vão para a casa.</p></div>}
+      {entry>0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-contrast/6 p-3 text-sm"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
           const person=seats[i];
@@ -251,7 +252,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
           const joined=lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
           return <li key={lobby.code}><Card className="h-full space-y-5">
-            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary">{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
+            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
@@ -266,7 +267,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     </section>
     {matches.length>0 && <section className="min-w-0 space-y-5 xl:col-span-3" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{matches.map(match=>{
       const playing=!!userId && match.controllerIds.includes(userId);
-      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}{match.entryAmount>0 && <Badge variant="secondary">{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
+      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
     })}</ul></section>}
     </div>
     {!userId && !room && error && <p role="alert" className="text-sm text-destructive">{error}</p>}

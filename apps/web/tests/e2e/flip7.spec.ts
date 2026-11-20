@@ -421,12 +421,16 @@ test("entrada em Croins exige confirmação de todos e alterações invalidam os
   await page.goto("/jogos/flip7");
   await page.getByRole("switch",{name:"Jogar apostando"}).check();
   await expect(page.getByLabel("Entrada por jogador",{exact:true})).toHaveValue("5");
+  const prize=page.getByText("Prêmio (Pote)",{exact:true}).locator("..");
+  await expect(prize).toContainText("5 Croins");
+  await expect(page.getByText("Vencedores dividem o pote, sem taxa. Prêmios de vagas com bot vão para a casa.",{exact:true})).toHaveCount(0);
   await page.getByRole("button",{name:"Jogar",exact:true}).click();
   await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
   const peer=await second(browser);
   try{
     await peer.page.goto(page.url());
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toBeVisible();
+    await expect(prize).toContainText("10 Croins");
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
     await page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();
     await peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();

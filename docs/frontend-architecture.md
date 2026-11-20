@@ -53,6 +53,7 @@ O perfil renderiza o calendário de atividade com os dados da primeira consulta 
 - Identidade aprovada em [CROEBET.md, seção 6](../CROEBET.md#6-identidade-visual-e-experiência). Há divergência a resolver em tarefa de design: o documento define `#AD158F`, enquanto `--color-brand` no código está em `#FF2C67`. Não alterar a aparência silenciosamente para reconciliá-los.
 - Preserve gradiente e sombra interna dos primários/Croin. Foco de controles altera apenas a borda; sem focus rings ou bordas coloridas decorativas nos modais/dropdowns.
 - Preserve layout, imagens, textos e comportamento ao refatorar. Página entra diretamente, sem animação de entrada; Lenis e GSAP respeitam `prefers-reduced-motion`. Cancele timers/timelines ao desmontar.
+- Valores em Croins usam o ícone próprio `components/shared/croin-icon.tsx`, compartilhado com o saldo; não usar ícones monetários do Lucide para representar Croins.
 - Saldos de usuário usam `BalanceValue`/`Balance`: primeira exibição mostra o total; alterações animam por 1 segundo com ease out e indicação da diferença. Resgate de cupom fecha o modal antes de atualizar o saldo. Não duplicar animação nos consumidores.
 
 ## Administração e conteúdo

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
+import { CroinIcon } from "@/components/shared/croin-icon";
 import { formatBalance } from "@/features/wallet/wallet";
 
 /** Only changes to an already displayed balance animate; SSR and first loads show the total. */
@@ -62,12 +63,7 @@ export function BalanceValue({ value }: { value: number | null }) {
 export function Balance({ value }: { value: number | null }) {
   return (
     <span className="flex min-w-0 items-center gap-2 tabular-nums">
-      <span
-        className="grid size-6 shrink-0 place-items-center rounded-full bg-brand bg-primary-button text-xs font-black text-white inset-shadow-primary-coin"
-        aria-hidden="true"
-      >
-        C
-      </span>
+      <CroinIcon />
       <BalanceValue value={value} />
     </span>
   );
