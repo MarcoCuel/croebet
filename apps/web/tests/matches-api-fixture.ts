@@ -1,4 +1,4 @@
-import { flip7OptionsSchema } from "@croebet/shared";
+import { matchSummarySchema, flip7OptionsSchema } from "@croebet/shared";
 import type { IncomingMessage, ServerResponse, Server as HttpServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import { randomUUID } from "node:crypto";
@@ -29,7 +29,10 @@ export function matchesFixture() {
     const joined=items.filter(room=>room.participants.some(person=>person.userId===actor));
     const owned=joined.find(room=>creators.get(room.code)===actor && room.hostId===actor) ?? null;
     const active=[...states.values()].map(s=>s.room).find(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor && room.state.players[p.seat].kind==="human")) ?? null;
-    return {items,joined,owned,active};
+    const testRooms=[...states.values()].map(s=>s.room).filter(r=>r.development && (r.hostId===actor || r.participants.some(p=>p.userId===actor)));
+    const testLobbies=testRooms.filter(r=>r.status==="lobby");
+    const testMatches=testRooms.filter(r=>r.status==="playing").map(r=>{if(r.status==="lobby")throw Error("Partida não iniciada");const {state,...summary}=r;return matchSummarySchema.parse({...summary,round:state.round,controllerIds:[]});});
+    return {items:items.filter(r=>!r.development),joined:joined.filter(r=>!r.development),owned:owned?.development?null:owned,active:active?.development?null:active,testLobbies,testMatches};
   };
   function replace(saved:{room:Room;privateState?:Game;frames:MatchFrame[]},seat:number){
     if(!saved.privateState)throw Error("Partida não iniciada");

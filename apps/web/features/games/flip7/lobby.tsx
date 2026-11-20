@@ -111,6 +111,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
     if(room){setRoom(null);visit(null);}
   },development?()=>{}:setMatches,onTestStarted);
   const lobbies=[...new Map((development?(directory.testLobbies ?? []).filter(l=>l.game===game.slug):[...directory.items,...directory.joined]).map(lobby=>[lobby.id,lobby])).values()];
+  const listedRooms=development?[...lobbies,...(directory.testMatches ?? []).filter(m=>m.game===game.slug)]:lobbies;
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=isLove?loveOptionsSchema.parse(room?.options ?? options):flip7OptionsSchema.parse(room?.options ?? options);
@@ -265,21 +266,24 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
       <>
         {development && <p className="text-sm font-medium">Partidas de teste</p>}
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {development && directory.tests?.filter(t=>t.game===game.slug && t.status==="playing").map(t=><Card key={t.code} className="space-y-3"><p className="text-sm">Partida de teste · {t.code}</p><Button variant="secondary" onClick={()=>onTestStarted?.(t.code)}>Abrir partida</Button>{permissions.canManageSite && t.hostId===userId && <Button variant="ghost" onClick={()=>void cancelTest(t.code)}>Cancelar partida</Button>}</Card>)}
-        {lobbies.length===0?<EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4",!showSettings && "sm:grid-cols-2",!userId && !room && "xl:grid-cols-3")}>{lobbies.map(lobby=>{
-          const people=[...lobby.participants,...lobby.pendingInvitations];
+        {listedRooms.length===0?<EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4",!showSettings && "sm:grid-cols-2",!userId && !room && "xl:grid-cols-3")}>{listedRooms.map(lobby=>{
+          const active=lobby.status==="playing";
+          const people=[...lobby.participants,...(lobby.status==="lobby"?lobby.pendingInvitations:[]),...Array.from({length:lobby.bots},(_,i)=>({userId:`bot-${i}`,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,seat:lobby.participants.length+i}))];
+          const hostName=lobby.participants.some(p=>p.userId===lobby.hostId)?playerName(lobby.participants.find(p=>p.userId===lobby.hostId)):lobby.hostId===userId?(displayName || username || "Você"):"Administrador";
           const joined=(development && lobby.hostId===userId) || lobby.participants.some(p=>p.userId===userId);
-          const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
-          return <li key={lobby.code}><Card className="h-full space-y-4">{development && permissions.canManageSite && lobby.hostId===userId && <Button variant="ghost" disabled={busy} onClick={()=>void cancelTest(lobby.code)}>Cancelar partida</Button>}
-            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {playerName(lobby.participants.find(p=>p.userId===lobby.hostId))}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {playerName(lobby.participants.find(p=>p.userId===lobby.hostId))}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
+          const reserved=lobby.status==="lobby" && lobby.pendingInvitations.some(p=>p.userId===userId);
+          const canCancel=development && permissions.canManageSite && lobby.hostId===userId;
+          return <li key={lobby.code}><Card className="h-full space-y-4">
+            <div className="flex flex-wrap items-center gap-2">{joined && lobby.status==="lobby"?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {hostName}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>}{active && <Badge variant="secondary">Em andamento</Badge>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
-              return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
-                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{playerName(person)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${playerName(lobby.participants.find(p=>p.userId===lobby.hostId))}, vaga ${i+1}`} disabled={busy || !connected || joined || (!development && !!directory.active)} onClick={()=>void act(lobby,"join")}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
+              return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",lobby.status==="lobby" && person && !person.userId.startsWith("bot-") && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
+                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{playerName(person)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:active?<span className="relative flex size-11 items-center justify-center rounded-full"><SeatOutline/><UserRound className="size-4 text-muted"/></span>:<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${hostName}, vaga ${i+1}`} disabled={busy || !connected || joined || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
                 <span title={person ? playerName(person) : undefined} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person ? playerName(person) : "Disponível"}</span>
               </li>;
             })}</ul>
-            {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
+            {(active || canCancel || (reserved && !joined)) && <div className="flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <Button size="sm" variant="ghost" disabled={busy} onClick={()=>void cancelTest(lobby.code)}>Cancelar</Button>}
+            {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}>Aceitar convite</Button>}</div>}
           </Card></li>;
         })}</ul>}
       </>

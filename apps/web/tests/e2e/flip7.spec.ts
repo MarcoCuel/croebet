@@ -696,3 +696,36 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
   expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(soundsBeforeScrub);
 
 });
+
+
+test("mesa de teste mantém identificação e ferramentas na barra sem cabeçalho de entrada",async({page})=>{
+ const code="ABCDEF991122";
+ const state=flip7Driver.project(createGame(matchUsers.map(u=>({name:u.username,kind:"human" as const})),42,{mode:"vengeance",brutal:true}));
+ const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,development:true,game:"flip7",rulesVersion:1,version:1,status:"playing",state,hostId:matchUsers[0].id,capacity:2,options:{mode:"vengeance",brutal:true},participants:matchUsers.map((u,seat)=>({userId:u.id,username:u.username,displayName:u.displayName,avatarUrl:null,seat}))});
+ fixture.states.set(code,{room,frames:[]});
+ await page.goto(`/jogos/flip7?partida=${code}`);
+ await expect(page.getByRole("region",{name:"Mesa de Flip7"})).toBeVisible();
+ await expect(page.getByLabel("Apresentação do jogo")).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Voltar às salas",exact:true})).toHaveCount(0);
+ await expect(page.getByRole("region",{name:"Mesa de Flip7"}).getByText("Desenvolvimento",{exact:true})).toBeVisible();
+ await expect(page.getByLabel("Controles da partida").getByRole("button",{name:"Ajustar volume",exact:true})).toBeVisible();
+});
+
+
+test("testes em andamento reutilizam card de lobby sem estado vazio adicional",async({page})=>{
+ await close?.();
+ close=await startPublicApi(req=>{const user=fixtureUser(req);return user?{...user,role:"admin"}:null;},fixture.handler,fixture.attach);
+ const code="ABCDEF778899";
+ const state=flip7Driver.project(createGame(matchUsers.map(u=>({name:u.username,kind:"human" as const})),42,{mode:"vengeance",brutal:true}));
+ const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,development:true,game:"flip7",rulesVersion:1,version:1,status:"playing",state,hostId:matchUsers[0].id,capacity:2,options:{mode:"vengeance",brutal:true},participants:matchUsers.map((u,seat)=>({userId:u.id,username:u.username,displayName:u.displayName,avatarUrl:null,seat}))});
+ fixture.states.set(code,{room,frames:[]});
+ await page.goto("/jogos/flip7?teste=1");
+ const list=page.getByLabel("Lobbies abertos");
+ await expect(list.getByText("Em andamento",{exact:true})).toBeVisible();
+ await expect(list.getByText("Sala de Marco",{exact:true})).toBeVisible();
+ await expect(list.getByLabel("Vagas do lobby").getByRole("listitem")).toHaveCount(2);
+ await expect(list.getByRole("button",{name:"Visualizar",exact:true})).toBeVisible();
+ await expect(list.getByRole("button",{name:"Cancelar",exact:true})).toBeVisible();
+ await expect(list.locator('[data-slot="empty-state"]')).toHaveCount(0);
+ await expect(list.getByText(code,{exact:false})).toHaveCount(0);
+});

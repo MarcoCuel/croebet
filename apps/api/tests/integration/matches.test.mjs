@@ -615,7 +615,10 @@ test("PostgreSQL: administrador mantém múltiplos lobbies e testes iniciados",a
  for(let i=0;i<3;i++)rooms.push(await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:'flip7',capacity:2,options:{mode:'classic',brutal:false},development:true,bots:1,onlyBots:false,entryAmount:0}));
  assert.equal((await listLobbies(pool,actors[0])).testLobbies.length,3);
  for(const room of rooms){await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);const started=await lobbyAction(pool,actors[0],sessions[0],room.code,'start',{commandId:randomUUID(),expectedVersion:room.version});assert.equal(started.status,'playing');}
- assert.equal((await listLobbies(pool,actors[0])).tests.filter(r=>r.status==='playing').length,3);
+ const directory=await listLobbies(pool,actors[0]);
+ assert.equal(directory.tests.filter(r=>r.status==='playing').length,3);
+ assert.equal(directory.testMatches.length,3);
+ for(const summary of directory.testMatches){assert.equal('state' in summary,false);assert.equal('deck' in summary,false);assert.equal(summary.options.mode,'classic');assert.equal(summary.participants.length,1);assert.equal(summary.bots,1);}
  const {endTest}=await import('../../dist/modules/matches/service.js');const first=await getMatch(pool,actors[0],rooms[0].code);await endTest(pool,actors[0],sessions[0],first.code,{commandId:randomUUID(),expectedVersion:first.version});
  assert.equal((await listLobbies(pool,actors[0])).tests.length,2);assert.equal((await listMatches(pool,null)).items.some(r=>rooms.some(s=>s.id===r.id)),false);
 });

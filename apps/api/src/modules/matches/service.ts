@@ -87,8 +87,11 @@ export async function listLobbies(pool: Pool, actor: string | null) {
     const testRows=actor?(await client.query<Row>("select m.* from game_matches m where m.development and m.status='lobby' and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
     const testPeople=await participants(client,testRows.map(r=>r.id));
     const testLobbies=[];for(const row of testRows)testLobbies.push(await roomView(client,row,testPeople.get(row.id) ?? []));
+    const running=actor?(await client.query<Row>("select m.* from game_matches m where m.development and m.status='playing' and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
+    const runningPeople=await participants(client,running.map(r=>r.id));
+    const testMatches=running.map(row=>({development:true,bots:row.bots,onlyBots:row.only_bots,id:row.id,code:row.code,game:row.game_slug,hostId:row.owner_id,rulesVersion:row.rules_version,version:row.version,capacity:row.capacity,options:row.options,entryAmount:0,status:"playing",round:(row.state as {round:number}).round,controllerIds:[],participants:runningPeople.get(row.id) ?? []}));
     const tests=actor?(await client.query(`select m.owner_id as "hostId",m.code,m.game_slug as game,m.status from game_matches m where m.development and m.status in ('lobby','playing') and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100`,[actor])).rows:[];
-    return lobbyListSchema.parse({ testLobbies,tests,items:result.rows.map(row=>rooms.get(row.id)), joined:joined.rows.map(row=>rooms.get(row.id)), owned:owned?rooms.get(owned.id):null, active:active.rows[0]?rooms.get(active.rows[0].id):null });
+    return lobbyListSchema.parse({ testMatches,testLobbies,tests,items:result.rows.map(row=>rooms.get(row.id)), joined:joined.rows.map(row=>rooms.get(row.id)), owned:owned?rooms.get(owned.id):null, active:active.rows[0]?rooms.get(active.rows[0].id):null });
   });
 }
 async function requireAvailable(client: PoolClient, actors: string[], development=false) {

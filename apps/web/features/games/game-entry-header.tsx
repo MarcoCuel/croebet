@@ -12,7 +12,7 @@ import { useSession } from "@/features/auth/session-context";
 export function GameEntryHeader({ game, actions, development=false }: { game: Pick<GameRecord, "name" | "description" | "slug">; actions?: ReactNode; development?:boolean }) {
   const { userId, openLogin } = useSession();
   return <Card aria-label="Apresentação do jogo">
-    <div className="flex flex-col items-start gap-6 p-6">
+    <div className="flex flex-col items-start gap-6 p-6 relative">
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3"><Heading variant="display">{game.name}</Heading>{development && <Badge>Desenvolvimento</Badge>}</div>
         <GameModeSwitch slug={game.slug} development={development}/>

@@ -143,7 +143,7 @@ function GameLog({ game, participants }: { game: Game; participants: MatchPartic
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
-export default function Flip7Game({ initial, game }: { initial: InitialMatches; game: GameRecord | null }) {
+export default function Flip7Game({ initial, game, testControls }: { initial: InitialMatches; game: GameRecord | null; testControls?:ReactNode }) {
   const router = useRouter();
   const [requestedReplay, setRequestedReplay] = useState<ReturnType<typeof matchReplaySchema.parse> | null>(null);
   const [preparingReplay, setPreparingReplay] = useState(false);
@@ -162,7 +162,7 @@ export default function Flip7Game({ initial, game }: { initial: InitialMatches; 
   if (initial.replay) return <Flip7Playback key={initial.revision} initial={initial} />;
   if (!game) return null;
   if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} rules={options=><Rules options={options}/>}/>;
-  return <Flip7Table key={initial.revision} initial={initial} onRequestReplay={openReplay} replayPending={preparingReplay} />;
+  return <Flip7Table key={initial.revision} initial={initial} testControls={testControls} onRequestReplay={openReplay} replayPending={preparingReplay} />;
 }
 
 function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatches; startPlaying?: boolean }) {
@@ -171,12 +171,12 @@ function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatc
   return <Flip7Table initial={initial} replay={{ epoch: playback.epoch, index: playback.index, frame: playback.frame, paused: playback.animationPaused, delay: playback.delay, onPresented: playback.onPresented, state: playback.state, active: playback.active, finished: initial.replay!.match.status === "finished", metadata: playback.metadata, restart: playback.restart, loading: playback.loading, controls: <Flip7ReplayControls playback={playback} /> }} />;
 }
 
-function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }: { initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
+function Flip7Table({ initial, replay, testControls, onRequestReplay, replayPending = false }: { testControls?:ReactNode; initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
   const router = useRouter();
   const audio = useGameAudio();
   const { play: playSound, stop: stopSounds } = audio;
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
-  const {userId,refreshWallet}=useSession();
+  const {userId,refreshWallet,permissions}=useSession();
   const refreshWalletRef=useRef(refreshWallet);
   useEffect(()=>{refreshWalletRef.current=refreshWallet;},[refreshWallet]);
   const serverMatch = useRef(initial.match);
@@ -642,9 +642,11 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         <div className={cn("min-w-0", replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
+            {initial.match?.development && <Badge>Desenvolvimento</Badge>}
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push("/jogos/flip7")}>Sair da reprodução</Button></>}
-            {spectator && <><Badge variant="outline">Espectador</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={()=>router.push("/jogos/flip7")}>Sair da visualização</Button></>}
-            <GameControls audio={audio}>
+            {spectator && <Badge variant="outline">Espectador</Badge>}
+            <GameControls audio={audio} developmentControls={testControls}>
+            {spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(`/jogos/flip7${initial.match?.development && permissions.canManageSite?"?teste=1":""}`)}><LogOut className="size-4" aria-hidden="true"/></Button>}
             {!replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
             </GameControls>
           </div>
