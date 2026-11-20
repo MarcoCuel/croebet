@@ -80,6 +80,40 @@ test("header e três colunas mantêm configuração, vagas e lobbies ao criar e 
     for(const client of [page,other])await expect(client).toHaveURL(new RegExp("partida="+reopened.code));
   }finally{await other.close();}
 });
+test("criar meu lobby preserva escolhas próprias ao entrar em outra sala",async({page,browser})=>{
+  await page.goto("/jogos/flip7");
+  await page.getByLabel("Número de jogadores").selectOption("5");
+  await page.getByLabel("Modo do Flip7").selectOption("vengeance");
+  await page.getByRole("switch",{name:"Modo Brutal",exact:true}).click();
+  const peer=await second(browser);
+  try{
+    await peer.page.goto("/jogos/flip7");
+    await peer.page.getByRole("button",{name:"Jogar",exact:true}).click();
+    await expect(peer.page).toHaveURL(/partida=[A-F0-9]{12}/);
+    const foreignCode=new URL(peer.page.url()).searchParams.get("partida")!;
+    await page.goto(peer.page.url());
+    await expect(page.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
+    await expect(page.getByLabel("Vagas da sala").getByRole("listitem")).toHaveCount(2);
+    await page.reload();
+    await expect(page.getByRole("button",{name:"Criar meu lobby",exact:true})).toBeEnabled();
+    await page.getByRole("button",{name:"Criar meu lobby",exact:true}).click();
+    await expect(page.getByLabel("Número de jogadores")).toHaveValue("5");
+    await expect(page.getByLabel("Modo do Flip7")).toHaveValue("vengeance");
+    await expect(page.getByRole("switch",{name:"Modo Brutal",exact:true})).toBeChecked();
+    const ownCode=new URL(page.url()).searchParams.get("partida")!;
+    expect(ownCode).not.toBe(foreignCode);
+    expect(fixture.states.get(ownCode)!.room.capacity).toBe(5);
+    expect(fixture.states.get(ownCode)!.room.options).toEqual({mode:"vengeance",brutal:true});
+    await page.reload();
+    await expect(page.getByLabel("Número de jogadores")).toHaveValue("5");
+    await page.getByLabel("Número de jogadores").selectOption("6");
+    await page.getByRole("button",{name:"Cancelar",exact:true}).click();
+    await page.reload();
+    await expect(page.getByLabel("Número de jogadores")).toHaveValue("6");
+    await expect(page.getByLabel("Modo do Flip7")).toHaveValue("vengeance");
+    await expect(page.getByRole("switch",{name:"Modo Brutal",exact:true})).toBeChecked();
+  }finally{await peer.context.close();}
+});
 test("lobby e notificações compartilham o handshake mesmo com CSRF lento",async({page})=>{
   let requests=0,completed=0,release!:()=>void;
   page.on("response",response=>{if(new URL(response.url()).pathname==="/api/v1/auth/csrf" && response.ok())completed++;});

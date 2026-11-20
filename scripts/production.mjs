@@ -125,7 +125,7 @@ async function grants(connection) {
 }
 async function migrate(release, url, environment = "production") {
   const {runtime,migration}=urls();
-  await run(process.execPath,['--experimental-strip-types','src/db/cli.ts','migrate'],{cwd:join(release,'apps/api'),env:{...runtime,...migration,APP_ENV:environment,NODE_ENV:environment==='test'?'test':'production',...(url?{DATABASE_URL:url,DATABASE_MIGRATION_URL:url}:{})}});
+  await run(process.execPath,['--experimental-strip-types','src/db/cli.ts','migrate'],{cwd:join(release,'apps/api'),env:{...runtime,...migration,APP_ENV:environment,NODE_ENV:environment==='test'?'test':'production',TRUST_CLOUDFLARE_PROXY:environment==='production'?(runtime.TRUST_CLOUDFLARE_PROXY??'false'):'false',...(url?{DATABASE_URL:url,DATABASE_MIGRATION_URL:url}:{})}});
 }
 async function rehearsal(release, backupDir) {
   const {migration}=urls(),url=new URL(migration.DATABASE_MIGRATION_URL);
@@ -186,7 +186,7 @@ async function setup() {
     const migrationPassword=secret(),runtimePassword=secret();
     privateWrite(join(shared,'postgres.env'),`POSTGRES_PASSWORD=${migrationPassword}\n`);
     privateWrite(join(shared,'migration.env'),`DATABASE_MIGRATION_URL=postgresql://croebet_migrator:${migrationPassword}@127.0.0.1:5433/croebet_production\n`);
-    privateWrite(join(shared,'api.env'),`APP_ENV=production\nAPI_HOST=127.0.0.1\nAPI_PORT=6768\nDATABASE_URL=postgresql://croebet_runtime:${runtimePassword}@127.0.0.1:5433/croebet_production\nWEB_ORIGIN=https://croebet.marcocuel.com\nCSRF_SECRET=${secret()}\nAVATAR_STORAGE=local\nPRODUCTION_LOCAL_IMAGES=true\nAVATAR_LOCAL_DIR=${join(shared,'images/avatars')}\n`);
+    privateWrite(join(shared,'api.env'),`APP_ENV=production\nAPI_HOST=127.0.0.1\nAPI_PORT=6768\nTRUST_CLOUDFLARE_PROXY=true\nDATABASE_URL=postgresql://croebet_runtime:${runtimePassword}@127.0.0.1:5433/croebet_production\nWEB_ORIGIN=https://croebet.marcocuel.com\nCSRF_SECRET=${secret()}\nAVATAR_STORAGE=local\nPRODUCTION_LOCAL_IMAGES=true\nAVATAR_LOCAL_DIR=${join(shared,'images/avatars')}\n`);
     privateWrite(join(shared,'web.env'),'API_INTERNAL_URL=http://127.0.0.1:6768\nWEB_ORIGIN=https://croebet.marcocuel.com\nENFORCE_HTTPS=true\n');
     cpSync(join(sourceRoot,'ops/compose.production.yaml'),join(home,'compose.yaml'));
     jsonWrite(configFile,{source:sourceRoot,sourceDatabase:src.pathname.slice(1),state:'preparing',createdAt:new Date().toISOString()});

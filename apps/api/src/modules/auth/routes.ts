@@ -72,7 +72,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     return readRanking(pool, input.data, user?.id ?? null);
   });
   await managementRoutes(app, { pool, current, sessionName, limit, mediaStorage });
-  await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
+  await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, trustCloudflareProxy: config.TRUST_CLOUDFLARE_PROXY, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
 
   if (avatarStorage || mediaStorage) app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
   if (avatarStorage) {

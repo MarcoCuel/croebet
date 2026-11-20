@@ -20,6 +20,7 @@ const configSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false").transform(value => value === "true"),
   REALTIME_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(100000).default(200),
+  TRUST_CLOUDFLARE_PROXY: z.enum(["true", "false"]).default("false").transform(value => value === "true"),
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
 });
@@ -31,6 +32,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
   const result = configSchema.safeParse(env);
   if (!result.success) throw new Error(`Configuração inválida: ${result.error.issues.map(i => i.path.join(".")).join(", ")}`);
   if (result.data.APP_ENV === "production" && result.data.DEV_WEB_ORIGINS.trim()) throw new Error("DEV_WEB_ORIGINS é exclusivo de development/test.");
+  if (result.data.TRUST_CLOUDFLARE_PROXY && (result.data.APP_ENV !== "production" || result.data.API_HOST !== "127.0.0.1")) throw new Error("Proxy Cloudflare confiável exige produção com API em loopback.");
   for (const value of allowedWebOrigins(result.data)) {
     const origin = new URL(value);
     if (origin.origin !== value || origin.hostname.includes("*") || !["http:", "https:"].includes(origin.protocol) || (result.data.APP_ENV === "production" && origin.protocol !== "https:")) throw new Error("Origens web devem ser exatas, sem wildcard; produção exige HTTPS.");

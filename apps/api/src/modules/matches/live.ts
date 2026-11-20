@@ -8,9 +8,10 @@ import { tokenHash, validCsrf } from "../auth/security.ts";
 import { getRoomSync, listMatches, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
 import { matchNotificationSchema, notificationRefresh, type Refresh } from "./notifications.ts";
 import { applyRealtimeRequest } from "./realtime-actions.ts";
+import { realtimeClientAddress } from "./client-address.ts";
 
-type Options = { sessionName: string; maxConnections?: number; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
-type Connection = { actor: string | null; session: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; watching: boolean; directoryWatching: boolean; pending: Refresh; refreshQueued: boolean; tail: Promise<void>; presence: Map<string,string> };
+type Options = { sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
+type Connection = { actor: string | null; address: string; session: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; watching: boolean; directoryWatching: boolean; pending: Refresh; refreshQueued: boolean; tail: Promise<void>; presence: Map<string,string> };
 type LiveSocket = Omit<Socket, "data"> & { data: Connection };
 const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
 
@@ -137,9 +138,10 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
         throw new MatchError("UNAUTHENTICATED", 401, "Atualize a página e entre novamente.");
       const result = token ? await pool.query<{ user_id: string }>("select user_id from sessions where token_hash=$1", [tokenHash(token)]) : {rows: []};
       if (token && !result.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
-      const data: Connection = { actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", version: 0, signature: "", directory: "", invitations: "", matches: "", watching: false, directoryWatching: false, pending: {}, refreshQueued: false, tail: Promise.resolve(), presence: new Map() };
+      const address = realtimeClientAddress(socket.handshake.address, socket.request.headers["cf-connecting-ip"], options.environment === "production" && options.trustCloudflareProxy === true);
+      const data: Connection = { address, actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", version: 0, signature: "", directory: "", invitations: "", matches: "", watching: false, directoryWatching: false, pending: {}, refreshQueued: false, tail: Promise.resolve(), presence: new Map() };
       await authorize(data);
-      if (io.sockets.sockets.size >= (options.maxConnections ?? 200) || [...io.sockets.sockets.values()].filter(s => (data.actor ? s.data.actor === data.actor : s.handshake.address === socket.handshake.address)).length >= 6)
+      if (io.sockets.sockets.size >= (options.maxConnections ?? 200) || [...io.sockets.sockets.values()].filter(s => (data.actor ? s.data.actor === data.actor : !s.data.actor && s.data.address === data.address)).length >= 6)
         throw new MatchError("CONNECTION_LIMIT", 429, "Muitas conexões abertas.");
       socket.data = data; next();
     })().catch(error => {
@@ -156,7 +158,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       enqueue(socket, async () => {
         try {
           await authorize(socket.data);
-          if (!await options.limit(`watch:${socket.data.actor ?? socket.handshake.address}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
+          if (!await options.limit(`watch:${socket.data.actor ?? socket.data.address}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
           const input = matchWatchSchema.parse(value);
           const initial = input.active && input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
           if (socket.data.code) await socket.leave(`match:${socket.data.code}`);
