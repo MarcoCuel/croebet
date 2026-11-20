@@ -38,6 +38,10 @@ async function reservations(client: Client, id: string) {
 }
 async function roomView(client: Client, row: Row, members: MatchParticipant[]): Promise<Room> {
   const room=roomSchema.parse({...view(row,members),...(Number(row.entry_amount)>0?await readMatchEconomy(client,row.id):{})});
+  if (room.status === "finished") {
+    const timing = await client.query<{ seconds: string | null }>("select floor(greatest(0,extract(epoch from (ended_at-started_at))))::text as seconds from game_match_archives where id=$1 and ended_at is not null", [row.id]);
+    room.durationSeconds = timing.rows[0]?.seconds == null ? null : Number(timing.rows[0].seconds);
+  }
   if(room.status!=="lobby")return room;
   room.confirmedUserIds=Number(row.entry_amount)>0?(await client.query<{user_id:string}>("select user_id from game_match_players where match_id=$1 and (confirmed_entry_amount=$2 or user_id=$3) order by seat",[row.id,row.entry_amount,row.owner_id])).rows.map(p=>p.user_id):[];
   room.pendingInvitations=await reservations(client,row.id);

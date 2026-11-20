@@ -1,3 +1,6 @@
+import { matchSchema } from "@croebet/shared";
+import { createGame } from "../../../api/src/modules/games/flip7/engine";
+import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { startPublicApi } from "../public-api-fixture";
 import { matchesFixture, fixtureUser, matchUsers } from "../matches-api-fixture";
@@ -472,4 +475,26 @@ test("campo de aposta reutilizável soma, subtrai e seleciona valores sugeridos"
   await expect(box.getByRole("button",{name:"Diminuir aposta",exact:true})).toBeDisabled();
   await box.getByRole("switch",{name:"Jogar apostando"}).uncheck();
   await expect(input).toHaveCount(0);
+});
+
+test("resultado apresenta vencedor, duração, rodadas, prêmio e placar com avatares", async ({ page }) => {
+  const code="ABCDEF123456";
+  const state=flip7Driver.project(createGame(matchUsers.map(user=>({name:user.username,kind:"human" as const})),42,{mode:"classic",brutal:false}));
+  state.phase="over";state.round=7;state.players[0].total=214;state.players[1].total=166;
+  const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,game:"flip7",rulesVersion:1,version:20,status:"finished",state,hostId:matchUsers[0].id,capacity:2,options:{mode:"classic",brutal:false},participants:matchUsers.map((user,seat)=>({userId:user.id,username:user.username,displayName:user.displayName,avatarUrl:null,seat})),durationSeconds:754,entryAmount:5,potTotal:10,payouts:[{seat:0,amount:10,house:false}],settlement:"paid"});
+  fixture.states.set(code,{room,frames:[]});
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const dialog=page.getByRole("dialog",{name:"Resultado da partida"});
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("venceu a partida!",{exact:false})).toBeVisible();
+  await expect(dialog.getByText("12 min 34 s",{exact:true})).toBeVisible();
+  await expect(dialog.locator("dl").getByText("7",{exact:true})).toBeVisible();
+  await expect(dialog.getByText("Prêmio (Pote)",{exact:true})).toBeVisible();
+  await expect(dialog.getByRole("list",{name:"Classificação final"}).getByRole("listitem")).toHaveCount(2);
+  await expect(dialog.locator("[data-slot=avatar]")).toHaveCount(3);
+  await expect(dialog.getByText("Flip 7",{exact:true})).toHaveCount(0);
+  await dialog.getByRole("button",{name:"Fechar",exact:true}).first().click();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole("button",{name:"Ver resultado",exact:true}).click();
+  await expect(dialog.getByText("12 min 34 s",{exact:true})).toBeVisible();
 });

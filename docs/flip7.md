@@ -56,6 +56,7 @@ O admin consulta as partidas dentro de cada jogo, incluindo participantes, pontu
 - Snapshot confirma primeiro; apresentação mantém status/pontos anteriores durante a viagem e revela estouro/resultado na chegada. Cartas estouradas viram para o verso, sem vazar valores em tooltip/nome acessível. Ações pendentes/enfileiradas ficam visíveis junto ao baralho.
 - Congelar/Compre 3 seguem permanência do Clássico. Compre 4/Só mais uma ficam visíveis durante o efeito e saem após a última entrega, com pausa visual de 0,5s; próxima ação/resultado aguardam a saída.
 - Troca/roubo/descartes têm animação entre mãos/baralho. Passar no Vingança deita a primeira carta numérica e o primeiro modificador; isso não impede ações posteriores.
+- O resultado final destaca os vencedores com avatares, resume duração, rodadas e pote quando houver e lista o placar com posição, avatar e pontos, preservando empates. A duração vem do início e término arquivados pela API, sem contar o lobby; ausência desse registro aparece como indisponível. Fechar e Jogar novamente mantêm suas ações.
 - Próxima rodada automática após animações e resumo de 1,6s. Cancelar timers ao desmontar, abrir saída ou mudar estado; fim da partida não avança. Respeitar movimento reduzido em deslocamentos, rotações e pausas. Durações finas ficam no código, sem tabela duplicada aqui.
 
 ## Economia

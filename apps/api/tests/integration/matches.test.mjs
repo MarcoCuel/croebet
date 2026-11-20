@@ -412,8 +412,14 @@ test("PostgreSQL: arquivo transacional, replay completo, idempotência e preserv
    match=result.match;
  }
  assert.equal(match.status,"finished");
+ const timing=(await pool.query("select floor(greatest(0,extract(epoch from (ended_at-started_at))))::int as seconds from game_match_archives where id=$1",[room.id])).rows[0];
+ assert.equal(match.durationSeconds,timing.seconds);
+ assert.equal((await getMatch(pool,actors[0],room.code)).durationSeconds,timing.seconds);
  const gameId=(await pool.query("select game_id from game_matches where id=$1",[room.id])).rows[0].game_id;
+ const avatarKey=`${actors[0]}.webp`;
+ await pool.query("update users set avatar_key=$1 where id=$2",[avatarKey,actors[0]]);
  const replay=await readMatchReplay(pool,gameId,room.id,0,100);
+ assert.equal(replay.match.players.find(p=>p.userId===actors[0]).avatarUrl,`/api/v1/avatars/${avatarKey}`);
  assert.ok(replay.match.players.some(p=>p.winner));
  assert.equal(replay.frames[0].action.type,"start");
  const archive=(await pool.query("select event from game_match_archive_frames where match_id=$1 order by version",[room.id])).rows;
@@ -423,12 +429,13 @@ test("PostgreSQL: arquivo transacional, replay completo, idempotência e preserv
  assert.equal(JSON.stringify(archive).includes('"deck"'),false);
  const filtered=await readGameHistory(pool,gameId,{offset:0,limit:20,q:room.code,status:"finished"});
  assert.equal(filtered.items[0].id,room.id);
+ assert.equal(filtered.items[0].players.find(p=>p.userId===actors[0]).avatarUrl,`/api/v1/avatars/${avatarKey}`);
  const client=await pool.connect();
  try{await client.query("begin");await client.query("delete from game_matches where id=$1",[room.id]);await client.query("rollback");}finally{client.release();}
  assert.equal((await readMatchReplay(pool,gameId,room.id,0,100)).match.status,"finished");
  await pool.query("delete from game_matches where id=$1",[room.id]);
  await pool.query("delete from users where id=$1",[actors[0]]);
- assert.deepEqual((await readMatchReplay(pool,gameId,room.id,0,100)).match,replay.match);
+ assert.deepEqual((await readMatchReplay(pool,gameId,room.id,0,100)).match,{...replay.match,players:replay.match.players.map(p=>p.userId===actors[0]?{...p,avatarUrl:null}:p)});
 });
 
 async function paidEnvironment(t, entry=5) {

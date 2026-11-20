@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { historyItem, readMatchReplay } from "../dist/modules/admin/match-history.js";
+import { historyItem, readGameHistory, readMatchReplay } from "../dist/modules/admin/match-history.js";
 import { flip7Driver } from "../dist/modules/games/flip7/driver.js";
 import { managementRoutes } from "../dist/modules/admin/routes.js";
 import Fastify from "fastify";
@@ -33,4 +33,22 @@ test("visitantes e usuários comuns não acessam histórico administrativo",asyn
   for(const url of [`/api/v1/admin/games/${gameId}/matches`,`/api/v1/admin/games/${gameId}/matches/${id}`])assert.equal((await app.inject({url})).statusCode,404);
   await app.close();
  }
+});
+
+test("histórico resolve avatares em lote e preserva identidade sem conta ou imagem", async () => {
+ const first=row(), extra=row();
+ const calls=[];
+ const avatarKey=`${first.participants[0].userId}.webp`;
+ const pool={query:async(sql,params)=>{
+   calls.push([sql,params]);
+   return {rows:sql.startsWith("select id,avatar_key")?[{id:first.participants[0].userId,avatar_key:avatarKey}]:[first,extra]};
+ }};
+ const result=await readGameHistory(pool,gameId,{offset:0,limit:1,q:"",status:"all"});
+ assert.equal(result.hasMore,true);assert.equal(result.items.length,1);
+ assert.equal(calls.length,2);
+ assert.deepEqual(calls[1][1],[[first.participants[0].userId]]);
+ assert.equal(result.items[0].players[0].avatarUrl,`/api/v1/avatars/${avatarKey}`);
+ assert.equal(result.items[0].players[0].name,"Nome original");
+ assert.equal(result.items[0].players[1].avatarUrl,null);
+ assert.equal(historyItem(first).players[0].avatarUrl,null);
 });

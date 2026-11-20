@@ -37,7 +37,7 @@ export function matchesFixture() {
     const result=humans.length?execute(flip7Driver,state,version):{state,version,frames:[],status:"abandoned" as const};
     const frames:MatchFrame[]=[{action:{type:"replace",seat},state:flip7Driver.project(state),version},...result.frames];
     saved.privateState=result.state;saved.frames.push(...frames);
-    saved.room={...saved.room,status:result.status,version:result.version,state:flip7Driver.project(result.state),hostId:humans.some(p=>p.userId===saved.room.hostId)?saved.room.hostId:humans[0]?.userId ?? saved.room.hostId};
+    saved.room={...saved.room,durationSeconds:result.status==="finished"?754:null,status:result.status,version:result.version,state:flip7Driver.project(result.state),hostId:humans.some(p=>p.userId===saved.room.hostId)?saved.room.hostId:humans[0]?.userId ?? saved.room.hostId};
     return {match:saved.room,before,frames};
   }
   const matchSummaries=()=>[...states.values()].flatMap(({room})=>{
@@ -159,7 +159,7 @@ export function matchesFixture() {
       saved.privateState=result.state;saved.frames.push({action:{type:"start"},state:result.before,version},...result.frames);
       const {pendingInvitations: _pending,onlineUserIds: _online,...base}=saved.room as Extract<Room,{status:"lobby"}>;
       void _pending;void _online;
-      saved.room={...base,potTotal:base.entryAmount*base.participants.length,settlement:base.entryAmount?"pending":null,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
+      saved.room={...base,durationSeconds:null,potTotal:base.entryAmount*base.participants.length,settlement:base.entryAmount?"pending":null,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
       const actors=new Set(saved.room.participants.map(person=>person.userId));
       for(const [otherCode,other] of states)if(otherCode!==code && other.room.status==="lobby"){
         const people=other.room.participants.filter(person=>!actors.has(person.userId));

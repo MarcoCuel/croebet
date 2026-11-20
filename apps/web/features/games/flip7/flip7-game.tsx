@@ -1,4 +1,5 @@
 "use client";
+import { Flip7Result } from "./flip7-result";
 import { randomUUID } from "@/lib/uuid";
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -445,7 +446,6 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const validTargets = targets(game);
   const maxScore = Math.max(...game.players.map(player => player.total));
   const winners = game.players.filter(player => player.total === maxScore);
-  const standings = [...game.players].sort((a, b) => b.total - a.total);
   const actionLabel = game.pending ? cardLabel(game.pending.card) : "";
   const choices = cardChoices(game);
   const selectingCards = !resolvingCardFinished && !flight && !movingCards && human && game.pending?.resolving && game.pending.card.type === "swap";
@@ -607,23 +607,8 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
         </div>
       </div>
       <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
-          <DialogTitle>Resultado da partida</DialogTitle>
-          <DialogDescription className="mt-3 text-lg font-semibold text-brand">
-            {winners.map(player => player.name).join(" e ")} {winners.length > 1 ? "venceram" : "venceu"}!
-          </DialogDescription>
-          {!!matchInfo?.entryAmount && <div className="mt-4 space-y-2 text-sm"><p>Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</p>{matchInfo.payouts.map(payout=><p key={payout.seat}>{matchInfo.state.players[payout.seat].name}: {payout.amount.toLocaleString("pt-BR")} Croins{payout.house?" para a casa (vaga com bot)":" recebidos"}</p>)}</div>}
-          <ol aria-label="Classificação final" className="mt-5 max-h-[50dvh] space-y-2 overflow-y-auto" data-lenis-prevent>
-            {standings.map((player, index) => <li key={index} className={cn("flex min-w-0 items-center gap-3 rounded-lg bg-contrast/6 p-3 text-sm", player.total === maxScore && "bg-selected")}>
-              <span className="w-6 shrink-0 text-muted tabular-nums">{standings.findIndex(p => p.total === player.total) + 1}º</span>
-              <span className="min-w-0 flex-1 break-words font-medium">{player.name}</span>
-              <span className="shrink-0 font-semibold tabular-nums">{player.total} pts</span>
-            </li>)}
-          </ol>
-          <div className="mt-6 flex flex-wrap justify-end gap-2">
-            <DialogClose asChild><Button variant="secondary">Fechar</Button></DialogClose>
-            <Button disabled={leaving} onClick={() => matchUrl(null)}>Jogar novamente</Button>
-          </div>
+        <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
+          <Flip7Result game={game} match={matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} />
         </DialogContent>
       </Dialog>
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>

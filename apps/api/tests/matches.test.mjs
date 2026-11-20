@@ -90,3 +90,11 @@ test("rotas exigem sessão e herdam Origin/CSRF antes de permitir escritas", asy
   }
   assert.equal((await app.inject({ method:"POST",url:"/api/v1/matches",payload:input })).statusCode,403);
 });
+
+test("duração pública é opcional em respostas antigas e não aceita valores inválidos", () => {
+ const state=flip7Driver.project(flip7Driver.create({setup,options:input.options},"Marco"));
+ const body={id:randomUUID(),code:"ABCDEF123456",game:"flip7",rulesVersion:1,version:1,status:"finished",state,hostId:randomUUID(),capacity:2,options:input.options,participants:[]};
+ assert.equal(matchSchema.parse(body).durationSeconds,null);
+ assert.equal(matchSchema.parse({...body,durationSeconds:754}).durationSeconds,754);
+ for(const durationSeconds of [-1,1.5,Infinity])assert.equal(matchSchema.safeParse({...body,durationSeconds}).success,false);
+});

@@ -128,11 +128,16 @@ test("admin consulta vencedores e reproduz jogadas sem alterar a partida", async
   await page.goto(`/admin/jogos/${id}`);
   const list=page.getByRole("list",{name:"Partidas do jogo"});
   await expect(list.getByText("Vencedor: Ana",{exact:true})).toBeVisible();
+  await expect(list.locator("[data-slot=avatar]")).toHaveCount(2);
+  await expect(list.getByText("Concluída",{exact:true})).toBeVisible();
+  await expect(list.getByText("Clássico",{exact:true})).toBeVisible();
   await page.getByRole("searchbox",{name:"Buscar partidas por código ou participante"}).fill("ninguém");
   await expect(page.getByText("Nenhuma partida encontrada.")).toBeVisible();
   await page.getByRole("searchbox",{name:"Buscar partidas por código ou participante"}).fill("");
   await list.getByRole("link",{name:"Ver histórico"}).click();
   await expect(page.getByText("Jogada registrada 1.",{exact:true})).toBeVisible();
+  await expect(page.getByRole("complementary",{name:"Resumo da partida"}).getByRole("heading",{name:"Resultado",exact:true})).toBeVisible();
+  await expect(page.getByRole("complementary",{name:"Resumo da partida"}).locator("[data-slot=avatar]")).toHaveCount(2);
   await page.getByRole("button",{name:"Próxima jogada",exact:true}).click();
   await expect(page.getByText("Jogada registrada 2.",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Jogada anterior",exact:true}).click();

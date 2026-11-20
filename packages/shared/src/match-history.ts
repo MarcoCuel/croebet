@@ -10,7 +10,7 @@ export const matchHistoryItemSchema = z.object({ ...matchEconomyFields,
   id: z.uuid(), code: matchCodeSchema, gameId: z.uuid(), rulesVersion: z.number().int().positive(),
   status: z.enum(["playing", "finished", "abandoned"]), options: flip7OptionsSchema,
   startedAt: z.iso.datetime(), endedAt: z.iso.datetime().nullable(),
-  players: z.array(z.object({ seat: z.number().int().min(0).max(11), userId: z.uuid().nullable(), name: z.string(), score: z.number().int(), winner: z.boolean(), bot: z.boolean() }).strict()).max(12),
+  players: z.array(z.object({ seat: z.number().int().min(0).max(11), userId: z.uuid().nullable(), name: z.string(), avatarUrl: z.string().nullable().default(null), score: z.number().int(), winner: z.boolean(), bot: z.boolean() }).strict()).max(12),
   frameCount: z.number().int().nonnegative(),
 }).strict();
 export const matchHistoryListSchema = z.object({ items: z.array(matchHistoryItemSchema), hasMore: z.boolean() }).strict();

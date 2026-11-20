@@ -8,7 +8,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlayingCard } from "@/features/games/flip7/flip7-game";
 import { managementRequest } from "./management-api";
-import { matchStatusLabels } from "./admin-game-history";
+import { MatchBadges, MatchPlayerAvatar, MatchPlayerIdentity } from "./admin-match-summary";
+import { Badge } from "@/components/ui/badge";
+import { CroinIcon } from "@/components/shared/croin-icon";
+import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Play, Pause } from "lucide-react";
+import { adminDate } from "./management-shared";
 type Replay = ReturnType<typeof matchReplaySchema.parse>;
 export function AdminMatchReplay({ initial }: { initial: Replay }) {
   const [page,setPage]=useState(initial);
@@ -36,27 +40,51 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
   },[playing,loading,frame,index,delay,initial.match.frameCount]);
   const atEnd=index>=initial.match.frameCount-1;
   function seek(value:number) {setPlaying(false);setError("");setIndex(value);}
-  return <div className="grid gap-6">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold">Partida {initial.match.code}</h1><p className="text-sm text-muted">{matchStatusLabels[initial.match.status]} · Regras v{initial.match.rulesVersion}</p></div><Button asChild variant="outline"><Link href={`/admin/jogos/${initial.match.gameId}`}>Voltar ao jogo</Link></Button></div>
-    {initial.match.entryAmount>0 && <Card className="space-y-2 text-sm"><p>Entrada: {initial.match.entryAmount.toLocaleString("pt-BR")} Croins · Pote: {initial.match.potTotal.toLocaleString("pt-BR")} Croins</p><p>{{pending:"Prêmio pendente",paid:"Pote distribuído",refunded:"Entradas devolvidas"}[initial.match.settlement ?? "pending"]}</p>{initial.match.payouts.map(payout=><p key={payout.seat}>{initial.match.players.find(p=>p.seat===payout.seat)?.name}: {payout.amount.toLocaleString("pt-BR")} Croins{payout.house?" para a casa (vaga com bot)":" recebidos"}</p>)}</Card>}
-    <Card className="grid gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" onClick={()=>seek(0)} disabled={index===0}>Início</Button>
-        <Button variant="outline" onClick={()=>seek(Math.max(0,index-1))} disabled={index===0}>Jogada anterior</Button>
-        <Button onClick={()=>setPlaying(value=>!value)} disabled={loading||atEnd||!!error}>{playing&&!atEnd?"Pausar":"Reproduzir"}</Button>
-        <Button variant="outline" onClick={()=>seek(Math.min(initial.match.frameCount-1,index+1))} disabled={atEnd}>Próxima jogada</Button>
-        <Button variant="outline" onClick={()=>seek(initial.match.frameCount-1)} disabled={atEnd}>Final</Button>
-        <Select aria-label="Velocidade da reprodução" value={delay} onChange={event=>setDelay(Number(event.target.value))}><option value={2000}>0,5×</option><option value={1000}>1×</option><option value={500}>2×</option></Select>
+  const match = initial.match;
+  const rankedPlayers = [...match.players].sort((a, b) => b.score - a.score);
+  return <div className="grid min-w-0 gap-4">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="grid gap-2"><h1 className="text-xl font-semibold">Partida <span className="font-mono">{match.code}</span></h1><MatchBadges match={match} /><p className="text-xs text-muted">{adminDate(match.startedAt)} · {match.players.length} participantes · Regras v{match.rulesVersion}</p></div>
+      <Button asChild variant="secondary" size="sm"><Link href={`/admin/jogos/${match.gameId}`}><ChevronLeft className="size-4" aria-hidden="true" />Voltar ao jogo</Link></Button>
+    </div>
+    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="grid min-w-0 gap-4">
+        <Card className="grid gap-4">
+          <div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Reprodução</h2><Select aria-label="Velocidade da reprodução" value={delay} onChange={event => setDelay(Number(event.target.value))} className="min-h-8 py-1 text-xs"><option value={2000}>0,5×</option><option value={1000}>1×</option><option value={500}>2×</option></Select></div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon-sm" aria-label="Início" onClick={() => seek(0)} disabled={index === 0}><SkipBack className="size-4" aria-hidden="true" /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Jogada anterior" onClick={() => seek(Math.max(0, index - 1))} disabled={index === 0}><ChevronLeft className="size-4" aria-hidden="true" /></Button>
+              <Button size="sm" onClick={() => setPlaying(value => !value)} disabled={loading || atEnd || !!error}>{playing && !atEnd ? <Pause className="size-4" aria-hidden="true" /> : <Play className="size-4" aria-hidden="true" />}{playing && !atEnd ? "Pausar" : "Reproduzir"}</Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Próxima jogada" onClick={() => seek(Math.min(match.frameCount - 1, index + 1))} disabled={atEnd}><ChevronRight className="size-4" aria-hidden="true" /></Button>
+              <Button variant="ghost" size="icon-sm" aria-label="Final" onClick={() => seek(match.frameCount - 1)} disabled={atEnd}><SkipForward className="size-4" aria-hidden="true" /></Button>
+            </div>
+            <span className="text-xs text-muted tabular-nums">Jogada <span className="font-semibold text-foreground">{index + 1}</span> de {match.frameCount}</span>
+          </div>
+          <Input aria-label="Ir para jogada" type="range" min={0} max={Math.max(0, match.frameCount - 1)} value={index} onChange={event => seek(Number(event.target.value))} className="h-4 min-h-4 w-full border-0 bg-transparent p-0 accent-brand" />
+        </Card>
+        {error ? <Card role="alert" className="grid justify-items-start gap-3 text-sm">{error}<Button variant="secondary" size="sm" onClick={() => { setError(""); setRetry(value => value + 1); }}>Tentar novamente</Button></Card> : loading || !frame ? <Card role="status" className="text-sm text-muted">Carregando jogadas…</Card> : <>
+          <Card className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Rodada {frame.state.round}</h2><Badge variant="secondary">{frame.state.phase === "over" ? "Fim da partida" : frame.state.phase === "summary" ? "Fim da rodada" : `Vez de ${frame.state.players[frame.state.turn].name}`}</Badge></div>
+            <div className="divide-y divide-contrast/6">{frame.state.players.map((player, seat) => {
+              const identity = match.players.find(person => person.seat === seat) ?? { name: player.name, avatarUrl: null };
+              return <div key={seat} className="grid gap-3 py-4 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3"><MatchPlayerAvatar player={identity} className="size-10" /><div className="min-w-0"><p className="truncate text-sm font-semibold">{identity.name}</p><p className="text-xs text-muted tabular-nums">{player.total} pontos</p></div>{player.kind !== "human" && <Badge variant="secondary">Bot</Badge>}</div>
+                  <Badge variant="secondary" className={player.status === "busted" ? "bg-prediction-no/10 text-prediction-no" : undefined}>{{ playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" }[player.status]}</Badge>
+                </div>
+                <div className="flex min-w-0 flex-wrap gap-2 sm:pl-13">{player.cards.map(card => <PlayingCard key={card.id} card={card} compact flipped={player.status === "busted"} />)}{!player.cards.length && <p className="text-xs text-muted">Sem cartas nesta rodada.</p>}</div>
+              </div>;
+            })}</div>
+          </Card>
+          <Card><h2 className="font-semibold">Histórico da jogada</h2><ul className="mt-3 divide-y divide-contrast/6 text-sm text-muted">{frame.state.log.slice(0, 8).map((entry, index) => <li className="py-2 first:pt-0 last:pb-0" key={index}>{entry.message}</li>)}</ul></Card>
+        </>}
       </div>
-      <label className="grid gap-2 text-sm">Jogada {index+1} de {initial.match.frameCount}<Input aria-label="Ir para jogada" type="range" min={0} max={Math.max(0,initial.match.frameCount-1)} value={index} onChange={event=>seek(Number(event.target.value))} className="w-full accent-brand" /></label>
-      <p className="text-xs text-muted">A reprodução mostra as jogadas confirmadas. Os controles alteram apenas esta visualização.</p>
-    </Card>
-    {error?<Card role="alert">{error} <Button variant="outline" onClick={()=>{setError("");setRetry(value=>value+1);}}>Tentar novamente</Button></Card>:loading||!frame?<Card>Carregando jogadas…</Card>:<>
-      <Card className="grid gap-5"><p className="text-sm text-muted">Rodada {frame.state.round} · {frame.state.phase==="over"?"Fim da partida":frame.state.phase==="summary"?"Fim da rodada":`Vez de ${frame.state.players[frame.state.turn].name}`}</p>
-        {frame.state.players.map((player,seat)=><div key={seat} className="grid gap-3 border-b border-line pb-4 last:border-0 last:pb-0"><div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-medium">{player.name}{player.kind!=="human"?" · Bot":""}</span><span>{player.total} pontos · {{playing:"Ativo",stayed:"Parou",frozen:"Congelado",busted:"Estourou"}[player.status]}</span></div><div className="flex flex-wrap gap-2">{player.cards.map(card=><PlayingCard key={card.id} card={card} compact flipped={player.status==="busted"} />)}</div></div>)}
-      </Card>
-      <Card className="grid gap-3"><h2 className="font-semibold">Histórico da jogada</h2><ul className="grid gap-2 text-sm text-muted">{frame.state.log.slice(0,8).map((entry,index)=><li key={index}>{entry.message}</li>)}</ul></Card>
-    </>}
-    <Card className="grid gap-3"><h2 className="font-semibold">{initial.match.status==="finished"?"Resultado":"Pontuação registrada"}</h2>{initial.match.players.map(player=><div className="flex justify-between gap-3 text-sm" key={player.seat}><span>{player.name}{player.winner?" · Vencedor":""}{player.bot?" · Bot":""}</span><span>{player.score} pontos</span></div>)}</Card>
+      <aside className="grid min-w-0 gap-4 xl:sticky xl:top-[var(--header-height)]" aria-label="Resumo da partida">
+        <Card><h2 className="font-semibold">{match.status === "finished" ? "Resultado" : "Pontuação registrada"}</h2><div className="mt-4 divide-y divide-contrast/6">{rankedPlayers.map(player => <div className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0" key={player.seat}><MatchPlayerIdentity player={player} /><span className="shrink-0 text-sm font-semibold tabular-nums">{player.score}<span className="ml-1 text-xs font-normal text-muted">pts</span></span></div>)}</div></Card>
+        {match.entryAmount > 0 && <Card className="grid gap-4"><h2 className="font-semibold">Croins da partida</h2><dl className="grid gap-3 text-sm"><div className="flex items-center justify-between gap-3"><dt className="text-muted">Entrada</dt><dd className="flex items-center gap-1.5 font-semibold tabular-nums"><CroinIcon className="size-4 text-[0.625rem]" />{match.entryAmount.toLocaleString("pt-BR")}</dd></div><div className="flex items-center justify-between gap-3"><dt className="text-muted">Pote</dt><dd className="flex items-center gap-1.5 font-semibold tabular-nums"><CroinIcon className="size-4 text-[0.625rem]" />{match.potTotal.toLocaleString("pt-BR")}</dd></div></dl><Badge variant="secondary">{{ pending: "Prêmio pendente", paid: "Pote distribuído", refunded: "Entradas devolvidas" }[match.settlement ?? "pending"]}</Badge>{match.payouts.length > 0 && <div className="grid gap-2 border-t border-contrast/6 pt-3">{match.payouts.map(payout => <div key={payout.seat} className="flex items-start justify-between gap-3 text-xs"><span className="min-w-0 text-muted">{match.players.find(player => player.seat === payout.seat)?.name}{payout.house ? " · Casa (vaga com bot)" : ""}</span><span className="flex shrink-0 items-center gap-1.5 font-semibold tabular-nums"><CroinIcon className="size-4 text-[0.625rem]" />{payout.amount.toLocaleString("pt-BR")}</span></div>)}</div>}</Card>}
+        <p className="px-1 text-xs leading-relaxed text-muted">As jogadas confirmadas são exibidas em modo de reprodução. Os controles alteram apenas esta visualização.</p>
+      </aside>
+    </div>
   </div>;
 }
