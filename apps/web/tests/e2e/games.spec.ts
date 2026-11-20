@@ -36,7 +36,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 }; failure = false;
+  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false;
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const req = route.request(); const result = respond(new URL(req.url()).pathname, req.method(), req.postDataJSON() ?? {});
@@ -55,9 +55,11 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   await expect(page).toHaveURL(`/admin/jogos/${id}`);
   await expect(page.getByLabel("Imagem de capa")).toHaveValue("");
   await page.getByLabel("Nome do jogo").fill("Flip da comunidade");
+  await page.getByLabel("Descrição",{exact:true}).fill("Compre cartas com seus amigos.");
   await page.getByRole("button", { name: "Salvar jogo" }).click();
   await expect(page).toHaveURL("/admin/jogos");
   await page.reload();
+  expect(game.description).toBe("Compre cartas com seus amigos.");
   await expect(list.getByRole("link", { name: "Flip da comunidade" })).toBeVisible();
   const visitor = await browser.newContext({ javaScriptEnabled: false });
   const publicPage = await visitor.newPage();
@@ -66,6 +68,7 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   await expect(publicPage.getByRole("main").locator("img")).toHaveCount(0);
   await list.getByRole("button", { name: "Pausar" }).click();
   await expect(list.getByText("Inativo", { exact: true })).toBeVisible();
+  expect(game.description).toBe("Compre cartas com seus amigos.");
   await publicPage.reload();
   await expect(publicPage.getByText("Nenhum jogo disponível.")).toBeVisible();
   await publicPage.goto("/jogos/flip7");

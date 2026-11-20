@@ -140,6 +140,7 @@ export const adminAudit = pgTable("admin_audit", {
 }, table => [index("admin_audit_target").on(table.targetId, table.createdAt)]);
 
 export const games = pgTable("games", {
+  description: text("description").notNull().default(""),
   seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),

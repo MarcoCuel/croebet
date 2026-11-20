@@ -6,7 +6,8 @@ import { grantInitialBalance, claimDailyReward } from '../../dist/modules/econom
 import { readWallet, readTransactions } from '../../dist/modules/wallet/service.js';
 import { changeUser, adjustBalance, saveCoupon, readCoupon, readCoupons, readAdminUsers, readAudit, readRedemptions } from '../../dist/modules/admin/service.js';
 import { redeemCoupon } from '../../dist/modules/admin/redeem.js';
-import { adminQuerySchema, couponsQuerySchema } from '@croebet/shared';
+import { readGame, saveGame } from '../../dist/modules/games/service.js';
+import { adminQuerySchema, couponsQuerySchema, gameWriteSchema } from '@croebet/shared';
 
 test('PostgreSQL: administração, cupons concorrentes, ajustes auditáveis, rollback e último admin', async t => {
   if (!process.env.TEST_DATABASE_URL) throw new Error('Configure TEST_DATABASE_URL com banco isolado migrado e identificado como test.');
@@ -28,6 +29,28 @@ test('PostgreSQL: administração, cupons concorrentes, ajustes auditáveis, rol
     } catch (error) { await client.query('rollback'); throw error; } finally { client.release(); }
   }
   const a = await account('admin'); const b = await account('admin'); const u = await account('user'); const v = await account('user');
+  const originalGame = await readGame(pool, 'flip7');
+  try {
+    const gameId = originalGame.id;
+    const fields = { name: originalGame.name, description: originalGame.description, enabled: originalGame.enabled, imageUrl: originalGame.imageUrl, seo: originalGame.seo, version: originalGame.version };
+    const input = gameWriteSchema.parse({ ...fields, name: 'Nome pelo painel', description: 'Descrição pelo painel.\nSegunda linha.' });
+    await assert.rejects(saveGame(pool, u.id, u.hash, gameId, input), { code: 'NOT_FOUND' });
+    const saved = await saveGame(pool, a.id, a.hash, gameId, input);
+    assert.equal(saved.description, input.description);
+    assert.equal((await readGame(pool, 'flip7')).name, input.name);
+    assert.equal((await readGame(pool, gameId, true)).description, input.description);
+    await assert.rejects(saveGame(pool, a.id, a.hash, gameId, { ...input, description: 'Sobrescrever' }), { code: 'VERSION_CONFLICT' });
+    assert.equal((await readGame(pool, 'flip7')).description, input.description);
+    const paused = await saveGame(pool, a.id, a.hash, gameId, { ...input, enabled: false, version: saved.version });
+    assert.equal(paused.description, input.description);
+    await assert.rejects(readGame(pool, 'flip7'), { code: 'NOT_FOUND' });
+    const cleared = await saveGame(pool, a.id, a.hash, gameId, { ...input, description: '', version: paused.version });
+    assert.equal(cleared.description, '');
+    const changes = await readAudit(pool, gameId);
+    assert.equal(changes.items[0].details.after.description, '');
+  } finally {
+    await pool.query('update games set name=$1,description=$2,enabled=$3,image_url=$4,seo=$5,version=$6 where id=$7', [originalGame.name, originalGame.description, originalGame.enabled, originalGame.imageUrl, JSON.stringify(originalGame.seo), originalGame.version, originalGame.id]);
+  }
   const reason = 'Teste de administração';
   const config = { code: `LIVE_${randomUUID().slice(0, 8).toUpperCase()}`, amount: 7, limit: 1, startsAt: null, endsAt: null, paused: false, version: 0, reason };
   const couponId = await saveCoupon(pool, a.id, a.hash, null, config);

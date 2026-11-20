@@ -49,7 +49,7 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
               if (pending) return;
               setPending(game.slug);
               try {
-                await managementRequest(`/admin/games/${game.id}`, gameSchema, "PATCH", { name: game.name, imageUrl: game.imageUrl, enabled: !game.enabled, version: game.version });
+                await managementRequest(`/admin/games/${game.id}`, gameSchema, "PATCH", { name: game.name, description: game.description, seo: game.seo, imageUrl: game.imageUrl, enabled: !game.enabled, version: game.version });
                 toast.success(game.enabled ? "Jogo pausado." : "Jogo ativado."); router.refresh();
               } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar o jogo."); }
               finally { setPending(null); }

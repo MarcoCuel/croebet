@@ -5,10 +5,13 @@ import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
 import { readGames, readGame, saveGame } from '../dist/modules/games/service.js';
 
-const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'flip7', name: 'Flip 7', enabled: true, image_url: null, version: 1 };
+const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'flip7', name: 'Nome cadastrado', description: 'Descrição cadastrada.', enabled: true, image_url: null, version: 1 };
 const input = { name: 'Flip 7', enabled: true, imageUrl: null, version: 1 };
 test('jogos aceitam capa ausente e recusam URLs executáveis e versões inválidas', () => {
   assert.equal(gameWriteSchema.safeParse(input).success, true);
+  assert.equal(gameWriteSchema.parse({ ...input, description: '  Texto.\nOutra linha.  ' }).description, 'Texto.\nOutra linha.');
+  assert.equal(gameWriteSchema.parse({ ...input, description: '' }).description, '');
+  assert.equal(gameWriteSchema.safeParse({ ...input, description: 'x'.repeat(2001) }).success, false);
   for (const imageUrl of ['javascript:alert(1)', 'data:image/svg+xml,x', '//example.com/a', '/\\example.com/a']) assert.equal(gameWriteSchema.safeParse({ ...input, imageUrl }).success, false);
   for (const imageUrl of ['https://example.com/capa.webp', '/art/minha-capa.webp']) assert.equal(gameWriteSchema.safeParse({ ...input, imageUrl }).success, true);
   assert.equal(gameWriteSchema.safeParse({ ...input, version: 0 }).success, false);
@@ -16,7 +19,8 @@ test('jogos aceitam capa ausente e recusam URLs executáveis e versões inválid
 test('consulta pública só permite jogos ativos e não inventa jogos ou imagens', async () => {
   const pool = { query: async sql => { assert.match(sql, /enabled=true/); return { rows: [row] }; } };
   assert.equal((await readGames(pool)).items[0].imageUrl, null);
-  assert.equal((await readGame(pool, 'flip7')).name, 'Flip 7');
+  assert.equal((await readGame(pool, 'flip7')).name, 'Nome cadastrado');
+  assert.equal((await readGame(pool, 'flip7')).description, 'Descrição cadastrada.');
   await assert.rejects(readGame({ query: async () => ({ rows: [] }) }, 'flip7'), { status: 404 });
 });
 test('endpoints administrativos de jogos exigem sessão e proteção de escrita', async t => {
@@ -39,7 +43,7 @@ function transaction(version, failAudit = false) {
       return { rows: [{ ...row, version }] };
     }
     if (sql.startsWith('update games')) { assert.match(sql, /where id=\$4/); assert.equal(params[3], row.id); }
-    if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], version: version + 1 }] };
+    if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], description: params[5], version: version + 1 }] };
     if (failAudit && sql.startsWith('insert into admin_audit')) throw new Error('audit unavailable');
     return { rows: [] };
   }, release: () => calls.push('release') };

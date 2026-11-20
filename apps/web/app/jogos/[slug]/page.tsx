@@ -18,5 +18,5 @@ export default async function Game({ params, searchParams }: Props) {
   const data = await getPublicGames(slug);
   if (data && data.items.length === 0) notFound();
   const initial = data ? await getInitialMatches((await searchParams).partida) : null;
-  return <PageShell>{data ? <><h1 className="sr-only">{data.items[0].name}</h1><Flip7Loader initial={initial!} /></> : <ManagementUnavailable />}</PageShell>;
+  return <PageShell>{data ? <><h1 className="sr-only">{data.items[0].name}</h1><Flip7Loader game={data.items[0]} initial={initial!} /></> : <ManagementUnavailable />}</PageShell>;
 }

@@ -9,6 +9,7 @@ export const gameImageSchema = z.string().trim().max(2048).refine(value => {
 export const gameWriteSchema = z.object({
   seo: seoFieldsSchema.default(() => seoFieldsSchema.parse({})),
   name: z.string().trim().min(1).max(100),
+  description: z.string().trim().max(2000).default(""),
   enabled: z.boolean(),
   imageUrl: gameImageSchema,
   version: z.number().int().positive(),

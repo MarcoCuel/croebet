@@ -3,7 +3,7 @@ import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Crown, Eye, Plus, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
+import type { GameRecord, CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,16 @@ import { createServerMatch, changeLobby, rememberStart, updateServerLobby } from
 import { useMatchLive } from "./live";
 import { InvitePlayers } from "./invite-players";
 import { KickPlayer } from "./kick-player";
+import { GameEntryHeader } from "../game-entry-header";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
 
-export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(options:GameOptions)=>ReactNode}) {
+function SeatOutline() {
+  return <svg className="pointer-events-none absolute inset-0 size-full text-field-border" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
+    <circle cx="32" cy="32" r="31.5" stroke="currentColor" strokeWidth="1" strokeDasharray="3 5" vectorEffect="non-scaling-stroke"/>
+  </svg>;
+}
+
+export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:GameRecord;rules:(options:GameOptions)=>ReactNode}) {
   const router=useRouter();
   const searchParams=useSearchParams();
   const {userId,username,avatar,openLogin}=useSession();
@@ -96,7 +103,8 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   const seats=room?[...room.participants,...room.pendingInvitations]:[];
   const occupied=room?seats.length:1;
   const allOnline=!!room && room.pendingInvitations.length===0 && room.participants.every(p=>room.onlineUserIds.includes(p.userId));
-  const canEdit=!busy && (!room || (host && connected));
+  const showSettings=!!userId && (!room || host);
+  const canEdit=showSettings && !busy && (!room || connected);
 
   async function configure(nextOptions:GameOptions,nextCapacity:number){
     if(!canEdit)return;
@@ -115,7 +123,10 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
   }
   async function act(lobby:Lobby,action:"join"|"leave"|"start"){
     if(busy)return;
-    if(!userId){openLogin();return;}
+    if(!userId){
+      if(action==="join"){acceptLobby(lobby);visit(lobby.code);}
+      openLogin();return;
+    }
     setBusy(true);setError("");leaving.current=action==="leave";
     const key=lobby.code+":"+action;
     if(pending.current?.key!==key)pending.current={key,id:randomUUID(),version:action==="start"?lobby.version:undefined};
@@ -153,20 +164,22 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
     finally{setBusy(false);}
   }
 
-  return <div className="mx-auto grid w-full max-w-5xl items-start gap-6 py-6 sm:py-12 lg:grid-cols-2">
-    <Card className="space-y-5" aria-label="Configuração e regras">
+  return <div className="w-full space-y-6 py-6 sm:py-12">
+    <GameEntryHeader game={game} actions={!userId?rules(settings):undefined}/>
+    <div className="grid min-w-0 items-start gap-6 xl:grid-cols-3">
+    {showSettings && <Card className="min-w-0 space-y-5" aria-label="Configuração e regras">
       <Heading variant="section">Configuração</Heading>
       <fieldset disabled={!canEdit} className="space-y-4">
         <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label="Modo do Flip7" value={settings.mode} onChange={e=>void configure({mode:e.target.value as GameOptions["mode"],brutal:false},limit)}><option value="classic">Clássico</option><option value="vengeance">A vingança nunca é plena</option></Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit)}/></Field>}
       </fieldset>
       {rules(settings)}
-    </Card>
-    <Card className="space-y-5" aria-label="Jogadores e vagas">
-      <fieldset disabled={!canEdit}>
+    </Card>}
+    {(userId || room) && <Card className="min-w-0 space-y-5" aria-label="Jogadores e vagas">
+      {showSettings?<fieldset disabled={!canEdit}>
         <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value))}>{Array.from({length:11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
-      </fieldset>
-      <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 lg:grid-cols-3 xl:grid-cols-5" aria-label="Vagas da sala">
+      </fieldset>:<div className="flex flex-wrap items-center gap-2" aria-label="Modo da sala"><Badge variant="secondary">{settings.mode==="classic"?"Clássico":"Vingança"}</Badge>{settings.brutal && <Badge>Brutal</Badge>}</div>}
+      <ul className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-5 xl:grid-cols-3" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
           const person=seats[i];
           const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || (person.userId!==userId && !room.onlineUserIds.includes(person.userId)));
@@ -178,12 +191,12 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
           return <li key={person?.userId ?? (preview?userId:undefined) ?? "seat-"+i} className={cn("relative flex min-w-0 flex-col items-center gap-2",waiting && "opacity-40")}>
             <div className="relative">
               {name?<Avatar className="size-16"><AvatarImage src={person?.avatarUrl ?? (preview?avatar ?? undefined:undefined)}/><AvatarFallback className="text-lg">{name[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
-                :next && (!room || host)?<Button variant="ghost" size="icon" className="size-16 rounded-full! border border-dashed border-field-border p-0" aria-label="Convidar jogadores" disabled={busy || (!!userId && !connected)} onClick={async()=>{
+                :next && (!room || host)?<Button variant="ghost" size="icon" className="relative size-16 rounded-full! border-0 p-0" aria-label="Convidar jogadores" disabled={busy || (!!userId && !connected)} onClick={async()=>{
                   if(!userId){openLogin();return;}
                   if(room){setInviting(true);return;}
                   const created=await create(true);if(created)setInviting(true);
-                }}><Plus className="size-6" aria-hidden="true"/></Button>
-                :<span className="flex size-16 items-center justify-center rounded-full border border-dashed border-field-border">{placeholder}</span>}
+                }}><SeatOutline/><Plus className="size-6" aria-hidden="true"/></Button>
+                :<span className="relative flex size-16 items-center justify-center rounded-full"><SeatOutline/>{placeholder}</span>}
               {isHost && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-brand" title="Host"><Crown className="size-4" aria-label="Host"/></span>}
             </div>
             <span className={cn("w-full truncate text-center text-xs font-medium",isHost?"text-brand":!name && "text-muted")} title={waiting?`${name} · Aguardando entrada`:name ?? undefined}>{name ?? "Disponível"}</span>
@@ -202,38 +215,37 @@ export function LobbyScreen({initial,rules}:{initial:InitialMatches;rules:(optio
           </div>}
         {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
         {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}
-        {room && !directory.owned && !directory.active && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
+        {userId && room && !directory.owned && !directory.active && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
         {room && directory.owned && directory.owned.code!==room.code && <Button className="w-full" variant="secondary" disabled={busy} onClick={()=>{acceptLobby(directory.owned!);visit(directory.owned!.code);}}>Meu lobby</Button>}
       </div>
-    </Card>
-    <section className="space-y-5 lg:col-span-2" aria-label="Lobbies abertos">
+    </Card>}
+    <section className={cn("min-w-0 space-y-5",!showSettings && (userId || room?"xl:col-span-2":"xl:col-span-3"))} aria-label="Lobbies abertos">
       <Heading variant="section">Lobbies abertos</Heading>
       <>
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {lobbies.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className="grid gap-4 sm:grid-cols-2">{lobbies.map(lobby=>{
+        {lobbies.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className={cn("grid gap-4",!showSettings && "sm:grid-cols-2",!userId && !room && "xl:grid-cols-3")}>{lobbies.map(lobby=>{
           const people=[...lobby.participants,...lobby.pendingInvitations];
           const joined=lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
-          const available=lobby.capacity-people.length;
           return <li key={lobby.code}><Card className="h-full space-y-5">
-            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p><Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}</div>
+            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
-                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="size-11 rounded-full! border border-dashed border-field-border p-0" aria-label={`Entrar na sala de ${lobby.participants.find(p=>p.userId===lobby.hostId)?.username}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.active} onClick={()=>void act(lobby,"join")}><Plus className="size-4" aria-hidden="true"/></Button>}
+                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${lobby.participants.find(p=>p.userId===lobby.hostId)?.username}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.active} onClick={()=>void act(lobby,"join")}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
                 <span title={person?.username} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person?.username ?? "Disponível"}</span>
               </li>;
             })}</ul>
-            <p className="text-xs text-muted">{available===0?"Sala cheia":`${available} ${available===1?"vaga disponível":"vagas disponíveis"}`}</p>
-            {joined && <Button size="sm" variant="secondary" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Ver lobby</Button>}
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || !!directory.active} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
           </Card></li>;
         })}</ul>}
       </>
     </section>
-    {matches.length>0 && <section className="space-y-5 lg:col-span-2" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2">{matches.map(match=>{
+    {matches.length>0 && <section className="min-w-0 space-y-5 xl:col-span-3" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{matches.map(match=>{
       const playing=!!userId && match.controllerIds.includes(userId);
       return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
     })}</ul></section>}
+    </div>
+    {!userId && !room && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </div>;
 }

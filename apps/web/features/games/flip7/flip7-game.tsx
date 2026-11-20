@@ -4,7 +4,7 @@ import { randomUUID } from "@/lib/uuid";
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
 import { useRouter } from "next/navigation";
-import type { MatchFrame, MatchCommand, RoomSync, MatchParticipant } from "@croebet/shared";
+import type { GameRecord, MatchFrame, MatchCommand, RoomSync, MatchParticipant } from "@croebet/shared";
 import type { InitialMatches } from "./server-matches";
 import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
@@ -137,10 +137,10 @@ function GameLog({ game, participants }: { game: Game; participants: MatchPartic
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
-export default function Flip7Game({ initial }: { initial: InitialMatches }) {
+export default function Flip7Game({ initial, game }: { initial: InitialMatches; game: GameRecord }) {
   const router = useRouter();
   if (initial.unavailable) return <Surface className="mx-auto max-w-xl space-y-4"><p role="alert">{initial.error}</p><Button onClick={() => router.refresh()}>Tentar novamente</Button></Surface>;
-  if (!initial.match) return <LobbyScreen key={initial.revision} initial={initial} rules={options=><Rules options={options}/>}/>;
+  if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} rules={options=><Rules options={options}/>}/>;
   return <Flip7Table key={initial.revision} initial={initial} />;
 }
 

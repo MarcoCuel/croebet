@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { GameCover } from "@/features/games/game-cover";
 import { managementRequest } from "@/features/admin/management-api";
@@ -23,7 +24,7 @@ export function AdminGameEditor({ game }: { game: GameRecord }) {
       event.preventDefault();
       if (pending) return;
       const form = new FormData(event.currentTarget);
-      const parsed = gameWriteSchema.safeParse({ seo, name: form.get("name"), enabled: form.get("enabled") === "on", imageUrl: String(form.get("imageUrl") ?? "").trim() || null, version: game.version });
+      const parsed = gameWriteSchema.safeParse({ seo, name: form.get("name"), description: form.get("description"), enabled: form.get("enabled") === "on", imageUrl: String(form.get("imageUrl") ?? "").trim() || null, version: game.version });
       if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
       setPending(true);
       try {
@@ -36,6 +37,7 @@ export function AdminGameEditor({ game }: { game: GameRecord }) {
       <div className="grid gap-5">
         <h1 className="text-xl font-semibold">Editar jogo</h1>
         <Field>Nome do jogo<Input name="name" defaultValue={game.name} required maxLength={100} /></Field>
+        <Field>Descrição<Textarea name="description" defaultValue={game.description} maxLength={2000} rows={4} /></Field>
         <Field>Imagem de capa<Input name="imageUrl" defaultValue={game.imageUrl ?? ""} placeholder="https://…" maxLength={2048} /></Field>
         <Field className="flex items-center justify-between">Jogo ativo<Switch name="enabled" defaultChecked={game.enabled} /></Field>
         <SeoEditor value={seo} onChange={setSeo} />

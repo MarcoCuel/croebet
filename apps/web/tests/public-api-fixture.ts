@@ -14,7 +14,7 @@ export async function startPublicApi(session: (request: IncomingMessage) => unkn
     published: true, status: "published", publishAt: null, authorId: null, authorName: null,
     showInMenu: false, version: 1, createdAt: null, updatedAt: null, publishedAt: null, lastEditedBy: null,
   };
-  const game = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 };
+  const game = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "flip7", name: "Flip da comunidade", description: "Texto cadastrado no painel para jogar com os amigos.", enabled: true, imageUrl: null, version: 1 };
   const server = createServer(async (request, response) => {
     if (handler && await handler(request, response)) return;
     const path = new URL(request.url ?? "/", "http://fixture").pathname;

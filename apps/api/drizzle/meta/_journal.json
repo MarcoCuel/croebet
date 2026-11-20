@@ -155,6 +155,13 @@
       "when": 1795130955106,
       "tag": "0021_scoped_realtime",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795156949400,
+      "tag": "0022_game_description",
+      "breakpoints": true
     }
   ]
 }

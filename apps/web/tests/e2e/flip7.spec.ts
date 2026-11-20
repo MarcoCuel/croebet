@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { startPublicApi } from "../public-api-fixture";
-import { matchesFixture, fixtureUser } from "../matches-api-fixture";
+import { matchesFixture, fixtureUser, matchUsers } from "../matches-api-fixture";
 
 let fixture:ReturnType<typeof matchesFixture>;
 let close:(()=>Promise<void>)|undefined;
@@ -9,16 +9,30 @@ test.beforeEach(async({context})=>{
   await context.addCookies([{name:"croebet-session",value:"game-fixture-marco",url:"http://127.0.0.1:3100"}]);
 });
 test.afterEach(async({context})=>{await context.close();await close?.();});
-test("painel único mantém configuração, vagas e lista abaixo ao criar e retomar o lobby",async({page,context},testInfo)=>{
+test("header e três colunas mantêm configuração, vagas e lobbies ao criar e retomar",async({page,context},testInfo)=>{
   await page.goto("/jogos/flip7");
   const settings=page.getByLabel("Configuração e regras"),players=page.getByLabel("Jogadores e vagas"),list=page.getByLabel("Lobbies abertos");
   await expect(settings.getByLabel("Modo do Flip7")).toBeEnabled();
   await expect(players.getByRole("listitem")).toHaveCount(2);
+  const header=page.getByLabel("Apresentação do jogo");
+  await expect(header.getByRole("heading",{name:"Flip da comunidade",exact:true})).toBeVisible();
+  await expect(header.getByRole("button",{name:"Entrar para jogar",exact:true})).toHaveCount(0);
+  const headerBox=await header.boundingBox();
+  const mainBox=await page.getByRole("main").boundingBox();
   const boxes=await Promise.all([settings.boundingBox(),players.boundingBox(),list.boundingBox()]);
   expect(boxes.every(Boolean)).toBe(true);
-  if(testInfo.project.name==="desktop")expect(boxes[0]!.x+boxes[0]!.width).toBeLessThan(boxes[1]!.x);
-  else expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y+boxes[0]!.height);
-  expect(boxes[2]!.y).toBeGreaterThanOrEqual(Math.max(...boxes.slice(0,2).map(box=>box!.y+box!.height)));
+  expect(headerBox!.width).toBeCloseTo(mainBox!.width,0);
+  expect(boxes[0]!.y).toBeGreaterThanOrEqual(headerBox!.y+headerBox!.height);
+  if(testInfo.project.name==="desktop"){
+    expect(boxes[0]!.x+boxes[0]!.width).toBeLessThan(boxes[1]!.x);
+    expect(boxes[1]!.x+boxes[1]!.width).toBeLessThan(boxes[2]!.x);
+    expect(boxes[0]!.y).toBe(boxes[1]!.y);
+    expect(boxes[1]!.y).toBe(boxes[2]!.y);
+    expect(boxes[2]!.x+boxes[2]!.width).toBeCloseTo(headerBox!.x+headerBox!.width,0);
+  }else{
+    expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y+boxes[0]!.height);
+    expect(boxes[2]!.y).toBeGreaterThanOrEqual(boxes[1]!.y+boxes[1]!.height);
+  }
   const originalSettings=await settings.elementHandle();
   const originalAvatar=await players.locator('[data-slot="avatar"]').first().elementHandle();
   const serverNavigations:string[]=[];
@@ -27,7 +41,9 @@ test("painel único mantém configuração, vagas e lista abaixo ao criar e reto
   await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
   await expect(page.getByRole("button",{name:"Cancelar",exact:true})).toBeVisible();
   await expect(list.getByRole("button",{name:"Voltar ao lobby",exact:true})).toHaveCount(0);
-  await expect(list.getByText("1 vaga disponível")).toBeVisible();
+  await expect(list.getByText("1 vaga disponível")).toHaveCount(0);
+  await expect(list.getByRole("button",{name:"Ver lobby",exact:true})).toHaveCount(0);
+  await expect(list.getByRole("button",{name:"Sala de Marco",exact:true})).toBeVisible();
   await expect(page.getByLabel("Modo do Flip7")).toBeEnabled();
   expect(await originalSettings!.evaluate(element=>element.isConnected)).toBe(true);
   expect(await originalAvatar!.evaluate(element=>element.isConnected)).toBe(true);
@@ -191,12 +207,17 @@ test("host altera versão, Brutal e capacidade no lobby e todos recebem a config
     await peer.page.goto(page.url());
     await expect(peer.page.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
-    await expect(peer.page.getByLabel("Modo do Flip7")).toBeDisabled();
-    await expect(peer.page.getByLabel("Número de jogadores")).toBeDisabled();
+    await expect(peer.page.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(peer.page.getByLabel("Número de jogadores")).toHaveCount(0);
+    await expect(peer.page.getByLabel("Modo da sala").getByText("Clássico",{exact:true})).toBeVisible();
     await page.getByLabel("Modo do Flip7").selectOption("vengeance");
     await page.getByRole("switch",{name:"Modo Brutal"}).click();
     await page.getByLabel("Número de jogadores").selectOption("3");
-    for(const client of [page,peer.page]){await expect(client.getByLabel("Número de jogadores")).toHaveValue("3");await expect(client.getByRole("switch",{name:"Modo Brutal"})).toBeChecked();}
+    await expect(page.getByLabel("Número de jogadores")).toHaveValue("3");
+    await expect(page.getByRole("switch",{name:"Modo Brutal"})).toBeChecked();
+    await expect(peer.page.getByLabel("Modo da sala").getByText("Vingança",{exact:true})).toBeVisible();
+    await expect(peer.page.getByLabel("Modo da sala").getByText("Brutal",{exact:true})).toBeVisible();
+    await expect(peer.page.getByLabel("Vagas da sala").getByRole("listitem")).toHaveCount(3);
     await page.reload();await expect(page.getByLabel("Número de jogadores")).toHaveValue("3");await expect(page.getByRole("switch",{name:"Modo Brutal"})).toBeChecked();
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
     await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
@@ -312,6 +333,70 @@ test("convite reserva vaga, alerta permite recusar e aceitar libera o início",a
   }finally{await peer.context.close();}
 });
 
+test("visitante abre o convite sem configurações e recebe os badges da sala",async({page,browser})=>{
+  await lobby(page);
+  const visitor=await browser.newContext();
+  try{
+    const view=await visitor.newPage();
+    await view.goto("/jogos/flip7");
+    await expect(view.getByLabel("Apresentação do jogo")).toBeVisible();
+    await expect(view.getByLabel("Apresentação do jogo").getByRole("heading",{name:"Flip da comunidade",exact:true})).toBeVisible();
+    await expect(view.getByLabel("Apresentação do jogo").getByText("Texto cadastrado no painel para jogar com os amigos.",{exact:true})).toBeVisible();
+    await expect(view.getByLabel("Apresentação do jogo").getByRole("button",{name:"Regras",exact:true})).toBeVisible();
+    await view.getByLabel("Apresentação do jogo").getByRole("button",{name:"Regras",exact:true}).click();
+    await expect(view.getByRole("dialog").getByRole("heading",{name:/Como jogar Flip7/})).toBeVisible();
+    await view.keyboard.press("Escape");
+    await expect(view.getByLabel("Jogadores e vagas")).toHaveCount(0);
+    await expect(view.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(view.getByLabel("Número de jogadores")).toHaveCount(0);
+    await view.goto(page.url());
+    await expect(view.getByLabel("Vagas da sala").getByText("Marco",{exact:true})).toBeVisible();
+    await expect(view.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(view.getByLabel("Número de jogadores")).toHaveCount(0);
+    await expect(view.getByLabel("Modo da sala").getByText("Clássico",{exact:true})).toBeVisible();
+    await page.getByLabel("Modo do Flip7").selectOption("vengeance");
+    await page.getByRole("switch",{name:"Modo Brutal"}).click();
+    await expect(view.getByLabel("Modo da sala").getByText("Vingança",{exact:true})).toBeVisible();
+    await expect(view.getByLabel("Modo da sala").getByText("Brutal",{exact:true})).toBeVisible();
+    expect([...fixture.states.values()][0].room.participants).toHaveLength(1);
+  }finally{await visitor.close();}
+});
+for(const mode of ["login","register"] as const)test(`visitante escolhe uma vaga e entra após ${mode}`,async({page,browser})=>{
+  await lobby(page);
+  const visitor=await browser.newContext();
+  try{
+    const view=await visitor.newPage();
+    await view.route(`**/api/v1/auth/${mode}`,async route=>{
+      await visitor.addCookies([{name:"croebet-session",value:"game-fixture-beto",url:"http://127.0.0.1:3100"}]);
+      await route.fulfill({json:{user:matchUsers[1]}});
+    });
+    await view.goto("/jogos/flip7");
+    await expect(view.getByLabel("Apresentação do jogo")).toBeVisible();
+    await expect(view.getByLabel("Apresentação do jogo").getByRole("heading",{name:"Flip da comunidade",exact:true})).toBeVisible();
+    await expect(view.getByLabel("Apresentação do jogo").getByText("Texto cadastrado no painel para jogar com os amigos.",{exact:true})).toBeVisible();
+    await expect(view.getByText("Você",{exact:true})).toHaveCount(0);
+    const list=view.getByLabel("Lobbies abertos");
+    await expect(list.getByText(/vagas? disponíve/)).toHaveCount(0);
+    await expect(list.getByRole("button",{name:"Ver lobby",exact:true})).toHaveCount(0);
+    await expect(list.getByRole("button",{name:/Entrar na sala de Marco, vaga/})).toHaveCount(5);
+    await list.getByRole("button",{name:"Entrar na sala de Marco, vaga 3",exact:true}).click();
+    await expect(view).toHaveURL(page.url());
+    const dialog=view.getByRole("dialog");
+    await expect(dialog.getByRole("heading",{name:"Entrar na Croebet"})).toBeVisible();
+    expect([...fixture.states.values()][0].room.participants).toHaveLength(1);
+    if(mode==="register")await dialog.getByRole("button",{name:"Criar conta",exact:true}).click();
+    await dialog.getByLabel("Nome de usuário").fill("Beto");
+    await dialog.getByLabel("Senha",{exact:true}).fill("senha-teste-123");
+    await dialog.getByRole("button",{name:mode==="register"?"Criar conta":"Entrar",exact:true}).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(view).toHaveURL(page.url());
+    await expect(view.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
+    await expect.poll(()=>[...fixture.states.values()][0].room.participants.length).toBe(2);
+    expect(fixture.states.size).toBe(1);
+    await expect(view.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
+  }finally{await visitor.close();}
+});
 test("visitante vê vagas e acompanha uma partida sem controles",async({page,browser})=>{
   const peer=await start(page,browser);
   const visitor=await browser.newContext();
