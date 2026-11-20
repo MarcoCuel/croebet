@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createMatchSchema, invitePlayerSchema, kickMatchSchema, lobbyCommandSchema, matchAbandonSchema, matchCodeSchema, matchCommandSchema, updateLobbySchema } from "./matches.js";
 
 const code = { code: matchCodeSchema };
-export const matchWatchSchema = z.object({ code: matchCodeSchema.optional(), active: z.boolean().default(true), afterVersion: z.number().int().nonnegative().default(0) }).strict();
+export const matchWatchSchema = z.object({ code: matchCodeSchema.optional(), active: z.boolean().default(true), directory: z.boolean().default(true), afterVersion: z.number().int().nonnegative().default(0) }).strict();
 export const realtimeRequestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("create"), input: createMatchSchema }).strict(),
   ...(["join", "leave"] as const).map(type => z.object({ type: z.literal(type), ...code, input: lobbyCommandSchema }).strict()),

@@ -47,6 +47,11 @@ test("PostgreSQL: lobby, mínimo/capacidade, host, contas individuais e recupera
  for(const actor of actors.slice(0,2))assert.ok((await listMatches(pool,actor)).items.some(m=>m.id===room.id));
  assert.equal((await getMatch(pool,null,room.code)).status,"playing");
  assert.ok((await listMatches(pool,null)).items.some(m=>m.id===room.id));
+ const summary=(await listMatches(pool,null)).items.find(m=>m.id===room.id);
+ assert.equal(summary.round,started.state.round);
+ assert.deepEqual(new Set(summary.controllerIds),new Set(actors.slice(0,2)));
+ assert.equal("state" in summary,false);
+
  await assert.rejects(lobby(room.code,2,"join"),{code:"LOBBY_CLOSED"});
  const sync=await getRoomSync(pool,actors[1],room.code,joined.version);
  assert.equal(sync.reset,false);assert.equal(sync.frames[0].action.type,"start");assert.equal(sync.frames.at(-1).version,started.version);
@@ -263,6 +268,19 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  await assert.rejects(connect(0,0,{auth:{csrf:"invalid"}}));
  await assert.rejects(connect(0,0,{extraHeaders:{origin:"https://another-origin.invalid"}}));
  const host=await connect(0),peer=await connect(1,1),outsider=await connect(2,1);
+ // Count reads across both API instances, including newly opened pool clients.
+ const reads=[];const instrumented=new WeakSet();
+ const instrument=client=>{
+  if(instrumented.has(client))return;instrumented.add(client);
+  const query=client.query;
+  client.query=function(...args){
+   const sql=typeof args[0]==="string"?args[0]:args[0]?.text ?? "";
+   if(sql.startsWith("select"))reads.push({sql,values:args[1]});
+   return query.apply(this,args);
+  };
+ };
+ pool.on("connect",instrument);
+ const probe=await pool.connect();instrument(probe);probe.release();
  const room=await request(host,{type:"create",input:{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"vengeance",brutal:true}}});
  await watch(host,room.code);
  const joined=await request(peer,{type:"join",code:room.code,input:{commandId:randomUUID()}});
@@ -288,6 +306,17 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  assert.equal(blocked.ok,false);assert.equal(blocked.error.code,"UNAUTHENTICATED");
  const viewed=await outsider.timeout(5000).emitWithAck("watch",{code:room.code,afterVersion:0});assert.equal(viewed.ok,true);
  const denied=await outsider.timeout(5000).emitWithAck("request",{type:"command",code:room.code,input:{commandId:randomUUID(),expectedVersion:started.version,action:{type:"draw"}}});assert.equal(denied.ok,false);
+ // An unchanged room notification still needs a read for its watchers,
+ // but must not query another table, the directory or invitation inboxes.
+ const unrelated=await createMatch(pool,actors[3],sessions[3],{requestId:randomUUID(),game:"flip7",capacity:2,options:{mode:"classic",brutal:false}});
+ await watch(outsider,unrelated.code);
+ await delay(150);reads.length=0;
+ await pool.query("select pg_notify('croebet_matches',$1)",[JSON.stringify({kind:"room",code:room.code,directory:false,matches:false})]);
+ await wait(()=>reads.some(r=>r.sql==="select * from game_matches where code=$1" && r.values?.[0]===room.code));
+ await delay(100);
+ assert.equal(reads.some(r=>r.sql==="select * from game_matches where code=$1" && r.values?.[0]===unrelated.code),false);
+ assert.equal(reads.some(r=>r.sql.includes("m.status='lobby' and g.enabled=true")),false);
+ assert.equal(reads.some(r=>r.sql.includes("from game_match_invitations i join")),false);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
  const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
  const actor=actors.indexOf(started.participants.find(p=>p.seat===seat).userId),sender=[host,peer][actor],receiver=[peer,host][actor];

@@ -6,7 +6,7 @@ import { matchLive } from "./live.ts";
 import { tokenHash } from "../auth/security.ts";
 import { declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
 
-type Options = { pool: Pool; sessionName: string; origins?: readonly string[]; current: (token: string | undefined) => Promise<{ id: string } | null>; csrfName: string; csrfSecret: string; environment: string; limit: (key: string, maximum: number) => Promise<boolean> };
+type Options = { pool: Pool; sessionName: string; maxConnections?: number; origins?: readonly string[]; current: (token: string | undefined) => Promise<{ id: string } | null>; csrfName: string; csrfSecret: string; environment: string; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function matchRoutes(app: FastifyInstance, options: Options) {
   const { pool, current, sessionName, limit } = options;
   // Registered inside authRoutes: the same Origin/CSRF/environment hooks apply.

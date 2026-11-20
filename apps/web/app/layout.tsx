@@ -13,6 +13,7 @@ import { getInitialSession } from "@/features/auth/server-session";
 import { Footer } from "@/components/layout/footer";
 import { loadPageLinks } from "@/features/pages/api";
 import { loadNavigation } from "@/features/menus/api";
+import { AppInstall } from "@/components/layout/app-install";
 
 const inter = localFont({
   src: "./fonts/InterVariable.woff2",
@@ -27,11 +28,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#101010",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
   const metadata = await publicMetadata("/");
-  return { ...metadata, alternates: undefined, robots: { index: false, follow: true }, icons: { icon: { url: "/favicon.png", type: "image/png", sizes: "512x512" } } };
+  return { ...metadata, alternates: undefined, robots: { index: false, follow: true }, appleWebApp: { capable: true, title: "Croebet", statusBarStyle: "default" }, icons: { icon: { url: "/favicon.png", type: "image/png", sizes: "512x512" }, apple: { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" } } };
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -45,6 +47,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="bg-background font-sans text-base text-foreground">
         <Motion />
         <Providers initialSession={initialSession} initialPages={initialPages} initialNavigation={initialNavigation}>
+          <AppInstall />
           <GameLinksProvider games={initialGames?.items ?? []}>
             <Navigation>
               {children}

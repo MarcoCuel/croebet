@@ -27,6 +27,8 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 
 ## Componentes e acessibilidade
 
+- App instalável: `app/manifest.ts` define identidade, ícones e abertura standalone; metadata raiz inclui ícone e configuração Apple. `components/layout/app-install.tsx` oferece instalação quando o navegador emite `beforeinstallprompt` e orienta a instalação manual no Safari do iOS. Ocultar por 7 dias ao dispensar; não mostrar em standalone. Exige HTTPS (ou localhost). A instalação/abertura fica sob controle do navegador; jogos continuam exigindo conexão, sem cache offline de sessões ou partidas.
+
 - Procure em `components/ui` e `components/shared` antes de criar. Adaptação de um domínio fica na feature; padrão visual comum vai para shared; controle genérico vai para ui. Não instalar primitives sem uso.
 - Use `Button`, `Input`, `PasswordInput`, `Field`, `Card`, `Dialog`, `DropdownMenu`, `Tooltip` e `toast` do Sonner. Busca usa `SearchInput`; seleção de ícone usa `IconPicker`. O código do primitive é a referência de props/variantes.
 - Sem `button`, `input`, `textarea` ou `select` nativos fora de ui; lint aplica isso às telas/componentes de produto. Links com aparência de botão: `<Button asChild><Link href="...">...</Link></Button>`; não aninhar controles interativos.

@@ -101,9 +101,16 @@ export async function listMatches(pool: Pool, _actor: string | null) {
   // Public listing is independent of the caller's participation.
   void _actor;
   return read(pool,async client=>{
-    const rows=await client.query<Row>(`select m.* from game_matches m where m.status='playing' order by m.updated_at desc,m.id limit 100`);
+    const rows=await client.query<Omit<Row, "state"> & { round: number; controller_ids: string[] }>(`select m.id,m.code,m.game_slug,m.owner_id,m.rules_version,m.version,m.capacity,m.options,
+      (m.state->>'round')::int as round,
+      array(select p.controller_id from game_match_players p where p.match_id=m.id and p.controller_id is not null order by p.seat) as controller_ids
+      from game_matches m where m.status='playing' order by m.updated_at desc,m.id limit 100`);
     const people=await participants(client,rows.rows.map(row=>row.id));
-    return matchListSchema.parse({ items:rows.rows.map(row=>view(row,people.get(row.id) ?? [])) });
+    return matchListSchema.parse({ items:rows.rows.map(row=>({
+      id:row.id,code:row.code,game:row.game_slug,hostId:row.owner_id,rulesVersion:row.rules_version,
+      version:row.version,capacity:row.capacity,options:row.options,status:"playing",round:row.round,
+      controllerIds:row.controller_ids,participants:people.get(row.id) ?? [],
+    })) });
   });
 }
 export async function getRoomSync(pool: Pool, actor: string | null, code: string, afterVersion=0) {

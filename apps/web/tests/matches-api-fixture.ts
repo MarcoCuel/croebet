@@ -39,9 +39,14 @@ export function matchesFixture() {
     saved.room={...saved.room,status:result.status,version:result.version,state:flip7Driver.project(result.state),hostId:humans.some(p=>p.userId===saved.room.hostId)?saved.room.hostId:humans[0]?.userId ?? saved.room.hostId};
     return {match:saved.room,before,frames};
   }
+  const matchSummaries=()=>[...states.values()].flatMap(({room})=>{
+    if(room.status!=="playing")return [];
+    const {state,...summary}=room;
+    return [{...summary,round:state.round,controllerIds:room.participants.filter(p=>state.players[p.seat]?.kind==="human").map(p=>p.userId)}];
+  });
   function notify(){for(const stream of streams){
     stream.socket.emit("lobbies",directory(stream.actor));
-    stream.socket.emit("matches",{items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing")});
+    stream.socket.emit("matches",{items:matchSummaries()});
     stream.socket.emit("invitations",{items:[...invitations.values()].filter(i=>i.target===stream.actor && states.get(i.code)?.room.status==="lobby").map(i=>({code:i.code,username:matchUsers.find(u=>u.id===i.sender)!.username,avatarUrl:null}))});
     if(!stream.code)continue;
     const saved=states.get(stream.code);
@@ -95,7 +100,7 @@ export function matchesFixture() {
       return send({items:candidates.filter(u=>!room?.participants.some(p=>p.userId===u.userId) && u.username.toLowerCase().includes((url.searchParams.get("q") ?? "").toLowerCase())).map(u=>({...u,invited:invitations.has(`${room?.code}:${u.userId}`)})),hasMore:false});
     }
 
-    if(request.method==="GET" && path==="/api/v1/matches")return send({items:[...states.values()].map(s=>s.room).filter(room=>room.status==="playing")});
+    if(request.method==="GET" && path==="/api/v1/matches")return send({items:matchSummaries()});
     const code=path.split("/")[4];
     if(request.method==="GET")return states.has(code)?send(states.get(code)!.room):send({error:{message:"Sala não encontrada."}},404);
     if(actor.id==="visitor")return send({error:{message:"Entre para jogar."}},401);

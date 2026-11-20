@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { matchListSchema, type Match, lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
+import { matchListSchema, type MatchSummary, lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { gameSocket, retainGameSocket } from "../realtime";
 
-export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void, onMatches?: (matches: Match[]) => void) {
+export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void, onMatches?: (matches: MatchSummary[]) => void) {
   const {userId} = useSession();
   const handlers = useRef({ onRoom, onLobbies, onClosed, onMatches });
   useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed, onMatches }; });
@@ -21,7 +21,7 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
     const closed = (data: { message?: string }) => { status(false); handlers.current.onClosed(data.message ?? "A conexão com a sala foi encerrada."); };
     const watch = () => {
       status(false);
-      socket.timeout(10000).emit("watch", { code, afterVersion: Math.max(confirmedVersion.current, synchronizedVersion) }, (error: Error | null, value: unknown) => {
+      socket.timeout(10000).emit("watch", { code, directory: !!handlers.current.onMatches, afterVersion: Math.max(confirmedVersion.current, synchronizedVersion) }, (error: Error | null, value: unknown) => {
         if (!active) return;
         if (error) { status(false); socket.io.engine?.close(); return; }
         const result = realtimeReplySchema.safeParse(value);

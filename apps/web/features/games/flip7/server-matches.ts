@@ -1,9 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
-import { matchCodeSchema, roomSchema, matchListSchema, lobbyListSchema, type Match, type Lobby, type LobbyList } from "@croebet/shared";
+import { matchCodeSchema, roomSchema, matchListSchema, lobbyListSchema, type Match, type MatchSummary, type Lobby, type LobbyList } from "@croebet/shared";
 
-export type InitialMatches = { revision: string; match: Match | null; lobby: Lobby | null; directory: LobbyList; items: Match[]; error: string; unavailable: boolean };
+export type InitialMatches = { revision: string; match: Match | null; lobby: Lobby | null; directory: LobbyList; items: MatchSummary[]; error: string; unavailable: boolean };
 export async function getInitialMatches(code: string | undefined): Promise<InitialMatches> {
   const empty: InitialMatches = { revision: randomUUID(), match: null, lobby:null,directory:{items:[],joined:[],owned:null,active:null},items: [], error: "", unavailable: false };
   const jar=await cookies();
