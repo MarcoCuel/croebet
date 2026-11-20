@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { matchListSchema, type MatchSummary, lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
+import { gameRoomSyncSchema, matchListSchema, type MatchSummary, lobbyListSchema, roomSyncSchema, realtimeReplySchema, type LobbyList, type RoomSync } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { gameSocket, retainGameSocket } from "../realtime";
 
-export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void, onMatches?: (matches: MatchSummary[]) => void) {
+export function useMatchLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: RoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string) => void, onMatches?: (matches: MatchSummary[]) => void, onOtherGame?:(code:string)=>void) {
   const {userId} = useSession();
-  const handlers = useRef({ onRoom, onLobbies, onClosed, onMatches });
-  useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed, onMatches }; });
+  const handlers = useRef({ onRoom, onLobbies, onClosed, onMatches, onOtherGame });
+  useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed, onMatches, onOtherGame }; });
   const key = enabled ? `${userId ?? "visitor"}:${code ?? "directory"}` : null;
   const [connection, setConnection] = useState<{ key: string | null; connected: boolean }>({ key: null, connected: false });
   const confirmedVersion = useRef(version);
@@ -30,6 +30,8 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
       });
     };
     const room = (value: unknown) => {
+      const other=gameRoomSyncSchema.safeParse(value);
+      if(other.success && other.data.room.code===code && other.data.room.game=== "love-letter" && other.data.room.status!=="lobby"){handlers.current.onOtherGame?.(code!);return;}
       const result = roomSyncSchema.safeParse(value);
       if (!result.success) { closed({ message: "Não foi possível sincronizar a sala. Recarregue a página." }); return; }
       if (result.data.room.code !== code) return;

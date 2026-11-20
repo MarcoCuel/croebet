@@ -84,11 +84,15 @@ export async function listLobbies(pool: Pool, actor: string | null) {
     const rooms=new Map<string,Room>();
     for(const row of all)if(!rooms.has(row.id))rooms.set(row.id,await roomView(client,row,people.get(row.id) ?? []));
     const owned=joined.rows.find(row=>row.created_by===actor && row.owner_id===actor);
-    const tests=actor?(await client.query("select m.code,m.game_slug as game,m.status from game_matches m where m.development and m.status in ('lobby','playing') and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
-    return lobbyListSchema.parse({ tests,items:result.rows.map(row=>rooms.get(row.id)), joined:joined.rows.map(row=>rooms.get(row.id)), owned:owned?rooms.get(owned.id):null, active:active.rows[0]?rooms.get(active.rows[0].id):null });
+    const testRows=actor?(await client.query<Row>("select m.* from game_matches m where m.development and m.status='lobby' and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
+    const testPeople=await participants(client,testRows.map(r=>r.id));
+    const testLobbies=[];for(const row of testRows)testLobbies.push(await roomView(client,row,testPeople.get(row.id) ?? []));
+    const tests=actor?(await client.query(`select m.owner_id as "hostId",m.code,m.game_slug as game,m.status from game_matches m where m.development and m.status in ('lobby','playing') and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100`,[actor])).rows:[];
+    return lobbyListSchema.parse({ testLobbies,tests,items:result.rows.map(row=>rooms.get(row.id)), joined:joined.rows.map(row=>rooms.get(row.id)), owned:owned?rooms.get(owned.id):null, active:active.rows[0]?rooms.get(active.rows[0].id):null });
   });
 }
 async function requireAvailable(client: PoolClient, actors: string[], development=false) {
+  if(development)return;
   const active=await client.query(`select 1 from game_match_players p join game_matches m on m.id=p.match_id where p.controller_id=any($1::uuid[]) and m.status='playing' and m.development=$2 limit 1`,[actors,development]);
   if(active.rows.length)throw new MatchError("ALREADY_PLAYING",409,"Há uma partida em andamento. Conclua ou abandone antes de entrar em outra.");
 }
@@ -164,7 +168,7 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
     }
     await requireAvailable(client,[actor],input.development);
     const owned=await client.query("select 1 from game_matches m where m.created_by=$1 and m.owner_id=$1 and m.status='lobby' and m.development=$2 limit 1",[actor,input.development]);
-    if(owned.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já tem um lobby criado. Use ou cancele esse lobby antes de criar outro.");
+    if(!input.development && owned.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já tem um lobby criado. Use ou cancele esse lobby antes de criar outro.");
     const catalog=await client.query("select id from games where slug=$1 and enabled=true for share",[input.game]);
     if(!catalog.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
     const id=randomUUID(),code=randomBytes(6).toString("hex").toUpperCase();

@@ -1,60 +1,51 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { realtimeReplySchema, lobbyListSchema, gameRoomSchema, gameRoomSyncSchema, lobbySchema, commandResultSchema, type GameRecord, type LoveAction, type LoveView, type Match } from "@croebet/shared";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { realtimeReplySchema, gameRoomSchema, gameRoomSyncSchema, commandResultSchema, type GameRecord, type LoveAction, type LoveView, type Match } from "@croebet/shared";
 import { randomUUID } from "@/lib/uuid";
 import { useSession } from "@/features/auth/session-context";
 import { managementRequest } from "@/features/admin/management-api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
-import { Switch } from "@/components/ui/switch";
-import { KickPlayer } from "./flip7/kick-player";
-import { InvitePlayers } from "./flip7/invite-players";
+import { LobbyScreen } from "./flip7/lobby";
 import { GameEntryHeader } from "./game-entry-header";
 import { Flip7Loader } from "./flip7/flip7-loader";
 import { gameSocket, retainGameSocket } from "./realtime";
 
 type Room=ReturnType<typeof gameRoomSchema.parse>;
 export function TestGame({game}:{game:GameRecord}){
- const {userId,permissions}=useSession();const query=useSearchParams();
+ const {userId,permissions}=useSession();const query=useSearchParams();const router=useRouter();
  const [code,setCode]=useState(query.get("partida") ?? "");const [room,setRoom]=useState<Room|null>(null);
- const [brutal,setBrutal]=useState(false);
- const [mode,setMode]=useState("classic"),[capacity,setCapacity]=useState(2),[bots,setBots]=useState(1),[onlyBots,setOnlyBots]=useState(false);
- const [tests,setTests]=useState<NonNullable<ReturnType<typeof lobbyListSchema.parse>["tests"]>>([]);
- useEffect(()=>{if(code || !userId)return;let active=true;void managementRequest("/matches/lobbies",lobbyListSchema).then(data=>{if(active)setTests(data.tests ?? []);}).catch(()=>{});return()=>{active=false;};},[code,userId]);
  const [running,setRunning]=useState(false);
- const [inviting,setInviting]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const creation=useRef<{key:string;requestId:string}|null>(null);
- const isLove=game.slug==="love-letter",admin=permissions.canManageSite;
+ const [busy,setBusy]=useState(false),[error,setError]=useState("");
+
+ const admin=permissions.canManageSite;
+ useEffect(()=>{if(!code)return;let active=true;void managementRequest(`/matches/${code}`,gameRoomSchema).then(next=>{if(active)setRoom(next);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[code]);
  const flip=room?.status!=="lobby" && room?.game==="flip7"?room as Match:null;
  useEffect(()=>{
-  if(!userId || flip)return;
+  if(!userId || flip || !room || room.status==="lobby")return;
   const socket=gameSocket();let active=true;
   function receive(value:unknown){const parsed=gameRoomSyncSchema.safeParse(value);if(active && parsed.success && parsed.data.room.code===code)setRoom(parsed.data.room);}
   function watch(){socket.emit("watch",{code:code || undefined,afterVersion:0},(value:unknown)=>{const reply=realtimeReplySchema.safeParse(value);if(active && reply.success && !reply.data.ok)setError(reply.data.error.message);});}
   function closed(value:{message?:string}){if(active){setRunning(false);setError(value.message ?? "A conexão com a sala foi encerrada.");}}
   socket.on("room",receive).on("connect",watch).on("closed",closed).on("room-closed",closed);const release=retainGameSocket(userId);if(socket.connected)watch();
   return()=>{active=false;socket.off("room",receive).off("connect",watch).off("closed",closed).off("room-closed",closed);if(socket.connected)socket.emit("watch",{active:false,afterVersion:0},()=>{});release();};
- },[code,userId,flip]);
+ },[code,userId,flip,room]);
  async function run(action:()=>Promise<void>){if(busy)return;setBusy(true);setError("");try{await action();}catch(e){setRunning(false);setError(e instanceof Error?e.message:"Não foi possível concluir.");}finally{setBusy(false);}}
  async function refresh(nextCode=code){setRoom(gameRoomSchema.parse(await managementRequest(`/matches/${nextCode}`,gameRoomSchema)));}
- async function create(){await run(async()=>{const payload={game:game.slug,capacity,options:{mode,brutal:!isLove && mode==="vengeance" && brutal},development:true,bots,onlyBots,entryAmount:0};const key=JSON.stringify(payload);if(creation.current?.key!==key)creation.current={key,requestId:randomUUID()};const next=await managementRequest("/matches",lobbySchema,"POST",{...payload,requestId:creation.current.requestId});creation.current=null;setRoom(next);setCode(next.code);window.history.replaceState(null,"",`/jogos/${game.slug}?teste=1&partida=${next.code}`);});}
- async function lobbyAction(action:"start"|"leave"){await run(async()=>{await managementRequest(`/matches/${code}/${action}`,{parse:(value:unknown)=>value},"POST",{commandId:randomUUID(),...(action==="start"?{expectedVersion:room!.version}:{})});if(action==="leave"){setRoom(null);setCode("");window.history.replaceState(null,"",`/jogos/${game.slug}?teste=1`);}else await refresh();});}
  async function end(){await run(async()=>{await managementRequest(`/matches/${code}/end-test`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room!.version});setRunning(false);setRoom(null);setCode("");window.history.replaceState(null,"",`/jogos/${game.slug}?teste=1`);});}
  async function step(){await run(async()=>{await managementRequest(`/matches/${code}/test-step`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room!.version});await refresh();});}
  useEffect(()=>{if(!running || busy || room?.status!=="playing" || !room.onlyBots)return;const timer=window.setTimeout(()=>void step(),1000);return()=>window.clearTimeout(timer);});
  async function play(action:LoveAction){await run(async()=>{await managementRequest(`/matches/${code}/love-command`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room!.version,action});await refresh();});}
  const state=room && room.status!=="lobby" && "legalActions" in room.state?room.state:null;
- return <div className="space-y-4"><GameEntryHeader game={game}/>{!admin && !code && <Badge variant="secondary">Em breve</Badge>}<div className="flex flex-wrap items-center gap-3"><Badge>Partida de teste</Badge><p className="text-sm text-muted">Sem Croins, estatísticas ou conquistas.</p></div>
+ return <div className="space-y-4">{room && room.status!=="lobby" && <GameEntryHeader game={game} development/>}
+ {room && room.status!=="lobby" && <Button variant="secondary" onClick={()=>router.push(`/jogos/${game.slug}${admin?"?teste=1":""}`)}>Voltar às salas</Button>}
  {room && room.status!=="lobby" && admin && room.hostId===userId && <Button variant="ghost" disabled={busy} onClick={()=>void end()}>Encerrar teste</Button>}
  {room?.onlyBots && admin && room.hostId===userId && room.status==="playing" && <div className="flex gap-2"><Button variant="secondary" disabled={busy} onClick={()=>setRunning(!running)}>{running?"Pausar":"Reproduzir"}</Button><Button variant="secondary" disabled={busy || running} onClick={()=>void step()}>Avançar jogada</Button></div>}
- {!code && tests.filter(t=>t.game===game.slug).map(t=><Button key={t.code} variant="secondary" onClick={()=>{setCode(t.code);window.history.replaceState(null,"",`/jogos/${game.slug}?teste=1&partida=${t.code}`);}}>Retomar teste · {t.code}</Button>)}
  {flip?<Flip7Loader game={game} initial={{revision:code,match:flip,lobby:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}}/>: <>
- {!room && !code && (admin?<Card className="max-w-lg space-y-4"><Field>Modo<Select value={mode} onChange={e=>{setMode(e.target.value);setCapacity(2);setBots(onlyBots?2:1);}}><option value="classic">Clássico</option><option value={isLove?"modern":"vengeance"}>{isLove?"Moderno":"A vingança nunca é plena"}</option></Select></Field>{!isLove && mode==="vengeance" && <Field className="flex items-center justify-between">Modo Brutal<Switch checked={brutal} onCheckedChange={setBrutal}/></Field>}<Field>Jogadores<Select value={capacity} onChange={e=>{setCapacity(Number(e.target.value));setBots(Math.min(bots,Number(e.target.value)-(onlyBots?0:1)));}}>{Array.from({length:(isLove?(mode==="classic"?4:6):12)-1},(_,i)=>i+2).map(n=><option key={n}>{n}</option>)}</Select></Field><Field>Bots<Select value={bots} onChange={e=>setBots(Number(e.target.value))}>{Array.from({length:capacity+(onlyBots?1:0)},(_,i)=>i).filter(n=>!onlyBots || n>=2).map(n=><option key={n}>{n}</option>)}</Select></Field><Field className="flex items-center justify-between">Somente bots<Switch checked={onlyBots} onCheckedChange={v=>{setOnlyBots(v);setBots(v?capacity:Math.min(bots,capacity-1));}}/></Field><Button loading={busy} onClick={()=>void create()}>Criar partida de teste</Button></Card>:<p className="text-sm text-muted">Você precisa de um convite para participar de uma partida de teste.</p>)}
- {room?.status==="lobby" && <Card className="space-y-4"><p className="font-medium">Lobby · {room.options.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</p><ul className="space-y-2">{room.participants.map(p=><li key={p.userId}>{p.displayName || p.username}{!room.onlineUserIds.includes(p.userId)?" · Aguardando conexão":""}{admin && room.hostId===userId && p.userId!==userId && <KickPlayer code={code} version={room.version} userId={p.userId} name={p.displayName || p.username} compact disabled={busy} onSuccess={setRoom}/>}</li>)}{Array.from({length:room.bots},(_,i)=><li key={`bot-${i}`}>Bot {i+1}</li>)}{room.pendingInvitations.map(p=><li key={p.userId} className="text-muted">{p.displayName || p.username} · Convite pendente{admin && room.hostId===userId && <KickPlayer code={code} version={room.version} userId={p.userId} name={p.displayName || p.username} compact disabled={busy} onSuccess={setRoom}/>}</li>)}</ul><div className="flex flex-wrap gap-2">{admin && room.hostId===userId && <><Button variant="secondary" disabled={busy || room.onlyBots} onClick={()=>setInviting(true)}>Convidar jogadores</Button><Button loading={busy} disabled={room.participants.length+room.bots<2 || room.pendingInvitations.length>0 || room.participants.some(p=>!room.onlineUserIds.includes(p.userId))} onClick={()=>void lobbyAction("start")}>Iniciar teste</Button></>}<Button variant="ghost" disabled={busy} onClick={()=>void lobbyAction("leave")}>Sair</Button></div><InvitePlayers code={code} open={inviting} onOpenChange={setInviting}/></Card>}
+ {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} rules={()=>null} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={next=>{setRoom(next);setCode(next.code);}} onTestStarted={next=>{setCode(next);void refresh(next);}}/>}
  {room?.status==="abandoned" && <p role="status">Teste encerrado.</p>}
  {state && <LoveTable state={room?.status==="playing"?state:{...state,legalActions:[]}} busy={busy} play={play}/>}
  </>}{error && <p role="alert" className="text-sm text-danger">{error}</p>}</div>;

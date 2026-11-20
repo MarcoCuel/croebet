@@ -57,7 +57,7 @@ function Invitation({invite,onRespond}:{invite:Invite;onRespond?:()=>void}) {
     if(busy)return;
     setBusy(true);
     try{
-      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(`/jogos/${invite.game}?partida=${invite.code}${invite.development?"&teste=1":""}`);}
+      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(`/jogos/${invite.game}?partida=${invite.code}`);}
       else await realtimeRequest({type:"decline",code:invite.code},commandResultSchema);
       onRespond?.();
     }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível responder ao convite.");}

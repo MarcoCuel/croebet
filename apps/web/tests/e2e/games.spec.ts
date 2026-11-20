@@ -284,23 +284,21 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   await expect(page.getByLabel("Controles de reprodução")).toHaveCount(0);
 });
 
-test("Love Letter oferece Clássico e Moderno e cria lobby de teste sem economia",async({page})=>{
+test("Love Letter no modo dev reutiliza configurações, vagas e listagem de salas",async({page})=>{
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
- let creation:Record<string,unknown>|null=null;
- await page.route("**/api/v1/matches",async route=>{
-  creation=route.request().postDataJSON();
-  await route.fulfill({json:{...creation,id:"11111111-1111-4111-8111-111111111111",code:"ABCDEF112233",rulesVersion:1,version:1,status:"lobby",state:null,hostId:id,participants:[],pendingInvitations:[],onlineUserIds:[],confirmedUserIds:[]}});
- });
- await page.goto("/jogos/love-letter");
- await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toBeVisible();
- await page.getByLabel("Modo",{exact:true}).selectOption("modern");
- await page.getByRole("switch",{name:"Somente bots"}).check();
- await page.getByRole("button",{name:"Criar partida de teste",exact:true}).click();
- await expect(page).toHaveURL(/teste=1&partida=ABCDEF112233/);
- expect(creation).toMatchObject({game:"love-letter",development:true,onlyBots:true,bots:2,entryAmount:0,options:{mode:"modern",brutal:false}});
- await expect(page.getByText("Lobby · Moderno",{exact:true})).toBeVisible();
- await expect(page.getByText("Sem Croins, estatísticas ou conquistas.",{exact:true})).toBeVisible();
- await expect(page.getByRole("button",{name:"Iniciar teste",exact:true})).toBeEnabled();
+ await page.goto("/jogos/love-letter?teste=1");
+ await expect(page.getByLabel("Apresentação do jogo").getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
+ await expect(page.getByLabel("Apresentação do jogo").getByText("Desenvolvimento",{exact:true})).toBeVisible();
+ await expect(page.getByText("Sem Croins, estatísticas ou conquistas.",{exact:true})).toHaveCount(0);
+ await expect(page.getByLabel("Configuração e regras")).toBeVisible();
+ await expect(page.getByLabel("Jogadores e vagas")).toBeVisible();
+ await expect(page.getByLabel("Lobbies abertos")).toBeVisible();
+ await expect(page.getByLabel("Modo do Love Letter").locator("option")).toHaveText(["Clássico","Moderno"]);
+ await expect(page.getByRole("switch",{name:"Somente bots",exact:true})).toBeVisible();
+ await expect(page.getByRole("group",{name:"Aposta da partida"})).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toHaveCount(0);
+ await page.getByRole("switch",{name:"Modo dev",exact:true}).uncheck();
+ await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
 });
 
 test("Love Letter em desenvolvimento não permite criação por jogador comum",async({page})=>{
@@ -308,5 +306,14 @@ test("Love Letter em desenvolvimento não permite criação por jogador comum",a
  await page.goto("/jogos/love-letter");
  await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toHaveCount(0);
- await expect(page.getByText("Você precisa de um convite para participar de uma partida de teste.",{exact:true})).toBeVisible();
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toHaveCount(0);
+});
+
+
+test("URL do modo dev retorna 404 para jogador comum antes de renderizar o lobby",async({page})=>{
+ sessionRole="user";
+ const response=await page.goto("/jogos/flip7?teste=1");
+ expect(response?.status()).toBe(404);
+ await expect(page.getByLabel("Configuração e regras")).toHaveCount(0);
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toHaveCount(0);
 });
