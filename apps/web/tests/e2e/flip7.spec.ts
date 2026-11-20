@@ -129,6 +129,10 @@ test("sala de seis começa com duas contas e sincroniza turnos e retorno após r
   const peer=await start(page,browser);
   try{
     expect([...fixture.states.values()][0].room.participants).toHaveLength(2);
+    await expect(page.locator('[data-player-hand]').first()).toHaveAttribute("data-player-hand", "0");
+    await expect(peer.page.locator('[data-player-hand]').first()).toHaveAttribute("data-player-hand", "1");
+    await expect(page.getByLabel("Usuários da partida").locator("p").first()).toHaveText("Marco");
+    await expect(peer.page.getByLabel("Usuários da partida").locator("p").first()).toHaveText("Beto");
     await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toHaveCount(0);
     await page.getByRole("button",{name:"Parar",exact:true}).click();
     await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();

@@ -49,6 +49,7 @@ A execução segue a [base compartilhada dos jogos](backend-architecture.md#base
 ## Apresentação
 
 - Baralho/status/ações no topo; mãos em linhas por participante, números e modificadores dimensionados pelo container. Histórico lateral em telas largas, abaixo no mobile, com controle para esconder. Avatar ativo usa box-shadow de 2px com transição; fundo permanece igual.
+- Cada participante vê sua própria mão e avatar primeiro, com os demais em ordem circular a partir de sua vaga. A ordem visual preserva os índices das vagas e os turnos; espectadores veem a ordem original.
 - Primeira compra de cada pessoa na rodada é automática. Zero automatiza compras na ordem normal dos turnos, pausando para decisões; remover Zero restaura Comprar/Parar. Compras forçadas aguardam entrega visual, sem compras sobrepostas.
 - Snapshot confirma primeiro; apresentação mantém status/pontos anteriores durante a viagem e revela estouro/resultado na chegada. Cartas estouradas viram para o verso, sem vazar valores em tooltip/nome acessível. Ações pendentes/enfileiradas ficam visíveis junto ao baralho.
 - Congelar/Compre 3 seguem permanência do Clássico. Compre 4/Só mais uma ficam visíveis durante o efeito e saem após a última entrega, com pausa visual de 0,5s; próxima ação/resultado aguardam a saída.

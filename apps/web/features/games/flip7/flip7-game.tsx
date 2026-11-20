@@ -428,6 +428,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
   const ownSeat=matchInfo?.participants.find(person=>person.userId===userId)?.seat;
   const spectator = ownSeat == null || game.players[ownSeat]?.kind !== "human";
+  const playerSeats = game.players.map((_, index) => (index + (spectator ? 0 : ownSeat ?? 0)) % game.players.length);
   const human = connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
@@ -515,7 +516,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
               <div ref={revealRef} data-card-reveal aria-hidden="true" className="h-32 w-20 shrink-0 sm:h-36 sm:w-24" />
             </div>
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
-              {visibleGame.players.map((player, i) => <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
+              {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
                   <AvatarImage src={initial.match?.participants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
                   <AvatarFallback className="text-sm">
@@ -534,11 +535,12 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
                     <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-brand">{player.total + (visibleGame.phase === "playing" ? score(player, visibleGame) : 0)}</span> ao vivo</span>
                   </p>
                 </div>
-              </div>)}
+              </div>; })}
             </div>
           </div>
           <div className={cn("grid auto-rows-fr items-stretch gap-4", game.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-3")}>
-            {previewPlayers.map((player, i) => {
+            {playerSeats.map(i => {
+              const player = previewPlayers[i];
               const visiblePlayer = visibleGame.players[i];
               const inTransit = flight?.target === i && !flight.parked && !player.cards.some(card => card.id === flight.card.id) ? [flight.card] : [];
               const heldCards = resolvingCard?.target === i ? [resolvingCard.card] : [];
