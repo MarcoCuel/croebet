@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAbsolute } from "node:path";
 const postgresUrl = z.string().refine(value => {
   try { const url = new URL(value); return ["postgres:", "postgresql:"].includes(url.protocol) && url.pathname.length > 1 && !url.searchParams.has("options"); }
   catch { return false; }
@@ -11,6 +12,7 @@ const configSchema = z.object({
   CSRF_SECRET: z.string().min(32),
   AVATAR_STORAGE: z.enum(["local", "s3"]).default("local"),
   AVATAR_LOCAL_DIR: z.string().min(1).default(".data/avatars"),
+  PRODUCTION_LOCAL_IMAGES: z.enum(["true", "false"]).default("false").transform(value => value === "true"),
   S3_REGION: z.string().min(1).default("auto"),
   S3_ENDPOINT: z.url().optional(),
   S3_BUCKET: z.string().min(1).optional(),
@@ -33,7 +35,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
     const origin = new URL(value);
     if (origin.origin !== value || origin.hostname.includes("*") || !["http:", "https:"].includes(origin.protocol) || (result.data.APP_ENV === "production" && origin.protocol !== "https:")) throw new Error("Origens web devem ser exatas, sem wildcard; produção exige HTTPS.");
   }
-  if (result.data.APP_ENV === "production" && result.data.AVATAR_STORAGE !== "s3") throw new Error("Produção exige AVATAR_STORAGE=s3.");
+  if (result.data.APP_ENV === "production" && result.data.AVATAR_STORAGE === "local" && (!result.data.PRODUCTION_LOCAL_IMAGES || !isAbsolute(result.data.AVATAR_LOCAL_DIR))) throw new Error("Imagens locais em produção exigem PRODUCTION_LOCAL_IMAGES=true e AVATAR_LOCAL_DIR absoluto e persistente.");
   if (result.data.AVATAR_STORAGE === "s3" && (!result.data.S3_BUCKET || !result.data.S3_ACCESS_KEY_ID || !result.data.S3_SECRET_ACCESS_KEY)) throw new Error("Configure bucket e credenciais S3 na API.");
   if (result.data.APP_ENV === "production" && result.data.S3_ENDPOINT && new URL(result.data.S3_ENDPOINT).protocol !== "https:") throw new Error("S3 de produção exige HTTPS.");
   return result.data;

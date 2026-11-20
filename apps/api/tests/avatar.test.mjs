@@ -200,3 +200,16 @@ test("avatar indisponível no armazenamento não recebe cache reutilizável", as
   assert.equal(response.headers["cache-control"], "no-store");
   assert.equal(response.headers.etag, undefined);
 });
+
+test("produção local exige opt-in e caminho absoluto, com namespaces separados", async t => {
+  const root = await mkdtemp(join(tmpdir(), "croebet-production-images-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const base = { APP_ENV: "production", DATABASE_URL: "postgresql://localhost/test", CSRF_SECRET: "test-secret-with-at-least-32-characters", WEB_ORIGIN: "https://example.com", AVATAR_STORAGE: "local", AVATAR_LOCAL_DIR: join(root, "avatars") };
+  assert.throws(() => readConfig(base));
+  assert.throws(() => readConfig({ ...base, PRODUCTION_LOCAL_IMAGES: "true", AVATAR_LOCAL_DIR: ".data/avatars" }));
+  const local = readConfig({ ...base, PRODUCTION_LOCAL_IMAGES: "true" });
+  const storage = createAvatarStorage(local), key = `${randomUUID()}.webp`;
+  await storage.put(key, Buffer.from("production"));
+  assert.deepEqual(await storage.get(key), Buffer.from("production"));
+  assert.throws(() => createAvatarStorage({ ...local, AVATAR_LOCAL_DIR: ".data/avatars" }));
+});

@@ -1,0 +1,21 @@
+# Banco exclusivo da produção local. Nunca reutilizar o volume de desenvolvimento.
+name: croebet-production
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: croebet_production
+      POSTGRES_USER: croebet_migrator
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Credencial exclusiva de produção obrigatória}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U croebet_migrator -d croebet_production']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+volumes:
+  postgres_data:

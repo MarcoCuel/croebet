@@ -161,8 +161,8 @@ export function matchesFixture() {
       for(const value of [11,10]){const index=game.deck.findIndex(c=>c.type==="number" && c.value===value);game.deck.push(...game.deck.splice(index,1));}
       const version=saved.room.version+1,result=execute(flip7Driver,game,version);
       saved.privateState=result.state;saved.frames.push({action:{type:"start"},state:result.before,version},...result.frames);
-      const {pendingInvitations: _pending,onlineUserIds: _online,...base}=saved.room as Extract<Room,{status:"lobby"}>;
-      void _pending;void _online;
+      const {pendingInvitations: _pending,onlineUserIds: _online,confirmedUserIds: _confirmed,...base}=saved.room as Extract<Room,{status:"lobby"}>;
+      void _pending;void _online;void _confirmed;
       saved.room={...base,durationSeconds:null,potTotal:base.entryAmount*base.participants.length,settlement:base.entryAmount?"pending":null,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
       const actors=new Set(saved.room.participants.map(person=>person.userId));
       for(const [otherCode,other] of states)if(otherCode!==code && other.room.status==="lobby"){

@@ -18,6 +18,8 @@ Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles
 
 ## Dados iniciais e sessão
 
+O ambiente de produção independente usa `proxy.ts` com `ENFORCE_HTTPS=true` para redirecionar HTTP ao `WEB_ORIGIN` HTTPS. O Next escuta somente em loopback e considera o protocolo do visitante informado pelo túnel, preservando o proxy HTTP/WebSocket da API. Portas, releases e comandos ficam em [Produção independente no Mac](backend-architecture.md#produção-independente-no-mac).
+
 - Consulte endpoints HTTP do Fastify no servidor para dados necessários à primeira exibição e redirecionamentos dependentes deles. Passe projeções validadas para a interface; não comece vazio/deslogado para buscar em `useEffect`.
 - Reutilize os loaders `server-*` dos domínios. `API_INTERNAL_URL` é exclusivo do servidor; encaminhe somente o cookie de sessão necessário, sem enviar tokens nas props. Dados pessoais usam `no-store`, sem cache compartilhado.
 - `features/auth/server-session.ts` usa `React.cache` por requisição. Sem cookie, confirma visitante; falha da API deixa a sessão indeterminada. Revalidação cliente preserva dados confirmados; falha não confirma logout, saldo zero ou lista vazia.

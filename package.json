@@ -7,14 +7,14 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
+    "dev": "node scripts/runtime.mjs development foreground",
     "dev:web": "pnpm --filter @croebet/web dev",
     "dev:api": "pnpm --filter @croebet/api dev",
     "start": "pnpm --filter @croebet/web start",
     "start:api": "pnpm --filter @croebet/api start",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @croebet/shared build && pnpm -r typecheck",
-    "test": "pnpm --filter @croebet/shared build && pnpm --filter @croebet/api build && pnpm -r test",
+    "test": "pnpm --filter @croebet/shared build && pnpm --filter @croebet/api build && pnpm -r test && pnpm test:ops",
     "build": "pnpm -r build",
     "test:e2e": "pnpm --filter @croebet/web test:e2e",
     "test:integration": "pnpm --filter @croebet/api test:integration",
@@ -24,6 +24,20 @@
     "db:reset": "pnpm --filter @croebet/api db:reset",
     "db:up": "docker compose up -d --wait postgres",
     "db:stop": "docker compose stop postgres",
-    "db:logs": "docker compose logs -f postgres"
+    "db:logs": "docker compose logs -f postgres",
+    "dev:start": "node scripts/runtime.mjs development start",
+    "dev:stop": "node scripts/runtime.mjs development stop",
+    "dev:status": "node scripts/runtime.mjs development status",
+    "dev:logs": "node scripts/runtime.mjs development logs",
+    "prod:setup": "node scripts/production.mjs setup",
+    "prod:start": "node scripts/production.mjs start",
+    "prod:stop": "node scripts/production.mjs stop",
+    "prod:status": "node scripts/production.mjs status",
+    "prod:logs": "node scripts/production.mjs logs",
+    "prod:deploy": "node scripts/production.mjs deploy",
+    "prod:backup": "node scripts/production.mjs backup",
+    "prod:rollback": "node scripts/production.mjs rollback",
+    "test:ops": "node --test scripts/tests/*.test.mjs",
+    "test:ops:integration": "node --test scripts/tests/postgres.integration.mjs"
   }
 }

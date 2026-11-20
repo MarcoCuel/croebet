@@ -1,5 +1,5 @@
 import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { resolve, join, isAbsolute } from "node:path";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import type { readConfig } from "../../config.ts";
 
@@ -13,7 +13,7 @@ function checkKey(key: string) { if (!validImageKey(key)) throw new Error("Chave
 
 export function createImageStorage(config: ReturnType<typeof readConfig>, namespace: "avatars" | "media"): ImageStorage {
   if (config.AVATAR_STORAGE === "local") {
-    if (config.APP_ENV === "production") throw new Error("Imagens de produção exigem S3.");
+    if (config.APP_ENV === "production" && (!config.PRODUCTION_LOCAL_IMAGES || !isAbsolute(config.AVATAR_LOCAL_DIR))) throw new Error("Imagens locais de produção exigem diretório absoluto e autorização explícita.");
     const avatarRoot = resolve(config.AVATAR_LOCAL_DIR);
     const mediaRoot = resolve(avatarRoot, "../media");
     const root = namespace === "avatars" ? avatarRoot : mediaRoot === avatarRoot ? resolve(avatarRoot, "../admin-media") : mediaRoot;
