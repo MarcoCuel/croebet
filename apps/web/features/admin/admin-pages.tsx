@@ -105,8 +105,8 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
 
 function SettingRow({ label, children, onClick, disabled }: { label: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
   return <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 text-sm">
-    <dt className="py-2 text-muted">{label}</dt>
-    <dd className="min-w-0"><Button variant="link" className="h-auto min-h-11 w-full justify-start px-0 py-2 text-foreground text-left whitespace-normal break-words" aria-label={`Editar ${label.toLowerCase()}`} onClick={onClick} disabled={disabled}>{children}</Button></dd>
+    <dt className="text-muted">{label}</dt>
+    <dd className="min-w-0"><Button variant="link" className="h-auto min-h-11 w-full justify-start px-0 text-foreground text-left whitespace-normal break-words" aria-label={`Editar ${label.toLowerCase()}`} onClick={onClick} disabled={disabled}>{children}</Button></dd>
   </div>;
 }
 function localDate(value: string) {
@@ -192,9 +192,8 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
         <Field>Título<Input name="title" value={title} onChange={event => setTitle(event.target.value)} onBlur={event => setAutoSlug(normalizeSlug(event.currentTarget.value))} required maxLength={100} /></Field>
         <RichTextEditor label="Conteúdo principal" initialValue={document} onChange={setDocument} />
       </Card>
-      <SeoEditor value={seo} onChange={setSeo} />
     </form>
-    <aside className="grid min-w-0 gap-4 xl:sticky xl:top-[--header-height]" aria-label="Configurações da página">
+    <aside className="grid min-w-0 gap-4 xl:sticky xl:top-[var(--header-height)]" aria-label="Configurações da página">
       <Button type="submit" form="page-editor" loading={pending === "save"} disabled={!!pending}>{action}</Button>
       <Card className="grid gap-4">
         <dl className="grid gap-1">
@@ -206,6 +205,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
         <p className="text-xs text-muted">{page?.updatedAt ? `Última edição ${adminDate(page.updatedAt)}${page.lastEditedBy ? ` por ${page.lastEditedBy}` : ""}` : "Ainda não salva"}</p>
         {page && <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => setDialog("delete")} disabled={!!pending}>Mover para o lixo</Button>}
       </Card>
+      <SeoEditor variant="card" form="page-editor" value={seo} onChange={setSeo} disabled={!!pending} />
     </aside>
     <Dialog open={dialog !== null} onOpenChange={open => { if (!open && !pending) setDialog(null); }}>
       <DialogContent aria-describedby={undefined} onEscapeKeyDown={event => { if (pending) event.preventDefault(); }} onPointerDownOutside={event => { if (pending) event.preventDefault(); }}>
