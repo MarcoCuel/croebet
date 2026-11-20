@@ -74,7 +74,6 @@ async function requireNoOtherLobby(client: PoolClient, actor: string, except?: s
 export async function listMatches(pool: Pool, _actor: string | null) {
   // Public listing is independent of the caller's participation.
   void _actor;
-  void _actor;
   return read(pool,async client=>{
     const rows=await client.query<Row>(`select m.* from game_matches m where m.status='playing' order by m.updated_at desc,m.id limit 100`);
     const people=await participants(client,rows.rows.map(row=>row.id));

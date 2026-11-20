@@ -72,8 +72,14 @@ test("executor compartilhado aceita um motor sem cartas, rodadas ou pontuação 
 });
 test("rotas exigem sessão e herdam Origin/CSRF antes de permitir escritas", async t => {
   const app = createApp(async () => {}); t.after(() => app.close());
-  await app.register(authRoutes,{ pool: { query: async () => ({ rows:[{ environment:"test" }] }) }, config:{ APP_ENV:"test" } });
-  assert.equal((await app.inject("/api/v1/matches")).statusCode,401);
+  const client={query:async()=>({rows:[]}),release:()=>{}};
+  await app.register(authRoutes,{ pool: { query: async () => ({ rows:[{ environment:"test" }] }),connect:async()=>client }, config:{ APP_ENV:"test" } });
+  for(const url of ["/api/v1/matches","/api/v1/matches/lobbies"]){
+    const response=await app.inject(url);
+    assert.equal(response.statusCode,200);
+    assert.deepEqual(response.json().items,[]);
+  }
+  assert.equal((await app.inject("/api/v1/matches/ABCDEF123456")).statusCode,404);
   assert.equal((await app.inject("/api/v1/matches/ABCDEF123456/players")).statusCode,401);
   for(const url of ["/api/v1/matches/presence","/api/v1/matches/ABCDEF123456/invite","/api/v1/matches/ABCDEF123456/decline"]){
     assert.equal((await app.inject({method:"POST",url,payload:{}})).statusCode,403);

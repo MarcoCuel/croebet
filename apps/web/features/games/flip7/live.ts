@@ -8,7 +8,7 @@ export function useMatchLive(code: string | undefined, version: number, enabled:
   const {userId} = useSession();
   const handlers = useRef({ onRoom, onLobbies, onClosed, onMatches });
   useEffect(() => { handlers.current = { onRoom, onLobbies, onClosed, onMatches }; });
-  const key = enabled ? code ?? "directory" : null;
+  const key = enabled ? `${userId ?? "visitor"}:${code ?? "directory"}` : null;
   const [connection, setConnection] = useState<{ key: string | null; connected: boolean }>({ key: null, connected: false });
   const confirmedVersion = useRef(version);
   useEffect(() => { confirmedVersion.current = Math.max(confirmedVersion.current, version); }, [version]);

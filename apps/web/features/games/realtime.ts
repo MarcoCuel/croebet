@@ -34,10 +34,9 @@ async function connect(connection: Socket) {
     connection.auth = { csrf: data.token };
     connection.connect();
   } catch {
-    retry(connection);
+    if (!controller.signal.aborted) retry(connection);
   } finally {
-    if (connecting === connection) connecting = undefined;
-    if (connectController === controller) connectController = undefined;
+    if (connectController === controller) { connecting = undefined; connectController = undefined; }
   }
 }
 export function gameSocket(): Socket {

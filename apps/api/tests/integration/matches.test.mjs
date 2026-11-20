@@ -207,6 +207,12 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
   assert.equal(sync.room.status,"playing");assert.ok(sync.frames.some(frame=>frame.action.type==="start"));
   assert.equal(JSON.stringify(sync).includes('"deck":'),false);assert.equal(JSON.stringify(sync).includes('"seed":'),false);
  }
+ const visitor=await connect(0,0,{extraHeaders:{origin:config.WEB_ORIGIN},auth:{}});
+ await watch(visitor,room.code);
+ assert.equal((await wait(()=>visitor.rooms[0])).room.status,"playing");
+ assert.equal((await pool.query("select count(*)::int count from match_presence where match_id=$1",[room.id])).rows[0].count,2);
+ const blocked=await visitor.timeout(5000).emitWithAck("request",{type:"join",code:room.code,input:{commandId:randomUUID()}});
+ assert.equal(blocked.ok,false);assert.equal(blocked.error.code,"UNAUTHENTICATED");
  const viewed=await outsider.timeout(5000).emitWithAck("watch",{code:room.code,afterVersion:0});assert.equal(viewed.ok,true);
  const denied=await outsider.timeout(5000).emitWithAck("request",{type:"command",code:room.code,input:{commandId:randomUUID(),expectedVersion:started.version,action:{type:"draw"}}});assert.equal(denied.ok,false);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
