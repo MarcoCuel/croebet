@@ -182,7 +182,7 @@ Admin → Jogos → editar jogo lista partidas iniciadas, com busca por código/
 
 `game_match_archives` e `game_match_archive_frames` preservam identidades por vaga, versão das regras e projeções públicas confirmadas. Triggers da migration `0023` registram os eventos na mesma transação da partida; rollback não publica histórico e repetição idempotente não duplica frames. Nenhum baralho privado ou seed é arquivado. A cópia independente não tem FK para usuário ou sala operacional, mantendo histórico após exclusões; remover uma sala em andamento a registra como encerrada sem vencedor. Resultados finalizados não são reescritos por exclusões. A exclusão de conta ainda encerra suas salas operacionais; o arquivo preserva seus registros.
 
-A migration recupera históricos existentes, sem recriar registros já apagados. Para essas partidas antigas, início usa a criação da sala e término usa sua última atualização, pois não existiam timestamps específicos; novas partidas registram início na transição de lobby. Ranking permanece pendente: o arquivo fornece IDs, pontos, empates e indicação de controle por bot; a política de elegibilidade e a agregação ainda precisam ser definidas.
+A migration recupera históricos existentes, sem recriar registros já apagados. Para essas partidas antigas, início usa a criação da sala e término usa sua última atualização, pois não existiam timestamps específicos; novas partidas registram início na transição de lobby. `GET /api/v1/rankings` agrega o arquivo para vitórias, carteiras para saldo atual e liquidações para perdas líquidas em `modules/rankings/service.ts`. A consulta pública valida filtros/paginação, seleciona a posição da sessão fora da página e não expõe snapshots nem contas operacionais. Critérios em [Rankings](../CROEBET.md#44-rankings-e-gamificação). Não exige migration nem recalcula saldos.
 
 ## Próximas integrações
 
@@ -190,7 +190,7 @@ Direção aprovada, ainda não implementada. Não criar estruturas antecipadamen
 
 1. Validar lobbies e partidas entre dispositivos reais, especialmente reconexão durante escolhas especiais. Salas continuam somente públicas, sem espectadores nem substituição por outra conta. Ausências aguardam indefinidamente; bots assumem apenas por abandono ou expulsão explícitos.
 2. Validar a operação de partidas com Croins entre dispositivos e acompanhar os registros de entrada, pote, prêmio e devolução. Regras implementadas em [Flip 7](flip7.md#economia).
-3. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Rankings/conquistas seguem fora da v1.
+3. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Conquistas seguem pendentes; rankings usam os registros existentes.
 
 ## Validação
 

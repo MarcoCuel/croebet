@@ -93,9 +93,9 @@ As configurações são centralizadas no backend. Cadastro e resgate devem credi
 
 ### 4.4. Rankings e gamificação
 
-Rankings e conquistas ficam fora da primeira versão. Por enquanto, aparecem apenas no menu lateral como itens indisponíveis com o badge “Em breve”, sem acesso às páginas do protótipo.
+Rankings estão disponíveis publicamente em `/rankings`: Vitórias no Flip 7, Mais ricos pelo saldo atual e Maiores perdedores pelo prejuízo líquido de partidas liquidadas. Vitórias e perdas têm filtros independentes de mês atual/geral, no fuso de Brasília; saldo é sempre atual. Conquistas permanecem indisponíveis no menu com “Em breve”.
 
-As partidas têm histórico administrativo preservado, participantes, pontuações, vencedores e reprodução das jogadas dentro de Admin → Jogos. Essa base será usada pelo ranking; critérios de pontuação, elegibilidade de vagas assumidas por bots e agregação ainda serão definidos.
+Vitórias usam partidas finalizadas, incluindo empates; vagas assumidas por bots não dão vitória à conta original. Perdas somam entradas menos prêmios efetivamente recebidos, incluindo entradas de vagas abandonadas e potes destinados à casa; pendências e devoluções ficam fora. Bônus, cupons e ajustes administrativos só afetam Mais ricos. Contas suspensas, excluídas ou com exclusão agendada não aparecem; seus históricos permanecem preservados. Empates na métrica compartilham posição, com ordem estável por usuário. A página preserva os cards com pódio e lista, pagina dez contas por card e apresenta a própria posição mesmo fora da página.
 
 A competição é parte importante da experiência:
 
