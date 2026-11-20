@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 
-export type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "dark-contrast" | "system";
 const storageKey = "croebet:theme";
 const changeEvent = "croebet:theme-change";
 const mediaQuery = "(prefers-color-scheme: dark)";
@@ -10,13 +10,13 @@ const mediaQuery = "(prefers-color-scheme: dark)";
 function readTheme(): Theme {
   try {
     const value = localStorage.getItem(storageKey);
-    if (value === "light" || value === "dark" || value === "system") return value;
+    if (value === "light" || value === "dark" || value === "dark-contrast" || value === "system") return value;
     return "system";
   } catch {
     // Keep the current preference usable when browser storage is unavailable.
   }
   const current = document.documentElement.dataset.themePreference;
-  return current === "light" || current === "dark" ? current : "system";
+  return current === "light" || current === "dark" || current === "dark-contrast" ? current : "system";
 }
 
 function applyTheme() {

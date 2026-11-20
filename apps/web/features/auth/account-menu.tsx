@@ -121,6 +121,7 @@ export function AccountMenu({
                   if (
                     value === "light" ||
                     value === "dark" ||
+                    value === "dark-contrast" ||
                     value === "system"
                   )
                     setTheme(value);
@@ -130,6 +131,7 @@ export function AccountMenu({
                   Light
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark-contrast">Dark contrast</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="system">
                   System
                 </DropdownMenuRadioItem>

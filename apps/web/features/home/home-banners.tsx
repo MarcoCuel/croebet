@@ -59,19 +59,11 @@ export function HomeBanners() {
           </Button>
         )}
       </Banner>
-      <Banner className="bg-linear-to-b from-reward-start to-reward-end text-foreground">
-        <Badge className="tabular-nums">
-          {!username ? "Entre para resgatar" : !daily ? "Indisponível" : coolingDown ? `Próximo resgate em ${countdown}` : "Disponível"}
-        </Badge>
-        <div>
-          <Heading variant="banner">Bônus diário</Heading>
-          <p className="mt-3 text-sm sm:text-base">
-            Ganhe <strong>10 Croins</strong> grátis a cada 24 horas. <br/>Volte todos os dias para resgatar!
-          </p>
-          <Button className="mt-5" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
-            {coolingDown ? "Aguarde o próximo resgate" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar 10 Croins"}
-          </Button>
-        </div>
+      <Banner className="bg-surface">
+        <Heading variant="banner">Bônus diário</Heading>
+        <Button className="mt-5" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
+          {coolingDown ? `Próximo resgate em ${countdown}` : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar 10 Croins"}
+        </Button>
       </Banner>
     </section>
   );

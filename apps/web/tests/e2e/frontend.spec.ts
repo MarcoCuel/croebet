@@ -74,7 +74,7 @@ test("tema persiste e System acompanha a preferência do sistema", async ({
     await page.getByRole("menuitem", { name: "Tema", exact: true }).click();
   };
   await openTheme();
-  await expect(page.getByRole("menuitemradio")).toHaveCount(3);
+  await expect(page.getByRole("menuitemradio")).toHaveCount(4);
   await chooseTheme("Light");
   await expect(root).toHaveAttribute("data-theme", "light");
   await page.reload();
@@ -88,6 +88,15 @@ test("tema persiste e System acompanha a preferência do sistema", async ({
   await page.emulateMedia({ colorScheme: "light" });
   await expect(root).toHaveAttribute("data-theme", "dark");
   await openTheme();
+  await chooseTheme("Dark contrast");
+  await expect(root).toHaveAttribute("data-theme", "dark-contrast");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(0, 0, 0)");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "dark-contrast");
+  await expect(root).toHaveAttribute("data-theme-preference", "dark-contrast");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(0, 0, 0)");
+  await openTheme();
+  await expect(page.getByRole("menuitemradio", { name: "Dark contrast", exact: true })).toHaveAttribute("aria-checked", "true");
   await chooseTheme("System");
   await expect(root).toHaveAttribute("data-theme", "light");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -128,6 +137,10 @@ test("configurações alternam seções, aplicam tema e devolvem foco ao fechar"
   await expect(
     dialog.getByRole("button", { name: "Claro", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: "Dark contrast", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark-contrast");
+  await expect(dialog.getByRole("button", { name: "Dark contrast", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: "Claro", exact: true }).click();
   await nav.getByRole("button", { name: "Carteira", exact: true }).click();
   await expect(
     dialog.getByRole("link", { name: "Ver carteira" }),

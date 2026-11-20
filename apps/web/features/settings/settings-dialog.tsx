@@ -3,7 +3,7 @@
 import { EditableRow } from "@/components/shared/editable-row";
 import { toast } from "sonner";
 import { useEffect, useId, useState } from "react";
-import { Monitor, Moon, Sun, X } from "lucide-react";
+import { Contrast, Monitor, Moon, Sun, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +27,7 @@ const sections = ["Geral", "Aparência", "Conta", "Carteira"] as const;
 const themes = [
   { value: "light", label: "Claro", icon: Sun },
   { value: "dark", label: "Escuro", icon: Moon },
+  { value: "dark-contrast", label: "Dark contrast", icon: Contrast },
   { value: "system", label: "Sistema", icon: Monitor },
 ] as const;
 
@@ -129,7 +130,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
         {section === "Aparência" && (
           <div role="group" aria-label="Tema" className="grid gap-4">
             <p className="text-sm text-muted">Tema</p>
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-2">
               {themes.map(({ value, label, icon: Icon }) => (
                 <Button
                   key={value}
