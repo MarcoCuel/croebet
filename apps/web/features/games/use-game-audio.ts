@@ -1,5 +1,6 @@
 "use client";
 
+import { createGameAudioPlayer, prepareAudioCue } from "./game-audio-player";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 const key = "croebet:game-audio";
@@ -23,10 +24,10 @@ function subscribe(listener: () => void) {
 }
 
 const sounds = {
-  slide: Array.from({ length: 8 }, (_, i) => `card-slide-${i + 1}`),
-  place: Array.from({ length: 4 }, (_, i) => `card-place-${i + 1}`),
-  discard: Array.from({ length: 4 }, (_, i) => `card-shove-${i + 1}`),
-  shuffle: ["card-shuffle"],
+  // Use single gestures: some pack variations contain several distinct hits.
+  slide: [1, 2, 5, 6, 8].map(index => `card-slide-${index}`),
+  place: ["card-place-1"],
+  discard: ["card-shove-3", "card-shove-4"],
   entry: ["chip-lay-1", "chip-lay-2", "chip-lay-3"],
   prize: Array.from({ length: 6 }, (_, i) => `chips-stack-${i + 1}`),
 };
@@ -34,8 +35,8 @@ type Sound = keyof typeof sounds;
 
 export function useGameAudio() {
   const settings = useSyncExternalStore(subscribe, () => preferences, () => defaults);
-  const engine = useRef<{ context: AudioContext; gain: GainNode } | null>(null);
-  const buffers = useRef(new Map<string, AudioBuffer>());
+  const engine = useRef<{ context: AudioContext; gain: GainNode; player: ReturnType<typeof createGameAudioPlayer> } | null>(null);
+  const buffers = useRef(new Map<string, ReturnType<typeof prepareAudioCue>>());
   const previous = useRef<Partial<Record<Sound, number>>>({});
 
   useEffect(() => {
@@ -44,10 +45,10 @@ export function useGameAudio() {
     function unlock() {
       if (!engine.current) {
         if (!window.AudioContext) return;
-        const context = new AudioContext();
+        const context = new AudioContext({ latencyHint: "interactive" });
         const gain = context.createGain();
         gain.connect(context.destination);
-        engine.current = { context, gain };
+        engine.current = { context, gain, player: createGameAudioPlayer(context, gain) };
         gain.gain.value = preferences.muted ? 0 : preferences.volume / 100;
         // Fetch only after interaction. Playback never waits for a download,
         // so a delayed load cannot make an old action sound later.
@@ -55,7 +56,7 @@ export function useGameAudio() {
           void fetch(`/audio/cards/Audio/${name}.ogg`, { signal: controller.signal })
             .then(response => { if (!response.ok) throw new Error("Audio unavailable"); return response.arrayBuffer(); })
             .then(data => context.decodeAudioData(data))
-            .then(buffer => { if (!disposed) buffers.current.set(name, buffer); })
+            .then(buffer => { if (!disposed) buffers.current.set(name, prepareAudioCue(buffer)); })
             .catch(() => { /* An unavailable effect must not interrupt the game. */ });
         }
       }
@@ -63,7 +64,10 @@ export function useGameAudio() {
     }
     function visibility() {
       const audio = engine.current;
-      if (audio) audio.gain.gain.value = document.hidden || preferences.muted ? 0 : preferences.volume / 100;
+      if (audio) {
+        if (document.hidden) audio.player.stop();
+        audio.gain.gain.value = document.hidden || preferences.muted ? 0 : preferences.volume / 100;
+      }
     }
     if (navigator.userActivation?.hasBeenActive) unlock();
     document.addEventListener("pointerdown", unlock);
@@ -77,13 +81,16 @@ export function useGameAudio() {
       document.removeEventListener("visibilitychange", visibility);
       const audio = engine.current;
       engine.current = null;
-      if (audio) void audio.context.close().catch(() => {});
+      if (audio) { audio.player.stop(); void audio.context.close().catch(() => {}); }
     };
   }, []);
 
   useEffect(() => {
     const audio = engine.current;
-    if (audio) audio.gain.gain.value = document.hidden || settings.muted ? 0 : settings.volume / 100;
+    if (audio) {
+      if (document.hidden || settings.muted || !settings.volume) audio.player.stop();
+      audio.gain.gain.value = document.hidden || settings.muted ? 0 : settings.volume / 100;
+    }
   }, [settings]);
 
   const play = useCallback((sound: Sound) => {
@@ -93,19 +100,14 @@ export function useGameAudio() {
     let index = Math.floor(Math.random() * variants.length);
     if (index === previous.current[sound]) index = (index + 1) % variants.length;
     previous.current[sound] = index;
-    const buffer = buffers.current.get(variants[index]);
-    if (!buffer) return;
-    const source = audio.context.createBufferSource();
-    source.buffer = buffer;
-    source.connect(audio.gain);
-    source.onended = () => source.disconnect();
-    source.start();
+    audio.player.play(buffers.current.get(variants[index]) ?? null);
   }, []);
+  const stop = useCallback(() => engine.current?.player.stop(), []);
 
   function update(value: Partial<typeof defaults>) {
     preferences = { ...preferences, ...value };
     try { localStorage.setItem(key, JSON.stringify(preferences)); } catch { /* In-memory fallback. */ }
     listeners.forEach(listener => listener());
   }
-  return { ...settings, play, toggle: () => update({ muted: !preferences.muted }), setVolume: (volume: number) => update({ volume, muted: volume === 0 }) };
+  return { ...settings, play, stop, toggle: () => update({ muted: !preferences.muted }), setVolume: (volume: number) => update({ volume, muted: volume === 0 }) };
 }

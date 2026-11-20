@@ -173,7 +173,7 @@ function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatc
 function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }: { initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
   const router = useRouter();
   const audio = useGameAudio();
-  const { play: playSound } = audio;
+  const { play: playSound, stop: stopSounds } = audio;
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
   const {userId,refreshWallet}=useSession();
   const refreshWalletRef=useRef(refreshWallet);
@@ -248,7 +248,6 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
   const present = useCallback((action: Action, next: Game) => {
     const current = gameRef.current;
     if (!current) return;
-    if (next.round !== current.round) playSound("shuffle");
     if (current.players.every(player => !player.cards.length) && next.players.some(player => player.cards.length) && current.round === 1 && initial.match?.entryAmount) playSound("entry");
     setSelectedCards([]);
     setPresentationBefore(current);
@@ -302,6 +301,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     if (!replayActive) return;
     const reset = replayEpoch.current !== replayReset;
     if (reset) {
+      stopSounds();
       // Preserve the slider DOM (and pointer capture) while cancelling the
       // previous presentation, even if the selected archive page is loading.
       for (const timeline of animationTimelines.current) timeline.kill();
@@ -334,7 +334,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
       } else present(replayFrame.action, replayFrame.state);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [replayActive, replayReset, replayLoading, replayFrame, replayFrameIndex, present]);
+  }, [replayActive, replayReset, replayLoading, replayFrame, replayFrameIndex, present, stopSounds]);
   useEffect(() => {
     if (!replayActive || replayLoading || replayFrameIndex == null || replayIndex.current !== replayFrameIndex || replayEpoch.current !== replayReset || flight || movingCards || resolvingCardFinished) return;
     if (liveGame?.phase === "over" && !replayPrizePlayed.current) {
@@ -371,6 +371,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     }
     catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível abandonar a partida. Tente novamente."); return false; }
     finally { leavingRef.current = false; setLeaving(false); }
+    stopSounds();
     gameRef.current = null;
     locked.current = false;
     setFlight(null);
@@ -437,7 +438,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         .to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, scale: 1, duration: revealDuration, ease: "power2.out" }, extractionDuration)
         .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, departure);
     }
-    timeline.call(() => playSound("slide"), [], 0);
+    timeline.call(() => playSound("slide"), [], flight.parked ? 0 : departure);
     timeline.call(() => { playSound("place"); setLanded(true); });
     if (flight.consumedChance) {
       const protection = board.querySelector<HTMLElement>(`[data-flight-card="${flight.consumedChance.id}"]`);
@@ -458,12 +459,13 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         .to(discarded, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
     }
     return () => {
+      if (timeline.progress() < 1) stopSounds();
       timeline.kill();
       timelines.delete(timeline);
       if (layoutElements.length) gsap.set(layoutElements, { clearProps: "transform,width,height" });
       if (hand) gsap.set(hand, { clearProps: "height" });
     };
-  }, [flight, playSound]);
+  }, [flight, playSound, stopSounds]);
 
   useLayoutEffect(() => {
     if (!movingCards || !boardRef.current) return;
@@ -482,8 +484,8 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
         { x: movement.target === null ? movement.origin.left + (reduced ? 0 : 96) : rect.left, y: movement.target === null ? movement.origin.top - (reduced ? 0 : 128) : rect.top, scale: movement.target === null ? movement.origin.width / ghost.offsetWidth * (reduced ? 1 : 0.8) : rect.width / ghost.offsetWidth, rotation: movement.target === null && !reduced ? 18 : 0, opacity: movement.target === null ? 0 : 1, duration: reduced ? 0 : 0.35, ease: "power2.inOut" }, 0);
     }
     if (movingCards.some(card => card.target !== null)) timeline.call(() => playSound("place"));
-    return () => { timeline.kill(); timelines.delete(timeline); };
-  }, [movingCards, playSound]);
+    return () => { if (timeline.progress() < 1) stopSounds(); timeline.kill(); timelines.delete(timeline); };
+  }, [movingCards, playSound, stopSounds]);
 
   useLayoutEffect(() => {
     if (!resolvingCard || !resolvingCardFinished || flight || movingCards) return;
@@ -499,15 +501,16 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     // Let the final purchase and its stopped/busted status settle before discarding the action.
     timeline.to({}, { duration: reduced ? 0 : 0.5 });
     if (element) timeline.call(() => playSound("discard")).to(element, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
-    return () => { timeline.kill(); timelines.delete(timeline); locked.current = false; };
-  }, [resolvingCard, resolvingCardFinished, flight, movingCards, playSound]);
+    return () => { if (timeline.progress() < 1) stopSounds(); timeline.kill(); timelines.delete(timeline); locked.current = false; };
+  }, [resolvingCard, resolvingCardFinished, flight, movingCards, playSound, stopSounds]);
 
   useLayoutEffect(() => {
+    if (replay?.paused) stopSounds();
     for (const timeline of animationTimelines.current) {
       timeline.timeScale(replay ? 1000 / replay.delay : 1);
       timeline.paused(replay?.paused ?? false);
     }
-  }, [replay, flight, movingCards, resolvingCardFinished]);
+  }, [replay, flight, movingCards, resolvingCardFinished, stopSounds]);
 
   useEffect(() => {
     if (!game || resolvingCardFinished || flight || movingCards || exitOpen || leaving || busy || !frames.length) return;
@@ -530,6 +533,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
     if(!complete || fresh.length>12 || document.visibilityState==="hidden"){
+      stopSounds();
       // Recover directly to the confirmed snapshot instead of replaying a long
       // animation backlog after a slow connection or a suspended browser tab.
       receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
@@ -540,7 +544,7 @@ function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }:
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
     setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
-  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router]);
+  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds]);
 
   if (!game) return null;
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;

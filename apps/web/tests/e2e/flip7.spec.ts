@@ -517,7 +517,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
     await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
     await expect(volume).toHaveValue("30");
-    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(26);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(17);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
     await expect(controls.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
     if (testInfo.project.name === "desktop") {
@@ -538,8 +538,9 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
 
 async function instrumentAudio(page: Page) {
   await page.addInitScript(() => {
-    const state = window as unknown as { playedEffects: number; decodedEffects: number };
+    const state = window as unknown as { playedEffects: number; decodedEffects: number; cueEvents: { time: number; offset: number; duration: number; fileDuration: number }[] };
     state.playedEffects = 0;
+    state.cueEvents = [];
     state.decodedEffects = 0;
     const decode = AudioContext.prototype.decodeAudioData;
     AudioContext.prototype.decodeAudioData = function (data, success, error) {
@@ -548,6 +549,7 @@ async function instrumentAudio(page: Page) {
     const original = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof original>) {
       state.playedEffects++;
+      state.cueEvents.push({ time: performance.now(), offset: args[1] ?? 0, duration: args[2] ?? 0, fileDuration: this.buffer?.duration ?? 0 });
       return original.apply(this, args);
     };
   });
@@ -571,13 +573,22 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
   const controls = page.getByLabel("Controles de reprodução", { exact: true });
   await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
   await controls.getByRole("button", { name: "Pausar", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(26);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(17);
   await controls.getByRole("button", { name: "Próxima jogada", exact: true }).click();
   await expect(page.locator("[data-flying-card]")).toBeVisible();
   await expect(controls.getByText("Jogada 2 de 3", { exact: true })).toBeVisible();
   await expect(controls.getByRole("button", { name: "Próxima jogada", exact: true })).toBeDisabled();
   await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
   await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+  const cues = await page.evaluate(() => (window as unknown as { cueEvents: { time: number; offset: number; duration: number; fileDuration: number }[] }).cueEvents.slice(-2));
+  expect(cues).toHaveLength(2);
+  // Movement and impact are separated by the actual 0.2s trip, not the reveal hold.
+  expect(cues[1].time - cues[0].time).toBeGreaterThan(100);
+  expect(cues[1].time - cues[0].time).toBeLessThan(400);
+  for (const cue of cues) {
+    expect(cue.offset).toBeGreaterThan(0);
+    expect(cue.duration).toBeLessThan(cue.fileDuration);
+  }
   // Backward seek restores a snapshot and cancels any pending presentation.
   await controls.getByRole("button", { name: "Jogada anterior", exact: true }).click();
   await expect(controls.getByText("Jogada 1 de 3", { exact: true })).toBeVisible();
