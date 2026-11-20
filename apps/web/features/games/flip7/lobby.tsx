@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Eye, Plus, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import { flip7OptionsSchema } from "@croebet/shared";
 import type { GameRecord, CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { CroinIcon } from "@/components/shared/croin-icon";
@@ -38,7 +39,7 @@ function SeatOutline() {
 export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:GameRecord;rules:(options:GameOptions)=>ReactNode}) {
   const router=useRouter();
   const searchParams=useSearchParams();
-  const {userId,username,displayName,avatar,openLogin,economy}=useSession();
+  const {permissions,userId,username,displayName,avatar,openLogin,economy}=useSession();
   const [room,setRoom]=useState<Lobby|null>(initial.lobby);
   const [directory,setDirectory]=useState<LobbyList>(initial.directory);
   const [matches,setMatches]=useState(initial.items);
@@ -105,7 +106,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
   const lobbies=[...new Map([...directory.items,...directory.joined].map(lobby=>[lobby.id,lobby])).values()];
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
-  const settings=room?.options ?? options;
+  const settings=flip7OptionsSchema.parse(room?.options ?? options);
   const limit=room?.capacity ?? capacity;
   const entry=room?.entryAmount ?? entryAmount;
   const confirmed=!!userId && !!room?.confirmedUserIds.includes(userId);
@@ -126,7 +127,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       const response=await updateServerLobby(room.code,pendingUpdate.current);
       pendingUpdate.current=null;
       if(response.status==="lobby"){
-        acceptLobby(response);setOptions(response.options);setCapacity(response.capacity);
+        acceptLobby(response);setOptions(flip7OptionsSchema.parse(response.options));setCapacity(response.capacity);
       }
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível alterar a sala.");}
     finally{setBusy(false);}
@@ -176,15 +177,17 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
-    const payload={game:"flip7" as const,capacity:room?.capacity ?? capacity,options:room?.options ?? options,entryAmount:room?.entryAmount ?? entryAmount};
+    const payload={development:false,bots:0,onlyBots:false,game:"flip7" as const,capacity:room?.capacity ?? capacity,options:room?.options ?? options,entryAmount:room?.entryAmount ?? entryAmount};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
-    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;setCapacity(lobby.capacity);setOptions(lobby.options);acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
+    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;setCapacity(lobby.capacity);setOptions(flip7OptionsSchema.parse(lobby.options));acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
     finally{setBusy(false);}
   }
 
   return <div className="w-full space-y-4">
     <GameEntryHeader game={game} actions={!userId?rules(settings):undefined}/>
+    {permissions.canManageSite && !room && <Button variant="secondary" onClick={()=>router.push("/jogos/flip7?teste=1")}>Criar partida de teste</Button>}
+    {directory.tests?.filter(t=>t.game==="flip7").map(t=><Button key={t.code} variant="secondary" onClick={()=>router.push(`/jogos/flip7?teste=1&partida=${t.code}`)}>Retomar teste · {t.code}</Button>)}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
     {showSettings && <Card className="min-w-0 space-y-4" aria-label="Configuração e regras">
       <fieldset disabled={!canEdit} className="space-y-4">

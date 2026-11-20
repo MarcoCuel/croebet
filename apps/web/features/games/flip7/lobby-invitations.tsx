@@ -57,7 +57,7 @@ function Invitation({invite,onRespond}:{invite:Invite;onRespond?:()=>void}) {
     if(busy)return;
     setBusy(true);
     try{
-      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(`/jogos/flip7?partida=${invite.code}`);}
+      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(`/jogos/${invite.game}?partida=${invite.code}${invite.development?"&teste=1":""}`);}
       else await realtimeRequest({type:"decline",code:invite.code},commandResultSchema);
       onRespond?.();
     }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível responder ao convite.");}
@@ -65,7 +65,8 @@ function Invitation({invite,onRespond}:{invite:Invite;onRespond?:()=>void}) {
   }
   return <div className="flex items-start gap-3">
     <Avatar className="size-10"><AvatarImage src={invite.avatarUrl ?? undefined}/><AvatarFallback>{invite.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
-    <div><p className="text-sm font-medium">{invite.username} convidou você para jogar Flip 7</p>
+    <div><p className="text-sm font-medium">{invite.username} convidou você para {invite.development?"uma partida de teste de":"jogar"} {invite.gameName}</p>
+      {invite.development && <p className="mt-1 text-xs text-muted">Esta partida não movimenta Croins nem conta para suas estatísticas.</p>}
       <div className="mt-3 flex gap-2"><Button size="sm" disabled={busy} onClick={()=>void respond(true)}>Aceitar</Button><Button size="sm" variant="secondary" disabled={busy} onClick={()=>void respond(false)}>Recusar</Button></div>
     </div>
   </div>;

@@ -572,3 +572,37 @@ test("PostgreSQL: novo host fica confirmado e antigo host volta a precisar aceit
  assert.deepEqual(current.confirmedUserIds,[actors[1]]);
  await assert.rejects(lobby(room.code,1,"start",{expectedVersion:current.version}),{code:"ENTRY_NOT_CONFIRMED"});
 });
+
+test("PostgreSQL: testes restritos a admin/convite, sem economia nem histórico oficial",async t=>{
+ const {pool,actors,sessions}=await environment(t);
+ const {inviteLobbyPlayer,stepTest}=await import('../../dist/modules/matches/service.js');
+ const input={requestId:randomUUID(),game:'flip7',capacity:3,options:{mode:'classic',brutal:false},development:true,bots:1,onlyBots:false,entryAmount:0};
+ await assert.rejects(createMatch(pool,actors[0],sessions[0],input),{code:'ADMIN_ONLY'});
+ await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ await assert.rejects(createMatch(pool,actors[0],sessions[0],{...input,entryAmount:5}),{code:'TEST_ECONOMY'});
+ const room=await createMatch(pool,actors[0],sessions[0],input);
+ assert.equal((await listLobbies(pool,null)).items.some(r=>r.id===room.id),false);
+ await assert.rejects(getMatch(pool,actors[1],room.code),{code:'NOT_FOUND'});
+ await assert.rejects(lobbyAction(pool,actors[1],sessions[1],room.code,'join',{commandId:randomUUID()}),{code:'NOT_FOUND'});
+ await inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[1]);
+ const joined=await lobbyAction(pool,actors[1],sessions[1],room.code,'join',{commandId:randomUUID()});
+ assert.equal(joined.participants.length,2);
+ await assert.rejects(lobbyAction(pool,actors[1],sessions[1],room.code,'start',{commandId:randomUUID(),expectedVersion:joined.version}),{code:'ADMIN_ONLY'});
+ for(const actor of actors.slice(0,2))await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actor]);
+ const started=await lobbyAction(pool,actors[0],sessions[0],room.code,'start',{commandId:randomUUID(),expectedVersion:joined.version});
+ assert.equal(started.state.players.length,3);assert.equal(started.development,true);
+ assert.equal((await listMatches(pool,null)).items.some(r=>r.id===room.id),false);
+ assert.equal((await pool.query('select 1 from game_match_archives where id=$1',[room.id])).rowCount,0);
+ assert.equal((await pool.query('select 1 from game_match_stakes where match_id=$1',[room.id])).rowCount,0);
+ await assert.rejects(pool.query('update game_matches set development=false where id=$1',[room.id]));
+ await assert.rejects(pool.query('update game_matches set entry_amount=5 where id=$1',[room.id]));
+ await pool.query("update game_matches set status='abandoned' where id=$1",[room.id]);
+ for(const game of ['flip7','love-letter']){
+ const testRoom=await createMatch(pool,actors[0],sessions[0],{...input,game,requestId:randomUUID(),capacity:2,bots:2,onlyBots:true});
+ const response=await lobbyAction(pool,actors[0],sessions[0],testRoom.code,'start',{commandId:randomUUID(),expectedVersion:testRoom.version});
+ assert.ok(response);const state=await getMatch(pool,actors[0],testRoom.code);assert.equal(state.status,'playing');assert.ok(state.state.players.every(p=>p.kind==='normal'));
+ const command={commandId:randomUUID(),expectedVersion:state.version};await stepTest(pool,actors[0],sessions[0],testRoom.code,command);await stepTest(pool,actors[0],sessions[0],testRoom.code,command);
+ assert.equal((await getMatch(pool,actors[0],testRoom.code)).version,state.version+1);
+ await pool.query("update game_matches set status='abandoned' where id=$1",[testRoom.id]);
+ }
+});

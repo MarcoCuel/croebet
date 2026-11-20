@@ -1,3 +1,4 @@
+import { loveOptionsSchema, loveViewSchema, loveActionSchema } from "./love-letter.js";
 import { z } from "zod";
 
 const integer = z.number().int().safe();
@@ -25,9 +26,9 @@ export const flip7ActionSchema = z.discriminatedUnion("type", [
 ]);
 export const flip7EventActionSchema = z.union([flip7ActionSchema, z.object({ type: z.literal("step") }).strict(), z.object({ type: z.literal("next") }).strict(), z.object({ type: z.literal("start") }).strict(), z.object({ type: z.literal("replace"), seat }).strict()]);
 // Bots remain available to engine tests, never to public room creation.
-export const createMatchSchema = z.object({ requestId: z.uuid(), game: z.literal("flip7"), capacity: integer.min(2).max(12), options: flip7OptionsSchema, entryAmount: integer.min(0).default(0) }).strict();
+export const createMatchSchema = z.object({ requestId: z.uuid(), game: z.enum(["flip7","love-letter"]), capacity: integer.min(2).max(12), options: z.union([flip7OptionsSchema,loveOptionsSchema]), entryAmount: integer.min(0).default(0), development:z.boolean().default(false), bots:integer.min(0).max(12).default(0), onlyBots:z.boolean().default(false) }).strict();
 export const lobbyCommandSchema = z.object({ commandId: z.uuid() }).strict();
-export const updateLobbySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema, entryAmount: integer.min(0).default(0) }).strict();
+export const updateLobbySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), capacity: integer.min(2).max(12), options: z.union([flip7OptionsSchema,loveOptionsSchema]), entryAmount: integer.min(0).default(0) }).strict();
 export type UpdateLobby = z.infer<typeof updateLobbySchema>;
 export const confirmEntrySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), entryAmount: integer.positive() }).strict();
 export type ConfirmEntry = z.infer<typeof confirmEntrySchema>;
@@ -39,11 +40,12 @@ export const matchCommandSchema = z.object({ commandId: z.uuid(), expectedVersio
 export const matchAbandonSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive() }).strict();
 export const matchCodeSchema = z.string().regex(/^[A-F0-9]{12}$/);
 export const matchParticipantSchema = z.object({ userId: z.uuid(), username: z.string(), displayName: z.string(), avatarUrl: z.string().nullable(), seat: integer.min(0).max(11) }).strict();
-const roomFields = { ...matchEconomyFields, id: z.uuid(), code: matchCodeSchema, game: z.literal("flip7"), rulesVersion: integer.positive(), version: integer.positive(), capacity: integer.min(2).max(12), options: flip7OptionsSchema, hostId: z.uuid(), participants: z.array(matchParticipantSchema).max(12) };
+const roomFields = { development:z.boolean().default(false), bots:integer.min(0).max(12).default(0), onlyBots:z.boolean().default(false), ...matchEconomyFields, id: z.uuid(), code: matchCodeSchema, game: z.enum(["flip7","love-letter"]), rulesVersion: integer.positive(), version: integer.positive(), capacity: integer.min(2).max(12), options: z.union([flip7OptionsSchema,loveOptionsSchema]), hostId: z.uuid(), participants: z.array(matchParticipantSchema).max(12) };
 export const lobbySchema = z.object({ ...roomFields, status: z.literal("lobby"), state: z.null(), pendingInvitations: z.array(z.object({userId:z.uuid(),username:z.string(),displayName:z.string().optional(),avatarUrl:z.string().nullable()}).strict()).default([]), onlineUserIds:z.array(z.uuid()).default([]), confirmedUserIds:z.array(z.uuid()).default([]) }).strict();
 export const matchSchema = z.object({ ...roomFields, durationSeconds: integer.min(0).nullable().default(null), status: z.enum(["playing", "finished", "abandoned"]), state: flip7ViewSchema }).strict();
+export const loveMatchSchema=z.object({...roomFields,game:z.literal("love-letter"),status:z.enum(["playing","finished","abandoned"]),state:loveViewSchema}).strict();
 export const roomSchema = z.discriminatedUnion("status", [lobbySchema, matchSchema]);
-export const lobbyListSchema = z.object({ items: z.array(lobbySchema).max(100), joined: z.array(lobbySchema), owned: lobbySchema.nullable(), active: matchSchema.nullable() }).strict();
+export const lobbyListSchema = z.object({ tests:z.array(z.object({code:matchCodeSchema,game:z.enum(["flip7","love-letter"]),status:z.enum(["lobby","playing"])})).optional(), items: z.array(lobbySchema).max(100), joined: z.array(lobbySchema), owned: lobbySchema.nullable(), active: matchSchema.nullable() }).strict();
 export type LobbyList = z.infer<typeof lobbyListSchema>;
 export const matchSummarySchema = z.object({ ...roomFields, status: z.literal("playing"), round: integer.positive(), controllerIds: z.array(z.uuid()).max(12) }).strict();
 export type MatchSummary = z.infer<typeof matchSummarySchema>;
@@ -58,7 +60,7 @@ export type MatchCommand = z.infer<typeof matchCommandSchema>;
 export type CreateMatch = z.infer<typeof createMatchSchema>;
 
 export const roomSyncSchema = z.object({ room: roomSchema, frames: z.array(matchFrameSchema), reset: z.boolean() }).strict();
-export const lobbyActionResultSchema = z.union([roomSchema, z.object({code:matchCodeSchema,status:z.literal("closed")}).strict()]);
+export const lobbyActionResultSchema = z.union([roomSchema,z.object({code:matchCodeSchema,status:z.literal("started")}).strict(), z.object({code:matchCodeSchema,status:z.literal("closed")}).strict()]);
 export type Lobby = z.infer<typeof lobbySchema>;
 export type Room = z.infer<typeof roomSchema>;
 export type RoomSync = z.infer<typeof roomSyncSchema>;
@@ -71,7 +73,11 @@ export const lobbyPlayersSchema = z.object({ items: z.array(z.object({
   userId: z.uuid(), username: z.string(), avatarUrl: z.string().nullable(), online: z.boolean(), invited: z.boolean(),
 }).strict()), hasMore: z.boolean() }).strict();
 export const lobbyInvitationsSchema = z.object({ items: z.array(z.object({
-  code: matchCodeSchema, username: z.string(), avatarUrl: z.string().nullable(),
+  code: matchCodeSchema, username: z.string(), avatarUrl: z.string().nullable(), game:z.enum(["flip7","love-letter"]).default("flip7"), gameName:z.string().default("Flip 7"), development:z.boolean().default(false),
 }).strict()) }).strict();
 export type LobbyPlayers = z.infer<typeof lobbyPlayersSchema>;
 export type LobbyInvitations = z.infer<typeof lobbyInvitationsSchema>;
+
+export const gameRoomSchema=z.union([roomSchema,loveMatchSchema]);
+export const gameRoomSyncSchema=z.object({room:gameRoomSchema,frames:z.array(matchFrameSchema),reset:z.boolean()});
+export const gameCommandSchema=z.object({commandId:z.uuid(),expectedVersion:integer.positive(),action:z.union([flip7ActionSchema,loveActionSchema])}).strict();

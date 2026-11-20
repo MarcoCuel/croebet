@@ -83,6 +83,8 @@ A página `/rankings` carrega os três rankings na API durante SSR, sem cache co
 
 O editor de jogos inclui a listagem paginada de partidas, com busca e filtro de status à direita do título (com quebra no mobile). Linhas clicáveis usam divisórias discretas, avatares, nomes, badges de status/modo e vencedores; paginação aparece somente quando necessária. A interna `/admin/jogos/[id]/partidas/[matchId]` reproduz projeções confirmadas em páginas de até 100 frames, com início/final, avanço/retorno, pausa e velocidade; não conecta ao executor multiplayer. A reprodução usa controles compactos com ícones Lucide, mesa com avatares e badges por jogador e um aside com resultado e Croins quando houver. Resultados e vencedores vêm da API administrativa. [Persistência e limites](backend-architecture.md#histórico-administrativo-de-partidas).
 
+A página pública do jogo oferece a administradores a ferramenta `features/games/test-game.tsx`. Ela reutiliza o cabeçalho, convites, remoção de participantes e conexão Socket.IO existentes. O Flip 7 mantém sua mesa; o Love Letter usa uma mesa própria com cartas privadas projetadas pela API. Os convites incluem jogo e indicação de teste para encaminhar ao endereço correto. Jogos sem motor continuam com a página “Em breve”.
+
 ## 3D sob demanda
 
 - React Three Fiber é o padrão de novas experiências; não migrar jogos existentes automaticamente. Siga `three/scenes/croin-preview.tsx`: fronteira cliente com `next/dynamic({ ssr: false })`.

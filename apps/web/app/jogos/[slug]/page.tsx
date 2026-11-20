@@ -1,3 +1,4 @@
+import { TestGame } from "@/features/games/test-game";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Heading } from "@/components/shared/heading";
@@ -10,7 +11,7 @@ import { PageShell } from "@/components/layout/page-shell";
 import { getPublicGames } from "@/features/games/server-games";
 import { ManagementUnavailable } from "@/features/admin/management-shared";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ partida?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ partida?: string; teste?: string }> };
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await getPublicGames(slug);
@@ -21,7 +22,9 @@ export default async function Game({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
   const data = await getPublicGames(slug);
+  if(data?.items[0] && (query.teste==="1" || slug==="love-letter"))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
   const archivedInitial = slug === "flip7" && query.partida ? await getInitialMatches(query.partida) : null;
+  if(data?.items[0] && (archivedInitial?.lobby?.development || archivedInitial?.match?.development))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
   if (archivedInitial?.replay) return <PageShell><h1 className="sr-only">{data?.items[0]?.name ?? "Histórico da partida"}</h1><Flip7Loader game={data?.items[0] ?? null} initial={archivedInitial} /></PageShell>;
   if (data && data.items.length === 0) notFound();
   if (data && slug !== "flip7") {

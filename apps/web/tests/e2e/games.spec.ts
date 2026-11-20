@@ -283,3 +283,30 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   await expect(result).toBeVisible();
   await expect(page.getByLabel("Controles de reprodução")).toHaveCount(0);
 });
+
+test("Love Letter oferece Clássico e Moderno e cria lobby de teste sem economia",async({page})=>{
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
+ let creation:Record<string,unknown>|null=null;
+ await page.route("**/api/v1/matches",async route=>{
+  creation=route.request().postDataJSON();
+  await route.fulfill({json:{...creation,id:"11111111-1111-4111-8111-111111111111",code:"ABCDEF112233",rulesVersion:1,version:1,status:"lobby",state:null,hostId:id,participants:[],pendingInvitations:[],onlineUserIds:[],confirmedUserIds:[]}});
+ });
+ await page.goto("/jogos/love-letter");
+ await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toBeVisible();
+ await page.getByLabel("Modo",{exact:true}).selectOption("modern");
+ await page.getByRole("switch",{name:"Somente bots"}).check();
+ await page.getByRole("button",{name:"Criar partida de teste",exact:true}).click();
+ await expect(page).toHaveURL(/teste=1&partida=ABCDEF112233/);
+ expect(creation).toMatchObject({game:"love-letter",development:true,onlyBots:true,bots:2,entryAmount:0,options:{mode:"modern",brutal:false}});
+ await expect(page.getByText("Lobby · Moderno",{exact:true})).toBeVisible();
+ await expect(page.getByText("Sem Croins, estatísticas ou conquistas.",{exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Iniciar teste",exact:true})).toBeEnabled();
+});
+
+test("Love Letter em desenvolvimento não permite criação por jogador comum",async({page})=>{
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};sessionRole="user";
+ await page.goto("/jogos/love-letter");
+ await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toHaveCount(0);
+ await expect(page.getByText("Você precisa de um convite para participar de uma partida de teste.",{exact:true})).toBeVisible();
+});

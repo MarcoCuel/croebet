@@ -5,10 +5,10 @@ import type { GameDriver } from "../../matches/driver.ts";
 import { createGame, transition, automaticAction, replaceWithBot, type Game, type Action } from "./engine.ts";
 import { validateState } from "./state.ts";
 
-export const flip7Driver: GameDriver<Game, Flip7View, { setup: Setup[]; options: GameOptions }, Action> & { replace: typeof replaceWithBot } = {
+export const flip7Driver: GameDriver<Game, Flip7View, { setup: Setup[]; options: GameOptions; onlyBots?: boolean }, Action> & { replace: typeof replaceWithBot } = {
   rulesVersion: 1,
   create(input, username) {
-    return createGame(input.setup.map((player, seat) => seat === 0 ? { name: username, kind: "human" } : player), 1, input.options, randomInt);
+    return createGame(input.onlyBots ? input.setup : input.setup.map((player, seat) => seat === 0 ? {name:username,kind:"human"} : player), 1, input.options, randomInt, input.onlyBots);
   },
   parse(value) {
     const saved = validateState(value);

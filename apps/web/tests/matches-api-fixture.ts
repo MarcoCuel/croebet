@@ -1,3 +1,4 @@
+import { flip7OptionsSchema } from "@croebet/shared";
 import type { IncomingMessage, ServerResponse, Server as HttpServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import { randomUUID } from "node:crypto";
@@ -114,7 +115,7 @@ export function matchesFixture() {
     if(path==="/api/v1/matches"){
       if(directory(actor.id).owned || directory(actor.id).active)return send({error:{message:"Você já tem um lobby criado ou uma partida em andamento."}},409);
       const input=createMatchSchema.parse(body),code=(++createdCount).toString(16).padStart(12,"0").toUpperCase();
-      const room:Room={entryAmount:input.entryAmount,potTotal:0,payouts:[],settlement:null,confirmedUserIds:input.entryAmount>0?[actor.id]:[],id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
+      const room:Room={development:false,bots:0,onlyBots:false,entryAmount:input.entryAmount,potTotal:0,payouts:[],settlement:null,confirmedUserIds:input.entryAmount>0?[actor.id]:[],id:randomUUID(),code,game:"flip7",rulesVersion:1,version:1,status:"lobby",state:null,pendingInvitations:[],onlineUserIds:[],capacity:input.capacity,options:input.options,hostId:actor.id,participants:[person(0)]};
       creators.set(code,actor.id);states.set(code,{room,frames:[]});receipts.set(key,room);notify();return send(room);
     }
     const saved=states.get(code);if(!saved)return send({error:{message:"Sala não encontrada."}},404);
@@ -153,7 +154,7 @@ export function matchesFixture() {
     if(path.endsWith("/start")){
       if(saved.room.status==="lobby" && saved.room.entryAmount>0 && saved.room.confirmedUserIds.length!==saved.room.participants.length)return send({error:{message:"Todos precisam confirmar a entrada."}},409);
       if(saved.room.hostId!==actor.id || saved.room.participants.length<2 || (saved.room.status==="lobby" && (saved.room.pendingInvitations.length>0 || saved.room.participants.some(p=>![...streams].some(s=>s.active && s.actor===p.userId)))))return send({error:{message:"Aguarde mais jogadores."}},409);
-      const game=createGame(saved.room.participants.map(p=>({name:p.username,kind:"human" as const})),42,saved.room.options);
+      const game=createGame(saved.room.participants.map(p=>({name:p.username,kind:"human" as const})),42,flip7OptionsSchema.parse(saved.room.options));
       for(const value of [11,10]){const index=game.deck.findIndex(c=>c.type==="number" && c.value===value);game.deck.push(...game.deck.splice(index,1));}
       const version=saved.room.version+1,result=execute(flip7Driver,game,version);
       saved.privateState=result.state;saved.frames.push({action:{type:"start"},state:result.before,version},...result.frames);

@@ -5,8 +5,8 @@ import { vengeanceAction, vengeanceTargets, vengeanceTransition } from "./vengea
 export type { Action, Card, Game, GameMode, GameOptions, Player, PlayerKind, Setup } from "./types.ts";
 export { canStay, cardLabel, createDeck, GOAL, isNumber, modeLabel, numbers, score } from "./rules.ts";
 
-export function createGame(setup: Setup[], seed = 1, options: Partial<GameOptions> = {}, random?: (upper: number) => number): Game {
-  if (setup.length < 2 || setup.length > 12 || !setup.some(p => p.kind === "human")) throw new Error("Escolha de 2 a 12 participantes, com ao menos uma pessoa.");
+export function createGame(setup: Setup[], seed = 1, options: Partial<GameOptions> = {}, random?: (upper: number) => number, allowBotsOnly = false): Game {
+  if (setup.length < 2 || setup.length > 12 || (!allowBotsOnly && !setup.some(p => p.kind === "human"))) throw new Error("Escolha de 2 a 12 participantes.");
   const game: Game = {
     mode: options.mode ?? "classic", brutal: options.mode === "vengeance" && options.brutal === true,
     players: setup.map((p, i) => ({ ...p, name: p.name.trim().slice(0, 24) || `Jogador ${i + 1}`, cards: [], total: 0, hasDrawn: false, status: "playing" })),

@@ -147,3 +147,5 @@ export * from "./media.js";
 
 export * from "./rankings.js";
 export * from "./achievements.js";
+
+export * from "./love-letter.js";
