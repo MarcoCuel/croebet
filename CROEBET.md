@@ -86,7 +86,7 @@ Valores iniciais aprovados em 19 de novembro de 2026:
 
 - Ao criar uma conta: **30 Croins**, registrados como bônus de cadastro.
 - Resgate diário: **10 Croins uma vez por dia, com liberação à meia-noite no fuso America/Sao_Paulo**, independentemente do saldo. O primeiro resgate fica disponível após o cadastro; não há teto de saldo. Resgatar às 22h permite novo resgate à 1h do dia seguinte.
-- Sugestões de aposta: **1, 5, 10, 15, 20, 25 e 50 Croins**, com **5 Croins** como valor padrão. São sugestões, não uma lista obrigatória de valores aceitos.
+- Sugestões de aposta: **5, 10, 15, 25 e 50 Croins**, com **5 Croins** como valor padrão. São sugestões, não uma lista obrigatória de valores aceitos.
 - Cupons: código definido pelo administrador, valor inteiro positivo escolhido por cupom, sem valor padrão ou tabela fixa. Um resgate por conta, limite global opcional, pausa e início/término opcionais; sem datas, validade indefinida. Edições não alteram os valores já concedidos.
 
 As configurações são centralizadas no backend. Cadastro e resgate devem creditar a carteira e gerar movimentações auditáveis na mesma transação. Probabilidades e demais aspectos de balanceamento continuam sujeitos a definição.

@@ -14,7 +14,7 @@ test('rotas da API carregam diretamente em TypeScript no modo de desenvolvimento
 });
 
 test('economia aprovada é centralizada; cupons aceitam valores livres inteiros positivos', () => {
-  assert.deepEqual(economy, { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 15, 20, 25, 50], defaultBet: 5 });
+  assert.deepEqual(economy, { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [5, 10, 15, 25, 50], defaultBet: 5 });
   for (const amount of [1, 7, 333, Number.MAX_SAFE_INTEGER]) assert.equal(couponAmountSchema.parse(amount), amount);
   for (const amount of [0, -1, 0.5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.equal(couponAmountSchema.safeParse(amount).success, false);
   assert.equal(dailyClaimSchema.safeParse({ requestId: 'invalid' }).success, false);

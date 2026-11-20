@@ -456,7 +456,7 @@ test("campo de aposta reutilizável soma, subtrai e seleciona valores sugeridos"
   const input=box.getByLabel("Entrada por jogador",{exact:true});
   await expect(input).toHaveValue("5");
   const presets=box.getByRole("group",{name:"Valores de aposta sugeridos"});
-  await expect(presets.getByRole("button")).toHaveCount(7);
+  await expect(presets.getByRole("button")).toHaveCount(5);
   await box.getByRole("button",{name:"Aumentar aposta",exact:true}).click();
   await expect(input).toHaveValue("6");
   await box.getByRole("button",{name:"Diminuir aposta",exact:true}).click();
@@ -468,7 +468,7 @@ test("campo de aposta reutilizável soma, subtrai e seleciona valores sugeridos"
   await expect(input).toHaveValue("12");
   await input.fill("0");await input.blur();
   await expect(input).toHaveValue("12");
-  await presets.getByRole("button",{name:"Apostar 1 Croins",exact:true}).click();
+  await input.fill("1");await input.blur();
   await expect(box.getByRole("button",{name:"Diminuir aposta",exact:true})).toBeDisabled();
   await box.getByRole("switch",{name:"Jogar apostando"}).uncheck();
   await expect(input).toHaveCount(0);
