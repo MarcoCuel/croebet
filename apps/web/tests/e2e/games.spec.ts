@@ -200,3 +200,23 @@ test("admin cadastra um jogo em desenvolvimento e publica página em breve sem l
   await page.goto("/jogos");
   await expect(page.getByRole("link",{name:/Blackjack/})).toHaveCount(0);
 });
+
+test("editor de jogos salva configurações e SEO pelo aside", async ({ page }) => {
+  await page.goto(`/admin/jogos/${id}`);
+  const aside = page.getByRole("complementary", { name: "Configurações do jogo" });
+  await expect(aside.getByRole("button", { name: "Salvar jogo", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Partidas", exact: true })).toBeVisible();
+  await page.getByLabel("Nome do jogo", { exact: true }).fill("Novo nome do jogo");
+  await page.locator("#game-editor").getByLabel("Descrição", { exact: true }).fill("Descrição atualizada.");
+  await aside.getByRole("switch", { name: "Jogo ativo" }).uncheck();
+  await aside.locator("summary").filter({ hasText: "SEO" }).click();
+  await aside.getByLabel("Título SEO", { exact: true }).fill("Título para buscas");
+  await aside.getByLabel("Descrição", { exact: true }).fill("Descrição para buscas.");
+  await aside.getByRole("button", { name: "Salvar jogo", exact: true }).click();
+  await expect(page).toHaveURL("/admin/jogos");
+  expect(game.name).toBe("Novo nome do jogo");
+  expect(game.description).toBe("Descrição atualizada.");
+  expect(game.enabled).toBe(false);
+  expect(game.seo.title).toBe("Título para buscas");
+  expect(game.seo.description).toBe("Descrição para buscas.");
+});
