@@ -14,7 +14,6 @@ export function Footer() {
           ? <span key={item.id} className="inline-flex items-center gap-2" aria-disabled="true">{item.iconNode && <Icon iconNode={item.iconNode} className="size-4 shrink-0" aria-hidden="true" data-icon={item.icon} />}{item.label} · Em breve</span>
           : <Link key={item.id} className="inline-flex items-center gap-2 hover:text-foreground" href={item.href} target={item.newTab ? "_blank" : undefined} rel={item.newTab ? "noopener noreferrer" : undefined}>{item.iconNode && <Icon iconNode={item.iconNode} className="size-4 shrink-0" aria-hidden="true" data-icon={item.icon} />}{item.label}</Link>)}
       </nav>
-      {menus === null && <p role="status">Menu do rodapé temporariamente indisponível.</p>}
       <p>Croebet · 2026</p>
     </footer>
   );

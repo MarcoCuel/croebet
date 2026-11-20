@@ -1,3 +1,4 @@
+import { validateMediaReferences } from "../media/service.ts";
 import type { Pool } from "pg";
 import type { z } from "zod";
 import { sitePageSchema, pagesSchema, pageLinksSchema, pageAuthorsSchema, type pageWriteSchema, type PageStatus } from "@croebet/shared";
@@ -35,6 +36,7 @@ export async function readPage(pool: Pool, identifier: string, admin = false) {
 }
 export async function savePage(pool: Pool, actorId: string, hash: string, id: string | null, input: z.infer<typeof pageWriteSchema>) {
   return adminTransaction(pool, actorId, hash, null, async client => {
+    await validateMediaReferences(client, [input.seo?.image]);
     const before = id ? (await client.query("select * from pages where id=$1 for update", [id])).rows[0] : null;
     if (id && !before) throw new ManagementError(404, "NOT_FOUND", "Página não encontrada.");
     if (input.version !== (before?.version ?? 0)) throw new ManagementError(409, "VERSION_CONFLICT", "A página foi alterada. Recarregue antes de salvar.");

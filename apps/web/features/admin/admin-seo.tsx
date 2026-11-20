@@ -1,5 +1,6 @@
 "use client";
 
+import { ImagePicker } from "@/features/media/image-picker";
 import { useState } from "react";
 import { toast } from "sonner";
 import { seoSettingsSchema, type SeoFields, type SeoSettings } from "@croebet/shared";
@@ -48,6 +49,7 @@ function SettingsRow({ field, label, value, maxLength, placeholder, inherited = 
     }}>
       {typeof draft === "boolean"
         ? <label className="flex items-center gap-2 text-sm"><Switch checked={draft} disabled={pending} onCheckedChange={setDraft} />{label}</label>
+        : field === "image" ? <ImagePicker value={draft} onChange={setDraft} label={label} disabled={pending} />
         : <Field>{label}<Input value={draft} onChange={event => setDraft(event.target.value)} required={field === "siteName" || field === "titleTemplate"} maxLength={maxLength} placeholder={placeholder} disabled={pending} /></Field>}
       <Button type="submit" loading={pending}>Salvar alterações</Button>
     </form>

@@ -1,3 +1,4 @@
+import { validateMediaReferences } from "../media/service.ts";
 import type { Pool } from "pg";
 import type { z } from "zod";
 import { lucideIconNodes } from "@croebet/shared/lucide-icon-nodes";
@@ -38,6 +39,7 @@ export async function readMenus(pool: Pool) {
 }
 export async function saveMenu(pool: Pool, actorId: string, hash: string, location: MenuLocation, input: z.infer<typeof menuWriteSchema>): Promise<MenuRecord> {
   return adminTransaction(pool, actorId, hash, null, async client => {
+    await validateMediaReferences(client, input.items.flatMap(item => item.type === "custom" ? [item.url] : []));
     const row = (await client.query("select location,items,version from navigation_menus where location=$1 for update", [location])).rows[0];
     if (!row) throw new ManagementError(503, "UNAVAILABLE", "Menu indisponível.");
     const before = menuSchema.parse(row);

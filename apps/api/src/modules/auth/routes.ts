@@ -21,7 +21,7 @@ type UserRow = { id: string; username: string; display_name: string; role: "user
 const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
 const passwordHash = (password: string) => hash(password, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
 let dummyHash: Promise<string> | undefined;
-export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig>; avatarStorage?: AvatarStorage }> = async (app, { pool, config, avatarStorage }) => {
+export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig>; avatarStorage?: AvatarStorage; mediaStorage?: AvatarStorage }> = async (app, { pool, config, avatarStorage, mediaStorage }) => {
   await app.register(cookie);
   const secure = config.APP_ENV === "production";
   const origins = allowedWebOrigins(config);
@@ -56,11 +56,11 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     return token;
   }
 
-  await managementRoutes(app, { pool, current, sessionName, limit });
+  await managementRoutes(app, { pool, current, sessionName, limit, mediaStorage });
   await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
 
+  if (avatarStorage || mediaStorage) app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
   if (avatarStorage) {
-    app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
     app.get<{ Params: { key: string } }>("/api/v1/avatars/:key", async (request, reply) => {
       const { key } = request.params;
       if (!validAvatarKey(key)) return reply.code(404).send();

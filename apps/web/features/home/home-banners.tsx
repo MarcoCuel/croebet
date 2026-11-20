@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState, type ComponentProps } from "react";
 import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
 

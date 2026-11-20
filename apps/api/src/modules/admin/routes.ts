@@ -1,3 +1,7 @@
+import { mediaQuerySchema, mediaMaxBytes, mediaContentTypes } from "@croebet/shared";
+import type { ImageStorage } from "../storage/images.ts";
+import { validImageKey } from "../storage/images.ts";
+import { readMedia, uploadMedia, deleteMedia } from "../media/service.ts";
 import { adminUserIdentitySchema } from "@croebet/shared";
 import { scheduleUserDeletion, changeUserIdentity } from "./service.ts";
 import { matchHistoryQuerySchema } from "@croebet/shared";
@@ -24,7 +28,7 @@ import { readSeo, saveSeo } from "./seo.ts";
 import { seoSettingsSchema } from "@croebet/shared";
 import { readOverview } from "./overview.ts";
 
-type Options = { pool: Pool; sessionName: string; current: (token: string | undefined) => Promise<{ id: string; role: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
+type Options = { mediaStorage?: ImageStorage; pool: Pool; sessionName: string; current: (token: string | undefined) => Promise<{ id: string; role: string } | null>; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function managementRoutes(app: FastifyInstance, options: Options) {
   const { pool, current, sessionName, limit } = options;
   async function run(request: FastifyRequest, reply: FastifyReply, admin: boolean, action: (actor: { id: string; role: string }, hash: string) => Promise<unknown>) {
@@ -39,6 +43,37 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       if (error && typeof error === "object" && "code" in error && error.code === "23505") return reply.code(409).send({ error: { code: "CONFLICT", message: "Este código ou endereço já existe, ou este pedido já foi processado." } });
       throw error;
     }
+  }
+  if (options.mediaStorage) {
+    const storage = options.mediaStorage;
+    app.get("/api/v1/admin/media", (request, reply) => run(request, reply, true, async () => {
+      const query = mediaQuerySchema.parse(request.query);
+      return readMedia(pool, query.q, query.offset);
+    }));
+    app.post("/api/v1/admin/media", {
+      bodyLimit: mediaMaxBytes,
+      onRequest: async (request, reply) => {
+        const actor = await current(request.cookies[sessionName]);
+        if (!actor || actor.role !== "admin") return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Recurso não encontrado." } });
+        if (!await limit(`media-upload:${actor.id}`, 30)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitos envios. Tente novamente mais tarde." } });
+      },
+    }, (request, reply) => run(request, reply, true, async (actor, hash) => {
+      const type = request.headers["content-type"]?.split(";")[0] ?? "";
+      if (!(mediaContentTypes as readonly string[]).includes(type) || !Buffer.isBuffer(request.body)) throw new ManagementError(400, "INVALID_IMAGE", "Escolha um JPG, PNG ou WebP.");
+      const name = z.string().max(1000).parse((request.query as {name?: string}).name ?? "Imagem");
+      return uploadMedia(pool, storage, actor.id, hash, request.body, type, name);
+    }));
+    app.delete("/api/v1/admin/media/:id", (request, reply) => run(request, reply, true, async (actor, hash) => deleteMedia(pool, actor.id, hash, id(request))));
+    app.get<{Params: {key: string}}>("/api/v1/media/:key", async (request, reply) => {
+      const { key } = request.params;
+      if (!validImageKey(key) || !(await pool.query("select 1 from media_assets where id::text=$1 and state='ready'", [key.slice(0,-5)])).rows.length) return reply.code(404).send();
+      // Recheck the live metadata even for conditional requests; deleted files must return 404.
+      const etag = `"${key}"`;
+      reply.header("Cache-Control", "public, no-cache").header("ETag", etag).header("X-Content-Type-Options", "nosniff");
+      if (request.headers["if-none-match"] === etag) return reply.code(304).send();
+      try { return reply.type("image/webp").send(await storage.get(key)); }
+      catch { return reply.code(503).header("Cache-Control", "no-store").send(); }
+    });
   }
   app.get("/api/v1/seo", async () => { const settings = await readSeo(pool); return { ...settings, index: process.env.APP_ENV === "production" && settings.index }; });
   app.get("/api/v1/seo/paths", async () => {

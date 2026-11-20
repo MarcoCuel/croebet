@@ -1,3 +1,4 @@
+import { AdminMedia } from "@/features/admin/admin-media";
 import { catalogMarketsSchema } from "@croebet/shared";
 import { AdminMarkets } from "@/features/admin/admin-markets";
 import { gamesSchema } from "@croebet/shared";
@@ -27,6 +28,7 @@ const titles = {
   users: "Usuários",
   pages: "Páginas",
   menus: "Menus",
+  media: "Biblioteca de mídia",
 } as const;
 
 export async function generateMetadata({
@@ -53,6 +55,7 @@ export default async function AdminSectionPage({
   );
   if (section === "seo") redirect(adminRoutes.seo);
   if (!entry) notFound();
+  if (section === "midia") return <AdminAccess section="media" content={<AdminMedia />} />;
   if (section === "configuracoes") {
     const data = await getManagement("/admin/seo", seoSettingsSchema);
     return <AdminAccess section="seo" content={data ? <AdminSeo initial={data} /> : <ManagementUnavailable />} />;

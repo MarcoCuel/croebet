@@ -1,3 +1,4 @@
+import { validateMediaReferences } from "../media/service.ts";
 import type { Pool } from "pg";
 import { defaultSeoSettings, seoSettingsSchema, type SeoSettings } from "@croebet/shared";
 import { adminTransaction, audit, ManagementError } from "./service.ts";
@@ -7,6 +8,7 @@ export async function readSeo(pool: Pool): Promise<SeoSettings> {
 }
 export async function saveSeo(pool: Pool, actorId: string, hash: string, input: SeoSettings) {
   return adminTransaction(pool, actorId, hash, null, async client => {
+    await validateMediaReferences(client, [input.image, input.home.image, input.games.image]);
     const row = (await client.query("select data,version from seo_settings where id=1 for update")).rows[0];
     if ((row?.version ?? 0) !== input.version) throw new ManagementError(409, "VERSION_CONFLICT", "As configurações foram alteradas. Recarregue antes de salvar.");
     const next = { ...input, version: input.version + 1 };

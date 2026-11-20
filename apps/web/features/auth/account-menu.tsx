@@ -131,7 +131,7 @@ export function AccountMenu({
                   Light
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark-contrast">Dark contrast</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark-contrast">Escuro (Contraste)</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="system">
                   System
                 </DropdownMenuRadioItem>

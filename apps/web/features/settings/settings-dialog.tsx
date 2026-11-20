@@ -27,7 +27,7 @@ const sections = ["Geral", "Aparência", "Conta", "Carteira"] as const;
 const themes = [
   { value: "light", label: "Claro", icon: Sun },
   { value: "dark", label: "Escuro", icon: Moon },
-  { value: "dark-contrast", label: "Dark contrast", icon: Contrast },
+  { value: "dark-contrast", label: "Escuro (Contraste)", icon: Contrast },
   { value: "system", label: "Sistema", icon: Monitor },
 ] as const;
 

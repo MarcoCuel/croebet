@@ -1,0 +1,40 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import sharp from 'sharp';
+import { createDatabase } from '../../dist/db/client.js';
+import { uploadMedia, readMedia, deleteMedia, cleanupMedia } from '../../dist/modules/media/service.js';
+import { createGame, saveGame } from '../../dist/modules/games/service.js';
+import { gameCreateSchema } from '@croebet/shared';
+test('PostgreSQL: upload, reutilização, exclusão protegida e limpeza com retentativa', async t => {
+  if(!process.env.TEST_DATABASE_URL)throw Error('Configure TEST_DATABASE_URL com banco exclusivo test migrado.');
+  const {pool}=createDatabase(process.env.TEST_DATABASE_URL); let verified=false;
+  const users=[],games=[],media=[];
+  t.after(async()=>{try{if(verified){
+    await pool.query('delete from games where id=any($1::uuid[])',[games]);
+    await pool.query('delete from media_assets where id=any($1::uuid[])',[media]);
+    await pool.query('delete from admin_audit where actor_id=any($1::uuid[])',[users]);
+    await pool.query('delete from sessions where user_id=any($1::uuid[])',[users]);
+    await pool.query('delete from users where id=any($1::uuid[])',[users]);
+  }}finally{await pool.end();}});
+  assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment,'test'); verified=true;
+  async function actor(role){const name=`Media_${randomUUID().replaceAll('-','').slice(0,12)}`;const id=(await pool.query('insert into users(username,display_name,password_hash,role) values($1,$1,$1,$2) returning id',[name,role])).rows[0].id;users.push(id);const hash=randomUUID();await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')",[hash,id]);return{id,hash};}
+  const admin=await actor('admin'), user=await actor('user');
+  const files=new Map(); let fail=false;
+  const storage={put:async(k,b)=>files.set(k,b),remove:async k=>{if(fail)throw Error('S3 unavailable');files.delete(k);}};
+  const bytes=await sharp({create:{width:600,height:300,channels:3,background:'red'}}).png().toBuffer();
+  await assert.rejects(uploadMedia(pool,storage,user.id,user.hash,bytes,'image/png','a.png'),{code:'NOT_FOUND'});
+  const item=await uploadMedia(pool,storage,admin.id,admin.hash,bytes,'image/png','capa.png');media.push(item.id);
+  assert.equal((await readMedia(pool,'capa',0)).items.some(i=>i.id===item.id),true);
+  const input=gameCreateSchema.parse({slug:`media-${randomUUID()}`,name:'Mídia',enabled:false,imageUrl:item.url});
+  const game=await createGame(pool,admin.id,admin.hash,input);games.push(game.id);
+  await assert.rejects(deleteMedia(pool,admin.id,admin.hash,item.id),{code:'MEDIA_IN_USE'});
+  await saveGame(pool,admin.id,admin.hash,game.id,{...input,version:game.version,imageUrl:null});
+  await deleteMedia(pool,admin.id,admin.hash,item.id);
+  await assert.rejects(createGame(pool,admin.id,admin.hash,{...input,slug:`media-${randomUUID()}`}),{code:'MEDIA_UNAVAILABLE'});
+  fail=true;await assert.rejects(cleanupMedia(pool,storage,'test'));assert.equal(files.size,1);
+  fail=false;await cleanupMedia(pool,storage,'test');assert.equal(files.size,0);
+  assert.equal((await pool.query('select 1 from media_assets where id=$1',[item.id])).rows.length,0);
+  const audit=await pool.query('select action from admin_audit where target_id=$1 order by created_at',[item.id]);
+  assert.deepEqual(audit.rows.map(r=>r.action),['media.created','media.deleted']);
+});

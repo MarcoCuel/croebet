@@ -117,3 +117,5 @@ export * from "./games.js";
 export * from "./markets.js";
 export * from "./overview.js";
 export * from "./match-history.js";
+
+export * from "./media.js";

@@ -1,3 +1,5 @@
+import { createImageStorage } from "./modules/storage/images.ts";
+import { cleanupMedia } from "./modules/media/service.ts";
 import { cleanupDeletedAccounts } from "./modules/auth/account-cleanup.ts";
 import { createApp } from "./app.ts";
 import { readConfig } from "./config.ts";
@@ -13,11 +15,13 @@ const app = createApp(async () => {
   if (result.rows[0]?.environment !== config.APP_ENV) throw new Error("Ambiente do banco incompatível.");
 }, true);
 const avatarStorage = createAvatarStorage(config);
-await app.register(authRoutes, { pool, config, avatarStorage });
+const mediaStorage = createImageStorage(config, "media");
+await app.register(authRoutes, { pool, config, avatarStorage, mediaStorage });
 let cleanupTask: Promise<void> | undefined;
 function cleanup() {
   cleanupTask ??= cleanupDeletedAccounts(pool, config.APP_ENV)
     .then(() => cleanupAvatars(pool, avatarStorage, config.APP_ENV))
+    .then(() => cleanupMedia(pool, mediaStorage, config.APP_ENV))
     .catch(() => { app.log.warn("Não foi possível concluir as exclusões pendentes; nova tentativa em um minuto."); })
     .finally(() => { cleanupTask = undefined; });
   return cleanupTask;

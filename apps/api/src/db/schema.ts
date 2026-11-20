@@ -217,3 +217,13 @@ export const gameMatchArchiveFrames = pgTable("game_match_archive_frames", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatchArchives.id),
   version: integer("version").notNull(), event: jsonb("event").notNull(),
 }, table => [uniqueIndex("archive_frame_version").on(table.matchId, table.version)]);
+
+export const mediaAssets = pgTable("media_assets", {
+  id: uuid("id").primaryKey(), name: text("name").notNull(),
+  width: integer("width").notNull(), height: integer("height").notNull(), bytes: integer("bytes").notNull(),
+  state: text("state").notNull().default("uploading"),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [check("media_state", sql`${table.state} in ('uploading','ready','deleted')`),
+  check("media_dimensions", sql`${table.width}>0 and ${table.height}>0 and ${table.bytes}>0`),
+  index("media_listing").on(table.state, table.createdAt, table.id)]);

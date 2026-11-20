@@ -1,3 +1,4 @@
+import { validateMediaReferences } from "../media/service.ts";
 import type { Pool } from "pg";
 import type { z } from "zod";
 import { gameSchema, gamesSchema, type gameCreateSchema, type gameWriteSchema } from "@croebet/shared";
@@ -17,6 +18,7 @@ export async function readGame(pool: Pool, identifier: string, admin = false) {
 }
 export async function saveGame(pool: Pool, actorId: string, hash: string, id: string, input: z.infer<typeof gameWriteSchema>) {
   return adminTransaction(pool, actorId, hash, null, async client => {
+    await validateMediaReferences(client, [input.imageUrl, input.seo?.image]);
     const before = (await client.query("select * from games where id=$1 for update", [id])).rows[0];
     if (!before) throw new ManagementError(404, "NOT_FOUND", "Jogo não encontrado.");
     if (before.version !== input.version) throw new ManagementError(409, "VERSION_CONFLICT", "O jogo foi alterado. Recarregue antes de salvar.");
@@ -29,6 +31,7 @@ export async function saveGame(pool: Pool, actorId: string, hash: string, id: st
 
 export async function createGame(pool: Pool, actorId: string, hash: string, input: z.infer<typeof gameCreateSchema>) {
   return adminTransaction(pool, actorId, hash, null, async client => {
+    await validateMediaReferences(client, [input.imageUrl, input.seo?.image]);
     const result = await client.query(
       "insert into games (slug,name,description,enabled,image_url,seo) values ($1,$2,$3,$4,$5,$6) returning *",
       [input.slug, input.name, input.description, input.enabled, input.imageUrl, JSON.stringify(input.seo)],

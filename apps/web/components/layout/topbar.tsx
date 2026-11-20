@@ -50,6 +50,7 @@ export function Topbar({
                 "/admin/apostas": "Apostas",
                 "/admin/paginas": "Páginas",
                 "/admin/menus": "Menus",
+                [adminRoutes.media]: "Biblioteca de mídia",
                 "/admin/usuarios": "Usuários",
               } as Record<string, string>
             )[pathname]
