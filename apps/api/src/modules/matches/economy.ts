@@ -66,3 +66,14 @@ export async function refundAccountMatches(client: PoolClient, userId: string) {
     await client.query("update game_match_stakes set status='refunded',settled_at=clock_timestamp() where match_id=$1",[row.match_id]);
   }
 }
+
+/** Caller owns the lifecycle/room lock; refund and closure commit together. */
+export async function refundCollectiveMatch(client:PoolClient,id:string,code:string){
+ const row=(await client.query("select * from game_match_stakes where match_id=$1 for update",[id])).rows[0];
+ if(!row)return;
+ if(row.status!=="pending")throw new MatchEconomyError("POT_ALREADY_SETTLED","O pote já foi liquidado. Não é possível cancelar esta partida.");
+ const people=contributionsSchema.parse(row.contributions);
+ await client.query("select id from wallet_accounts where id=any($1::uuid[]) order by id for update",[[row.pot_account_id,...people.map(p=>p.accountId)]]);
+ for(const person of people)await transferCroinsInTransaction(client,{scope:"match-refund",idempotencyKey:`${id}:${person.seat}`,from:row.pot_account_id,to:person.accountId,actorAccountId:row.pot_account_id,amount:Number(row.entry_amount),reason:"Devolução por abandono coletivo",reference:code});
+ await client.query("update game_match_stakes set status='refunded',payouts=$2,settled_at=clock_timestamp() where match_id=$1",[id,JSON.stringify(people.map(p=>({seat:p.seat,amount:Number(row.entry_amount),house:false})))]);
+}

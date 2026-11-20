@@ -138,13 +138,13 @@ export function matchesFixture() {
       const settings=updateLobbySchema.parse(body);
       if(saved.room.status!=="lobby" || saved.room.hostId!==actor.id)return send({error:{message:"Somente o host pode alterar uma sala aberta."}},403);
       if(settings.expectedVersion!==saved.room.version || settings.capacity<saved.room.participants.length)return send({error:{message:"Confira os participantes e tente novamente."}},409);
-      saved.room={...saved.room,version:saved.room.version+1,capacity:settings.capacity,options:settings.options,entryAmount:settings.entryAmount,confirmedUserIds:settings.entryAmount===saved.room.entryAmount?saved.room.confirmedUserIds:settings.entryAmount>0?[saved.room.hostId]:[]};
+      saved.room={...saved.room,version:saved.room.version+1,capacity:settings.capacity,options:settings.options,entryAmount:settings.entryAmount,confirmedUserIds:settings.entryAmount===saved.room.entryAmount?saved.room.confirmedUserIds:settings.entryAmount>0?(settings.entryAmount<saved.room.entryAmount?saved.room.participants.map(p=>p.userId):[saved.room.hostId]):[]};
       receipts.set(key,saved.room);notify();return send(saved.room);
     }
     if(path.endsWith("/join")){
       if(directory(actor.id).active)return send({error:{message:"Há uma partida em andamento."}},409);
       if(saved.room.status!=="lobby" || saved.room.participants.length>=saved.room.capacity)return send({error:{message:"Sala indisponível."}},409);
-      if(!saved.room.participants.some(p=>p.userId===actor.id))saved.room={...saved.room,version:saved.room.version+1,participants:[...saved.room.participants,person(saved.room.participants.length)]};
+      if(!saved.room.participants.some(p=>p.userId===actor.id))saved.room={...saved.room,version:saved.room.version+1,confirmedUserIds:saved.room.entryAmount>0?[...saved.room.confirmedUserIds,actor.id]:saved.room.confirmedUserIds,participants:[...saved.room.participants,person(saved.room.participants.length)]};
       invitations.delete(`${code}:${actor.id}`);
       receipts.set(key,saved.room);notify();return send(saved.room);
     }

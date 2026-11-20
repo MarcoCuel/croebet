@@ -310,7 +310,7 @@ test("abandono do host transfere controle ao bot e host para a outra conta",asyn
   try{
     await page.getByRole("button",{name:"Abandonar partida",exact:true}).click();
     await expect(page.getByRole("dialog")).toContainText("Um bot assumirá suas cartas e seus pontos");
-    await page.getByRole("dialog").getByRole("button",{name:"Abandonar partida",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"Abandonar sozinho",exact:true}).click();
     await expect(page).toHaveURL(/\/jogos\/flip7$/);
     await expect(peer.page.getByText("Bot",{exact:true})).toBeVisible();
     await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible({timeout:15000});
@@ -467,7 +467,7 @@ test("visitante vê vagas e acompanha uma partida sem controles",async({page,bro
 });
 
 
-test("host confirma automaticamente e demais participantes reconfirmam alterações da entrada",async({page,browser})=>{
+test("entrada e reduções aceitam automaticamente, aumentos exigem confirmação",async({page,browser})=>{
   await page.goto("/jogos/flip7");
   await page.getByRole("switch",{name:"Jogar apostando"}).check();
   await expect(page.getByLabel("Entrada por jogador",{exact:true})).toHaveValue("5");
@@ -479,11 +479,8 @@ test("host confirma automaticamente e demais participantes reconfirmam alteraç�
   const peer=await second(browser);
   try{
     await peer.page.goto(page.url());
-    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toBeVisible();
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toHaveCount(0);
     await expect(prize).toContainText("10 Croins");
-    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
-    await expect(page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toHaveCount(0);
-    await peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"}).click();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
     await page.getByLabel("Entrada por jogador",{exact:true}).fill("10");
     await page.getByLabel("Entrada por jogador",{exact:true}).blur();
@@ -491,6 +488,20 @@ test("host confirma automaticamente e demais participantes reconfirmam alteraç�
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toBeVisible();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
 
+    await page.getByLabel("Entrada por jogador",{exact:true}).fill("5");
+    await page.getByLabel("Entrada por jogador",{exact:true}).blur();
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toHaveCount(0);
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toHaveCount(0);
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
+    await page.getByRole("switch",{name:"Jogar apostando"}).uncheck();
+    await expect(peer.page.getByRole("button",{name:/Confirmar entrada de/})).toHaveCount(0);
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
+    await page.getByRole("switch",{name:"Jogar apostando"}).check();
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toBeVisible();
+    await page.getByLabel("Entrada por jogador",{exact:true}).fill("10");
+    await page.getByLabel("Entrada por jogador",{exact:true}).blur();
+    await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
     await peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
@@ -610,7 +621,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
     await expect(exit).toBeEnabled();
     await exit.click();
-    await expect(page.getByRole("dialog", { name: "Abandonar partida?" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Sair da partida?" })).toBeVisible();
     await page.getByRole("button", { name: "Continuar jogando", exact: true }).click();
   } finally { await peer.context.close(); }
 });

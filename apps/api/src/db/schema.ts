@@ -261,3 +261,10 @@ export const achievementUnlocks = pgTable("achievement_unlocks", {
   levelId: uuid("level_id").notNull().references(() => achievementLevels.id),
   unlockedAt: timestamp("unlocked_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("achievement_unlock_once").on(table.userId, table.levelId), index("achievement_unlock_level_idx").on(table.levelId)]);
+
+// Independent cancellation audit survives deletion of operational rooms/accounts.
+export const gameMatchCancellations=pgTable("game_match_cancellations",{
+ id:uuid("id").primaryKey().defaultRandom(),matchId:uuid("match_id").notNull(),code:text("code").notNull(),
+ proposedBy:uuid("proposed_by").notNull(),eligibleUserIds:jsonb("eligible_user_ids").notNull(),acceptedUserIds:jsonb("accepted_user_ids").notNull(),
+ status:text("status").notNull().default("pending"),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),resolvedAt:timestamp("resolved_at",{withTimezone:true}),
+},t=>[uniqueIndex("one_pending_match_cancellation").on(t.matchId).where(sql`${t.status}='pending'`),index("match_cancellation_history").on(t.matchId,t.createdAt),check("match_cancellation_status",sql`${t.status} in ('pending','accepted','rejected','closed')`)]);

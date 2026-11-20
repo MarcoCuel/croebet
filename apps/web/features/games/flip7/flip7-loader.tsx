@@ -11,4 +11,4 @@ const Flip7Game = dynamic(() => import("./flip7-game"), {
   loading: () => <Skeleton className="min-h-96 w-full" aria-label="Carregando Flip7" />,
 });
 
-export function Flip7Loader({ initial, game, testControls }: { initial: InitialMatches; game: GameRecord | null; testControls?:ReactNode }) { return <Flip7Game game={game} initial={initial} testControls={testControls} />; }
+export function Flip7Loader({ initial, game, testControls, exitControl }: { initial: InitialMatches; game: GameRecord | null; testControls?:ReactNode;exitControl?:ReactNode }) { return <Flip7Game game={game} initial={initial} testControls={testControls} exitControl={exitControl} />; }

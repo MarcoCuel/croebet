@@ -1,11 +1,11 @@
 import { createLove, parseLove, projectLove, applyLove, automateLove, botLove } from "../games/love-letter/engine.ts";
-import { createMatchSchema, loveOptionsSchema, loveActionSchema, loveMatchSchema, gameRoomSyncSchema } from "@croebet/shared";
+import { cancellationProposalSchema, createMatchSchema, loveOptionsSchema, loveActionSchema, loveMatchSchema, gameRoomSyncSchema } from "@croebet/shared";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { lobbyPlayersSchema, lobbyInvitationsSchema, lobbySchema, lobbyListSchema, lobbyActionResultSchema, roomSchema, updateLobbySchema, roomSyncSchema, matchSchema, matchResultSchema, matchListSchema, flip7OptionsSchema, type CreateMatch, type MatchCommand, type MatchFrame, type MatchParticipant, type Room, type UpdateLobby, type KickMatch } from "@croebet/shared";
 import { flip7Driver as driver } from "../games/flip7/driver.ts";
 import { avatarUrl } from "../avatars/storage.ts";
-import { fundMatch, settleMatch, readMatchEconomy, MatchEconomyError } from "./economy.ts";
+import { refundCollectiveMatch, fundMatch, settleMatch, readMatchEconomy, MatchEconomyError } from "./economy.ts";
 import { WalletError } from "../wallet/service.ts";
 import { execute } from "./execution.ts";
 
@@ -44,7 +44,7 @@ async function roomView(client: Client, row: Row, members: MatchParticipant[]): 
     const timing = await client.query<{ seconds: string | null }>("select floor(greatest(0,extract(epoch from (ended_at-started_at))))::text as seconds from game_match_archives where id=$1 and ended_at is not null", [row.id]);
     room.durationSeconds = timing.rows[0]?.seconds == null ? null : Number(timing.rows[0].seconds);
   }
-  if(room.status!=="lobby")return room;
+  if(room.status!=="lobby")return {...room,cancellation:row.status==="playing"?await readCancellation(client,row.id):null};
   room.confirmedUserIds=Number(row.entry_amount)>0?(await client.query<{user_id:string}>("select user_id from game_match_players where match_id=$1 and (confirmed_entry_amount=$2 or user_id=$3) order by seat",[row.id,row.entry_amount,row.owner_id])).rows.map(p=>p.user_id):[];
   room.pendingInvitations=await reservations(client,row.id);
   room.onlineUserIds=(await client.query<{user_id:string}>("select distinct user_id from match_presence where match_id=$1 and expires_at>clock_timestamp() order by user_id",[row.id])).rows.map(p=>p.user_id);
@@ -138,7 +138,10 @@ export async function getRoomSync(pool: Pool, actor: string | null, code: string
     if(!row || (row.status==="abandoned" && row.state===null)) throw new MatchError("NOT_FOUND",404,"Sala encerrada ou não encontrada.");
     await authorizeTest(client,row,actor);
     const people=(await participants(client,[row.id])).get(row.id) ?? [];
-    if(row.game_slug==="love-letter" && row.status!=="lobby")return gameRoomSyncSchema.parse({room:loveMatchSchema.parse({development:true,bots:row.bots,onlyBots:row.only_bots,id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:row.options,participants:people,status:row.status,state:projectLove(parseLove(row.state),people.find(p=>p.userId===actor)?.seat ?? null)}),frames:[],reset:true});
+    if(row.game_slug==="love-letter" && row.status!=="lobby"){
+      const state=parseLove(row.state),seat=people.find(p=>p.userId===actor)?.seat;
+      return gameRoomSyncSchema.parse({room:loveMatchSchema.parse({development:true,bots:row.bots,onlyBots:row.only_bots,id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:row.options,participants:people,status:row.status,state:projectLove(state,seat!==undefined && state.players[seat].kind==="human"?seat:null),cancellation:row.status==="playing"?await readCancellation(client,row.id):null}),frames:[],reset:true});
+    }
     const room=await roomView(client,row,people);
     if(room.status==="lobby" || afterVersion===0 || afterVersion>row.version) return roomSyncSchema.parse({ room,frames:[],reset:true });
     const events=await client.query<{ event: unknown }>("select event from game_match_events where match_id=$1 and version>$2 and version<=$3 order by version limit 1001",[row.id,afterVersion,row.version]);
@@ -252,7 +255,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
         await requireAvailable(client,[actor],row.development);
         if(people.length+(row.bots ?? 0)+(await reservations(client,row.id)).filter(p=>p.userId!==actor).length>=row.capacity) throw new MatchError("LOBBY_FULL",409,"Esta sala está lotada.");
         const seat=Array.from({length:row.capacity},(_,i)=>i).find(index=>!people.some(person=>person.seat===index))!;
-        await client.query("insert into game_match_players(match_id,seat,user_id,controller_id,name,kind) select $1,$2,id,id,username,'user' from users where id=$3",[row.id,seat,actor]);
+        await client.query("insert into game_match_players(match_id,seat,user_id,controller_id,name,kind,confirmed_entry_amount) select $1,$2,id,id,username,'user',nullif($4::bigint,0) from users where id=$3",[row.id,seat,actor,row.entry_amount]);
         row.version++;
       }
       await client.query("delete from game_match_invitations where match_id=$1 and recipient_id=$2",[row.id,actor]);
@@ -272,7 +275,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       const settings=updateLobbySchema.parse(input);
       if(row.version!==settings.expectedVersion) throw new MatchError("VERSION_CONFLICT",409,"A sala mudou. Confira os participantes e tente novamente.");
       if(settings.capacity<people.length+(await reservations(client,row.id)).length) throw new MatchError("CAPACITY_TOO_SMALL",409,"O limite não pode ser menor que a quantidade de participantes.");
-      if(Number(row.entry_amount)!==settings.entryAmount)await client.query("update game_match_players set confirmed_entry_amount=null where match_id=$1",[row.id]);
+      if(Number(row.entry_amount)!==settings.entryAmount)await client.query("update game_match_players set confirmed_entry_amount=$2 where match_id=$1",[row.id,settings.entryAmount>0 && settings.entryAmount<Number(row.entry_amount)?settings.entryAmount:null]);
       if(row.development && settings.entryAmount)throw new MatchError("TEST_ECONOMY",400,"Partidas de teste não movimentam Croins.");
       if(row.game_slug==="love-letter"){loveOptionsSchema.parse(settings.options);if(settings.capacity>(settings.options.mode==="classic"?4:6))throw new MatchError("INVALID_INPUT",400,"Quantidade inválida para este modo.");}
       if(settings.capacity<people.length+row.bots+(await reservations(client,row.id)).length)throw new MatchError("CAPACITY_TOO_SMALL",409,"Não há vagas suficientes.");
@@ -332,7 +335,6 @@ export async function commandMatch(pool: Pool, actor: string, sessionHash: strin
     const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
     if(receipt.rows[0]) { if(receipt.rows[0].payload_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado."); return matchResultSchema.parse(receipt.rows[0].response); }
     if(row.version!==input.expectedVersion || row.status!=="playing") throw new MatchError("VERSION_CONFLICT",409,"A partida mudou. Sincronize para continuar.");
-    if(row.development && abandon && row.owner_id===actor)throw new MatchError("TEST_HOST",409,"Use Encerrar teste para sair como administrador.");
     if(row.game_slug!=="flip7")throw new MatchError("INVALID_INPUT",400,"Use os comandos deste jogo.");
     const state=driver.parse(row.state);
     if(state.players[member.seat].kind!=="human")throw new MatchError("PARTICIPATION_ENDED",403,"Um bot já controla sua vaga.");
@@ -471,9 +473,65 @@ export async function endTest(pool:Pool,actor:string,sessionHash:string,code:str
  await requireAdmin(client,actor);
  const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]);const row=found.rows[0];
  if(!row || !row.development || row.owner_id!==actor)throw new MatchError("NOT_FOUND",404,"Teste não encontrado.");
+ if(row.status==="playing" && !row.only_bots)throw new MatchError("COLLECTIVE_REQUIRED",409,"Uma partida com jogadores exige abandono individual ou aprovação coletiva.");
  if(row.status==="abandoned")return {ok:true as const};
  if(row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou.");
  await client.query("update game_matches set status='abandoned',version=version+1,updated_at=clock_timestamp() where id=$1",[row.id]);
+ return {ok:true as const};
+ },true);
+}
+
+async function readCancellation(client:Client,matchId:string){
+ const row=(await client.query("select * from game_match_cancellations where match_id=$1 and status='pending'",[matchId])).rows[0];
+ return row?cancellationProposalSchema.parse({id:row.id,proposedBy:row.proposed_by,eligibleUserIds:row.eligible_user_ids,acceptedUserIds:row.accepted_user_ids,createdAt:row.created_at.toISOString()}):null;
+}
+export async function collectiveCancellation(pool:Pool,actor:string,sessionHash:string,code:string,input:{commandId:string;expectedVersion:number;proposalId?:string;accept?:boolean}){
+ return transaction(pool,actor,sessionHash,async client=>{
+ const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]),row=found.rows[0];
+ if(!row)throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
+ const digest=hash({kind:"collective-cancellation",input});
+ const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
+ if(receipt.rows[0]){if(receipt.rows[0].payload_hash!==digest)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado.");return {ok:true as const};}
+ if(row.status!=="playing" || row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou. Tente novamente.");
+ const controlled=await client.query<{controller_id:string}>("select controller_id from game_match_players where match_id=$1 and controller_id is not null order by seat",[row.id]);
+ const eligible=controlled.rows.map(p=>p.controller_id);
+ if(!eligible.includes(actor))throw new MatchError("NOT_A_PARTICIPANT",403,"Somente jogadores na partida podem propor ou votar.");
+ let proposal=await readCancellation(client,row.id);
+ if(!input.proposalId){
+  if(proposal)throw new MatchError("PROPOSAL_EXISTS",409,"Já existe uma proposta em votação.");
+  const id=randomUUID();
+  await client.query("insert into game_match_cancellations(id,match_id,code,proposed_by,eligible_user_ids,accepted_user_ids) values($1,$2,$3,$4,$5,$6)",[id,row.id,row.code,actor,JSON.stringify(eligible),JSON.stringify([actor])]);
+  proposal={id,proposedBy:actor,eligibleUserIds:eligible,acceptedUserIds:[actor],createdAt:new Date().toISOString()};
+ }else{
+  if(!proposal || proposal.id!==input.proposalId)throw new MatchError("PROPOSAL_CLOSED",409,"Esta proposta não está mais em votação.");
+  if(!proposal.eligibleUserIds.includes(actor))throw new MatchError("NOT_ELIGIBLE",403,"Você não participa desta votação.");
+  if(input.accept===false){await client.query("update game_match_cancellations set status='rejected',resolved_at=clock_timestamp() where id=$1",[proposal.id]);proposal=null;}
+  else if(!proposal.acceptedUserIds.includes(actor)){proposal.acceptedUserIds.push(actor);await client.query("update game_match_cancellations set accepted_user_ids=$2 where id=$1",[proposal.id,JSON.stringify(proposal.acceptedUserIds)]);}
+ }
+ const approved=proposal?.eligibleUserIds.every(id=>proposal?.acceptedUserIds.includes(id)) ?? false;
+ if(approved && proposal){
+  if(!row.development)await refundCollectiveMatch(client,row.id,row.code);
+  await client.query("update game_match_cancellations set status='accepted',resolved_at=clock_timestamp() where id=$1",[proposal.id]);
+ }
+ await client.query("update game_matches set status=$2,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,approved?"abandoned":"playing"]);
+ await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,digest,JSON.stringify({ok:true})]);
+ return {ok:true as const};
+ },true);
+}
+export async function abandonLove(pool:Pool,actor:string,sessionHash:string,code:string,input:{commandId:string;expectedVersion:number}){
+ return transaction(pool,actor,sessionHash,async client=>{
+ const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]),row=found.rows[0];
+ if(!row || row.game_slug!=="love-letter" || !row.development)throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
+ const digest=hash({kind:"abandon-love",input});const previous=await client.query("select payload_hash from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
+ if(previous.rows[0]){if(previous.rows[0].payload_hash!==digest)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado.");return {ok:true as const};}
+ if(row.status!=="playing" || row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou.");
+ const person=(await client.query<{seat:number}>("select seat from game_match_players where match_id=$1 and controller_id=$2",[row.id,actor])).rows[0];
+ if(!person)throw new MatchError("NOT_A_PARTICIPANT",403,"Você não controla uma vaga nesta partida.");
+ const state=parseLove(row.state);state.players[person.seat].kind="normal";
+ await client.query("update game_match_players set controller_id=null,kind='bot' where match_id=$1 and seat=$2",[row.id,person.seat]);
+ const stillHuman=state.players.some(p=>p.kind==="human"),next=stillHuman?automateLove(state):state;
+ await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(next),stillHuman?(next.phase==="over"?"finished":"playing"):"abandoned"]);
+ await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,digest,JSON.stringify({ok:true})]);
  return {ok:true as const};
  },true);
 }

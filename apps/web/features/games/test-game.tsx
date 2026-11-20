@@ -1,4 +1,5 @@
 "use client";
+import {CancellationNotice,MatchExitControl} from "./match-cancellation";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { realtimeReplySchema, gameRoomSchema, gameRoomSyncSchema, commandResultSchema, type GameRecord, type LoveAction, type LoveView, type Match } from "@croebet/shared";
@@ -11,7 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { LobbyScreen } from "./flip7/lobby";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, StepForward, X } from "lucide-react";
+import { Pause, Play, StepForward } from "lucide-react";
 import { Flip7Loader } from "./flip7/flip7-loader";
 import { gameSocket, retainGameSocket } from "./realtime";
 
@@ -36,19 +37,20 @@ export function TestGame({game}:{game:GameRecord}){
  },[code,userId,flip,room]);
  async function run(action:()=>Promise<void>){if(busy)return;setBusy(true);setError("");try{await action();}catch(e){setRunning(false);setError(e instanceof Error?e.message:"Não foi possível concluir.");}finally{setBusy(false);}}
  async function refresh(nextCode=code){setRoom(gameRoomSchema.parse(await managementRequest(`/matches/${nextCode}`,gameRoomSchema)));}
- async function end(){await run(async()=>{await managementRequest(`/matches/${code}/end-test`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room!.version});setRunning(false);setRoom(null);setCode("");window.history.replaceState(null,"",`/jogos/${game.slug}?teste=1`);});}
  async function step(){await run(async()=>{await managementRequest(`/matches/${code}/test-step`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room!.version});await refresh();});}
  useEffect(()=>{if(!running || busy || room?.status!=="playing" || !room.onlyBots)return;const timer=window.setTimeout(()=>void step(),1000);return()=>window.clearTimeout(timer);});
  async function play(action:LoveAction){await run(async()=>{await managementRequest(`/matches/${code}/love-command`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room!.version,action});await refresh();});}
  const state=room && room.status!=="lobby" && "legalActions" in room.state?room.state:null;
+ const observerExit=room && room.status!=="lobby" && room.status==="playing" && room.onlyBots && admin && room.hostId===userId?<MatchExitControl match={room} onOpen={()=>setRunning(false)} onEndTest={async()=>{await managementRequest(`/matches/${code}/end-test`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room.version});setRoom(null);setCode("");window.history.replaceState(null,"",`/jogos/${game.slug}?teste=1`);}}/>:undefined;
  const testControls=admin && room?.hostId===userId && room.status!=="lobby"?<div role="group" aria-label="Controles de desenvolvimento" className="flex items-center gap-1">
  {room.onlyBots && room.status==="playing" && <><Button size="icon" variant="ghost" disabled={busy} aria-label={running?"Pausar teste":"Reproduzir teste"} title={running?"Pausar teste":"Reproduzir teste"} aria-pressed={running} onClick={()=>setRunning(!running)}>{running?<Pause className="size-4"/>:<Play className="size-4"/>}</Button><Button size="icon" variant="ghost" disabled={busy || running} aria-label="Avançar jogada" title="Avançar jogada" onClick={()=>void step()}><StepForward className="size-4"/></Button></>}
- <Button size="icon" variant="ghost" disabled={busy} aria-label="Encerrar teste" title="Encerrar teste" onClick={()=>void end()}><X className="size-4"/></Button></div>:null;
+</div>:null;
  return <div className="space-y-4">
- {flip?<Flip7Loader testControls={testControls} game={game} initial={{revision:code,match:flip,lobby:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}}/>: <>
+ {flip?<Flip7Loader exitControl={observerExit} testControls={testControls} game={game} initial={{revision:code,match:flip,lobby:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}}/>: <>
  {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} rules={()=>null} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={next=>{setRoom(next);setCode(next.code);}} onTestStarted={next=>{setCode(next);void refresh(next);}}/>}
  {room?.status==="abandoned" && <p role="status">Teste encerrado.</p>}
- {state && <div className="flex flex-wrap items-center gap-3"><Badge variant="secondary">{state.mode==="classic"?"Clássico":"Moderno"}</Badge><Badge>Desenvolvimento</Badge><div className="ml-auto">{testControls}</div></div>}
+ {state && <div className="flex flex-wrap items-center gap-3"><Badge variant="secondary">{state.mode==="classic"?"Clássico":"Moderno"}</Badge><Badge>Desenvolvimento</Badge><div className="ml-auto flex items-center gap-1">{testControls}{observerExit}{!observerExit && room && room.status==="playing" && room.participants.some(p=>p.userId===userId && state.players[p.seat]?.kind==="human") && <MatchExitControl match={room} onIndividual={async()=>{await managementRequest(`/matches/${code}/love-abandon`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:room.version});await refresh();}}/>}</div></div>}
+ {state && room && <CancellationNotice match={room}/>}
  {state && <LoveTable state={room?.status==="playing"?state:{...state,legalActions:[]}} busy={busy} play={play}/>}
  </>}{error && <p role="alert" className="text-sm text-danger">{error}</p>}</div>;
 }

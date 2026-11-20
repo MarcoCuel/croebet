@@ -1,4 +1,5 @@
 "use client";
+import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
 import { GameControls } from "../game-controls";
@@ -143,7 +144,7 @@ function GameLog({ game, participants }: { game: Game; participants: MatchPartic
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
-export default function Flip7Game({ initial, game, testControls }: { initial: InitialMatches; game: GameRecord | null; testControls?:ReactNode }) {
+export default function Flip7Game({ initial, game, testControls, exitControl }: { initial: InitialMatches; game: GameRecord | null; testControls?:ReactNode;exitControl?:ReactNode }) {
   const router = useRouter();
   const [requestedReplay, setRequestedReplay] = useState<ReturnType<typeof matchReplaySchema.parse> | null>(null);
   const [preparingReplay, setPreparingReplay] = useState(false);
@@ -162,7 +163,7 @@ export default function Flip7Game({ initial, game, testControls }: { initial: In
   if (initial.replay) return <Flip7Playback key={initial.revision} initial={initial} />;
   if (!game) return null;
   if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} rules={options=><Rules options={options}/>}/>;
-  return <Flip7Table key={initial.revision} initial={initial} testControls={testControls} onRequestReplay={openReplay} replayPending={preparingReplay} />;
+  return <Flip7Table key={initial.revision} initial={initial} testControls={testControls} exitControl={exitControl} onRequestReplay={openReplay} replayPending={preparingReplay} />;
 }
 
 function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatches; startPlaying?: boolean }) {
@@ -171,7 +172,7 @@ function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatc
   return <Flip7Table initial={initial} replay={{ epoch: playback.epoch, index: playback.index, frame: playback.frame, paused: playback.animationPaused, delay: playback.delay, onPresented: playback.onPresented, state: playback.state, active: playback.active, finished: initial.replay!.match.status === "finished", metadata: playback.metadata, restart: playback.restart, loading: playback.loading, controls: <Flip7ReplayControls playback={playback} /> }} />;
 }
 
-function Flip7Table({ initial, replay, testControls, onRequestReplay, replayPending = false }: { testControls?:ReactNode; initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
+function Flip7Table({ initial, replay, testControls, exitControl, onRequestReplay, replayPending = false }: { exitControl?:ReactNode;testControls?:ReactNode; initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
   const router = useRouter();
   const audio = useGameAudio();
   const { play: playSound, stop: stopSounds } = audio;
@@ -528,7 +529,7 @@ function Flip7Table({ initial, replay, testControls, onRequestReplay, replayPend
     incoming.current=null;
     if(sync.room.version<=receivedVersion.current)return;
     if(sync.room.status==="lobby")return;
-    if(sync.room.status==="abandoned"){toast.info("A partida foi encerrada.");router.push("/jogos/flip7");router.refresh();return;}
+    if(sync.room.status==="abandoned"){void refreshWallet();toast.info("A partida foi encerrada.");router.push("/jogos/flip7");router.refresh();return;}
     // Fill a gap from persisted events. Large gaps reload a confirmed snapshot.
     const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
@@ -544,7 +545,7 @@ function Flip7Table({ initial, replay, testControls, onRequestReplay, replayPend
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
     setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
-  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds]);
+  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet]);
 
   const notifiedTurn = useRef<string | null>(null);
   const turnSeat = game ? game.bonusChoice ?? game.pending?.source ?? game.turn : -1;
@@ -646,10 +647,12 @@ function Flip7Table({ initial, replay, testControls, onRequestReplay, replayPend
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push("/jogos/flip7")}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}
             <GameControls audio={audio} developmentControls={testControls}>
-            {spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(`/jogos/flip7${initial.match?.development && permissions.canManageSite?"?teste=1":""}`)}><LogOut className="size-4" aria-hidden="true"/></Button>}
-            {!replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
+            {exitControl}
+            {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(`/jogos/flip7${initial.match?.development && permissions.canManageSite?"?teste=1":""}`)}><LogOut className="size-4" aria-hidden="true"/></Button>}
+            {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
             </GameControls>
           </div>
+          {!replay && matchInfo && <CancellationNotice match={matchInfo}/>}
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
               <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deckCount} cartas no baralho`}>
@@ -757,15 +760,16 @@ function Flip7Table({ initial, replay, testControls, onRequestReplay, replayPend
       </Dialog>
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
-          <DialogTitle>Abandonar partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">Um bot assumirá suas cartas e seus pontos. A partida continuará para os demais e você não poderá voltar a controlar esta vaga.{!!matchInfo?.entryAmount && " Sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
+          <DialogTitle>Sair da partida?</DialogTitle>
+          <DialogDescription className="mt-3 text-sm text-muted">Abandonar sozinho entrega sua vaga a um bot e a partida continua para os demais. O abandono coletivo exige a aprovação de todos que continuam, encerra a partida sem resultado e devolve todas as entradas, inclusive de quem já saiu.{!!matchInfo?.entryAmount && " Sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
+            <Button variant="secondary" disabled={leaving || !!matchInfo?.cancellation} onClick={async()=>{const match=serverMatch.current;if(!match)return;setLeaving(true);try{await proposeCancellation(match);setExitOpen(false);}catch(e){toast.error(e instanceof Error?e.message:"Não foi possível propor o abandono coletivo.");}finally{setLeaving(false);}}}>Propor abandono coletivo</Button>
             <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {
               if (exitOpen && await leave()) {
                 setExitOpen(false);
               }
-            }}>Abandonar partida</Button>
+            }}>Abandonar sozinho</Button>
           </div>
         </DialogContent>
       </Dialog>

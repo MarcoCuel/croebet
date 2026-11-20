@@ -211,6 +211,13 @@
       "when": 1795210666828,
       "tag": "0029_development_matches",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795213833878,
+      "tag": "0030_simple_frog_thor",
+      "breakpoints": true
     }
   ]
 }

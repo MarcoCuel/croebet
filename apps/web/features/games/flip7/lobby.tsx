@@ -1,4 +1,5 @@
 "use client";
+import { MatchExitControl } from "../match-cancellation";
 import { managementRequest } from "@/features/admin/management-api";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -184,7 +185,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   async function cancelTest(code:string){
     if(busy)return;setBusy(true);setError("");
     try{const current=await managementRequest(`/matches/${code}`,{parse:(v:unknown)=>v as {version:number}});await managementRequest(`/matches/${code}/end-test`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:current.version});if(room?.code===code){setRoom(null);visit(null);}}
-    catch(e){setError(e instanceof Error?e.message:"Não foi possível cancelar a partida.");}finally{setBusy(false);}
+    catch(e){setError(e instanceof Error?e.message:"Não foi possível cancelar a partida.");throw e;}finally{setBusy(false);}
   }
   async function create(invite=false){
     if(busy || (!development && (directory.owned || directory.active)))return;
@@ -282,7 +283,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
                 <span title={person ? playerName(person) : undefined} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person ? playerName(person) : "Disponível"}</span>
               </li>;
             })}</ul>
-            {(active || canCancel || (reserved && !joined)) && <div className="flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <Button size="sm" variant="ghost" disabled={busy} onClick={()=>void cancelTest(lobby.code)}>Cancelar</Button>}
+            {(active || canCancel || (reserved && !joined)) && <div className="flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/${isLove?"love-abandon":"abandon"}`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={!active || lobby.onlyBots?()=>cancelTest(lobby.code):undefined}/>}
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}>Aceitar convite</Button>}</div>}
           </Card></li>;
         })}</ul>}
