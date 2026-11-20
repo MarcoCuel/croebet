@@ -9,19 +9,23 @@ const matchId = "93089d02-0b34-4b78-9d3e-f2679c190b5a";
 const replayState = flip7Driver.project(flip7Driver.create({ setup: [{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}], options:{mode:"classic",brutal:false} },"Ana"));
 const replayFrames = Array.from({length:105},(_,index)=>({ version:index+1, action:{type:"step" as const}, state:{...replayState, round:index+1, log:[{message:`Jogada registrada ${index+1}.`}]}}));
 const historyMatch = { id:matchId, gameId:id, code:"ABCDEF123456",rulesVersion:1,status:"finished",options:{mode:"classic",brutal:false},startedAt:"2026-11-20T01:00:00Z",endedAt:"2026-11-20T02:00:00Z",players:[{seat:0,userId:id,name:"Ana",score:210,winner:true,bot:false},{seat:1,userId:null,name:"Beto",score:180,winner:false,bot:false}],frameCount:105 };
+const historyFinalState = { ...replayState, phase: "over" as const, round: 7, players: replayState.players.map((player, seat) => ({ ...player, total: historyMatch.players[seat].score })) };
+replayFrames[104].state = { ...historyFinalState, log: [{ message: "Jogada registrada 105." }] };
 let game: GameRecord;
 let upcoming: GameRecord | null = null;
 let failure = false;
+let sessionRole: "admin" | "user" = "admin";
 let api: Server;
 function respond(path: string, method: string, body: Record<string, unknown> = {}): { status: number; data: unknown } {
   const url=new URL(path,"http://fixture");
   path=url.pathname;
   if(path===`/api/v1/admin/games/${id}/matches`) return {status:200,data:{items:url.searchParams.get("q")==="ninguém"?[]:[historyMatch],hasMore:false}};
-  if(path===`/api/v1/admin/games/${id}/matches/${matchId}`) {
+  if(path==="/api/v1/me/history")return {status:200,data:{items:[{id:`game:${matchId}`,matchId,matchCode:historyMatch.code,gameSlug:"flip7",kind:"game",description:"Flip 7 · Partida concluída",createdAt:historyMatch.endedAt,amount:null}],hasMore:false}};
+  if(path===`/api/v1/me/matches/${historyMatch.code}` || path===`/api/v1/admin/games/${id}/matches/${matchId}`) {
     const offset=Number(url.searchParams.get("offset")??0),limit=Number(url.searchParams.get("limit")??100);
-    return {status:200,data:{match:historyMatch,frames:replayFrames.slice(offset,offset+limit),offset,hasMore:offset+limit<105}};
+    return {status:200,data:{match:historyMatch,finalState:historyFinalState,frames:replayFrames.slice(offset,offset+limit),offset,hasMore:offset+limit<105}};
   }
-  if (path === "/api/v1/me") return { status: 200, data: { user: { id, username: "Admin", displayName: "Admin", role: "admin" } } };
+  if (path === "/api/v1/me") return { status: 200, data: { user: { id, username: "Admin", displayName: "Admin", role: sessionRole } } };
   if (path === "/api/v1/economy") return { status: 200, data: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1, 5, 10, 50], defaultBet: 5 } };
   if (path === "/api/v1/rewards/daily") return { status: 200, data: { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() } };
   if (path === "/api/v1/auth/csrf") return { status: 200, data: { token: "fixture" } };
@@ -63,7 +67,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null;
+  game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null; sessionRole = "admin";
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
     const req = route.request(); const result = respond(new URL(req.url()).pathname+new URL(req.url()).search, req.method(), req.postDataJSON() ?? {});
@@ -224,4 +228,46 @@ test("editor de jogos salva configurações e SEO pelo aside", async ({ page }) 
   expect(game.enabled).toBe(false);
   expect(game.seo.title).toBe("Título para buscas");
   expect(game.seo.description).toBe("Descrição para buscas.");
+});
+
+test("histórico abre o link original com resultado; Replay usa a mesa e a barra inferior", async ({ page }) => {
+  sessionRole="user";
+  const requests:string[]=[];
+  page.on("request",request=>{if(request.url().includes("/matches/"))requests.push(request.url());});
+  await page.goto("/");
+  await page.locator("header").getByRole("button",{name:"Conta de Admin",exact:true}).click();
+  await page.getByRole("menuitem",{name:"Configurações",exact:true}).click();
+  const settings=page.getByRole("dialog");
+  await settings.getByRole("button",{name:"Histórico",exact:true}).click();
+  const link=settings.getByRole("link",{name:/Flip 7 · Partida concluída/});
+  const url=`/jogos/flip7?partida=${historyMatch.code}`;
+  await expect(link).toHaveAttribute("href",url);
+  await link.click();
+  await expect(page).toHaveURL(url);
+  const result=page.getByRole("dialog",{name:"Resultado da partida",exact:true});
+  await expect(result).toBeVisible();
+  await expect(result.getByText("Ana",{exact:true}).first()).toBeVisible();
+  await expect(page.getByLabel("Controles de reprodução")).toHaveCount(0);
+  await result.getByRole("button",{name:"Replay",exact:true}).click();
+  await expect(result).not.toBeVisible();
+  await expect(page.getByRole("region",{name:"Mesa de Flip7",exact:true})).toBeVisible();
+  const controls=page.locator("[data-flip7-controls]");
+  await expect(controls.getByLabel("Controles de reprodução")).toBeVisible();
+  await controls.getByRole("button",{name:"Pausar",exact:true}).click();
+  await controls.getByRole("button",{name:"Início",exact:true}).click();
+  await expect(page.getByText("Jogada registrada 1.",{exact:true})).toBeVisible();
+  await controls.getByRole("button",{name:"Próxima jogada",exact:true}).click();
+  await expect(page.getByText("Jogada registrada 2.",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Comprar",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Parar",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Abandonar partida",exact:true})).toHaveCount(0);
+  await controls.getByRole("button",{name:"Final",exact:true}).click();
+  await expect(page.getByText("Jogada registrada 105.",{exact:true})).toBeVisible();
+  expect(requests.some(path=>path.includes(`/me/matches/${historyMatch.code}?offset=100`))).toBe(true);
+  expect(requests.some(path=>path.includes("/admin/") || path.includes("/commands"))).toBe(false);
+  await controls.getByRole("button",{name:"Ver resultado",exact:true}).click();
+  await expect(result).toBeVisible();
+  await page.reload();
+  await expect(result).toBeVisible();
+  await expect(page.getByLabel("Controles de reprodução")).toHaveCount(0);
 });

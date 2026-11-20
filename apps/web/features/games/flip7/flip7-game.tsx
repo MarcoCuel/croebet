@@ -1,10 +1,12 @@
 "use client";
+import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
 import { randomUUID } from "@/lib/uuid";
 
-import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import gsap from "gsap";
 import { useRouter } from "next/navigation";
+import { matchReplaySchema } from "@croebet/shared";
 import type { GameRecord, MatchFrame, MatchCommand, RoomSync, MatchParticipant } from "@croebet/shared";
 import type { InitialMatches } from "./server-matches";
 import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
@@ -138,14 +140,35 @@ function GameLog({ game, participants }: { game: Game; participants: MatchPartic
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
-export default function Flip7Game({ initial, game }: { initial: InitialMatches; game: GameRecord }) {
+export default function Flip7Game({ initial, game }: { initial: InitialMatches; game: GameRecord | null }) {
   const router = useRouter();
+  const [requestedReplay, setRequestedReplay] = useState<ReturnType<typeof matchReplaySchema.parse> | null>(null);
+  const [preparingReplay, setPreparingReplay] = useState(false);
+  async function openReplay() {
+    if (!initial.match || preparingReplay) return;
+    setPreparingReplay(true);
+    try {
+      const response = await fetch(`/api/v1/me/matches/${initial.match.code}?limit=100`, { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok) throw new Error("Não foi possível abrir o replay da partida.");
+      setRequestedReplay(matchReplaySchema.parse(await response.json()));
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível abrir o replay da partida."); }
+    finally { setPreparingReplay(false); }
+  }
   if (initial.unavailable) return <Surface className="mx-auto max-w-xl space-y-4"><p role="alert">{initial.error}</p><Button onClick={() => router.refresh()}>Tentar novamente</Button></Surface>;
+  if (requestedReplay && requestedReplay.match.code === initial.match?.code) return <Flip7Playback key={`replay:${initial.revision}`} initial={{ ...initial, replay: requestedReplay }} startPlaying />;
+  if (initial.replay) return <Flip7Playback key={initial.revision} initial={initial} />;
+  if (!game) return null;
   if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} rules={options=><Rules options={options}/>}/>;
-  return <Flip7Table key={initial.revision} initial={initial} />;
+  return <Flip7Table key={initial.revision} initial={initial} onRequestReplay={openReplay} replayPending={preparingReplay} />;
 }
 
-function Flip7Table({ initial }: { initial: InitialMatches }) {
+function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatches; startPlaying?: boolean }) {
+  const playback = useFlip7Replay(initial.replay!, startPlaying);
+  if (!initial.replay?.frames.length) return <Surface><p className="text-sm text-muted">Nenhuma jogada disponível nesta partida.</p></Surface>;
+  return <Flip7Table initial={initial} replay={{ state: playback.state, active: playback.active, finished: initial.replay!.match.status === "finished", metadata: playback.metadata, restart: playback.restart, loading: playback.loading, controls: <Flip7ReplayControls playback={playback} /> }} />;
+}
+
+function Flip7Table({ initial, replay, onRequestReplay, replayPending = false }: { initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
   const router = useRouter();
   const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
   const {userId,refreshWallet}=useSession();
@@ -156,14 +179,14 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const receivedVersion=useRef(initial.match?.version ?? 0);
   const incoming=useRef<RoomSync|null>(null);
   const [liveRevision,setLiveRevision]=useState(0);
-  const connected=useMatchLive(initial.match?.code,matchInfo?.version ?? 0,true,sync=>{
+  const connected=useMatchLive(initial.match?.code,matchInfo?.version ?? 0,!replay,sync=>{
     if(sync.room.version<=receivedVersion.current)return;
     const prior=incoming.current;
     incoming.current=prior && !sync.reset ? {...sync,frames:[...prior.frames,...sync.frames.filter(frame=>frame.version>prior.room.version)],reset:prior.reset} : sync;
     setLiveRevision(n=>n+1);
   },()=>{},message=>{toast.error(message);router.push("/jogos/flip7");router.refresh();});
-  const [creation] = useState(() => createdPresentation(initial.match));
-  useEffect(() => { clearCreatedPresentation(initial.match?.code); }, [initial.match?.code]);
+  const [creation] = useState(() => replay ? null : createdPresentation(initial.match));
+  useEffect(() => { if (!replay) clearCreatedPresentation(initial.match?.code); }, [initial.match?.code, replay]);
   const pendingCommand = useRef<MatchCommand | null>(null);
   const pendingAbandon = useRef<{ commandId: string; expectedVersion: number } | null>(null);
   const [frames, setFrames] = useState<MatchFrame[]>(creation?.frames ?? []);
@@ -172,18 +195,19 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const [exitOpen, setExitOpen] = useState(false);
   const exitTriggerRef = useRef<HTMLElement | null>(null);
   const [resultDismissed, setResultDismissed] = useState(false);
-  const [resultReady, setResultReady] = useState(false);
+  const [resultReady, setResultReady] = useState(!!replay && !replay.active && replay.finished);
   const refreshedEconomy=useRef("");
   useEffect(()=>{
-    if(!userId || !initial.match?.entryAmount || (matchInfo?.status==="finished" && !resultReady))return;
+    if(replay || !userId || !initial.match?.entryAmount || (matchInfo?.status==="finished" && !resultReady))return;
     const key=`${userId}:${matchInfo?.id}:${matchInfo?.settlement}`;
     if(refreshedEconomy.current===key)return;
     refreshedEconomy.current=key;
     void refreshWalletRef.current();
-  },[matchInfo?.settlement,matchInfo?.status,matchInfo?.id,resultReady,userId,initial.match?.entryAmount]);
+  },[matchInfo?.settlement,matchInfo?.status,matchInfo?.id,resultReady,userId,initial.match?.entryAmount,replay]);
   const resultTriggerRef = useRef<HTMLButtonElement>(null);
-  const [game, setGame] = useState<Game | null>(creation?.before ?? initial.match?.state ?? null);
-  const [resolvingCard, setResolvingCard] = useState(() => forcedActionPresentation(creation?.before ?? initial.match?.state ?? null));
+  const [liveGame, setGame] = useState<Game | null>(creation?.before ?? initial.match?.state ?? null);
+  const game = replay?.state ?? liveGame;
+  const [resolvingCard, setResolvingCard] = useState(() => replay ? null : forcedActionPresentation(creation?.before ?? initial.match?.state ?? null));
   const resolvingCardFinished = !!resolvingCard && !game?.forced;
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
@@ -201,10 +225,10 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
   useEffect(() => {
-    if (game?.phase !== "over" || resolvingCard || flight || movingCards) return;
+    if (replay || game?.phase !== "over" || resolvingCard || flight || movingCards) return;
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
     return () => window.clearTimeout(timeout);
-  }, [game?.phase, resolvingCard, flight, movingCards]);
+  }, [game?.phase, resolvingCard, flight, movingCards, replay]);
   const present = useCallback((action: Action, next: Game) => {
     const current = gameRef.current;
     if (!current) return;
@@ -437,10 +461,11 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   const visibleGame = ((flight && !landed) || movingCards) ? presentationBefore ?? game : game;
   const current = game.players[game.turn];
   const actor = game.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
-  const ownSeat=matchInfo?.participants.find(person=>person.userId===userId)?.seat;
-  const spectator = ownSeat == null || game.players[ownSeat]?.kind !== "human";
+  const tableParticipants = replay?.metadata.participants ?? initial.match?.participants ?? [];
+  const ownSeat=tableParticipants.find(person=>person.userId===userId)?.seat;
+  const spectator = !replay && (ownSeat == null || game.players[ownSeat]?.kind !== "human");
   const playerSeats = game.players.map((_, index) => (index + (spectator ? 0 : ownSeat ?? 0)) % game.players.length);
-  const human = connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
+  const human = !replay && connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
   const validTargets = targets(game);
@@ -482,7 +507,8 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
   return (
     <Surface ref={boardRef} className="relative @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
-        <div className="pointer-events-auto flex w-fit max-w-[calc(100vw-8rem)] flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4">
+        <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4", replay?.active ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-8rem)]")}>
+          {replay ? <>{replay.active ? replay.controls : <h2 className="text-sm font-medium">{replay.finished ? status : "Partida encerrada"}</h2>}{!replay.finished && !replay.active && <Button onClick={replay.restart}>Replay</Button>}{game.phase === "over" && !replay.loading && <Button ref={resultTriggerRef} size="sm" variant="secondary" onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}</> : <>
           <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${game.players[flight.target].name} está recebendo uma carta` : movingCards ? "Movendo cartas" : status}</h2>
           {playable && <div className="flex gap-2">
             <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
@@ -495,9 +521,11 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
           {!resolvingCardFinished && !flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
           {!!matchInfo?.entryAmount && <span className="text-sm text-muted">Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</span>}
           {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
+          </>}
+
         </div>
       </div>
-      {!connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
+      {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
       <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
         <Button variant="secondary" size="icon" className="rounded-full border border-contrast/6 shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight || !!movingCards} onClick={() => setHistoryVisible(visible => !visible)}>
@@ -505,11 +533,12 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
         </Button>
       </div>
       <div className={cn("grid items-start transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
-        <div className="min-w-0 pb-32 sm:pb-24">
+        <div className={cn("min-w-0", replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
+            {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push("/jogos/flip7")}>Sair da reprodução</Button></>}
             {spectator && <><Badge variant="outline">Espectador</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={()=>router.push("/jogos/flip7")}>Sair da visualização</Button></>}
-            {!spectator && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
+            {!replay && !spectator && game.phase !== "over" && <Button size="sm" variant="ghost" className="ml-auto" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}>Abandonar</Button>}
           </div>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
@@ -529,7 +558,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
             <div className="flex w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
               {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
-                  <AvatarImage src={initial.match?.participants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
+                  <AvatarImage src={tableParticipants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
                   <AvatarFallback className="text-sm">
                     {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
                   </AvatarFallback>
@@ -539,7 +568,7 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
                     <p className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand")}>{player.name}</p>
                     <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
                     {player.kind!=="human" && <Badge variant="secondary">Bot</Badge>}
-                    {matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/>}
+                    {!replay && matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/>}
                   </div>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
                     <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
@@ -601,14 +630,14 @@ function Flip7Table({ initial }: { initial: InitialMatches }) {
           <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:sticky @[60rem]:top-[calc(var(--header-height)+1rem)] @[60rem]:w-56 @[60rem]:self-start", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
             {/* Reserve a 1rem gap above and below the panel; padding scrolls with its content. */}
             <div className="max-h-[max(0rem,calc(100dvh-var(--header-height)-2rem))] overflow-y-auto rounded-panel bg-surface p-4 text-xs leading-relaxed text-muted" data-lenis-prevent>
-              <GameLog game={visibleGame} participants={initial.match?.participants ?? []} />
+              <GameLog game={visibleGame} participants={tableParticipants} />
             </div>
           </aside>
         </div>
       </div>
       <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
-          <Flip7Result game={game} match={matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} />
+          <Flip7Result game={game} match={replay?.metadata ?? matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />
         </DialogContent>
       </Dialog>
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>

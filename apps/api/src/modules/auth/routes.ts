@@ -18,6 +18,8 @@ import { registerSchema, deleteAccountSchema, changeUsernameSchema, loginSchema,
 import { allowedWebOrigins, type readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
 import { readProfileActivity } from "./profile-activity.ts";
+import { readOwnMatchReplay } from "../admin/match-history.ts";
+import { matchHistoryQuerySchema, matchCodeSchema } from "@croebet/shared";
 import { readAccountHistory } from "./account-history.ts";
 import { accountHistoryQuerySchema, changePasswordSchema } from "@croebet/shared";
 
@@ -185,6 +187,19 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const query = accountHistoryQuerySchema.safeParse(request.query);
     if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
     return readAccountHistory(pool, user.id, query.data.limit, query.data.offset);
+  });
+  app.get<{ Params: { code: string } }>("/api/v1/me/matches/:code", async (request, reply) => {
+    const user = await current(request.cookies[sessionName]);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const id = matchCodeSchema.safeParse(request.params.code);
+    if (!id.success) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Partida não encontrada." } });
+    const query = matchHistoryQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
+    try { return await readOwnMatchReplay(pool, user.id, id.data, query.data.offset, query.data.limit); }
+    catch (error) {
+      if (error instanceof ManagementError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
+      throw error;
+    }
   });
   app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
     const parsed = usernameSchema.safeParse(request.params.username);

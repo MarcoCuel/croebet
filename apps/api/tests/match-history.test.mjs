@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { historyItem, readGameHistory, readMatchReplay } from "../dist/modules/admin/match-history.js";
+import { historyItem, readGameHistory, readMatchReplay, readOwnMatchReplay } from "../dist/modules/admin/match-history.js";
 import { flip7Driver } from "../dist/modules/games/flip7/driver.js";
 import { managementRoutes } from "../dist/modules/admin/routes.js";
 import Fastify from "fastify";
@@ -51,4 +51,25 @@ test("histórico resolve avatares em lote e preserva identidade sem conta ou ima
  assert.equal(result.items[0].players[0].name,"Nome original");
  assert.equal(result.items[0].players[1].avatarUrl,null);
  assert.equal(historyItem(first).players[0].avatarUrl,null);
+});
+
+test("replay pessoal usa o arquivo, inclui projeção pública e pagina frames após autorizar", async () => {
+ const saved=row();const actor=saved.participants[0].userId;
+ const calls=[];
+ const pool={connect:async()=>({query:async(sql,params)=>{
+   calls.push([sql,params]);
+   if(sql.startsWith("select a.*")){
+     assert.ok(sql.includes("p->>'userId'=$1::text"));assert.deepEqual(params,[actor,saved.code]);
+     assert.ok(sql.includes("a.code=$2"));
+     return {rows:[saved]};
+   }
+   if(sql.startsWith("select event")){assert.deepEqual(params,[id,101,100]);return {rows:[]};}
+   return {rows:[]};
+ },release(){}})};
+ const result=await readOwnMatchReplay(pool,actor,saved.code,100,100);
+ assert.equal(result.match.id,id);assert.equal(result.offset,100);
+ assert.deepEqual(result.finalState,saved.state);
+ assert.equal(result.match.players[0].name,"Nome original");
+ assert.equal(JSON.stringify(result).includes('"deck"'),false);
+ assert.equal(calls.at(-1)[0],"commit");
 });

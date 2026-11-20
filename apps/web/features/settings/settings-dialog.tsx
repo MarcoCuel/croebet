@@ -162,7 +162,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             <DeleteAccount onDeleted={onClose} />
           </div>
         )}
-        {section === "Histórico" && userId && <AccountHistoryPanel key={userId} />}
+        {section === "Histórico" && userId && <AccountHistoryPanel key={userId} onNavigate={onClose} />}
       </section>
     </>
   );

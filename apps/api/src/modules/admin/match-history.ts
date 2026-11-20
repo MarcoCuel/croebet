@@ -37,15 +37,23 @@ export async function readGameHistory(pool: Pool, gameId: string, query: z.infer
   const avatars = await readParticipantAvatars(pool, visible);
   return matchHistoryListSchema.parse({ items: visible.map(row => historyItem(row, avatars)), hasMore: rows.rows.length>query.limit });
 }
-export async function readMatchReplay(pool: Pool, gameId: string, matchId: string, offset: number, limit: number) {
+export function readMatchReplay(pool: Pool, gameId: string, matchId: string, offset: number, limit: number) {
+  return readReplay(pool, matchId, offset, limit, { gameId });
+}
+export function readOwnMatchReplay(pool: Pool, participantId: string, code: string, offset: number, limit: number) {
+  return readReplay(pool, code, offset, limit, { participantId });
+}
+async function readReplay(pool: Pool, matchId: string, offset: number, limit: number, scope: { gameId: string } | { participantId: string }) {
   const client = await pool.connect();
   try {
     await client.query("begin isolation level repeatable read read only");
-    const rows = await client.query<ArchiveRow>(`${selection} where a.game_id=$1 and a.id=$2`, [gameId, matchId]);
+    const condition = "gameId" in scope ? "a.game_id=$1" : "a.status in ('finished','abandoned') and exists (select 1 from jsonb_array_elements(a.participants) p where p->>'userId'=$1::text)";
+    const scopeId = "gameId" in scope ? scope.gameId : scope.participantId;
+    const rows = await client.query<ArchiveRow>(`${selection} where ${condition} and ${"gameId" in scope ? "a.id" : "a.code"}=$2`, [scopeId, matchId]);
     if (!rows.rows[0]) throw new ManagementError(404,"NOT_FOUND","Partida não encontrada.");
-    const frames = await client.query<{event: unknown}>("select event from game_match_archive_frames where match_id=$1 order by version limit $2 offset $3", [matchId,limit+1,offset]);
+    const frames = await client.query<{event: unknown}>("select event from game_match_archive_frames where match_id=$1 order by version limit $2 offset $3", [rows.rows[0].id,limit+1,offset]);
     const avatars = await readParticipantAvatars(client, rows.rows);
-    const result = matchReplaySchema.parse({ match: historyItem(rows.rows[0], avatars), frames: frames.rows.slice(0,limit).map(f=>f.event), offset, hasMore: frames.rows.length>limit });
+    const result = matchReplaySchema.parse({ match: historyItem(rows.rows[0], avatars), finalState: flip7ViewSchema.parse(rows.rows[0].state), frames: frames.rows.slice(0,limit).map(f=>f.event), offset, hasMore: frames.rows.length>limit });
     await client.query("commit");
     return result;
   } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }

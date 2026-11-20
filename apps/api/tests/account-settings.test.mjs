@@ -82,7 +82,7 @@ test("histórico exige sessão, limita paginação e retorna somente a projeçã
     if (sql.includes("update sessions")) return { rows: authenticated ? [{ id: "own-user" }] : [] };
     assert.deepEqual(params, ["own-user", 2, 0]);
     return { rows: [
-      { id: "game:one", kind: "game", description: "Flip 7 · Partida concluída", created_at: new Date("2026-11-20T12:00:00Z"), amount: null, state: { deck: [1] } },
+      { id: "game:one", match_id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", match_code: "ABCDEF123456", game_slug: "flip7", kind: "game", description: "Flip 7 · Partida concluída", created_at: new Date("2026-11-20T12:00:00Z"), amount: null, state: { deck: [1] } },
       { id: "transaction:one", kind: "transaction", description: "Bônus diário", created_at: new Date("2026-11-19T12:00:00Z"), amount: "10" },
     ] };
   } };
@@ -94,5 +94,29 @@ test("histórico exige sessão, limita paginação e retorna somente a projeçã
   const response = await app.inject({ url: "/api/v1/me/history?limit=1", cookies });
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["cache-control"], "no-store");
-  assert.deepEqual(response.json(), { items: [{ id: "game:one", kind: "game", description: "Flip 7 · Partida concluída", createdAt: "2026-11-20T12:00:00.000Z", amount: null }], hasMore: true });
+  assert.deepEqual(response.json(), { items: [{ id: "game:one", matchId: "93089d02-0b34-4b78-9d3e-f2679c190b5c", matchCode: "ABCDEF123456", gameSlug: "flip7", kind: "game", description: "Flip 7 · Partida concluída", createdAt: "2026-11-20T12:00:00.000Z", amount: null }], hasMore: true });
+});
+
+test("replay pessoal exige sessão, valida código/paginação e oculta partidas sem participação", async t => {
+  const app=createApp(async()=>{});t.after(()=>app.close());
+  const actor="93089d02-0b34-4b78-9d3e-f2679c190b5b",code="ABCDEF123456";
+  let authenticated=false,archiveReads=0;
+  const pool={query:async(sql)=>({rows:sql.includes("application_environment")?[{environment:"test"}]:sql.includes("update sessions")&&authenticated?[{id:actor,role:"user"}]:[]}),connect:async()=>({
+    query:async(sql,params)=>{
+      if(sql.startsWith("select a.*")){
+        archiveReads++;assert.deepEqual(params,[actor,code]);
+        assert.ok(sql.includes("p->>'userId'=$1::text"));assert.ok(sql.includes("'finished','abandoned'"));
+      }
+      assert.equal(sql.includes("select event from game_match_archive_frames"),false,"Sem autorização, frames não podem ser consultados");
+      return {rows:[]};
+    },release(){}
+  })};
+  await app.register(authRoutes,{pool,config:{APP_ENV:"test"}});
+  assert.equal((await app.inject(`/api/v1/me/matches/${code}`)).statusCode,401);
+  authenticated=true;const cookies={"croebet-session":"a".repeat(43)};
+  assert.equal((await app.inject({url:"/api/v1/me/matches/invalid",cookies})).statusCode,404);
+  assert.equal((await app.inject({url:`/api/v1/me/matches/${code}?limit=101`,cookies})).statusCode,400);
+  const response=await app.inject({url:`/api/v1/me/matches/${code}`,cookies});
+  assert.equal(response.statusCode,404);assert.equal(archiveReads,1);
+  assert.equal(response.headers["cache-control"],"no-store");
 });

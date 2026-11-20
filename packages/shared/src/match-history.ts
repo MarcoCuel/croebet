@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { matchEconomyFields, flip7OptionsSchema, matchFrameSchema, matchCodeSchema } from "./matches.js";
+import { flip7ViewSchema, matchEconomyFields, flip7OptionsSchema, matchFrameSchema, matchCodeSchema } from "./matches.js";
 export const matchHistoryQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -14,5 +14,5 @@ export const matchHistoryItemSchema = z.object({ ...matchEconomyFields,
   frameCount: z.number().int().nonnegative(),
 }).strict();
 export const matchHistoryListSchema = z.object({ items: z.array(matchHistoryItemSchema), hasMore: z.boolean() }).strict();
-export const matchReplaySchema = z.object({ match: matchHistoryItemSchema, frames: z.array(matchFrameSchema), offset: z.number().int().nonnegative(), hasMore: z.boolean() }).strict();
+export const matchReplaySchema = z.object({ match: matchHistoryItemSchema, finalState: flip7ViewSchema.nullable().default(null), frames: z.array(matchFrameSchema), offset: z.number().int().nonnegative(), hasMore: z.boolean() }).strict();
 export type MatchHistoryItem = z.infer<typeof matchHistoryItemSchema>;

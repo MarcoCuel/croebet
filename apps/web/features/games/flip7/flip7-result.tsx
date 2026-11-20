@@ -1,7 +1,7 @@
 "use client";
 
-import type { Match } from "@croebet/shared";
-import { Trophy } from "lucide-react";
+import type { ResultMetadata } from "./flip7-replay";
+import { Trophy, RotateCcw } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DialogClose, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -19,7 +19,7 @@ function resultDuration(seconds: number | null | undefined) {
   return `${remaining} s`;
 }
 
-export function Flip7Result({ game, match, leaving, onPlayAgain }: { game: Game; match: Match | null; leaving: boolean; onPlayAgain: () => void }) {
+export function Flip7Result({ game, match, leaving, onPlayAgain, onReplay, replayLoading = false }: { game: Game; match: ResultMetadata | null; leaving: boolean; onPlayAgain: () => void; onReplay?: () => void; replayLoading?: boolean }) {
   const standings = game.players.map((player, seat) => ({ ...player, seat })).sort((a, b) => b.total - a.total);
   const maxScore = standings[0].total;
   const winners = standings.filter(player => player.total === maxScore);
@@ -52,9 +52,10 @@ export function Flip7Result({ game, match, leaving, onPlayAgain }: { game: Game;
         </li>;
       })}
     </ol>
-    <div className="mt-6 flex flex-wrap justify-end gap-2">
-      <DialogClose asChild><Button variant="secondary">Fechar</Button></DialogClose>
-      <Button disabled={leaving} onClick={onPlayAgain}>Jogar novamente</Button>
+    <div className={cn("mt-6 grid gap-2", onReplay ? "grid-cols-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]")}>
+      <Button disabled={leaving} onClick={onPlayAgain} className={onReplay ? "col-span-2 sm:col-span-1" : undefined}>Jogar novamente</Button>
+      {onReplay && <Button variant="secondary" loading={replayLoading} onClick={onReplay}><RotateCcw className="size-4" aria-hidden="true" />Replay</Button>}
+      <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
     </div>
   </>;
 }

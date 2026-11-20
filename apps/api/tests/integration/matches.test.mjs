@@ -387,7 +387,7 @@ test("PostgreSQL: início exige presença na sala de todos, incluindo convidados
 });
 
 test("PostgreSQL: arquivo transacional, replay completo, idempotência e preservação após exclusão",async t=>{
- const {readGameHistory,readMatchReplay}=await import("../../dist/modules/admin/match-history.js");
+ const {readGameHistory,readMatchReplay,readOwnMatchReplay}=await import("../../dist/modules/admin/match-history.js");
  const {pool,actors,sessions,create,lobby,cleanup}=await environment(t);
  const room=await create();
  cleanup.push(async()=>{await pool.query("delete from game_match_archive_frames where match_id=$1",[room.id]);await pool.query("delete from game_match_archives where id=$1",[room.id]);});
@@ -421,6 +421,8 @@ test("PostgreSQL: arquivo transacional, replay completo, idempotência e preserv
  const replay=await readMatchReplay(pool,gameId,room.id,0,100);
  assert.equal(replay.match.players.find(p=>p.userId===actors[0]).avatarUrl,`/api/v1/avatars/${avatarKey}`);
  assert.ok(replay.match.players.some(p=>p.winner));
+ assert.deepEqual(await readOwnMatchReplay(pool,actors[0],room.code,0,100),replay);
+ await assert.rejects(readOwnMatchReplay(pool,actors[2],room.code,0,100),{code:"NOT_FOUND"});
  assert.equal(replay.frames[0].action.type,"start");
  const archive=(await pool.query("select event from game_match_archive_frames where match_id=$1 order by version",[room.id])).rows;
  const events=(await pool.query("select event from game_match_events where match_id=$1 order by version",[room.id])).rows;
@@ -434,6 +436,7 @@ test("PostgreSQL: arquivo transacional, replay completo, idempotência e preserv
  try{await client.query("begin");await client.query("delete from game_matches where id=$1",[room.id]);await client.query("rollback");}finally{client.release();}
  assert.equal((await readMatchReplay(pool,gameId,room.id,0,100)).match.status,"finished");
  await pool.query("delete from game_matches where id=$1",[room.id]);
+ assert.equal((await readOwnMatchReplay(pool,actors[1],room.code,0,100)).match.id,room.id);
  await pool.query("delete from users where id=$1",[actors[0]]);
  assert.deepEqual((await readMatchReplay(pool,gameId,room.id,0,100)).match,{...replay.match,players:replay.match.players.map(p=>p.userId===actors[0]?{...p,avatarUrl:null}:p)});
 });

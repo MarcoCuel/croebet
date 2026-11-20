@@ -11,14 +11,18 @@ import { getPublicGames } from "@/features/games/server-games";
 import { ManagementUnavailable } from "@/features/admin/management-shared";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ partida?: string }> };
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await getPublicGames(slug);
+  if (slug === "flip7" && (await searchParams).partida && !data?.items[0]) return { title: "Histórico da partida · Croebet", robots: { index: false, follow: false } };
   return data ? data.items[0] ? await publicMetadata(`/jogos/${slug}`, data.items[0].name, data.items[0].seo) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
 }
 export default async function Game({ params, searchParams }: Props) {
   const { slug } = await params;
+  const query = await searchParams;
   const data = await getPublicGames(slug);
+  const archivedInitial = slug === "flip7" && query.partida ? await getInitialMatches(query.partida) : null;
+  if (archivedInitial?.replay) return <PageShell><h1 className="sr-only">{data?.items[0]?.name ?? "Histórico da partida"}</h1><Flip7Loader game={data?.items[0] ?? null} initial={archivedInitial} /></PageShell>;
   if (data && data.items.length === 0) notFound();
   if (data && slug !== "flip7") {
     const game = data.items[0];
@@ -29,6 +33,6 @@ export default async function Game({ params, searchParams }: Props) {
       <p className="text-sm text-muted">Este jogo está em desenvolvimento.</p>
     </Card></PageShell>;
   }
-  const initial = data ? await getInitialMatches((await searchParams).partida) : null;
+  const initial = data ? archivedInitial ?? await getInitialMatches(query.partida) : null;
   return <PageShell>{data ? <><h1 className="sr-only">{data.items[0].name}</h1><Flip7Loader game={data.items[0]} initial={initial!} /></> : <ManagementUnavailable />}</PageShell>;
 }

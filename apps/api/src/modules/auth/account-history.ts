@@ -5,13 +5,13 @@ export async function readAccountHistory(pool: Pick<Pool, "query">, userId: stri
   const result = await pool.query(`
     select * from (
       select 'transaction:' || e.id as id, 'transaction' as kind, o.reason as description,
-        o.created_at, e.amount
+        o.created_at, e.amount, null::uuid as match_id, null::text as match_code, null::text as game_slug
       from wallet_entries e join wallet_accounts w on w.id=e.account_id
       join wallet_operations o on o.id=e.operation_id where w.user_id=$1
       union all
       select 'game:' || a.id, 'game', g.name || ' · ' ||
         case when a.status='finished' then 'Partida concluída' else 'Partida encerrada' end,
-        a.ended_at, null::bigint
+        a.ended_at, null::bigint, a.id, a.code, g.slug
       from game_match_archives a join games g on g.id=a.game_id
       where a.status in ('finished','abandoned') and a.ended_at is not null
         and exists (select 1 from jsonb_array_elements(a.participants) p where p->>'userId'=$1::text)
@@ -19,7 +19,7 @@ export async function readAccountHistory(pool: Pick<Pool, "query">, userId: stri
   `, [userId, limit + 1, offset]);
   return accountHistorySchema.parse({
     items: result.rows.slice(0, limit).map(row => ({
-      id: row.id, kind: row.kind, description: row.description,
+      id: row.id, matchId: row.match_id ?? null, matchCode: row.match_code ?? null, gameSlug: row.game_slug ?? null, kind: row.kind, description: row.description,
       createdAt: row.created_at.toISOString(), amount: row.amount === null ? null : Number(row.amount),
     })), hasMore: result.rows.length > limit,
   });

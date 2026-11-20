@@ -7,14 +7,19 @@ import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlayingCard } from "@/features/games/flip7/flip7-game";
-import { managementRequest } from "./management-api";
 import { MatchBadges, MatchPlayerAvatar, MatchPlayerIdentity } from "./admin-match-summary";
 import { Badge } from "@/components/ui/badge";
 import { CroinIcon } from "@/components/shared/croin-icon";
 import { ChevronLeft, ChevronRight, SkipBack, SkipForward, Play, Pause } from "lucide-react";
-import { adminDate } from "./management-shared";
+const replayDate = (value: string) => new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value));
+async function readReplayPage(path: string) {
+  const response = await fetch(`/api/v1${path}`, { credentials: "same-origin", cache: "no-store" });
+  if (!response.ok) throw new Error(response.status === 401 ? "Entre novamente para rever a partida." : response.status === 404 ? "Partida não encontrada." : "Não foi possível carregar as jogadas.");
+  return matchReplaySchema.parse(await response.json());
+}
 type Replay = ReturnType<typeof matchReplaySchema.parse>;
 export function AdminMatchReplay({ initial }: { initial: Replay }) {
+  const replayPath = `/admin/games/${initial.match.gameId}/matches/${initial.match.id}`;
   const [page,setPage]=useState(initial);
   const [index,setIndex]=useState(0);
   const [playing,setPlaying]=useState(false);
@@ -28,10 +33,10 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
   useEffect(()=>{
     if(requestedOffset===initial.offset) return;
     let active=true;
-    managementRequest(`/admin/games/${initial.match.gameId}/matches/${initial.match.id}?offset=${requestedOffset}&limit=100`,matchReplaySchema)
+    readReplayPage(`${replayPath}?offset=${requestedOffset}&limit=100`)
       .then(value=>{if(active){setPage(value);setError("");}}).catch(reason=>{if(active){setPlaying(false);setError(reason instanceof Error?reason.message:"Não foi possível carregar as jogadas.");}});
     return ()=>{active=false;};
-  },[initial,requestedOffset,retry]);
+  },[initial,requestedOffset,retry,replayPath]);
   useEffect(()=>{
     if(!playing||loading||!frame)return;
     if(index>=initial.match.frameCount-1)return;
@@ -44,7 +49,7 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
   const rankedPlayers = [...match.players].sort((a, b) => b.score - a.score);
   return <div className="grid min-w-0 gap-4">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="grid gap-2"><h1 className="text-xl font-semibold">Partida <span className="font-mono">{match.code}</span></h1><MatchBadges match={match} /><p className="text-xs text-muted">{adminDate(match.startedAt)} · {match.players.length} participantes · Regras v{match.rulesVersion}</p></div>
+      <div className="grid gap-2"><h1 className="text-xl font-semibold">Partida <span className="font-mono">{match.code}</span></h1><MatchBadges match={match} /><p className="text-xs text-muted">{replayDate(match.startedAt)} · {match.players.length} participantes · Regras v{match.rulesVersion}</p></div>
       <Button asChild variant="secondary" size="sm"><Link href={`/admin/jogos/${match.gameId}`}><ChevronLeft className="size-4" aria-hidden="true" />Voltar ao jogo</Link></Button>
     </div>
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
