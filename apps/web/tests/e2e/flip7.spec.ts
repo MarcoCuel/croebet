@@ -524,6 +524,38 @@ test("campo de aposta reutilizável soma, subtrai e seleciona valores sugeridos"
   await expect(input).toHaveCount(0);
 });
 
+test("six seven oscila em sentidos opostos apenas com o par e respeita movimento reduzido", async ({ page }, testInfo) => {
+  const code = "ABCDEF123456";
+  const state = flip7Driver.project(createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false }));
+  state.players[0].cards = [{ id: 60, type: "number", value: 6 }, { id: 70, type: "number", value: 7 }, { id: 80, type: "number", value: 8 }];
+  state.players[1].cards = [{ id: 61, type: "number", value: 6 }];
+  state.players.forEach(player => { player.hasDrawn = true; });
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state, hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  fixture.states.set(code, { room, frames: [] });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const six = page.locator('[data-hand-card="60"]');
+  await expect(six).toBeVisible();
+  await expect.poll(() => six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(1);
+  const offsets = await page.locator("[data-hand-card]").evaluateAll(elements => elements.map(element => {
+    const animation = element.getAnimations({ subtree: true })[0];
+    if (!animation) return 0;
+    animation.pause(); animation.currentTime = 600;
+    const target = (animation.effect as KeyframeEffect).target as HTMLElement;
+    return new DOMMatrix(getComputedStyle(target).transform).m42;
+  }));
+  expect(offsets).toEqual([-4, 4, 0, 0]);
+  await page.screenshot({ path: testInfo.outputPath("six-seven.png"), fullPage: true });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(() => six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  if (room.status !== "playing") throw Error("Partida não iniciada");
+  room.state.players[0].cards = room.state.players[0].cards.filter(card => card.value !== 7);
+  await page.reload();
+  await expect(six).toBeVisible();
+  expect(await six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+});
+
 test("resultado apresenta vencedor, duração, rodadas, prêmio e placar com avatares", async ({ page }) => {
   const code="ABCDEF123456";
   const state=flip7Driver.project(createGame(matchUsers.map(user=>({name:user.username,kind:"human" as const})),42,{mode:"classic",brutal:false}));

@@ -57,6 +57,7 @@
     var(--color-flip-cyan) 100%
   );
   --animate-flip-holographic: flip-holographic 6s ease-in-out infinite;
+  --animate-flip-six-seven: flip-six-seven 2.4s ease-in-out infinite;
   --animate-dialog-in: dialog-in 200ms ease-out both;
   --animate-dialog-overlay-in: dialog-overlay-in 200ms ease-out both;
   --animate-drawer-in: drawer-in 250ms ease-out both;
@@ -79,6 +80,12 @@
   @keyframes flip-holographic {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
+  }
+
+  @keyframes flip-six-seven {
+    0%, 50%, 100% { transform: translateY(0); }
+    25% { transform: translateY(-0.25rem); }
+    75% { transform: translateY(0.25rem); }
   }
 
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(255 255 255 / 10%);
