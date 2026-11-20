@@ -1,10 +1,12 @@
 "use client";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Crown, Eye, Plus, UserRound } from "lucide-react";
+import { Eye, Plus, UserRound } from "lucide-react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { GameRecord, CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -196,7 +198,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
                   const created=await create(true);if(created)setInviting(true);
                 }}><SeatOutline/><Plus className="size-6" aria-hidden="true"/></Button>
                 :<span className="relative flex size-16 items-center justify-center rounded-full"><SeatOutline/>{placeholder}</span>}
-              {isHost && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-brand" title="Host"><Crown className="size-4" aria-label="Host"/></span>}
+              {isHost && <span className="absolute -top-3 -left-1" title="Host"><Image src="/host.svg" width={25} height={24} className="h-6 w-auto" alt="Host"/></span>}
             </div>
             <span className={cn("w-full truncate text-center text-xs font-medium",isHost?"text-brand":!name && "text-muted")} title={waiting?`${name} · Aguardando entrada`:name ?? undefined}>{name ?? "Disponível"}</span>
             {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={person.username} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
@@ -219,10 +221,9 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
       </div>
     </Card>}
     <section className={cn("min-w-0 space-y-5",!showSettings && (userId || room?"xl:col-span-2":"xl:col-span-3"))} aria-label="Lobbies abertos">
-      <Heading variant="section">Lobbies abertos</Heading>
       <>
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {lobbies.length===0?<p className="text-sm text-muted">Nenhum lobby aberto por enquanto.</p>:<ul className={cn("grid gap-4",!showSettings && "sm:grid-cols-2",!userId && !room && "xl:grid-cols-3")}>{lobbies.map(lobby=>{
+        {lobbies.length===0?<EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4",!showSettings && "sm:grid-cols-2",!userId && !room && "xl:grid-cols-3")}>{lobbies.map(lobby=>{
           const people=[...lobby.participants,...lobby.pendingInvitations];
           const joined=lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);

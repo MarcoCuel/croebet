@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { couponWriteSchema, couponsSchema, couponDetailSchema, redemptionsSchema, type Coupon } from "@croebet/shared";
 import { toast } from "sonner";
 import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +43,7 @@ export function AdminCoupons({ initial, query }: { initial: ReturnType<typeof co
           </dl>
           <Button asChild variant="secondary" size="sm"><Link href={`/admin/cupons/${c.id}`} aria-label={`Gerenciar ${c.code}`}>Gerenciar</Link></Button>
         </li>)}
-      </ul> : <p className="p-5 text-sm text-muted">Nenhum cupom encontrado.</p>}
+      </ul> : <EmptyState title="Nenhum cupom encontrado." />}
     </Card>
     <ListPagination base="/admin/cupons" query={query} hasMore={initial.hasMore} />
   </div>;
@@ -96,7 +97,7 @@ export function AdminCouponEditor({ initial }: { initial: ReturnType<typeof coup
     </div>
     {coupon && <Card className="mt-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Histórico de resgates</h2><form className="flex gap-2" onSubmit={event => { event.preventDefault(); void loadRedemptions(false); }}><SearchInput aria-label="Buscar usuário nos resgates" placeholder="Buscar usuário" value={search} onChange={event => setSearch(event.target.value)} className="w-full sm:w-64" maxLength={80} /><Button type="submit" variant="secondary" loading={loading}>Buscar</Button></form></div>
       <div className="overflow-x-auto" data-lenis-prevent><table className="w-full text-left text-sm"><thead className="text-xs text-muted"><tr><th scope="col" className="py-3 font-medium">Usuário</th><th scope="col" className="px-4 py-3 font-medium">Data do resgate</th><th scope="col" className="py-3 text-right font-medium">Croins</th></tr></thead><tbody>{redemptions.items.map(r => <tr key={r.id} className="border-t border-contrast/6"><td className="py-4">{r.username ? `@${r.username}` : "Conta removida"}</td><td className="px-4 py-4 whitespace-nowrap text-muted">{adminDate(r.createdAt)}</td><td className="py-4 text-right tabular-nums">{formatBalance.format(r.amount)}</td></tr>)}</tbody></table></div>
-      {!redemptions.items.length && <p className="py-6 text-center text-sm text-muted">{appliedSearch ? "Nenhum usuário encontrado." : "Nenhum resgate realizado."}</p>}
+      {!redemptions.items.length && <EmptyState title={appliedSearch ? "Nenhum usuário encontrado." : "Nenhum resgate realizado."} />}
       {redemptions.hasMore && <Button variant="secondary" loading={loading} onClick={() => void loadRedemptions(true)}>Carregar mais resgates</Button>}
     </Card>}
     {initial && <div className="mt-5"><AuditHistory targetId={initial.coupon.id} initial={initial.audit} /></div>}

@@ -28,6 +28,7 @@ A crítica não é necessariamente aos jogos de azar em si: o ponto principal é
 - O cadastro não é fechado: qualquer pessoa pode participar. Solicita apenas nome de usuário e senha, sem e-mail.
 - Nome de exibição e nome de usuário são distintos: o nome aparece publicamente e pode se repetir; o usuário é único, identifica a conta no login e nos endereços de perfil. O usuário mantém as letras maiúsculas e minúsculas escolhidas no cadastro, mas o login e a disponibilidade do usuário não distinguem essa diferença: `Tonho`, `tonho` e `TONHO` identificam a mesma conta.
 - A primeira alteração de usuário é livre; após cada alteração bem-sucedida, a próxima fica disponível 30 dias depois. Trocar somente maiúsculas e minúsculas também conta. O nome de exibição continua independente desse prazo.
+- Exclusão pelo admin inativa a conta imediatamente e agenda a remoção permanente para 30 dias depois. Reativar pelo status nesse período cancela a exclusão. Históricos de partidas, movimentações e auditoria permanecem preservados. O último administrador ativo não pode ser excluído.
 - A linguagem e as referências podem ter piadas internas da comunidade, mas a navegação e as regras precisam ser compreensíveis para quem chega pela primeira vez.
 - A plataforma tem identidade própria; não precisa colocar o rosto, o nome ou as falas da streamer em todo lugar. O nome **Croebet** já faz a conexão.
 

@@ -33,6 +33,7 @@ test("header e três colunas mantêm configuração, vagas e lobbies ao criar e 
     expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y+boxes[0]!.height);
     expect(boxes[2]!.y).toBeGreaterThanOrEqual(boxes[1]!.y+boxes[1]!.height);
   }
+  await expect(list.locator('[data-slot="empty-state"]')).toHaveText("Nenhum lobby aberto por enquanto.");
   const originalSettings=await settings.elementHandle();
   const originalAvatar=await players.locator('[data-slot="avatar"]').first().elementHandle();
   const serverNavigations:string[]=[];
@@ -44,6 +45,7 @@ test("header e três colunas mantêm configuração, vagas e lobbies ao criar e 
   await expect(list.getByText("1 vaga disponível")).toHaveCount(0);
   await expect(list.getByRole("button",{name:"Ver lobby",exact:true})).toHaveCount(0);
   await expect(list.getByRole("button",{name:"Sala de Marco",exact:true})).toBeVisible();
+  await expect(list.locator('[data-slot="empty-state"]')).toHaveCount(0);
   await expect(page.getByLabel("Modo do Flip7")).toBeEnabled();
   expect(await originalSettings!.evaluate(element=>element.isConnected)).toBe(true);
   expect(await originalAvatar!.evaluate(element=>element.isConnected)).toBe(true);

@@ -45,10 +45,10 @@ export async function readAudit(pool: Pool, targetId: string, offset = 0, limit 
   return auditPageSchema.parse({ items: result.rows.slice(0, limit).map(row => ({ id: row.id, actorId: row.actor_id, actorUsername: row.username ?? null,
     action: row.action, reason: row.reason, details: row.details, createdAt: row.created_at.toISOString() })), hasMore: result.rows.length > limit });
 }
-const userProjection = "select u.id,u.username,u.display_name,u.avatar_key,u.role,u.status,u.created_at,coalesce(a.balance,0) as balance from users u left join wallet_accounts a on a.user_id=u.id";
+const userProjection = "select u.id,u.username,u.display_name,u.avatar_key,u.role,u.status,u.deletion_scheduled_at,u.created_at,coalesce(a.balance,0) as balance from users u left join wallet_accounts a on a.user_id=u.id";
 function userData(row: Record<string, unknown>) {
   return adminUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key as string | null),
-    role: row.role, status: row.status, createdAt: (row.created_at as Date).toISOString(), balance: Number(row.balance) });
+    role: row.role, status: row.status, deletionScheduledAt: row.deletion_scheduled_at ? (row.deletion_scheduled_at as Date).toISOString() : null, createdAt: (row.created_at as Date).toISOString(), balance: Number(row.balance) });
 }
 export async function readAdminUser(pool: Pool, id: string) {
   const result = await pool.query(`${userProjection} where u.id=$1`, [id]);
@@ -71,7 +71,7 @@ export async function changeUser(pool: Pool, actorId: string, hash: string, targ
     if (target!.role !== input.expectedRole || target!.status !== input.expectedStatus) throw new ManagementError(409, "VERSION_CONFLICT", "O usuário foi alterado. Recarregue antes de salvar.");
     await protectLastAdmin(client, target as { role: string; status: string }, input);
     if (target!.role === input.role && target!.status === input.status) return;
-    await client.query("update users set role=$1,status=$2 where id=$3", [input.role, input.status, targetId]);
+    await client.query("update users set role=$1,status=$2,deletion_scheduled_at=case when $2='active' then null else deletion_scheduled_at end where id=$3", [input.role, input.status, targetId]);
     if (input.status === "suspended") await client.query("delete from sessions where user_id=$1", [targetId]);
     await audit(client, actorId, targetId, "user.permissions", input.reason, { before: { role: target!.role, status: target!.status }, after: { role: input.role, status: input.status } });
   });
@@ -181,5 +181,16 @@ export async function saveCoupon(pool: Pool, actorId: string, hash: string, id: 
     const couponId = result.rows[0].id as string;
     await audit(client, actorId, couponId, id ? "coupon.updated" : "coupon.created", input.reason, { before: before ? { code: before.code, amount: String(before.amount), limit: before.redemption_limit === null ? null : String(before.redemption_limit), startsAt: before.starts_at, endsAt: before.ends_at, paused: before.paused, version: before.version } : null, after: input });
     return couponId;
+  });
+}
+
+// Repeated requests preserve the original deadline. Reactivation cancels it.
+export async function scheduleUserDeletion(pool: Pool, actorId: string, hash: string, targetId: string) {
+  await adminTransaction(pool, actorId, hash, targetId, async (client, target) => {
+    await protectLastAdmin(client, target as { role: string; status: string }, { role: "user", status: "suspended" });
+    const result = await client.query(`update users set status='suspended', deletion_scheduled_at=clock_timestamp()+interval '30 days'
+      where id=$1 and deletion_scheduled_at is null returning deletion_scheduled_at`, [targetId]);
+    await client.query("delete from sessions where user_id=$1", [targetId]);
+    if (result.rows.length) await audit(client, actorId, targetId, "user.deletion_scheduled", "", { deletionScheduledAt: result.rows[0].deletion_scheduled_at.toISOString() });
   });
 }

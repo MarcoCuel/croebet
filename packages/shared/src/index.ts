@@ -82,7 +82,7 @@ export const userChangeSchema = z.object({ role: roleSchema, status: userStatusS
 export const balanceAdjustmentSchema = z.object({ requestId: z.uuid(), direction: z.enum(["add", "remove"]), amount: couponAmountSchema, reason: reasonSchema }).strict();
 export const adminUserSchema = z.object({
   id: z.uuid(), username: usernameSchema, displayName: z.string(), avatarUrl: avatarUrlSchema,
-  role: roleSchema, status: userStatusSchema, balance: croinsSchema, createdAt: z.iso.datetime(),
+  role: roleSchema, status: userStatusSchema, balance: croinsSchema, createdAt: z.iso.datetime(), deletionScheduledAt: z.iso.datetime().nullable().default(null),
 }).strict();
 export type AdminUser = z.infer<typeof adminUserSchema>;
 export const adminUserCountsSchema = z.object({ all: z.number().int().nonnegative(), active: z.number().int().nonnegative(), suspended: z.number().int().nonnegative() }).strict();

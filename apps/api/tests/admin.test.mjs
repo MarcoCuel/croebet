@@ -214,3 +214,46 @@ test('edição obsoleta e username ocupado revertem sem confirmar identidade', a
     assert.equal(calls.at(-2)[0],'rollback');assert.equal(calls.some(([sql])=>sql==='commit'),false);
   }
 });
+
+test('exclusão agenda uma vez, revoga sessões e reverte se a auditoria falha', async () => {
+  const { scheduleUserDeletion } = await import('../dist/modules/admin/service.js');
+  let scheduled = false;
+  const db = database(async sql => {
+    if (sql.startsWith('update users set status=')) {
+      if (scheduled) return { rows: [] };
+      scheduled = true;
+      return { rows: [{ deletion_scheduled_at: new Date('2026-12-20T00:00:00Z') }] };
+    }
+    return { rows: [] };
+  });
+  await scheduleUserDeletion(db.pool, actor, 'hash', target);
+  await scheduleUserDeletion(db.pool, actor, 'hash', target);
+  assert.equal(db.calls.filter(([sql]) => sql.startsWith('insert into admin_audit')).length, 1);
+  assert.equal(db.calls.filter(([sql]) => sql.startsWith('delete from sessions')).length, 2);
+  assert.equal(db.calls.some(([sql]) => sql.startsWith('delete from users')), false);
+  const failed = database(async sql => {
+    if (sql.startsWith('update users set status=')) return { rows: [{ deletion_scheduled_at: new Date() }] };
+    if (sql.startsWith('insert into admin_audit')) throw Error('audit unavailable');
+    return { rows: [] };
+  });
+  await assert.rejects(scheduleUserDeletion(failed.pool, actor, 'hash', target), /audit unavailable/);
+  assert.ok(failed.calls.some(([sql]) => sql === 'rollback'));
+  assert.equal(failed.calls.some(([sql]) => sql === 'commit'), false);
+});
+
+test('limpeza recusa ambiente incompatível e reverte falha na exclusão', async () => {
+  const { cleanupDeletedAccounts } = await import('../dist/modules/auth/account-cleanup.js');
+  const mismatch = database(async () => ({ rows: [{ environment: 'production' }] }));
+  await assert.rejects(cleanupDeletedAccounts(mismatch.pool, 'test'), /Ambiente/);
+  assert.equal(mismatch.calls.some(([sql]) => sql.startsWith('delete')), false);
+  const failed = database(async sql => {
+    if (sql.startsWith('select environment')) return { rows: [{ environment: 'test' }] };
+    if (sql.startsWith('select id,avatar_key')) return { rows: [{ id: target, avatar_key: 'old.webp' }] };
+    if (sql.startsWith('delete from users')) throw Error('database unavailable');
+    return { rows: [] };
+  });
+  await assert.rejects(cleanupDeletedAccounts(failed.pool, 'test'), /database unavailable/);
+  assert.ok(failed.calls.some(([sql]) => sql.startsWith('insert into avatar_cleanup')));
+  assert.ok(failed.calls.some(([sql]) => sql === 'rollback'));
+  assert.equal(failed.calls.some(([sql]) => sql === 'commit'), false);
+});

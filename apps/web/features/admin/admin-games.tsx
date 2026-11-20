@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { type GameRecord } from "@croebet/shared";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -36,7 +37,7 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
             </div>
           </Link>
         </li>)}
-      </ul> : <p className="p-5 text-sm text-muted">Nenhum jogo encontrado.</p>}
+      </ul> : <EmptyState title="Nenhum jogo encontrado." />}
     </Card>
   </div>;
 }

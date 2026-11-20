@@ -1,3 +1,4 @@
+import { cleanupDeletedAccounts } from "./modules/auth/account-cleanup.ts";
 import { createApp } from "./app.ts";
 import { readConfig } from "./config.ts";
 import { createDatabase } from "./db/client.ts";
@@ -15,8 +16,9 @@ const avatarStorage = createAvatarStorage(config);
 await app.register(authRoutes, { pool, config, avatarStorage });
 let cleanupTask: Promise<void> | undefined;
 function cleanup() {
-  cleanupTask ??= cleanupAvatars(pool, avatarStorage, config.APP_ENV)
-    .catch(() => { app.log.warn("Não foi possível limpar avatares pendentes; nova tentativa em um minuto."); })
+  cleanupTask ??= cleanupDeletedAccounts(pool, config.APP_ENV)
+    .then(() => cleanupAvatars(pool, avatarStorage, config.APP_ENV))
+    .catch(() => { app.log.warn("Não foi possível concluir as exclusões pendentes; nova tentativa em um minuto."); })
     .finally(() => { cleanupTask = undefined; });
   return cleanupTask;
 }

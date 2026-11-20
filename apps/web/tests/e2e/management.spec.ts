@@ -7,7 +7,7 @@ const userId = "93089d02-0b34-4b78-9d3e-f2679c190b5c";
 const couponId = "93089d02-0b34-4b78-9d3e-f2679c190b5d";
 const opId = "93089d02-0b34-4b78-9d3e-f2679c190b5e";
 const admin = { id: adminId, username: "Marco", displayName: "Marco", role: "admin" };
-const baseUser = { id: userId, username: "Tonho", displayName: "Tonho", role: "user", status: "active", balance: 30, createdAt: "2026-11-19T04:00:00.000Z", avatarUrl: null };
+const baseUser = { id: userId, username: "Tonho", displayName: "Tonho", role: "user", status: "active", balance: 30, createdAt: "2026-11-19T04:00:00.000Z", avatarUrl: null, deletionScheduledAt: null as string | null };
 let user = { ...baseUser };
 let balance = 30;
 let unavailable = false;
@@ -40,8 +40,12 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
     audit.unshift({id:randomUUID(),actorId:adminId,actorUsername:"Marco",action:"user.identity",reason:"",details:{},createdAt:new Date().toISOString()});
     return {ok:true};
   }
+  if (path === `/api/v1/admin/users/${userId}` && method === "DELETE") {
+    user = { ...user, status: "suspended", deletionScheduledAt: new Date(Date.now() + 30 * 86400000).toISOString() };
+    return { ok: true };
+  }
   if (path === `/api/v1/admin/users/${userId}` && method === "PATCH") {
-    lastBody = body; user = { ...user, role: String(body.role), status: String(body.status) };
+    lastBody = body; user = { ...user, role: String(body.role), status: String(body.status), deletionScheduledAt: body.status === "active" ? null : user.deletionScheduledAt };
     audit.unshift({ id: opId, actorId: adminId, actorUsername: "Marco", action: "user.permissions", reason: String(body.reason), details: {}, createdAt: new Date().toISOString() });
     return { ok: true };
   }
@@ -100,13 +104,37 @@ test("alteração de permissão envia motivo e estado esperado ao backend", asyn
 });
 test("ajuste sem motivo atualiza saldo e movimentações", async ({ page }) => {
   await page.goto(`/admin/usuarios/${userId}`);
-  await page.getByRole("button", { name: "Ajustar Croins" }).click();
+  await page.getByRole("button", { name: "Editar saldo em croins" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Valor em Croins").fill("7");
   await dialog.getByRole("button", { name: "Adicionar Croins", exact: true }).click();
   await expect(page.getByText("Ajuste administrativo · Crédito")).toBeVisible();
   await expect(page.getByText("Saldo: 37", { exact: true })).toBeVisible();
-  expect(lastBody.amount).toBe(7); expect(lastBody.reason).toBe(""); expect(lastBody.requestId).toEqual(expect.any(String));
+  expect(lastBody.direction).toBe("add"); expect(lastBody.amount).toBe(7); expect(lastBody.reason).toBe(""); expect(lastBody.requestId).toEqual(expect.any(String));
+});
+test("ajuste usa sinal do valor e mostra saldo atual no modal", async ({ page }) => {
+  await page.goto(`/admin/usuarios/${userId}`);
+  await page.getByRole("button", { name: "Editar saldo em croins" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Saldo atual em Croins")).toContainText("30");
+  await expect(dialog.getByRole("group", { name: "Tipo de ajuste" })).toHaveCount(0);
+  const value = dialog.getByLabel("Valor em Croins");
+  await expect(dialog.getByRole("button", { name: "Adicionar Croins", exact: true })).toBeDisabled();
+  await value.fill("-7");
+  await expect(dialog.getByRole("button", { name: "Retirar Croins", exact: true })).toBeEnabled();
+  await value.fill("7");
+  await expect(dialog.getByRole("button", { name: "Adicionar Croins", exact: true })).toBeEnabled();
+  await value.fill("0");
+  await expect(dialog.getByRole("button", { name: "Adicionar Croins", exact: true })).toBeDisabled();
+  await value.fill("-7");
+  await dialog.getByRole("button", { name: "Retirar Croins", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText("Saldo: 23", { exact: true })).toBeVisible();
+  expect(lastBody.direction).toBe("remove"); expect(lastBody.amount).toBe(7);
+  await page.getByRole("button", { name: "Editar saldo em croins" }).click();
+  await expect(dialog.getByLabel("Saldo atual em Croins")).toContainText("23");
+  await expect(value).toBeEmpty();
+  await expect(dialog.getByRole("button", { name: "Adicionar Croins", exact: true })).toBeDisabled();
 });
 test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", async ({ page, isMobile }) => {
   await page.goto("/admin/cupons/novo");
@@ -152,7 +180,7 @@ test("conta comum recebe 404 nas páginas administrativas", async ({ page }) => 
   adminRole = "user";
   for (const path of ["/admin/usuarios", `/admin/usuarios/${userId}`, "/admin/cupons/novo"]) {
     await page.goto(path); await expect(page.getByRole("heading", { name: "404", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Ajustar Croins" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Editar saldo em croins" })).toHaveCount(0);
   }
 });
 test("pausa do cupom envia versão e motivo e permanece após reload", async ({ page }) => {
@@ -187,4 +215,22 @@ test("linhas editáveis alteram nome e usuário pelo admin", async ({page}) => {
   await dialog.getByRole("button",{name:"Salvar alterações"}).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(lastBody.role).toBe("user");expect(lastBody.status).toBe("suspended");
+});
+
+test("cadastro é fixo; exclusão exige confirmação e reativação cancela o prazo", async ({ page }) => {
+  await page.goto(`/admin/usuarios/${userId}`);
+  await expect(page.getByRole("button", { name: "Editar cadastro" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Editar saldo em croins" })).toBeVisible();
+  await page.getByRole("button", { name: "Excluir conta", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
+  expect(user.status).toBe("active");
+  await page.getByRole("button", { name: "Excluir conta", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Excluir conta", exact: true }).click();
+  await expect(page.getByText("Exclusão agendada", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Exclusão permanente em/)).toBeVisible();
+  await page.getByRole("button", { name: "Editar status", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Status", { exact: true }).selectOption("active");
+  await page.getByRole("dialog").getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByRole("button", { name: "Excluir conta", exact: true })).toBeVisible();
+  expect(user.deletionScheduledAt).toBeNull();
 });

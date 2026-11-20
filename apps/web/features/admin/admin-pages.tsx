@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
@@ -80,7 +81,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
             </>}
           </div>
         </li>)}
-      </ul> : <p className="p-6 text-sm text-muted">{!pages.length ? "Nenhuma página criada ainda." : "Nenhuma página encontrada."}</p>}
+      </ul> : <EmptyState title={!pages.length ? "Nenhuma página criada ainda." : "Nenhuma página encontrada."} />}
     </Card>
 
     <Dialog open={!!deleting} onOpenChange={open => { if (!open && !pending) setDeleting(null); }}>

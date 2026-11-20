@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/shared/empty-state";
 import Link from "next/link";
 import { Heading } from "@/components/shared/heading";
 import { GameCover } from "@/features/games/game-cover";
@@ -7,7 +8,7 @@ import { ManagementUnavailable } from "@/features/admin/management-shared";
 export async function GameGrid() {
   const data = await getPublicGames();
   if (!data) return <ManagementUnavailable />;
-  if (!data.items.length) return <p className="text-sm text-muted">Nenhum jogo disponível.</p>;
+  if (!data.items.length) return <EmptyState title="Nenhum jogo disponível." />;
   return <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
     {data.items.map(game => <li key={game.slug}>
       <Link className="group relative isolate block aspect-square overflow-hidden rounded-panel @container" href={`/jogos/${game.slug}`}>

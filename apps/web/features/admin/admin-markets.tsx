@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AdminListHeader, AdminFilterCount } from "@/features/admin/admin-list-header";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
@@ -95,7 +96,7 @@ export function AdminMarkets({ markets: items }: { markets: CatalogMarket[] }) {
           })}
         </ul>
       {markets.length === 0 && (
-        <Card className="text-sm text-muted">Nenhuma aposta encontrada.</Card>
+        <Card className="p-0 sm:p-0"><EmptyState title="Nenhuma aposta encontrada." /></Card>
       )}
     </div>
   );

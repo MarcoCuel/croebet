@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { matchHistoryListSchema } from "@croebet/shared";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Select } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ export function AdminGameHistory({ gameId }: { gameId: string }) {
           </div>
           <Button asChild variant="outline" size="sm"><Link href={`/admin/jogos/${gameId}/partidas/${match.id}`}>Ver histórico</Link></Button>
         </li>)}
-      </ul>{!data.items.length&&<p className="text-sm text-muted">Nenhuma partida encontrada.</p>}
+      </ul>{!data.items.length&&<EmptyState title="Nenhuma partida encontrada." />}
       <div className="flex gap-2"><Button variant="outline" disabled={offset===0} onClick={()=>{setData(null);setOffset(value=>Math.max(0,value-20));}}>Anteriores</Button><Button variant="outline" disabled={!data.hasMore} onClick={()=>{setData(null);setOffset(value=>value+20);}}>Próximas</Button></div></>}
   </Card>;
 }

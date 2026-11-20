@@ -37,6 +37,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   username: text("username").notNull(),
   avatarKey: text("avatar_key"),
+  deletionScheduledAt: timestamp("deletion_scheduled_at", { withTimezone: true }),
   usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
   displayName: text("display_name").notNull(),
   passwordHash: text("password_hash").notNull(),

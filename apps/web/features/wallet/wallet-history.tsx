@@ -7,6 +7,7 @@ import { ArrowDownLeft, ArrowUpRight, Gift, History, RotateCcw, Ticket, Trophy }
 import { transactionsSchema } from "@croebet/shared";
 import { toast } from "sonner";
 import { useSession } from "@/features/auth/session-context";
+import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -139,10 +140,7 @@ export function WalletHistory({ initial, direction, now }: {
               })}
             </ul>
           ) : (
-            <div className="grid justify-items-center gap-3 px-5 py-12 text-center text-muted">
-              <History className="size-6" aria-hidden="true" />
-              <p className="text-sm">{direction === "all" ? "Nenhuma movimentação registrada ainda." : "Nenhuma movimentação neste filtro."}</p>
-            </div>
+            <EmptyState title={direction === "all" ? "Nenhuma movimentação registrada ainda." : "Nenhuma movimentação neste filtro."} icon={<History className="size-6" />} />
           )}
         </Card>
         {history.hasMore && <div className="mt-4 flex justify-center"><Button variant="secondary" loading={loading} onClick={loadMore}>Carregar mais</Button></div>}

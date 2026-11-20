@@ -81,7 +81,11 @@ O projeto está em operação com usuários reais. Preserve contas, economia, pa
 - Papéis `user` e `admin`, conferidos pela API. Sem acesso administrativo: 404. A renderização do Next não substitui autorização no serviço; revalide sessão/conta dentro da transação de escrita.
 - Nenhum cadastro, nome ou variável pública concede admin. A primeira promoção é operacional no banco de desenvolvimento; depois, Admin → Usuários gerencia papéis. Não há conta/senha administrativa no seed.
 - Alterar papel/status ou excluir conta usa lock de governança antes dos locks de usuário/sessão/carteira; não pode remover o último admin ativo. Suspender revoga sessões; reativação exige login.
-- Exclusão exige senha e remove identidade/sessões; carteira fica desvinculada e auditoria permanece, conforme as FKs e invariantes atuais. Históricos administrativos das partidas permanecem independentes da conta excluída.
+- Exclusão pela própria conta exige senha e remove identidade/sessões; carteira fica desvinculada e auditoria permanece, conforme as FKs e invariantes atuais. Históricos administrativos das partidas permanecem independentes da conta excluída.
+
+Admin → Usuários agenda exclusão em 30 dias (`DELETE /admin/users/:id`): suspende imediatamente, revoga sessões e audita na mesma transação. Pedidos repetidos mantêm o prazo. Reativar pelo status cancela o agendamento; suspensão comum não agenda exclusão. O último administrador ativo continua protegido. A API processa lotes vencidos ao iniciar e a cada minuto, usando o relógio do PostgreSQL, lock de governança e validação do ambiente; falhas revertem e são retentadas. Remove identidade/sessões e salas operacionais, agenda limpeza de avatar e preserva carteira desvinculada, auditoria e arquivos de partidas.
+
+Implantação: aplique a migration incremental `0024_odd_hydra.sql` antes de atualizar API/web; contas existentes recebem prazo nulo. Preserve backup antes da implantação. Para interromper a limpeza, pare os processos da API; durante os 30 dias, reativar a conta cancela o prazo. Após a exclusão definitiva, recuperar identidade exige restauração controlada de backup. Em rollback de aplicação, mantenha a coluna para não perder agendamentos; não reverta migrations anteriores.
 
 ### Avatares
 
