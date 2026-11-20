@@ -96,3 +96,32 @@ test("configurações selecionam imagem existente no modal de edição", async (
   await page.getByRole("button", { name: "Salvar alterações", exact: true }).click();
   await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible(); expect(settings.image).toBe(item.url);
 });
+
+test("endereço do jogo acompanha nome ao sair e normaliza edição manual sem sobrescrevê-la", async ({ page }) => {
+  await page.goto("/admin/jogos/novo");
+  const name = page.getByLabel("Nome do jogo", { exact: true });
+  const slug = page.getByLabel("Endereço do jogo", { exact: true });
+  await name.fill("Jogo de AÇÃO");
+  await name.press("Tab");
+  await expect(slug).toHaveValue("jogo-de-acao");
+  // Focar o endereço gerado sem editá-lo não o torna personalizado.
+  await slug.press("Tab");
+  await name.fill("Outro Jogo");
+  await name.press("Tab");
+  await expect(slug).toHaveValue("outro-jogo");
+  await slug.fill("  Meu Endereço   Único!  ");
+  await slug.press("Tab");
+  await expect(slug).toHaveValue("meu-endereco-unico");
+  await name.fill("Nome final");
+  await name.press("Tab");
+  await expect(slug).toHaveValue("meu-endereco-unico");
+  await page.getByRole("button", { name: "Criar jogo", exact: true }).click();
+  await expect.poll(() => savedGame?.slug).toBe("meu-endereco-unico");
+});
+
+test("criar jogo com Enter no nome gera endereço mesmo sem sair do campo", async ({ page }) => {
+  await page.goto("/admin/jogos/novo");
+  await page.getByLabel("Nome do jogo", { exact: true }).fill("Jogo Rápido");
+  await page.getByLabel("Nome do jogo", { exact: true }).press("Enter");
+  await expect.poll(() => savedGame?.slug).toBe("jogo-rapido");
+});

@@ -2,7 +2,7 @@
 import { ImagePicker } from "@/features/media/image-picker";
 import { AdminGameHistory } from "./admin-game-history";
 import { SeoEditor } from "./seo-fields";
-import { seoFieldsSchema } from "@croebet/shared";
+import { normalizeSlug, seoFieldsSchema } from "@croebet/shared";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SlugInput } from "@/components/ui/slug-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { GameCover } from "@/features/games/game-cover";
@@ -22,13 +23,15 @@ export function AdminGameEditor({ game }: { game?: GameRecord }) {
   const [imageUrl, setImageUrl] = useState(game?.imageUrl ?? "");
   const [seo, setSeo] = useState(game?.seo ?? seoFieldsSchema.parse({}));
   const [pending, setPending] = useState(false);
+  const [autoSlug, setAutoSlug] = useState("");
+  const [customSlug, setCustomSlug] = useState<string | null>(null);
   return <div className="grid gap-6"><Card>
     <form className="grid items-start gap-6 sm:grid-cols-[12rem_minmax(0,1fr)]" onSubmit={async event => {
       event.preventDefault();
       if (pending) return;
       const form = new FormData(event.currentTarget);
       const fields = { seo, name: form.get("name"), description: form.get("description"), enabled: form.get("enabled") === "on", imageUrl: imageUrl || null };
-      const parsed = game ? gameWriteSchema.safeParse({ ...fields, version: game.version }) : gameCreateSchema.safeParse({ ...fields, slug: form.get("slug") });
+      const parsed = game ? gameWriteSchema.safeParse({ ...fields, version: game.version }) : gameCreateSchema.safeParse({ ...fields, slug: customSlug ?? normalizeSlug(String(form.get("name") ?? "")) });
       if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
       setPending(true);
       try {
@@ -40,8 +43,8 @@ export function AdminGameEditor({ game }: { game?: GameRecord }) {
       <GameCover name={game?.name ?? "Novo jogo"} imageUrl={imageUrl || null} />
       <div className="grid gap-5">
         <h1 className="text-xl font-semibold">{game ? "Editar jogo" : "Criar jogo"}</h1>
-        <Field>Nome do jogo<Input name="name" defaultValue={game?.name} required maxLength={100} /></Field>
-        {!game && <Field>Endereço do jogo<Input name="slug" required maxLength={100} pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="meu-jogo" /></Field>}
+        <Field>Nome do jogo<Input name="name" defaultValue={game?.name} required maxLength={100} onBlur={event => setAutoSlug(normalizeSlug(event.currentTarget.value))} /></Field>
+        {!game && <Field>Endereço do jogo<SlugInput name="slug" value={customSlug ?? autoSlug} onValueChange={setCustomSlug} required={customSlug !== null} maxLength={100} placeholder="meu-jogo" /></Field>}
         <Field>Descrição<Textarea name="description" defaultValue={game?.description} maxLength={2000} rows={4} /></Field>
         <div className="grid gap-1.5"><p className="text-sm font-semibold">Imagem de capa</p><ImagePicker value={imageUrl} onChange={setImageUrl} label="Imagem de capa" disabled={pending} /></div>
         <Field className="flex items-center justify-between">Jogo ativo<Switch name="enabled" defaultChecked={game?.enabled ?? true} /></Field>

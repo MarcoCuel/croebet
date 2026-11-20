@@ -6,6 +6,7 @@ export * from "./pages.js";
 export * from "./seo.js";
 export * from "./menus.js";
 export * from "./icons.js";
+export * from "./slug.js";
 
 export const healthSchema = z.object({ status: z.literal("ok"), service: z.literal("croebet-api") }).strict();
 export const readinessSchema = z.object({ status: z.enum(["ready", "unavailable"]) }).strict();

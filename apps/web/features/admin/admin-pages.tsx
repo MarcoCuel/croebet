@@ -1,6 +1,6 @@
 "use client";
 import { SeoEditor } from "./seo-fields";
-import { seoFieldsSchema } from "@croebet/shared";
+import { normalizeSlug, seoFieldsSchema } from "@croebet/shared";
 
 import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { SlugInput } from "@/components/ui/slug-input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -111,9 +112,6 @@ function SettingRow({ label, children, onClick, disabled }: { label: string; chi
 function localDate(value: string) {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value)).replace(" ", "T");
 }
-function titleSlug(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100).replace(/-$/g, "");
-}
 
 type EditorDialog = "status" | "publish" | "slug" | "author" | "delete";
 const dialogTitles: Record<EditorDialog, string> = { status: "Status", publish: "Publicar", slug: "Slug", author: "Autor", delete: "Mover página para o lixo?" };
@@ -124,7 +122,9 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
   const [document, setDocument] = useState<RichTextDocument>(() => page?.document ?? []);
   const [title, setTitle] = useState(page?.title ?? "");
   const [customSlug, setCustomSlug] = useState<string | null>(page?.slug ?? null);
-  const slug = customSlug ?? titleSlug(title);
+  const [autoSlug, setAutoSlug] = useState("");
+  const [slugDraft, setSlugDraft] = useState("");
+  const slug = customSlug ?? autoSlug;
   const [status, setStatus] = useState<PageStatus>(page?.status ?? "draft");
   const [statusChosen, setStatusChosen] = useState(false);
   const [publishAt, setPublishAt] = useState<string | null>(page?.publishAt ?? null);
@@ -148,7 +148,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
     event.preventDefault();
     if (pending) return;
     if ((statusToSave === "published" || scheduled) && !richTextPlainText(document).trim()) return void toast.error("Escreva o conteúdo da página antes de publicar.");
-    const input = pageWriteSchema.safeParse({ title, slug, document, seo, status: effectiveStatus, publishAt, authorId,
+    const input = pageWriteSchema.safeParse({ title, slug: customSlug ?? normalizeSlug(title), document, seo, status: effectiveStatus, publishAt, authorId,
       published: effectiveStatus === "published", showInMenu: page?.showInMenu ?? false, version: page?.version ?? 0 });
     if (!input.success) return void toast.error(input.error.issues[0]?.message ?? "Confira os dados da página.");
     setPending("save");
@@ -170,7 +170,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
       if (next === "scheduled" && (!publishAt || Date.parse(publishAt) <= Date.now())) { openPublication(); return; }
     }
     if (dialog === "slug") {
-      const parsed = pageSlugSchema.safeParse(String(form.get("slug") ?? "").trim());
+      const parsed = pageSlugSchema.safeParse(normalizeSlug(String(form.get("slug") ?? "")));
       if (!parsed.success) return void toast.error(parsed.error.issues[0].message);
       setCustomSlug(parsed.data);
     }
@@ -189,7 +189,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
   return <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
     <form id="page-editor" onSubmit={save} className="min-w-0">
       <Card className="grid min-w-0 gap-5" inert={!!pending}>
-        <Field>Título<Input name="title" value={title} onChange={event => setTitle(event.target.value)} required maxLength={100} /></Field>
+        <Field>Título<Input name="title" value={title} onChange={event => setTitle(event.target.value)} onBlur={event => setAutoSlug(normalizeSlug(event.currentTarget.value))} required maxLength={100} /></Field>
         <RichTextEditor label="Conteúdo principal" initialValue={document} onChange={setDocument} />
       </Card>
       <SeoEditor value={seo} onChange={setSeo} />
@@ -202,7 +202,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
         <dl className="grid gap-1">
           <SettingRow label="Status" onClick={() => setDialog("status")} disabled={!!pending}>{statusLabels[status]}</SettingRow>
           <SettingRow label="Publicar" onClick={openPublication} disabled={!!pending}>{publishAt ? adminDate(publishAt) : page?.publishedAt ? adminDate(page.publishedAt) : "Imediatamente"}</SettingRow>
-          <SettingRow label="Slug" onClick={() => setDialog("slug")} disabled={!!pending}>{slug || "Definir slug"}</SettingRow>
+          <SettingRow label="Slug" onClick={() => { setSlugDraft(slug); setDialog("slug"); }} disabled={!!pending}>{slug || "Definir slug"}</SettingRow>
           <SettingRow label="Autor" onClick={() => setDialog("author")} disabled={!!pending}>{authorName}</SettingRow>
         </dl>
         {page && <Button variant="outline" className="mt-3 w-full" onClick={() => setDialog("delete")} disabled={!!pending}>Mover para o lixo</Button>}
@@ -224,7 +224,7 @@ export function AdminPageEditor({ page, authors, currentAuthor }: { page: SitePa
           }}>Mover para o lixo</Button>
         </div> : <form key={dialog} className="mt-5 grid gap-5" onSubmit={apply}>
           {dialog === "status" && <Field>Status<Select name="status" defaultValue={status}>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>}
-          {dialog === "slug" && <Field>Slug<Input name="slug" defaultValue={slug} required maxLength={100} pattern="[a-z0-9]+(-[a-z0-9]+)*" /></Field>}
+          {dialog === "slug" && <Field>Slug<SlugInput name="slug" value={slugDraft} onValueChange={setSlugDraft} required maxLength={100} /></Field>}
           {dialog === "author" && <Field>Autor<Select name="authorId" defaultValue={authorId}>
             {!author && <option value={authorId}>{authorName}</option>}
             {authors.map(item => <option key={item.id} value={item.id}>{item.displayName} (@{item.username})</option>)}

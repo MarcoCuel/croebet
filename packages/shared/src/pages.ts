@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { seoFieldsSchema } from "./seo.js";
 import { isRichTextDocument, richTextPlainText } from "./rich-text.js";
+import { normalizeSlug } from "./slug.js";
 
 const reserved = new Set(["admin", "api", "jogos", "apostas", "rankings", "conquistas", "carteira", "perfil", "nova", "_next", "favicon", "robots", "sitemap"]);
-export const pageSlugSchema = z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).refine(slug => !reserved.has(slug), "Este endereço é reservado.");
+export const pageSlugSchema = z.string().max(100).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Informe um endereço com letras ou números.").refine(slug => !reserved.has(slug), "Este endereço é reservado.");
 const documentSchema = z.custom<import("./rich-text.js").RichTextDocument>(isRichTextDocument, "Conteúdo inválido.")
   .refine(value => JSON.stringify(value).length <= 45000, "Conteúdo muito longo.");
 const fields = {
@@ -17,7 +18,7 @@ export const pageAuthorsSchema = z.object({ items: z.array(z.object({ id: z.uuid
 export type PageAuthor = z.infer<typeof pageAuthorsSchema>["items"][number];
 export const pageDeleteSchema = z.object({ version: z.number().int().positive() }).strict();
 export const pageDeleteResultSchema = z.object({ ok: z.literal(true) }).strict();
-export const pageWriteSchema = z.object({ ...fields, version: z.number().int().min(0), status: pageStatusSchema.optional(), publishAt: z.iso.datetime().nullable().optional(), authorId: z.uuid().nullable().optional() }).strict()
+export const pageWriteSchema = z.object({ ...fields, slug: z.string().transform(normalizeSlug).pipe(pageSlugSchema), version: z.number().int().min(0), status: pageStatusSchema.optional(), publishAt: z.iso.datetime().nullable().optional(), authorId: z.uuid().nullable().optional() }).strict()
   .refine(page => !(["published", "scheduled"].includes(page.status ?? (page.published ? "published" : "draft"))) || richTextPlainText(page.document).trim().length > 0, "Escreva o conteúdo antes de publicar.")
   .refine(page => page.status !== "scheduled" || !!page.publishAt, "Escolha uma data futura para agendar a publicação.");
 export const sitePageSchema = z.object({ ...fields, id: z.uuid(), version: z.number().int().positive(),

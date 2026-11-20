@@ -109,6 +109,38 @@ test("falha do serviço tem tentativa novamente e não vira 404", async ({ page 
   await expect(page.getByText("Conteúdo compartilhado", { exact: true })).toBeVisible();
 });
 
+test("slug de página é gerado ao sair do título e preserva edição manual e endereços existentes", async ({ page }) => {
+  await page.goto("/admin/paginas/nova");
+  const title = page.getByLabel("Título", { exact: true });
+  await title.fill("Minha Página de AÇÃO");
+  await title.press("Tab");
+  await page.getByRole("button", { name: "Editar slug", exact: true }).click();
+  const slug = page.getByRole("dialog").getByLabel("Slug", { exact: true });
+  await expect(slug).toHaveValue("minha-pagina-de-acao");
+  await slug.fill("  Endereço   Personalizado!  ");
+  await slug.press("Tab");
+  await expect(slug).toHaveValue("endereco-personalizado");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await title.fill("Outro título");
+  await title.press("Tab");
+  await page.getByRole("button", { name: "Editar slug", exact: true }).click();
+  await expect(slug).toHaveValue("endereco-personalizado");
+  await slug.fill(" ADMIN ");
+  await slug.press("Enter");
+  await expect(page.getByText("Este endereço é reservado.", { exact: true })).toBeVisible();
+  await slug.fill("Endereço Final");
+  await slug.press("Enter");
+  await setStatus(page, "draft");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect.poll(() => pages.at(-1)?.slug).toBe("endereco-final");
+  await expect(page).toHaveURL(/\/admin\/paginas\/[0-9a-f-]{36}$/);
+  await page.goto(`/admin/paginas/${base.id}`);
+  await title.fill("Título atualizado");
+  await title.press("Tab");
+  await page.getByRole("button", { name: "Editar slug", exact: true }).click();
+  await expect(slug).toHaveValue("sobre");
+});
+
 async function setStatus(page: import("@playwright/test").Page, status: string) {
   await page.getByRole("button", { name: "Editar status", exact: true }).click();
   await page.getByRole("dialog").getByRole("combobox", { name: /^Status/ }).selectOption(status);

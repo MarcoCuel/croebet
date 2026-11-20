@@ -1,0 +1,5 @@
+/** Canonical public address segment, shared by editors and write contracts. */
+export function normalizeSlug(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}

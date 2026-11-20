@@ -81,7 +81,9 @@ test('consulta administrativa identifica jogo pelo UUID e consulta pública pelo
 test('cadastro aceita jogos em desenvolvimento sem permitir criar partidas sem motor', () => {
   const fields = { name: 'Roleta', description: 'Em desenvolvimento.', enabled: true, imageUrl: null };
   assert.equal(gameCreateSchema.parse({ ...fields, slug: 'roleta' }).slug, 'roleta');
-  for (const slug of ['Flip 7', '../admin', '', '-roleta', 'roleta-', 'a'.repeat(101)]) {
+  assert.equal(gameCreateSchema.parse({ ...fields, slug: ' Flip 7 ' }).slug, 'flip-7');
+  assert.equal(gameCreateSchema.parse({ ...fields, slug: '-roleta-' }).slug, 'roleta');
+  for (const slug of ['', '---', 'a'.repeat(101)]) {
     assert.equal(gameCreateSchema.safeParse({ ...fields, slug }).success, false);
   }
   assert.equal(createMatchSchema.safeParse({ requestId: row.id, game: 'roleta', capacity: 2, options: {mode:'classic',brutal:false} }).success, false);
