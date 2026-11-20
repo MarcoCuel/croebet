@@ -105,7 +105,7 @@
   --text-section: clamp(1.25rem, 2vw, 1.75rem);
   --text-banner: clamp(1.625rem, 9.7cqi, 3.25rem);
   --text-cover: clamp(1.125rem, 12cqi, 3.25rem);
-  --text-wordmark: 1.75rem;
+  --text-wordmark: 1.5rem;
   --text-auth-title: 1.75rem;
   --tracking-display: -0.04em;
   --tracking-banner: -0.04em;

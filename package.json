@@ -7,7 +7,7 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @croebet/web --filter @croebet/api dev",
+    "dev": "node scripts/dev.mjs",
     "dev:web": "pnpm --filter @croebet/web dev",
     "dev:api": "pnpm --filter @croebet/api dev",
     "start": "pnpm --filter @croebet/web start",

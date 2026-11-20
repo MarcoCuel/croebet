@@ -85,7 +85,7 @@ O editor de jogos inclui a listagem paginada de partidas, com busca e filtro de 
 
 A página pública do jogo oferece o switch “Modo dev” a administradores no canto superior direito do cabeçalho do jogo, com o badge “Desenvolvimento” ao lado do título quando ativo. `features/games/test-game.tsx` reutiliza `LobbyScreen` para configurações, vagas, convites e listagem de testes; várias salas podem coexistir e ser canceladas individualmente. Testes em andamento usam o mesmo card de lobby, com participantes, modo, badge “Em andamento” e ações “Visualizar” e “Cancelar”; o estado vazio considera salas abertas e partidas em andamento em conjunto. O Flip 7 mantém sua mesa; o Love Letter usa uma mesa própria com cartas privadas projetadas pela API. Os convites incluem jogo e indicação de teste para encaminhar ao endereço correto. Jogos sem motor continuam com a página “Em breve”.
 
-Durante partidas de desenvolvimento, o cabeçalho de entrada e o switch não são exibidos. O badge “Desenvolvimento” acompanha o modo na barra da mesa, e controles de reprodução, avanço e encerramento usam ícones junto às ferramentas de áudio, com nomes acessíveis e títulos.
+Durante partidas de desenvolvimento, o cabeçalho de entrada e o switch não são exibidos. O badge “Desenvolvimento” acompanha o modo na barra da mesa, e controles de reprodução e avanço usam ícones junto às ferramentas de áudio. A porta abre a confirmação de saída individual ou proposta coletiva; testes somente com bots pedem confirmação para encerrar. Propostas são exibidas aos jogadores elegíveis com aprovação/recusa e contagem confirmada pelo servidor.
 
 ## 3D sob demanda
 

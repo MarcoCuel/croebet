@@ -649,7 +649,7 @@ test("PostgreSQL: abandono coletivo unânime devolve inclusive a quem já abando
  const {pool,actors,sessions,lobby}=await environment(t);
  const {collectiveCancellation}=await import('../../dist/modules/matches/service.js');
  const {grantInitialBalance}=await import('../../dist/modules/economy/service.js');
- for(const actor of actors)await grantInitialBalance(pool,actor);
+ for(const actor of actors){const c=await pool.connect();try{await c.query("begin");await grantInitialBalance(c,actor);await c.query("commit");}catch(e){await c.query("rollback");throw e;}finally{c.release();}}
  const balances=async()=> (await pool.query('select user_id,balance from wallet_accounts where user_id=any($1::uuid[]) order by user_id',[actors])).rows.map(r=>({id:r.user_id,balance:Number(r.balance)}));
  const before=await balances();
  const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:'flip7',capacity:3,options:{mode:'classic',brutal:false},entryAmount:5});
@@ -683,7 +683,7 @@ test("PostgreSQL: abandono coletivo unânime devolve inclusive a quem já abando
 test("PostgreSQL: se todos abandonam sozinhos, as entradas ficam com a casa",async t=>{
  const {pool,actors,sessions,lobby}=await environment(t);
  const {grantInitialBalance}=await import('../../dist/modules/economy/service.js');
- for(const actor of actors.slice(0,2))await grantInitialBalance(pool,actor);
+ for(const actor of actors.slice(0,2)){const c=await pool.connect();try{await c.query("begin");await grantInitialBalance(c,actor);await c.query("commit");}catch(e){await c.query("rollback");throw e;}finally{c.release();}}
  const house='00000000-0000-4000-8000-000000000002';const prior=BigInt((await pool.query('select balance from wallet_accounts where id=$1',[house])).rows[0].balance);
  const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:'flip7',capacity:2,options:{mode:'classic',brutal:false},entryAmount:5});
  await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);

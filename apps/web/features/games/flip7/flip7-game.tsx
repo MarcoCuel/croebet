@@ -529,7 +529,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     incoming.current=null;
     if(sync.room.version<=receivedVersion.current)return;
     if(sync.room.status==="lobby")return;
-    if(sync.room.status==="abandoned"){void refreshWallet();toast.info("A partida foi encerrada.");router.push("/jogos/flip7");router.refresh();return;}
+    if(sync.room.status==="abandoned"){void refreshWallet();toast.info(sync.room.settlement==="refunded"?"Partida cancelada por acordo. As entradas foram devolvidas.":"A partida foi encerrada.");router.push("/jogos/flip7");router.refresh();return;}
     // Fill a gap from persisted events. Large gaps reload a confirmed snapshot.
     const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
@@ -761,7 +761,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Sair da partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">Abandonar sozinho entrega sua vaga a um bot e a partida continua para os demais. O abandono coletivo exige a aprovação de todos que continuam, encerra a partida sem resultado e devolve todas as entradas, inclusive de quem já saiu.{!!matchInfo?.entryAmount && " Sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">Abandonar sozinho entrega sua vaga a um bot e a partida continua para os demais. O abandono coletivo exige a aprovação de todos que continuam, encerra a partida sem resultado e devolve todas as entradas, inclusive de quem já saiu.{!!matchInfo?.entryAmount && " No abandono individual, sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
             <Button variant="secondary" disabled={leaving || !!matchInfo?.cancellation} onClick={async()=>{const match=serverMatch.current;if(!match)return;setLeaving(true);try{await proposeCancellation(match);setExitOpen(false);}catch(e){toast.error(e instanceof Error?e.message:"Não foi possível propor o abandono coletivo.");}finally{setLeaving(false);}}}>Propor abandono coletivo</Button>

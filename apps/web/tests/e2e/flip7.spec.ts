@@ -740,3 +740,17 @@ test("testes em andamento reutilizam card de lobby sem estado vazio adicional",a
  await expect(list.locator('[data-slot="empty-state"]')).toHaveCount(0);
  await expect(list.getByText(code,{exact:false})).toHaveCount(0);
 });
+
+test("porta do teste com bots pede confirmação e não encerra ao abrir ou desistir do modal",async({page})=>{
+ await close?.();close=await startPublicApi(req=>{const user=fixtureUser(req);return user?{...user,role:'admin'}:null;},fixture.handler,fixture.attach);
+ const code='ABCDEF445566';
+ const state=flip7Driver.project(flip7Driver.create({setup:[{name:'Bot 1',kind:'normal'},{name:'Bot 2',kind:'normal'}],options:{mode:'classic',brutal:false},onlyBots:true},'Marco'));
+ const room=matchSchema.parse({id:'93089d02-0b34-4b78-9d3e-f2679c190b5e',code,development:true,onlyBots:true,bots:2,game:'flip7',rulesVersion:1,version:1,status:'playing',state,hostId:matchUsers[0].id,capacity:2,options:{mode:'classic',brutal:false},participants:[]});
+ fixture.states.set(code,{room,frames:[]});let ended=0;
+ await page.route(`**/api/v1/matches/${code}/end-test`,async route=>{ended++;fixture.states.delete(code);await route.fulfill({json:{ok:true}});});
+ await page.goto(`/jogos/flip7?teste=1&partida=${code}`);
+ await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Encerrar partida de teste?'});await expect(dialog).toBeVisible();expect(ended).toBe(0);
+ await dialog.getByRole('button',{name:'Continuar',exact:true}).click();expect(ended).toBe(0);
+ await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();await dialog.getByRole('button',{name:'Encerrar teste',exact:true}).click();await expect.poll(()=>ended).toBe(1);
+});
