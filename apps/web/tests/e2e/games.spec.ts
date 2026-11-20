@@ -128,6 +128,18 @@ test("falha de serviço oferece nova tentativa sem exibir um catálogo vazio", a
   await expect(page.getByRole("link", { name: "Flip 7", exact: true })).toBeVisible();
 });
 
+test("interna usa nome de exibição no resumo, na mesa e no turno", async ({ page }) => {
+  const archivedName = historyMatch.players[0].name;
+  historyMatch.players[0].name = "Ana Pessoa";
+  try {
+    await page.goto(`/admin/jogos/${id}/partidas/${matchId}`);
+    await expect(page.getByText("Vez de Ana Pessoa", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Resumo da partida").getByText("Ana Pessoa", { exact: true })).toBeVisible();
+    await expect(page.getByText("Ana Pessoa", { exact: true })).toHaveCount(2);
+  } finally {
+    historyMatch.players[0].name = archivedName;
+  }
+});
 test("admin consulta vencedores e reproduz jogadas sem alterar a partida", async ({ page }) => {
   await page.goto(`/admin/jogos/${id}`);
   const list=page.getByRole("list",{name:"Partidas do jogo"});

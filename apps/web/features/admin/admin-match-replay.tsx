@@ -58,7 +58,7 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
         </Card>
         {error ? <Card role="alert" className="grid justify-items-start gap-3 text-sm">{error}<Button variant="secondary" size="sm" onClick={() => { setError(""); setRetry(value => value + 1); }}>Tentar novamente</Button></Card> : loading || !frame ? <Card role="status" className="text-sm text-muted">Carregando jogadas…</Card> : <>
           <Card className="min-w-0">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Rodada {frame.state.round}</h2><Badge variant="secondary">{frame.state.phase === "over" ? "Fim da partida" : frame.state.phase === "summary" ? "Fim da rodada" : `Vez de ${frame.state.players[frame.state.turn].name}`}</Badge></div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Rodada {frame.state.round}</h2><Badge variant="secondary">{frame.state.phase === "over" ? "Fim da partida" : frame.state.phase === "summary" ? "Fim da rodada" : `Vez de ${match.players.find(player => player.seat === frame.state.turn)?.name ?? frame.state.players[frame.state.turn].name}`}</Badge></div>
             <div className="divide-y divide-contrast/6">{frame.state.players.map((player, seat) => {
               const identity = match.players.find(person => person.seat === seat) ?? { name: player.name, avatarUrl: null };
               return <div key={seat} className="grid gap-3 py-4 last:pb-0">

@@ -73,3 +73,23 @@ test("replay pessoal usa o arquivo, inclui projeção pública e pagina frames a
  assert.equal(JSON.stringify(result).includes('"deck"'),false);
  assert.equal(calls.at(-1)[0],"commit");
 });
+
+test("interna prioriza nome de exibição, depois username, sem alterar arquivo ou frames", async () => {
+ const saved=row();
+ const before=structuredClone(saved);
+ const userId=saved.participants[0].userId;
+ let displayName="Nome da pessoa";
+ const pool={connect:async()=>({query:async sql=>{
+   if(sql.startsWith("select a.*"))return {rows:[saved]};
+   if(sql.startsWith("select id,avatar_key"))return {rows:[{id:userId,display_name:displayName,username:"login",avatar_key:null}]};
+   return {rows:[]};
+ },release(){}})};
+ assert.equal((await readMatchReplay(pool,gameId,id,0,100)).match.players[0].name,"Nome da pessoa");
+ displayName="   ";
+ const replay=await readMatchReplay(pool,gameId,id,0,100);
+ assert.equal(replay.match.players[0].name,"login");
+ assert.equal(replay.match.players[1].name,"Dois");
+ assert.deepEqual(replay.finalState,saved.state);
+ assert.deepEqual(saved,before);
+ assert.equal(historyItem(saved).players[0].name,"Nome original");
+});

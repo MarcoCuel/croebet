@@ -5,7 +5,7 @@ import { avatarUrl } from "../avatars/storage.ts";
 import { ManagementError } from "./service.ts";
 const identities = z.array(z.object({ seat: z.number().int(), userId: z.uuid().nullable(), name: z.string() }));
 type ArchiveRow = { entry_amount?:string; pot_total?:string; payouts?:unknown; settlement?:string; id: string; game_id: string; code: string; rules_version: number; status: string; options: unknown; participants: unknown; state: unknown; started_at: Date; ended_at: Date | null; frame_count: number };
-export function historyItem(row: ArchiveRow, avatars: ReadonlyMap<string, string | null> = new Map()) {
+export function historyItem(row: ArchiveRow, avatars: ReadonlyMap<string, string | null> = new Map(), names: ReadonlyMap<string, string> = new Map()) {
   const state = flip7ViewSchema.parse(row.state);
   const people = identities.parse(row.participants);
   const maximum = Math.max(...state.players.map(p => p.total));
@@ -15,17 +15,20 @@ export function historyItem(row: ArchiveRow, avatars: ReadonlyMap<string, string
     startedAt: row.started_at.toISOString(), endedAt: row.ended_at?.toISOString() ?? null, frameCount: row.frame_count,
     players: state.players.map((player, seat) => {
       const person = people.find(participant => participant.seat === seat);
-      return { seat, userId: person?.userId ?? null, name: person?.name ?? player.name,
+      return { seat, userId: person?.userId ?? null, name: names.get(person?.userId ?? "") || person?.name || player.name,
         avatarUrl: avatars.get(person?.userId ?? "") ?? null, score: player.total,
         winner: row.status === "finished" && state.phase === "over" && player.total === maximum, bot: player.kind !== "human" };
     }),
   });
 }
-async function readParticipantAvatars(client: Pool | PoolClient, rows: ArchiveRow[]) {
+async function readParticipantProfiles(client: Pool | PoolClient, rows: ArchiveRow[]) {
   const ids = [...new Set(rows.flatMap(row => identities.parse(row.participants).flatMap(person => person.userId ? [person.userId] : [])))];
-  if (!ids.length) return new Map<string, string | null>();
-  const users = await client.query<{ id: string; avatar_key: string | null }>("select id,avatar_key from users where id=any($1::uuid[])", [ids]);
-  return new Map(users.rows.map(user => [user.id, avatarUrl(user.avatar_key)]));
+  if (!ids.length) return { avatars: new Map<string, string | null>(), names: new Map<string, string>() };
+  const users = await client.query<{ id: string; avatar_key: string | null; display_name: string; username: string }>("select id,avatar_key,display_name,username from users where id=any($1::uuid[])", [ids]);
+  return {
+    avatars: new Map(users.rows.map(user => [user.id, avatarUrl(user.avatar_key)])),
+    names: new Map(users.rows.map(user => [user.id, user.display_name?.trim() || user.username || ""])),
+  };
 }
 const selection = "select a.*,s.entry_amount,s.pot_total,s.payouts,s.status as settlement, (select count(*)::int from game_match_archive_frames f where f.match_id=a.id) frame_count from game_match_archives a left join game_match_stakes s on s.match_id=a.id";
 export async function readGameHistory(pool: Pool, gameId: string, query: z.infer<typeof matchHistoryQuerySchema>) {
@@ -34,8 +37,8 @@ export async function readGameHistory(pool: Pool, gameId: string, query: z.infer
       or exists(select 1 from jsonb_array_elements(a.participants) p where strpos(lower(p->>'name'),lower($3))>0))
     order by a.started_at desc,a.id desc limit $4 offset $5`, [gameId, query.status, query.q, query.limit + 1, query.offset]);
   const visible = rows.rows.slice(0,query.limit);
-  const avatars = await readParticipantAvatars(pool, visible);
-  return matchHistoryListSchema.parse({ items: visible.map(row => historyItem(row, avatars)), hasMore: rows.rows.length>query.limit });
+  const { avatars, names } = await readParticipantProfiles(pool, visible);
+  return matchHistoryListSchema.parse({ items: visible.map(row => historyItem(row, avatars, names)), hasMore: rows.rows.length>query.limit });
 }
 export function readMatchReplay(pool: Pool, gameId: string, matchId: string, offset: number, limit: number) {
   return readReplay(pool, matchId, offset, limit, { gameId });
@@ -52,8 +55,8 @@ async function readReplay(pool: Pool, matchId: string, offset: number, limit: nu
     const rows = await client.query<ArchiveRow>(`${selection} where ${condition} and ${"gameId" in scope ? "a.id" : "a.code"}=$2`, [scopeId, matchId]);
     if (!rows.rows[0]) throw new ManagementError(404,"NOT_FOUND","Partida não encontrada.");
     const frames = await client.query<{event: unknown}>("select event from game_match_archive_frames where match_id=$1 order by version limit $2 offset $3", [rows.rows[0].id,limit+1,offset]);
-    const avatars = await readParticipantAvatars(client, rows.rows);
-    const result = matchReplaySchema.parse({ match: historyItem(rows.rows[0], avatars), finalState: flip7ViewSchema.parse(rows.rows[0].state), frames: frames.rows.slice(0,limit).map(f=>f.event), offset, hasMore: frames.rows.length>limit });
+    const { avatars, names } = await readParticipantProfiles(client, rows.rows);
+    const result = matchReplaySchema.parse({ match: historyItem(rows.rows[0], avatars, names), finalState: flip7ViewSchema.parse(rows.rows[0].state), frames: frames.rows.slice(0,limit).map(f=>f.event), offset, hasMore: frames.rows.length>limit });
     await client.query("commit");
     return result;
   } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }

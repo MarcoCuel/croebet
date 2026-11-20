@@ -118,6 +118,29 @@ async function start(page:Page,browser:Browser){
   await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
   return peer;
 }
+test("lobby e mesa exibem nome da pessoa quando diferente do usuário", async ({ page, browser }) => {
+  const originalNames = matchUsers.map(user => user.displayName);
+  matchUsers[0].displayName = "Marco Pessoa";
+  matchUsers[1].displayName = "Roberto Pessoa";
+  const peer = await second(browser);
+  try {
+    await page.goto("/jogos/flip7");
+    const seats = page.getByLabel("Jogadores e vagas");
+    await expect(seats.getByText("Marco Pessoa", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Jogar", exact: true }).click();
+    await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
+    await expect(page.getByRole("button", { name: "Sala de Marco Pessoa", exact: true })).toBeVisible();
+    await peer.page.goto(page.url());
+    await expect(seats.getByText("Roberto Pessoa", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Jogar", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Jogar", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Mesa de Marco Pessoa", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Mesa de Roberto Pessoa", exact: true })).toBeVisible();
+  } finally {
+    await peer.context.close();
+    matchUsers.forEach((user, index) => { user.displayName = originalNames[index]; });
+  }
+});
 test("cartas e camadas de animação permanecem abaixo do navbar", async ({ page, browser }) => {
   const peer = await start(page, browser);
   try {

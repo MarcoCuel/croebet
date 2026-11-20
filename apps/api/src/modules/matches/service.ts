@@ -34,7 +34,7 @@ function view(row: Row, members: MatchParticipant[]): Room {
   return row.status==="lobby" ? lobbySchema.parse({ ...common,status:"lobby",state:null }) : matchSchema.parse({ ...common,status:row.status,state:driver.project(driver.parse(row.state)) });
 }
 async function reservations(client: Client, id: string) {
-  return (await client.query<{userId:string;username:string;avatarUrl:string|null}>(`select u.id as "userId",u.username,u.avatar_key as "avatarUrl" from game_match_invitations i join users u on u.id=i.recipient_id where i.match_id=$1 and i.expires_at>clock_timestamp() and not exists(select 1 from game_match_players p where p.match_id=i.match_id and p.user_id=i.recipient_id) order by i.expires_at,i.id`,[id])).rows.map(p=>({...p,avatarUrl:avatarUrl(p.avatarUrl)}));
+  return (await client.query<{userId:string;username:string;displayName:string;avatarUrl:string|null}>(`select u.id as "userId",u.username,u.display_name as "displayName",u.avatar_key as "avatarUrl" from game_match_invitations i join users u on u.id=i.recipient_id where i.match_id=$1 and i.expires_at>clock_timestamp() and not exists(select 1 from game_match_players p where p.match_id=i.match_id and p.user_id=i.recipient_id) order by i.expires_at,i.id`,[id])).rows.map(p=>({...p,avatarUrl:avatarUrl(p.avatarUrl)}));
 }
 async function roomView(client: Client, row: Row, members: MatchParticipant[]): Promise<Room> {
   const room=roomSchema.parse({...view(row,members),...(Number(row.entry_amount)>0?await readMatchEconomy(client,row.id):{})});

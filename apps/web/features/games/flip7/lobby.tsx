@@ -26,6 +26,7 @@ import { useMatchLive } from "./live";
 import { InvitePlayers } from "./invite-players";
 import { KickPlayer } from "./kick-player";
 import { GameEntryHeader } from "../game-entry-header";
+import { playerName } from "./player-name";
 import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
 
 function SeatOutline() {
@@ -37,7 +38,7 @@ function SeatOutline() {
 export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:GameRecord;rules:(options:GameOptions)=>ReactNode}) {
   const router=useRouter();
   const searchParams=useSearchParams();
-  const {userId,username,avatar,openLogin,economy}=useSession();
+  const {userId,username,displayName,avatar,openLogin,economy}=useSession();
   const [room,setRoom]=useState<Lobby|null>(initial.lobby);
   const [directory,setDirectory]=useState<LobbyList>(initial.directory);
   const [matches,setMatches]=useState(initial.items);
@@ -206,7 +207,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
           const person=seats[i];
           const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || (person.userId!==userId && !room.onlineUserIds.includes(person.userId)));
           const preview=!room && i===0;
-          const name=person?.username ?? (preview?username ?? "Você":null);
+          const name=person ? playerName(person) : (preview?displayName?.trim() || username || "Você":null);
           const isHost=(person && person.userId===room?.hostId) || preview;
           const next=i===occupied;
           const placeholder=<UserRound className="size-6 text-muted" aria-hidden="true"/>;
@@ -223,7 +224,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
             </div>
             <span className={cn("w-full truncate text-center text-xs font-medium",isHost?"text-brand":!name && "text-muted")} title={waiting?`${name} · Aguardando entrada`:name ?? undefined}>{name ?? "Disponível"}</span>
             {entry>0 && person && room?.participants.some(p=>p.userId===person.userId) && <span className="text-center text-xs text-muted">{room.confirmedUserIds.includes(person.userId)?"Confirmado":"A confirmar"}</span>}
-            {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={person.username} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
+            {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={playerName(person)} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
           </li>;
         })}
       </ul>
@@ -252,12 +253,12 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
           const joined=lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.pendingInvitations.some(p=>p.userId===userId);
           return <li key={lobby.code}><Card className="h-full space-y-4">
-            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {lobby.participants.find(p=>p.userId===lobby.hostId)?.username}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
+            <div className="flex flex-wrap items-center gap-2">{joined?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {playerName(lobby.participants.find(p=>p.userId===lobby.hostId))}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {playerName(lobby.participants.find(p=>p.userId===lobby.hostId))}</p>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",person && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
-                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${lobby.participants.find(p=>p.userId===lobby.hostId)?.username}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.active} onClick={()=>void act(lobby,"join")}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
-                <span title={person?.username} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person?.username ?? "Disponível"}</span>
+                {person?<Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{playerName(person)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>:<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${playerName(lobby.participants.find(p=>p.userId===lobby.hostId))}, vaga ${i+1}`} disabled={busy || !connected || joined || !!directory.active} onClick={()=>void act(lobby,"join")}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
+                <span title={person ? playerName(person) : undefined} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person ? playerName(person) : "Disponível"}</span>
               </li>;
             })}</ul>
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || !!directory.active} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
@@ -267,7 +268,7 @@ export function LobbyScreen({initial,rules,game}:{initial:InitialMatches;game:Ga
     </section>
     {matches.length>0 && <section className="min-w-0 space-y-4 xl:col-span-3" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{matches.map(match=>{
       const playing=!!userId && match.controllerIds.includes(userId);
-      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {match.participants.find(p=>p.userId===match.hostId)?.username}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
+      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {playerName(match.participants.find(p=>p.userId===match.hostId))}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
     })}</ul></section>}
     </div>
     {!userId && !room && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
