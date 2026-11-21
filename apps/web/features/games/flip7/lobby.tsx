@@ -136,8 +136,9 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   const seats=room?[...room.participants,...room.pendingInvitations]:[];
   const occupied=room?seats.length+room.bots:(onlyBots?0:1)+bots;
   const allOnline=!!room && room.pendingInvitations.length===0 && room.participants.every(p=>room.onlineUserIds.includes(p.userId));
-  const showSettings=!!userId && (!development || permissions.canManageSite) && (!room || host);
-  const canEdit=showSettings && !busy && (!room || connected);
+  const editableSettings=!!userId && (!development || permissions.canManageSite) && (!room || host);
+  const showSettings=editableSettings || !!room;
+  const canEdit=editableSettings && !busy && (!room || connected);
 
   function rememberChoice(choice:Partial<Lobby["options"] & {count:number}>){
     if(!Object.keys(choice).length)return;
@@ -225,7 +226,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
     <GameEntryHeader game={game} development={development} actions={!userId?!isLove && rules(flip7OptionsSchema.parse(settings)):undefined}/>
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
     {showSettings && <Card className="min-w-0 space-y-4" aria-label="Configuração e regras">
-      <fieldset disabled={!canEdit} className="space-y-4">
+      {editableSettings?<fieldset disabled={!canEdit} className="space-y-4">
         <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label={isLove?"Modo do Love Letter":"Modo do Flip7"} value={settings.mode} onChange={e=>void configure({mode:e.target.value as Lobby["options"]["mode"],brutal:false},limit,entry,{mode:e.target.value as Lobby["options"]["mode"],brutal:false})}><option value="classic">Clássico</option>{isLove?<option value="modern">Moderno</option>:<option value="vengeance">A vingança nunca é plena</option>}</Select></Field>
         {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit,entry,{brutal})}/></Field>}
         {!development && <div className="min-w-0 space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
@@ -233,13 +234,20 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
           {entry>0 && <BetInput label="Entrada por jogador" value={entry} presets={economy?.suggestedBets ?? []} disabled={!canEdit} onValueChange={amount=>void configure(settings,limit,amount)}/>}
         </div>}
         {development && !room && <><Field>Bots<Select value={bots} onChange={e=>setBots(Number(e.target.value))}>{Array.from({length:limit+(onlyBots?1:0)},(_,i)=>i).filter(n=>!onlyBots || n>=2).map(n=><option key={n}>{n}</option>)}</Select></Field><Field className="flex items-center justify-between">Somente bots<Switch checked={onlyBots} onCheckedChange={v=>{setOnlyBots(v);setBots(v?limit:0);}}/></Field></>}
-      </fieldset>
+      </fieldset>:<div className="space-y-4 text-sm font-semibold">
+        <div className="flex min-h-11 items-center justify-between gap-4"><span>Modo</span><span className="text-right">{settings.mode==="classic"?"Clássico":isLove?"Moderno":"A vingança nunca é plena"}</span></div>
+        {settings.mode==="vengeance" && <div className="flex min-h-11 items-center justify-between gap-4"><span>Modo Brutal</span><span>{settings.brutal?"Ativado":"Desativado"}</span></div>}
+        {!development && <div className="space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
+          <div className="flex items-center justify-between gap-3"><span>Jogar apostando</span><span>{entry>0?"Sim":"Não"}</span></div>
+          {entry>0 && <div className="flex items-center justify-between gap-3"><span>Entrada por jogador</span><span className="flex items-center gap-2"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(entry)} Croins</span></div>}
+        </div>}
+      </div>}
       {!isLove && rules(flip7OptionsSchema.parse(settings))}
     </Card>}
     {((userId && (!development || permissions.canManageSite)) || room) && <Card className="min-w-0 space-y-4" aria-label="Jogadores e vagas">
-      {showSettings?<fieldset disabled={!canEdit}>
+      {editableSettings?<fieldset disabled={!canEdit}>
         <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value),entry,{count:Number(e.target.value)})}>{Array.from({length:isLove?(settings.mode==="classic"?3:5):11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
-      </fieldset>:<div className="flex flex-wrap items-center gap-2" aria-label="Modo da sala"><Badge variant="secondary">{settings.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</Badge>{settings.brutal && <Badge>Brutal</Badge>}</div>}
+      </fieldset>:<div className="flex min-h-11 items-center justify-between gap-4 text-sm font-semibold"><span>Número de jogadores</span><span>{limit}</span></div>}
       {entry>0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-contrast/6 p-3 text-sm mb-8"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
@@ -282,22 +290,21 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
         {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
         {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}
         {userId && room && !creationBlocked && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
-        {room && directory.owned && directory.owned.code!==room.code && <Button className="w-full" variant="secondary" disabled={busy} onClick={()=>{acceptLobby(directory.owned!);visit(directory.owned!.code);}}>Meu lobby</Button>}
       </div>
     </Card>}
     <section className={cn("min-w-0 space-y-4",!showSettings && (userId || room?"xl:col-span-2":"xl:col-span-3"))} aria-label="Lobbies abertos">
       <>
         {development && <p className="text-sm font-medium">Partidas de teste</p>}
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {listedRooms.length===0?<EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4",!showSettings && "sm:grid-cols-2",!userId && !room && "xl:grid-cols-3")}>{listedRooms.map(lobby=>{
+        {listedRooms.length===0?<EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className="grid gap-4">{listedRooms.map(lobby=>{
           const active=lobby.status==="playing";
           const people=[...lobby.participants,...(lobby.status==="lobby"?lobby.pendingInvitations:[]),...Array.from({length:lobby.bots},(_,i)=>({userId:`bot-${i}`,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,seat:lobby.participants.length+i}))];
           const hostName=lobby.participants.some(p=>p.userId===lobby.hostId)?playerName(lobby.participants.find(p=>p.userId===lobby.hostId)):lobby.hostId===userId?(displayName || username || "Você"):"Administrador";
           const joined=(development && lobby.hostId===userId) || lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.status==="lobby" && lobby.pendingInvitations.some(p=>p.userId===userId);
           const canCancel=development && permissions.canManageSite && lobby.hostId===userId;
-          return <li key={lobby.code}><Card className="h-full space-y-4">
-            <div className="flex flex-wrap items-center gap-2">{joined && lobby.status==="lobby"?<Button variant="ghost" className="h-auto min-h-0 min-w-0 truncate rounded-sm p-0 text-sm font-semibold text-foreground" disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}>Sala de {hostName}</Button>:<p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>}{active && <Badge variant="secondary">Em andamento</Badge>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
+          return <li key={lobby.code}><Card className="relative isolate h-full space-y-4">
+            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>{active && <Badge variant="secondary">Em andamento</Badge>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",lobby.status==="lobby" && person && !person.userId.startsWith("bot-") && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
@@ -305,8 +312,10 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
                 <span title={person ? playerName(person) : undefined} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person ? playerName(person) : "Disponível"}</span>
               </li>;
             })}</ul>
-            {(active || canCancel || (reserved && !joined)) && <div className="flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/${isLove?"love-abandon":"abandon"}`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
+            {(active || canCancel || (reserved && !joined)) && <div className="relative z-20 flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/${isLove?"love-abandon":"abandon"}`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}>Aceitar convite</Button>}</div>}
+
+            {joined && lobby.status==="lobby" && <Button variant="ghost" className="absolute inset-0 z-10 size-full rounded-panel m-0! p-0" aria-label={`Abrir sala de ${hostName}`} disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}/>}
           </Card></li>;
         })}</ul>}
       </>

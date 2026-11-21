@@ -214,7 +214,19 @@ test("vários lobbies aceitam a mesma conta e o primeiro início cancela as outr
     await page.reload();
     await expect(page.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
     for(const saved of fixture.states.values())expect(saved.room.participants).toHaveLength(2);
-    await page.getByRole("button",{name:"Meu lobby",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Meu lobby",exact:true})).toHaveCount(0);
+    const cards=page.getByLabel("Lobbies abertos").locator(':scope > ul > li');
+    const boxes=await cards.evaluateAll(items=>items.map(item=>{const {x,y,width,height}=item.getBoundingClientRect();return {x,y,width,height};}));
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0].x).toBe(boxes[1].x);
+    expect(boxes[1].y).toBeGreaterThanOrEqual(boxes[0].y+boxes[0].height);
+    const ownCard=page.getByRole("button",{name:"Abrir sala de Marco",exact:true});
+    await ownCard.click({position:{x:12,y:12}});
+    await expect(page).toHaveURL(new RegExp("partida="+firstCode));
+    const otherCard=page.getByRole("button",{name:"Abrir sala de Beto",exact:true});
+    await otherCard.focus();await otherCard.press("Space");
+    await expect(page).toHaveURL(peer.page.url());
+    await ownCard.focus();await ownCard.press("Enter");
     await expect(page).toHaveURL(new RegExp("partida="+firstCode));
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
     for(const client of [page,peer.page]){
@@ -293,16 +305,19 @@ test("host altera versão, Brutal e capacidade no lobby e todos recebem a config
     await peer.page.goto(page.url());
     await expect(peer.page.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
-    await expect(peer.page.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(peer.page.getByLabel("Configuração e regras")).toBeVisible();
+    await expect(peer.page.getByLabel("Configuração e regras").getByRole("combobox")).toHaveCount(0);
+    await expect(peer.page.getByLabel("Configuração e regras").getByRole("switch")).toHaveCount(0);
+    await expect(peer.page.getByLabel("Jogadores e vagas").getByText("Número de jogadores",{exact:true})).toBeVisible();
     await expect(peer.page.getByLabel("Número de jogadores")).toHaveCount(0);
-    await expect(peer.page.getByLabel("Modo da sala").getByText("Clássico",{exact:true})).toBeVisible();
+    await expect(peer.page.getByLabel("Configuração e regras").getByText("Clássico",{exact:true})).toBeVisible();
     await page.getByLabel("Modo do Flip7").selectOption("vengeance");
     await page.getByRole("switch",{name:"Modo Brutal"}).click();
     await page.getByLabel("Número de jogadores").selectOption("3");
     await expect(page.getByLabel("Número de jogadores")).toHaveValue("3");
     await expect(page.getByRole("switch",{name:"Modo Brutal"})).toBeChecked();
-    await expect(peer.page.getByLabel("Modo da sala").getByText("Vingança",{exact:true})).toBeVisible();
-    await expect(peer.page.getByLabel("Modo da sala").getByText("Brutal",{exact:true})).toBeVisible();
+    await expect(peer.page.getByLabel("Configuração e regras").getByText("A vingança nunca é plena",{exact:true})).toBeVisible();
+    await expect(peer.page.getByLabel("Configuração e regras").getByText("Ativado",{exact:true})).toBeVisible();
     await expect(peer.page.getByLabel("Vagas da sala").getByRole("listitem")).toHaveCount(3);
     await page.reload();await expect(page.getByLabel("Número de jogadores")).toHaveValue("3");await expect(page.getByRole("switch",{name:"Modo Brutal"})).toBeChecked();
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
@@ -419,7 +434,7 @@ test("convite reserva vaga, alerta permite recusar e aceitar libera o início",a
   }finally{await peer.context.close();}
 });
 
-test("visitante abre o convite sem configurações e recebe os badges da sala",async({page,browser})=>{
+test("visitante abre o convite com configurações em texto e recebe atualizações da sala",async({page,browser})=>{
   await lobby(page);
   const visitor=await browser.newContext();
   try{
@@ -437,13 +452,13 @@ test("visitante abre o convite sem configurações e recebe os badges da sala",a
     await expect(view.getByLabel("Número de jogadores")).toHaveCount(0);
     await view.goto(page.url());
     await expect(view.getByLabel("Vagas da sala").getByText("Marco",{exact:true})).toBeVisible();
-    await expect(view.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(view.getByLabel("Configuração e regras")).toBeVisible();
     await expect(view.getByLabel("Número de jogadores")).toHaveCount(0);
-    await expect(view.getByLabel("Modo da sala").getByText("Clássico",{exact:true})).toBeVisible();
+    await expect(view.getByLabel("Configuração e regras").getByText("Clássico",{exact:true})).toBeVisible();
     await page.getByLabel("Modo do Flip7").selectOption("vengeance");
     await page.getByRole("switch",{name:"Modo Brutal"}).click();
-    await expect(view.getByLabel("Modo da sala").getByText("Vingança",{exact:true})).toBeVisible();
-    await expect(view.getByLabel("Modo da sala").getByText("Brutal",{exact:true})).toBeVisible();
+    await expect(view.getByLabel("Configuração e regras").getByText("A vingança nunca é plena",{exact:true})).toBeVisible();
+    await expect(view.getByLabel("Configuração e regras").getByText("Ativado",{exact:true})).toBeVisible();
     expect([...fixture.states.values()][0].room.participants).toHaveLength(1);
   }finally{await visitor.close();}
 });
@@ -479,7 +494,7 @@ for(const mode of ["login","register"] as const)test(`visitante escolhe uma vaga
     await expect(view.getByRole("button",{name:"Aguardando o host",exact:true})).toBeVisible();
     await expect.poll(()=>[...fixture.states.values()][0].room.participants.length).toBe(2);
     expect(fixture.states.size).toBe(1);
-    await expect(view.getByLabel("Configuração e regras")).toHaveCount(0);
+    await expect(view.getByLabel("Configuração e regras")).toBeVisible();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
   }finally{await visitor.close();}
 });
