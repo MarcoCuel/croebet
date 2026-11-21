@@ -128,7 +128,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   function rememberChoice(choice:Partial<Lobby["options"] & {count:number}>){
     if(!Object.keys(choice).length)return;
     if(choice.count!==undefined)setCapacity(choice.count);
-    const nextOptions={...options,...(choice.mode!==undefined?{mode:choice.mode}:{}),...(choice.brutal!==undefined?{brutal:choice.brutal}:{})};
+    const nextOptions=(isLove?loveOptionsSchema:flip7OptionsSchema).parse({...options,...(choice.mode!==undefined?{mode:choice.mode}:{}),...(choice.brutal!==undefined?{brutal:choice.brutal}:{})});
     setOptions(nextOptions);
     if(!isLove && !development){
       try{saveSetupPreferences({count:choice.count ?? capacity,...flip7OptionsSchema.parse(nextOptions)});}catch{/* Preferences are optional. */}
