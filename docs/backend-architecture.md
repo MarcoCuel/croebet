@@ -2,14 +2,15 @@
 
 ## Estado atual
 
-Inspeção do código em 19/11/2026. Implementado não significa validado nesta rodada; comandos e limitações de testes estão em [Validação](#validação).
+Este resumo descreve a implementação, não certifica a execução das validações. Comandos e limites de cobertura estão em [Validação](#validação).
 
 | Domínio | Implementação atual |
 | --- | --- |
-| Conta | Cadastro/login/logout, sessões PostgreSQL, nome, troca de username, exclusão com senha, perfil público e avatar |
+| Conta | Cadastro/login/logout, sessões PostgreSQL, nome, troca de username, exclusão com senha, perfil público, avatar e onboarding de nome/foto |
 | Economia | Carteira/extrato, bônus de cadastro, resgate diário, cupons e ajustes administrativos transacionais |
 | Administração | Visão geral, usuários/permissões/suspensão, cupons, páginas, menus, catálogo de jogos e catálogo de apostas via API |
-| Jogos | Seed com Flip 7 ativo e sem capa; motor e partidas livres na API/PostgreSQL, com lobbies públicos editáveis pelo host, sincronização Socket.IO e bots assumindo vagas após abandono/expulsão |
+| Jogos | Flip 7 gratuito ou com Croins e Love Letter somente em desenvolvimento; motores na API/PostgreSQL, executor e lobbies compartilhados, espectadores em mesas normais, sincronização Socket.IO, expiração de lobbies e bots após abandono/expulsão conforme as capacidades do jogo |
+| Chat | Conversa geral autenticada, histórico persistido, sincronização pela conexão compartilhada e moderação administrativa |
 | Apostas | Apenas catálogo administrativo persistido; sem palpites, apuração ou pagamentos no backend; acesso público desabilitado |
 | Rankings e conquistas | Rankings públicos de vitórias, saldo e perdas líquidas; conquistas privadas com níveis persistidos e catálogo administrável |
 
@@ -271,11 +272,13 @@ A migration recupera históricos existentes, sem recriar registros já apagados.
 
 ## Próximas integrações
 
-Direção aprovada, ainda não implementada. Não criar estruturas antecipadamente só por constarem aqui.
+Priorizar a estabilização dos fluxos existentes antes de ampliar funcionalidades. Implementação e cobertura automatizada não substituem validação entre dispositivos nem ensaio de recuperação. Não criar estruturas antecipadamente só por constarem aqui.
 
-1. Validar lobbies e partidas entre dispositivos reais, especialmente reconexão durante escolhas especiais. Salas continuam somente públicas, sem espectadores nem substituição por outra conta. Ausências aguardam indefinidamente; bots assumem apenas por abandono ou expulsão explícitos.
-2. Validar a operação de partidas com Croins entre dispositivos e acompanhar os registros de entrada, pote, prêmio e devolução. Regras implementadas em [Flip 7](flip7.md#economia).
-3. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Conquistas e rankings usam os registros existentes; critérios específicos de ações dos jogos continuam futuros.
+1. Executar as verificações de [Validação](#validação), incluindo integração em banco exclusivo de test e E2E pertinentes. Validar lobbies e partidas entre dispositivos reais: navegação fora da mesa, múltiplos jogos, troca de aba, perda de conexão, retorno durante escolhas especiais e sincronização de apresentação/áudio. Mesas normais já aceitam espectadores; substituir uma vaga por outra conta continua indisponível. A expiração de lobbies está implementada, mas partidas iniciadas aguardam decisões humanas indefinidamente; qualquer timeout ou substituição automática por ausência exige decisão de produto. Essa espera também pode bloquear publicações pela proteção de partidas em andamento.
+2. Validar a operação com Croins entre dispositivos e os cenários de concorrência, repetição e falha em banco exclusivo de test, conferindo entrada, pote, prêmio, empate, abandono e devolução. Regras implementadas em [Flip 7](flip7.md#economia).
+3. Ensaiar a restauração de backup em destino isolado, conferindo contas, saldos, históricos e imagens, e manter cópia externa protegida. Procedimentos e limites de rollback em [Produção independente no Mac](#produção-independente-no-mac).
+4. Para novas contribuições de jogos, seguir [Adicionar um jogo](#adicionar-um-jogo) e validar capacidades, privacidade, histórico e apresentação de replay antes de liberar cada recurso. O executor compartilhado já existe; SDK público e instalação de código pelo site continuam pendentes.
+5. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Conquistas e rankings usam os registros existentes; critérios específicos de ações dos jogos continuam futuros.
 
 ## Validação
 
