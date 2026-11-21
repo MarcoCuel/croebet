@@ -15,6 +15,7 @@ import { Sidebar } from "./sidebar";
 import { PageBackProvider } from "./page-back";
 import { Topbar } from "./topbar";
 import { MenuLinks } from "./navigation-links";
+import { AppInstall } from "./app-install";
 import { brandLinkClass, Wordmark } from "./brand";
 
 export function Navigation({ children }: { children: ReactNode }) {
@@ -96,6 +97,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
                 <Wordmark />
               </Link>
               <MenuLinks onNavigate={() => setMobileMenuOpen(false)} />
+              <div className="mt-auto"><AppInstall /></div>
             </div>
           </DialogContent>
         </Dialog>

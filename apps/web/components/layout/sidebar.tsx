@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import { brandLinkClass, Wordmark } from "./brand";
 import { MenuLinks } from "./navigation-links";
+import { AppInstall } from "./app-install";
 
 export function Sidebar({
   expanded,
@@ -49,29 +50,32 @@ export function Sidebar({
           <div className="min-h-0 overflow-y-auto">
             <MenuLinks sidebar />
           </div>
-          {!sessionReady ? (
-            <div role="status" aria-label="Carregando conta" className="h-28 rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
-          ) : username ? (
-            <div className="-mx-3 @max-[8rem]/sidebar:hidden">
-              <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-contrast/6 p-2">
-                <Button
-                  asChild
-                  variant="ghost"
-                  className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
-                >
-                  <Link href="/carteira" aria-label="Ver carteira">
-                    <Balance key={username} value={walletReady ? balance : null} showCurrency />
-                  </Link>
-                </Button>
-                <RedeemButton />
+          <div className="flex shrink-0 flex-col gap-3">
+            <AppInstall />
+            {!sessionReady ? (
+              <div role="status" aria-label="Carregando conta" className="h-28 rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
+            ) : username ? (
+              <div className="-mx-3 @max-[8rem]/sidebar:hidden">
+                <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-contrast/6 p-2">
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="min-h-0 min-w-0 shrink p-0 font-normal text-foreground"
+                  >
+                    <Link href="/carteira" aria-label="Ver carteira">
+                      <Balance key={username} value={walletReady ? balance : null} showCurrency />
+                    </Link>
+                  </Button>
+                  <RedeemButton />
+                </div>
+                <div className="border-t-(length:--border-width-hairline) border-contrast/6 px-3 pt-3">
+                  <AccountMenu name={username} sidebar />
+                </div>
               </div>
-              <div className="border-t-(length:--border-width-hairline) border-contrast/6 px-3 pt-3">
-                <AccountMenu name={username} sidebar />
-              </div>
-            </div>
-          ) : (
-            <SignupBanner />
-          )}
+            ) : (
+              <SignupBanner />
+            )}
+          </div>
         </div>
       </aside>
       <Tooltip>

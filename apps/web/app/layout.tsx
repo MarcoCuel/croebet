@@ -13,7 +13,7 @@ import { getInitialSession } from "@/features/auth/server-session";
 import { Footer } from "@/components/layout/footer";
 import { loadPageLinks } from "@/features/pages/api";
 import { loadNavigation } from "@/features/menus/api";
-import { AppInstall } from "@/components/layout/app-install";
+import { AppInstallProvider } from "@/components/layout/app-install";
 
 const inter = localFont({
   src: "./fonts/InterVariable.woff2",
@@ -47,13 +47,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body className="bg-background font-sans text-base text-foreground">
         <Motion />
         <Providers initialSession={initialSession} initialPages={initialPages} initialNavigation={initialNavigation}>
-          <AppInstall />
-          <GameLinksProvider games={initialGames?.items ?? []}>
-            <Navigation>
-              {children}
-              <Footer />
-            </Navigation>
-          </GameLinksProvider>
+          <AppInstallProvider>
+            <GameLinksProvider games={initialGames?.items ?? []}>
+              <Navigation>
+                {children}
+                <Footer />
+              </Navigation>
+            </GameLinksProvider>
+          </AppInstallProvider>
         </Providers>
       </body>
     </html>
