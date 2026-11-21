@@ -788,3 +788,30 @@ test("porta do teste com bots pede confirmação e não encerra ao abrir ou desi
  await dialog.getByRole('button',{name:'Continuar',exact:true}).click();expect(ended).toBe(0);
  await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();await dialog.getByRole('button',{name:'Encerrar teste',exact:true}).click();await expect.poll(()=>ended).toBe(1);
 });
+
+
+test("limite de assinatura preserva o lobby e recupera os controles sem piscar",async({page})=>{
+  // Shorten only the subscription cooldown; leave Socket.IO heartbeat timers real.
+  await page.addInitScript(()=>{
+    const original=window.setTimeout.bind(window);
+    window.setTimeout=((handler:TimerHandler,delay?:number,...args:unknown[])=>original(handler,delay===60000?1500:delay,...args)) as typeof window.setTimeout;
+  });
+  await page.goto("/jogos/flip7");
+  await page.getByRole("button",{name:"Jogar",exact:true}).click();
+  const cancel=page.getByRole("button",{name:"Cancelar",exact:true});
+  await expect(cancel).toBeEnabled();
+  const url=page.url();
+  const before=fixture.watches.length;
+  fixture.rejectNextWatch();
+  fixture.disconnectUser(matchUsers[0].id);
+  await expect(page.getByText("Muitas alterações de sala. Reconectando em até um minuto.",{exact:true})).toBeVisible();
+  await expect(cancel).toBeVisible();
+  await expect(cancel).toBeDisabled();
+  expect(page.url()).toBe(url);
+  await expect(cancel).toBeEnabled();
+  await expect(page.getByText(/Muitas alterações de sala/)).toHaveCount(0);
+  expect(fixture.watches.length-before).toBe(2);
+  await cancel.click();
+  await page.getByRole("button",{name:"Jogar",exact:true}).click();
+  await expect(cancel).toBeEnabled();
+});

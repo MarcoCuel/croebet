@@ -8,6 +8,7 @@ import { tokenHash, validCsrf } from "../auth/security.ts";
 import { getRoomSync, listMatches, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
 import { matchNotificationSchema, notificationRefresh, type Refresh } from "./notifications.ts";
 import { applyRealtimeRequest } from "./realtime-actions.ts";
+import { createWatchLimit } from "./watch-limit.ts";
 import { realtimeClientAddress } from "./client-address.ts";
 
 type Options = { sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
@@ -21,6 +22,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     maxHttpBufferSize: 65536, pingInterval: 15000, pingTimeout: 10000,
     allowRequest: (request, done) => done(null, !!request.headers.origin && !!options.origins?.includes(request.headers.origin)),
   });
+  const allowWatch = createWatchLimit();
   let listener: PoolClient | undefined;
   let listening: Promise<void> | undefined;
   let stopping = false;
@@ -158,7 +160,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       enqueue(socket, async () => {
         try {
           await authorize(socket.data);
-          if (!await options.limit(`watch:${socket.data.actor ?? socket.data.address}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala.");
+          if (!allowWatch(socket.data.actor ?? socket.data.address)) throw new MatchError("RATE_LIMIT", 429, "Muitas alterações de sala. Reconectando em até um minuto.");
           const input = matchWatchSchema.parse(value);
           const initial = input.active && input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
           if (socket.data.code) await socket.leave(`match:${socket.data.code}`);

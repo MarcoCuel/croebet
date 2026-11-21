@@ -193,7 +193,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     const prior=incoming.current;
     incoming.current=prior && !sync.reset ? {...sync,frames:[...prior.frames,...sync.frames.filter(frame=>frame.version>prior.room.version)],reset:prior.reset} : sync;
     setLiveRevision(n=>n+1);
-  },()=>{},message=>{toast.error(message);router.push(gameUrl(gameSlug));router.refresh();});
+  },()=>{},(message,roomClosed)=>{toast.error(message);if(roomClosed){router.push(gameUrl(gameSlug));router.refresh();}});
   const [creation] = useState(() => replay ? null : createdPresentation(initial.match));
   useEffect(() => { if (!replay) clearCreatedPresentation(initial.match?.code); }, [initial.match?.code, replay]);
   const pendingCommand = useRef<MatchCommand | null>(null);

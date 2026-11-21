@@ -106,11 +106,15 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
       acceptLobby(directory.owned);visit(directory.owned.code);
     }
   });
-  const connected=useMatchLive(room?.code,room?.version ?? 0,true,accept,acceptDirectory,message=>{
+  const connected=useMatchLive(room?.code,room?.version ?? 0,true,accept,acceptDirectory,(message,roomClosed)=>{
     if(leaving.current || navigating.current)return;
     setError(message);
-    if(room){setRoom(null);visit(null);}
-  },development?()=>{}:setMatches,onTestStarted);
+    if(room && roomClosed){
+      setRoom(null);
+      setDirectory(current=>({...current,owned:current.owned?.code===room.code?null:current.owned,joined:current.joined.filter(lobby=>lobby.code!==room.code),items:current.items.filter(lobby=>lobby.code!==room.code)}));
+      visit(null);
+    }
+  },development?()=>{}:setMatches,onTestStarted,()=>setError(""));
   const lobbies=[...new Map((development?(directory.testLobbies ?? []).filter(l=>l.game===game.slug):[...directory.items,...directory.joined]).map(lobby=>[lobby.id,lobby])).values()];
   const listedRooms=development?[...lobbies,...(directory.testMatches ?? []).filter(m=>m.game===game.slug)]:lobbies;
   const host=room?.hostId===userId;

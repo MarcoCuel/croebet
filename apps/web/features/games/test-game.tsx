@@ -30,7 +30,7 @@ export function TestGame({game}:{game:GameRecord}){
  const watchedCode=userId && room && room.game!=="flip7" && room.status!=="lobby"?room.code:undefined;
  useMatchLive(watchedCode,room?.version ?? 0,!!watchedCode,()=>{},()=>{},message=>{
   setRunning(false);setError(message);
- },undefined,(_code,sync)=>setRoom(sync.room));
+ },undefined,(_code,sync)=>setRoom(sync.room),()=>setError(""));
 
  async function run(action:()=>Promise<void>){if(busy)return;setBusy(true);setError("");try{await action();}catch(e){setRunning(false);setError(e instanceof Error?e.message:"Não foi possível concluir.");}finally{setBusy(false);}}
  async function refresh(nextCode=code){setRoom(gameRoomSchema.parse(await managementRequest(`/matches/${nextCode}`,gameRoomSchema)));}

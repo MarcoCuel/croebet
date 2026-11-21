@@ -61,7 +61,9 @@ export function matchesFixture() {
     const reset=!frames.length || frames[0].version!==stream.version+1;
     stream.socket.emit("room",{room:saved.room,frames:reset?[]:frames,reset});stream.version=saved.room.version;
   }}
-  return {commands,states,disconnectUser(userId:string){for(const stream of streams)if(stream.actor===userId)stream.socket.conn.close();},attach(server:HttpServer){
+  let rejectedWatches=0;
+  const watches: {code?:string;active?:boolean}[]=[];
+  return {commands,states,watches,rejectNextWatch(){rejectedWatches++;},disconnectUser(userId:string){for(const stream of streams)if(stream.actor===userId)stream.socket.conn.close();},attach(server:HttpServer){
     const io=new Server(server,{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"]});
     io.use((socket,next)=>{
       const csrf=socket.request.headers.cookie?.match(/(?:^|; )fixture-csrf=([^;]+)/)?.[1];
@@ -71,6 +73,8 @@ export function matchesFixture() {
       const actor=fixtureUser(socket.request)?.id ?? "visitor";
       const stream={socket,actor,code:null as string|null,version:0,active:false};streams.add(stream);notify();
       socket.on("watch",(input,ack)=>{
+        watches.push(input);
+        if(input.active!==false && rejectedWatches>0){rejectedWatches--;ack({ok:false,error:{code:"RATE_LIMIT",message:"Muitas alterações de sala. Reconectando em até um minuto."}});return;}
         stream.active=input.active!==false;stream.code=stream.active?input.code ?? null:null;stream.version=input.afterVersion ?? 0;
         notify();ack({ok:true,data:{ok:true}});
       });
