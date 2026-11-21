@@ -1,6 +1,6 @@
 import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { Server as SocketServer } from "socket.io";
-import { gameRoomSchema, seoFieldsSchema } from "@croebet/shared";
+import { gameRoomSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import type { GameRecord } from "@croebet/shared";
@@ -19,6 +19,7 @@ let sessionRole: "admin" | "user" = "admin";
 let api: Server;
 let sockets: SocketServer;
 let loveRoom: ReturnType<typeof gameRoomSchema.parse> | null = null;
+let personalMatches: PersonalMatches = {items:[]};
 let roomWatches: { code: string; afterVersion: number }[] = [];
 function respond(path: string, method: string, body: Record<string, unknown> = {}): { status: number; data: unknown } {
   const url=new URL(path,"http://fixture");
@@ -70,6 +71,7 @@ test.beforeAll(async () => {
   });
   sockets = new SocketServer(api,{path:"/api/v1/realtime",addTrailingSlash:false});
   sockets.on("connection",socket=>{
+    socket.emit("personal-matches",personalMatches);
     socket.on("watch",(request,ack)=>{
       ack?.({ok:true,data:{}});
       if(loveRoom && request.active!==false && request.code===loveRoom.code){
@@ -87,7 +89,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await new Promise<void>(resolve => sockets.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  loveRoom = null;roomWatches=[];
+  loveRoom = null;roomWatches=[];personalMatches={items:[]};
   game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null; sessionRole = "admin";
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
@@ -447,4 +449,34 @@ test("estados de teste não recriam assinaturas e sair remove a observação",as
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  await expect(page.getByRole("region",{name:"Mesa do Love Letter"})).toBeVisible();
  await expect.poll(()=>roomWatches.length).toBe(3);
+});
+
+test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas", async ({page}) => {
+ const flip={code:"ABCDEF123456",game:"flip7" as const,gameName:"Flip 7",status:"playing" as const,development:false,yourTurn:false,turnKey:null};
+ const love={...flip,code:"ABCDEF654321",game:"love-letter" as const,gameName:"Love Letter",status:"lobby" as const,development:true};
+ personalMatches={items:[flip]};
+ await page.goto("/jogos");
+ const direct=page.getByRole("link",{name:"Voltar à partida de Flip 7"});
+ await expect(direct).toHaveAttribute("href","/jogos/flip7?partida=ABCDEF123456");
+ await page.getByRole("link",{name:"Ver carteira",exact:true}).first().click();
+ await expect(page).toHaveURL(/\/carteira$/);
+ await expect(direct).toBeVisible();
+ personalMatches={items:[flip,love]};sockets.emit("personal-matches",personalMatches);
+ await page.getByRole("button",{name:"Minhas partidas (2)"}).click();
+ await expect(page.getByRole("menuitem").filter({hasText:"Love Letter"})).toHaveAttribute("href","/jogos/love-letter?partida=ABCDEF654321");
+ await page.keyboard.press("Escape");
+ personalMatches={items:[{...flip,yourTurn:true,turnKey:"1:0"},love]};
+ sockets.emit("personal-matches",personalMatches);
+ const alert=page.getByRole("link",{name:"Sua vez em Flip 7"});
+ await expect(alert).toBeVisible();
+ sockets.emit("personal-matches",personalMatches);
+ await expect(alert).toHaveCount(1);
+ await alert.click();
+ await expect(page).toHaveURL(/\/jogos\/flip7\?partida=ABCDEF123456/);
+ await expect(alert).toHaveCount(0);
+ // Completion removes the stale shortcut; only the other game's lobby remains.
+ personalMatches={items:[love]};sockets.emit("personal-matches",personalMatches);
+ await expect(page.getByRole("link",{name:"Voltar à partida de Love Letter"})).toBeVisible();
+ personalMatches={items:[]};sockets.emit("personal-matches",personalMatches);
+ await expect(page.getByRole("link",{name:"Voltar à partida de Love Letter"})).toHaveCount(0);
 });

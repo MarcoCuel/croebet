@@ -5,14 +5,14 @@ import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import { matchWatchSchema, realtimeRequestSchema, type RealtimeReply } from "@croebet/shared";
 import { tokenHash, validCsrf } from "../auth/security.ts";
-import { getRoomSync, listMatches, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
+import { getRoomSync, listPersonalMatches, listMatches, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
 import { matchNotificationSchema, notificationRefresh, type Refresh } from "./notifications.ts";
 import { applyRealtimeRequest } from "./realtime-actions.ts";
 import { createWatchLimit } from "./watch-limit.ts";
 import { realtimeClientAddress } from "./client-address.ts";
 
 type Options = { sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
-type Connection = { actor: string | null; address: string; session: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; watching: boolean; directoryWatching: boolean; pending: Refresh; refreshQueued: boolean; tail: Promise<void>; presence: Map<string,string> };
+type Connection = { actor: string | null; address: string; session: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; personal: string; personalCodes: Set<string>; watching: boolean; directoryWatching: boolean; pending: Refresh; refreshQueued: boolean; tail: Promise<void>; presence: Map<string,string> };
 type LiveSocket = Omit<Socket, "data"> & { data: Connection };
 const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
 
@@ -47,7 +47,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     }).catch(error => close(socket, error));
   }
   async function syncPresence(c: Connection) {
-    const joined=c.actor && c.watching ? await pool.query<{id:string}>(`select m.id from game_matches m join game_match_players p on p.match_id=m.id where p.controller_id=$1 and m.status in ('lobby','playing')`,[c.actor]) : {rows:[]};
+    const joined=c.actor ? await pool.query<{id:string}>(`select m.id from game_matches m join game_match_players p on p.match_id=m.id where p.controller_id=$1 and m.status in ('lobby','playing')`,[c.actor]) : {rows:[]};
     const wanted=new Set(joined.rows.map(row=>row.id));
     for(const [room,id] of c.presence)if(!wanted.has(room)){
       await pool.query("delete from match_presence where id=$1",[id]);c.presence.delete(room);
@@ -62,6 +62,12 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     const c = socket.data;
     await authorize(c);
     if (flags.presence) await syncPresence(c);
+    if (flags.personal && c.actor) {
+      const personal = await listPersonalMatches(pool, c.actor);
+      c.personalCodes = new Set(personal.items.map(item => item.code));
+      const signature = JSON.stringify(personal);
+      if (signature !== c.personal) { socket.emit("personal-matches", personal); c.personal = signature; }
+    }
     if (flags.room && c.watching && c.code) {
       try {
         const sync = await getRoomSync(pool, c.actor, c.code, c.version);
@@ -141,7 +147,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       const result = token ? await pool.query<{ user_id: string }>("select user_id from sessions where token_hash=$1", [tokenHash(token)]) : {rows: []};
       if (token && !result.rows[0]) throw new MatchError("UNAUTHENTICATED", 401, "Entre novamente.");
       const address = realtimeClientAddress(socket.handshake.address, socket.request.headers["cf-connecting-ip"], options.environment === "production" && options.trustCloudflareProxy === true);
-      const data: Connection = { address, actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", version: 0, signature: "", directory: "", invitations: "", matches: "", watching: false, directoryWatching: false, pending: {}, refreshQueued: false, tail: Promise.resolve(), presence: new Map() };
+      const data: Connection = { address, actor: result.rows[0]?.user_id ?? null, session: token ? tokenHash(token) : "", version: 0, signature: "", directory: "", invitations: "", matches: "", personal: "", personalCodes: new Set(), watching: false, directoryWatching: false, pending: {}, refreshQueued: false, tail: Promise.resolve(), presence: new Map() };
       await authorize(data);
       if (io.sockets.sockets.size >= (options.maxConnections ?? 200) || [...io.sockets.sockets.values()].filter(s => (data.actor ? s.data.actor === data.actor : !s.data.actor && s.data.address === data.address)).length >= 6)
         throw new MatchError("CONNECTION_LIMIT", 429, "Muitas conexões abertas.");
@@ -154,7 +160,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   io.on("connection", raw => {
     const socket = raw as LiveSocket;
     if (socket.data.actor) void socket.join(`user:${socket.data.actor}`);
-    schedule(socket, { invitations: true });
+    schedule(socket, { invitations: true, presence: true, personal: true });
     socket.on("watch", (value: unknown, ack: (reply: RealtimeReply) => void) => {
       if (typeof ack !== "function") return;
       enqueue(socket, async () => {
@@ -168,7 +174,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
           if (initial) {
             await socket.join(`match:${initial.room.code}`);
           }
-          await refresh(socket, { room: true, directory: true, matches: true, presence: true });
+          await refresh(socket, { room: true, directory: true, matches: true, presence: true, personal: true });
           ack({ ok: true, data: { ok: true } });
         } catch (error) { ack(errorReply(error)); }
       });
@@ -185,7 +191,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
           const data = await applyRealtimeRequest(pool, socket.data.actor, socket.data.session, request);
           // Every player, including the sender, receives committed frames here.
           // The acknowledgement is a receipt; it is not a second presentation path.
-          let flags: Refresh = { room: true, directory: true, matches: true, presence: true };
+          let flags: Refresh = { room: true, directory: true, matches: true, presence: true, personal: true };
           if (request.type === "command") flags = { room: true };
           else if (request.type === "presence") flags = {};
           else if (["invite", "decline", "update"].includes(request.type)) flags = { room: true, directory: true };

@@ -21,7 +21,7 @@ test("mudanças de ciclo de vida atualizam listagens somente para quem as acompa
 test("convites, controle de vagas e revogação são direcionados à conta afetada", () => {
   assert.deepEqual(enabled(notificationRefresh({kind:"invitation",code:"B",userId:"alice"},table)),["invitations"]);
   assert.deepEqual(enabled(notificationRefresh({kind:"invitation",code:"B",userId:"bob"},table)),[]);
-  assert.deepEqual(enabled(notificationRefresh({kind:"account",userId:"alice"},directory)),["directory","presence"]);
+  assert.deepEqual(enabled(notificationRefresh({kind:"account",userId:"alice"},directory)),["directory","personal","presence"]);
   assert.deepEqual(enabled(notificationRefresh({kind:"account",userId:"bob"},directory)),[]);
   assert.deepEqual(enabled(notificationRefresh({kind:"auth",userId:"alice"},table)),["auth"]);
   assert.deepEqual(enabled(notificationRefresh({kind:"auth",userId:"bob"},table)),[]);
@@ -62,4 +62,41 @@ test("limite operacional é configurável, preserva padrão 200 e rejeita valore
   assert.equal(readConfig(env).REALTIME_MAX_CONNECTIONS,200);
   assert.equal(readConfig({...env,REALTIME_MAX_CONNECTIONS:"350"}).REALTIME_MAX_CONNECTIONS,350);
   assert.throws(()=>readConfig({...env,REALTIME_MAX_CONNECTIONS:"0"}));
+});
+
+test("turnos acompanham só as partidas da conta, mesmo sem observar mesa ou diretório", () => {
+  const site={actor:"alice",watching:false,directoryWatching:false,personalCodes:new Set(["A"])};
+  const event={kind:"room",code:"A",directory:false,matches:false};
+  assert.deepEqual(enabled(notificationRefresh(event,site)),["personal"]);
+  assert.deepEqual(enabled(notificationRefresh({...event,code:"B"},site)),[]);
+  assert.deepEqual(enabled(notificationRefresh(event,{...site,actor:null})),[]);
+  assert.deepEqual(enabled(notificationRefresh({kind:"account",userId:"alice"},site)),["personal","presence"]);
+});
+
+test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love Letter sem vazar cartas", async () => {
+  const {listPersonalMatches}=await import("../dist/modules/matches/service.js");
+  const {flip7Driver}=await import("../dist/modules/games/flip7/driver.js");
+  const {createLove}=await import("../dist/modules/games/love-letter/engine.js");
+  const {randomUUID}=await import("node:crypto");
+  const actor=randomUUID();
+  const state=flip7Driver.create({setup:[{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}],options:{mode:"classic",brutal:false}},"Ana");
+  const index=state.deck.findIndex(card=>card.type==='freeze');
+  state.pending={source:1,card:state.deck.splice(index,1)[0],give:false};
+  assert.equal('bonusChoice' in state,false);
+  const love=createLove([{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}],"classic");
+  love.turn=1;
+  const base={controller_id:actor,seat:1,status:'playing',development:false,only_bots:false};
+  const rows=[{...base,code:'ABCDEF123456',game_slug:'flip7',game_name:'Flip 7',state},
+    {...base,code:'ABCDEF654321',game_slug:'love-letter',game_name:'Love Letter',state:love}];
+  const client={release(){},async query(sql,values){
+    if(sql.includes('select m.*,g.name')){assert.deepEqual(values,[actor]);return {rows};}
+    return {rows:[]};
+  }};
+  const result=await listPersonalMatches({connect:async()=>client},actor);
+  assert.deepEqual(result.items.map(item=>item.yourTurn),[true,true]);
+  assert.deepEqual(result.items.map(item=>item.turnKey),['1:1','1:1']);
+  assert.ok(result.items.every(item=>Object.keys(item).sort().join(',')==='code,development,game,gameName,status,turnKey,yourTurn'));
+  for(const row of rows)row.controller_id=null;
+  const withoutControl=await listPersonalMatches({connect:async()=>client},actor);
+  assert.ok(withoutControl.items.every(item=>!item.yourTurn && item.turnKey===null));
 });

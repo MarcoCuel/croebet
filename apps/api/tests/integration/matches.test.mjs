@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createDatabase } from "../../dist/db/client.js";
-import { createMatch, commandMatch, getMatch, getRoomSync, listMatches, listLobbies, lobbyAction, kickMatch } from "../../dist/modules/matches/service.js";
+import { createMatch, commandMatch, getMatch, getRoomSync, listMatches, listLobbies, lobbyAction, kickMatch, listPersonalMatches } from "../../dist/modules/matches/service.js";
 import { createApp } from "../../dist/app.js";
 import { authRoutes } from "../../dist/modules/auth/routes.js";
 import { csrfToken, tokenHash, newToken } from "../../dist/modules/auth/security.js";
@@ -258,7 +258,8 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
   const socket=io(origins[server],{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"],reconnection:false,autoConnect:false,
    extraHeaders:{origin:server===1?config.DEV_WEB_ORIGINS:config.WEB_ORIGIN,cookie:`croebet-session=${tokens[index]}; croebet-csrf=${nonce}`},
    auth:{csrf:csrfToken(config.CSRF_SECRET,nonce,tokens[index])},...overrides});
-  sockets.push(socket);socket.rooms=[];socket.closed=[];socket.directories=[];
+  sockets.push(socket);socket.rooms=[];socket.closed=[];socket.directories=[];socket.personal=[];
+  socket.on("personal-matches",value=>socket.personal.push(value));
   socket.on("lobbies",value=>socket.directories.push(value));socket.on("room",value=>socket.rooms.push(value));socket.on("closed",value=>socket.closed.push(value));
   await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("connect_error",error=>reject(new Error(`connect actor=${index} server=${server} overrides=${Object.keys(overrides)}: ${error.message}`,{cause:error})));socket.connect();});
   assert.equal(socket.io.engine.transport.name,"websocket");return socket;
@@ -288,8 +289,12 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  await watch(peer,waiting.code);
  assert.equal((await pool.query("select count(*)::int total from match_presence where user_id=$1 and match_id=any($2::uuid[])",[actors[1],[room.id,waiting.id]])).rows[0].total,2);
  await wait(()=>host.rooms.find(value=>value.room.version===joined.version && value.room.onlineUserIds.includes(actors[1])));
+ const offPage=await peer.timeout(5000).emitWithAck("watch",{active:false,afterVersion:0});
+ assert.equal(offPage.ok,true);
  const started=await request(host,{type:"start",code:room.code,input:{commandId:randomUUID(),expectedVersion:joined.version}});
- await wait(()=>peer.directories.some(directory=>directory.active?.code===room.code));
+ const offPageSummary=await wait(()=>peer.personal.at(-1)?.items.find(item=>item.code===room.code && item.status==='playing'));
+ assert.equal(typeof offPageSummary.yourTurn,'boolean');
+ assert.equal('state' in offPageSummary,false);
  await assert.rejects(getMatch(pool,actors[1],waiting.code),{code:"NOT_FOUND"});
  await watch(peer,room.code,joined.version);
  for(const socket of [host,peer]){
@@ -317,6 +322,12 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  assert.equal(reads.some(r=>r.sql.includes("m.status='lobby' and g.enabled=true")),false);
  assert.equal(reads.some(r=>r.sql.includes("from game_match_invitations i")),false);
  assert.equal(reads.some(r=>r.sql.includes("array(select p.controller_id")),false);
+ const offTable=await peer.timeout(5000).emitWithAck("watch",{active:false,afterVersion:0});
+ assert.equal(offTable.ok,true);
+ assert.equal((await pool.query("select count(*)::int total from match_presence where user_id=$1 and match_id=$2",[actors[1],room.id])).rows[0].total,1);
+ const personal=await wait(()=>peer.personal.at(-1)?.items.find(item=>item.code===room.code));
+ assert.equal(personal.status,'playing');assert.equal('state' in personal,false);
+ await watch(peer,room.code,started.version);
  const state=(await pool.query("select state from game_matches where id=$1",[room.id])).rows[0].state;
  const seat=state.bonusChoice ?? state.pending?.source ?? state.turn;
  const actor=actors.indexOf(started.participants.find(p=>p.seat===seat).userId),sender=[host,peer][actor],receiver=[peer,host][actor];
@@ -630,19 +641,36 @@ test("PostgreSQL: testes restritos a admin/convite, sem economia nem histórico 
 });
 
 
-test("PostgreSQL: administrador mantém múltiplos lobbies e testes iniciados",async t=>{
- const {pool,actors,sessions}=await environment(t);
+test("PostgreSQL: criação simultânea por jogo, limite também em dev e resumos privados",async t=>{
+ const {pool,actors,sessions,createFor,lobby}=await environment(t);
  await pool.query("update users set role='admin' where id=$1",[actors[0]]);
- const rooms=[];
- for(let i=0;i<3;i++)rooms.push(await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:'flip7',capacity:2,options:{mode:'classic',brutal:false},development:true,bots:1,onlyBots:false,entryAmount:0}));
- assert.equal((await listLobbies(pool,actors[0])).testLobbies.length,3);
- for(const room of rooms){await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);const started=await lobbyAction(pool,actors[0],sessions[0],room.code,'start',{commandId:randomUUID(),expectedVersion:room.version});assert.equal(started.status,'playing');}
- const directory=await listLobbies(pool,actors[0]);
- assert.equal(directory.tests.filter(r=>r.status==='playing').length,3);
- assert.equal(directory.testMatches.length,3);
- for(const summary of directory.testMatches){assert.equal('state' in summary,false);assert.equal('deck' in summary,false);assert.equal(summary.options.mode,'classic');assert.equal(summary.participants.length,1);assert.equal(summary.bots,1);}
- const {collectiveCancellation}=await import('../../dist/modules/matches/service.js');const first=await getMatch(pool,actors[0],rooms[0].code);await collectiveCancellation(pool,actors[0],sessions[0],first.code,{commandId:randomUUID(),expectedVersion:first.version});
- assert.equal((await listLobbies(pool,actors[0])).tests.length,2);assert.equal((await listMatches(pool,null)).items.some(r=>rooms.some(s=>s.id===r.id)),false);
+ const normal=await createFor(0);
+ const loveInput=()=>({requestId:randomUUID(),game:'love-letter',capacity:2,options:{mode:'classic',brutal:false},development:true,bots:0,entryAmount:0});
+ const attempts=await Promise.allSettled([1,2].map(()=>createMatch(pool,actors[0],sessions[0],loveInput())));
+ assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal(attempts.find(r=>r.status==='rejected').reason.code,'LOBBY_EXISTS');
+ const love=attempts.find(r=>r.status==='fulfilled').value;
+ const {inviteLobbyPlayer}=await import('../../dist/modules/matches/service.js');
+ await inviteLobbyPlayer(pool,actors[0],sessions[0],love.code,actors[1]);
+ const loveJoined=await lobby(love.code,1,'join');
+ await lobby(normal.code,1,'join');
+ const joined=await getMatch(pool,actors[0],normal.code);
+ await lobby(normal.code,0,'start',{expectedVersion:joined.version});
+ assert.equal((await getMatch(pool,actors[0],love.code)).status,'lobby');
+ const summaries=await listPersonalMatches(pool,actors[0]);
+ assert.deepEqual(new Set(summaries.items.map(r=>r.game)),new Set(['flip7','love-letter']));
+ assert.equal(JSON.stringify(summaries).includes('"state"'),false);
+ assert.equal(JSON.stringify(summaries).includes('"hand"'),false);
+ assert.equal((await listPersonalMatches(pool,actors[2])).items.length,0);
+ await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),love.id,actors[0]]);
+ await lobbyAction(pool,actors[0],sessions[0],love.code,'start',{commandId:randomUUID(),expectedVersion:loveJoined.version});
+ await assert.rejects(createMatch(pool,actors[0],sessions[0],loveInput()),{code:'LOBBY_EXISTS'});
+ const active=await listPersonalMatches(pool,actors[0]);
+ assert.equal(active.items.filter(r=>r.status==='playing').length,2);
+ const loveState=(await getRoomSync(pool,actors[0],love.code)).room.state;
+ const loveSummary=active.items.find(r=>r.game==='love-letter');
+ assert.equal(loveSummary.yourTurn,loveState.turn===0);
+ assert.equal(loveSummary.turnKey,loveState.turn===0?`${loveState.round}:0`:null);
 });
 
 test("PostgreSQL: abandono coletivo unânime devolve inclusive a quem já abandonou; rejeição e rollback não pagam",async t=>{

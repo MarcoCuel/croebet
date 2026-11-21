@@ -49,7 +49,7 @@ export const loveMatchSchema=z.object({...roomFields,game:z.literal("love-letter
 export const roomSchema = z.discriminatedUnion("status", [lobbySchema, matchSchema]);
 export type LobbyList = z.infer<typeof lobbyListSchema>;
 export const matchSummarySchema = z.object({ ...roomFields, status: z.literal("playing"), round: integer.positive(), controllerIds: z.array(z.uuid()).max(12) }).strict();
-export const lobbyListSchema = z.object({ testMatches:z.array(matchSummarySchema).optional(), testLobbies:z.array(lobbySchema).optional(), tests:z.array(z.object({hostId:z.uuid().optional(),code:matchCodeSchema,game:z.enum(["flip7","love-letter"]),status:z.enum(["lobby","playing"])})).optional(), items: z.array(lobbySchema).max(100), joined: z.array(lobbySchema), owned: lobbySchema.nullable(), active: matchSchema.nullable() }).strict();
+export const lobbyListSchema = z.object({ ownedLobbies:z.array(lobbySchema).optional(), testMatches:z.array(matchSummarySchema).optional(), testLobbies:z.array(lobbySchema).optional(), tests:z.array(z.object({hostId:z.uuid().optional(),code:matchCodeSchema,game:z.enum(["flip7","love-letter"]),status:z.enum(["lobby","playing"])})).optional(), items: z.array(lobbySchema).max(100), joined: z.array(lobbySchema), owned: lobbySchema.nullable(), active: matchSchema.nullable() }).strict();
 export type MatchSummary = z.infer<typeof matchSummarySchema>;
 export const matchListSchema = z.object({ items: z.array(matchSummarySchema).max(100) }).strict();
 export const matchFrameSchema = z.object({ action: flip7EventActionSchema, state: flip7ViewSchema, version: integer.positive() }).strict();
@@ -83,3 +83,11 @@ export type LobbyInvitations = z.infer<typeof lobbyInvitationsSchema>;
 export const gameRoomSchema=z.union([roomSchema,loveMatchSchema]);
 export const gameRoomSyncSchema=z.object({room:gameRoomSchema,frames:z.array(matchFrameSchema),reset:z.boolean()});
 export const gameCommandSchema=z.object({commandId:z.uuid(),expectedVersion:integer.positive(),action:z.union([flip7ActionSchema,loveActionSchema])}).strict();
+
+// Private to the authenticated account; contains navigation data only.
+export const personalMatchesSchema = z.object({ items: z.array(z.object({
+  code: matchCodeSchema, game: z.enum(["flip7", "love-letter"]), gameName: z.string(),
+  status: z.enum(["lobby", "playing"]), development: z.boolean(),
+  yourTurn: z.boolean(), turnKey: z.string().nullable(),
+}).strict()) }).strict();
+export type PersonalMatches = z.infer<typeof personalMatchesSchema>;

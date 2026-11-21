@@ -10,6 +10,7 @@ import { Balance } from "@/features/wallet/balance";
 import { RedeemButton } from "@/features/wallet/redeem-button";
 import { DailyBonusButton } from "@/features/wallet/daily-bonus-button";
 import { Button } from "@/components/ui/button";
+import { ActiveMatchesMenu } from "@/features/games/active-matches-menu";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
@@ -165,6 +166,7 @@ export function Topbar({
               </Link>
             </Button>
             <DailyBonusButton />
+            <Suspense><ActiveMatchesMenu /></Suspense>
             <NotificationsMenu />
             <AccountMenu name={username} />
           </div>
