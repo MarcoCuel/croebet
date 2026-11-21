@@ -8,12 +8,28 @@ export const radians = (degrees: number) => degrees * Math.PI / 180;
 export function seatPlacements(players: number, viewer: number, radius: number, depth: number, handWidth: number): SeatPlacement[] {
   const growth = 1 + Math.max(0, players - 6) * 0.07;
   return Array.from({ length: players }, (_, place) => {
-    const angle = place / players * Math.PI * 2;
-    return { seat: (viewer + place) % players, angle,
-      position: [Math.sin(angle) * radius * growth, 0, Math.cos(angle) * depth * growth],
-      width: place === 0 ? handWidth : Math.min(handWidth, 2 * Math.PI * Math.min(radius, depth) * growth / players * 0.72),
+    // Reserve the foreground for the observer; opponents occupy the far semicircle.
+    const around = place === 0 ? 0 : players === 2 ? Math.PI
+      : Math.PI / 2 + (place - 1) / (players - 2) * Math.PI;
+    const local = place === 0;
+    return { seat: (viewer + place) % players,
+      // Hand orientation is relative to the viewer, independently of the seat's bearing.
+      angle: local ? 0 : -Math.sin(around) * 0.65,
+      position: [local ? 0 : Math.sin(around) * radius * growth, 0,
+        local ? depth * 1.2 : Math.cos(around) * depth * growth] as Vec3,
+      width: local ? handWidth : Math.min(handWidth * 0.75,
+        Math.PI * Math.min(radius, depth) * growth / Math.max(1, players - 1) * 0.85),
     };
   });
+}
+
+/** The foreground hand has its own readable size and pitch, shared by layout and controls. */
+export function viewHandOptions(options: HandOptions, local: boolean, cameraAngle: number): HandOptions {
+  return { ...options, scale: options.scale * (local ? 1.3 : 0.8),
+    tilt: local ? Math.min(75, Math.max(0, options.tilt + cameraAngle - 14)) : options.tilt };
+}
+export function seatLabelPosition(seat: SeatPlacement, scale: number, local: boolean): Vec3 {
+  return [seat.position[0], Math.max(1.65, scale * (local ? 1.65 : 1.5)), seat.position[2]];
 }
 
 /** Adaptive, navigable window: bounded by readable physical spacing, never a fixed card count. */
@@ -59,12 +75,36 @@ export function fitCamera(points: Vec3[], aspect: number, angle: number, fov = 4
   }
   return { position: [0, target[1] + Math.sin(pitch) * distance, Math.cos(pitch) * distance] as Vec3, target, distance };
 }
-export function sceneBounds(seats: SeatPlacement[], scale: number, curve: number): Vec3[] {
-  return seats.flatMap(seat => {
-    const halfWidth = seat.width / 2 + 0.6 * scale;
-    const extentX = Math.abs(Math.cos(seat.angle)) * halfWidth + Math.abs(Math.sin(seat.angle)) * scale;
-    const extentZ = Math.abs(Math.sin(seat.angle)) * halfWidth + Math.abs(Math.cos(seat.angle)) * scale;
-    return [-1, 1].flatMap(x => [-1, 1].flatMap(z => [0, (1.8 + curve * 0.15) * scale].map(y =>
-      [seat.position[0] + x * extentX, y, seat.position[2] + z * extentZ] as Vec3)));
+/** Frame hands and labels only; the table deliberately extends beyond this composition. */
+export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts: number[], cameraAngle: number): Vec3[] {
+  const points: Vec3[] = [[-1.5, 0, -0.8], [1.5, 1, 0.8]];
+  seats.forEach((seat, place) => {
+    const local = place === 0;
+    const hand = viewHandOptions({ ...options, width: seat.width }, local, cameraAngle);
+    const visible = handWindow(counts[seat.seat], seat.width, hand.scale, 0, local);
+    for (const pose of handPlacements(visible.length, hand)) {
+      const world = worldHandPose(pose, seat);
+      // YXZ matches TableCard, including fan rotation, pitch and hover/selection growth.
+      const [rx, ry, rz] = world.rotation;
+      for (const x of [-0.4, 0.4]) for (const y of [-0.58, 0.58]) {
+        const fanX = (x * Math.cos(rz) - y * Math.sin(rz)) * world.scale;
+        const fanY = (x * Math.sin(rz) + y * Math.cos(rz)) * world.scale;
+        const tiltedY = fanY * Math.cos(rx), tiltedZ = fanY * Math.sin(rx);
+        const corner: Vec3 = [world.position[0] + fanX * Math.cos(ry) + tiltedZ * Math.sin(ry),
+          world.position[1] + tiltedY, world.position[2] - fanX * Math.sin(ry) + tiltedZ * Math.cos(ry)];
+        points.push(corner, [corner[0], corner[1] + 0.25 * world.scale, corner[2]]);
+      }
+    }
+    const [x, y, z] = seatLabelPosition(seat, hand.scale, local);
+    points.push([x - 0.75, y + 0.3, z], [x + 0.75, y - 0.3, z]);
   });
+  return points;
+}
+
+/** Keep the far rim behind opponents, extending the surface past the near and side edges. */
+export function surfacePlacement(fit: ReturnType<typeof fitCamera>, aspect: number, radius: number, depth: number) {
+  const halfViewWidth = fit.distance * Math.tan(radians(44) / 2) * aspect;
+  const surfaceDepth = Math.max(depth * 2.5, fit.position[2] * 1.4);
+  return { radius: Math.max(radius * 2.5, halfViewWidth * 2), depth: surfaceDepth,
+    centerZ: surfaceDepth - depth - 1.5 };
 }

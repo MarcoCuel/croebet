@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera } from '../three/table/layout.ts';
+import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, surfacePlacement, worldHandPose } from '../three/table/layout.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
@@ -28,7 +28,7 @@ test('câmera enquadra todos os limites em retrato/paisagem e mantém o observad
     const seats = seatPlacements(players, viewer, 4, 3.2, 5.5);
     assert.equal(seats[0].seat, viewer); assert.equal(seats[0].position[0], 0); assert.ok(seats[0].position[2] > 0);
     assert.equal(new Set(seats.map(seat => seat.seat)).size, players);
-    const points = sceneBounds(seats, 1.8, 3);
+    const points = sceneBounds(seats, { ...options, scale: 1.8, curve: 3 }, Array(12).fill(1000), 36);
     for (const aspect of [0.4, 0.7, 1, 1.8, 2.4]) for (const angle of [25, 36, 65]) {
       const fit = fitCamera(points, aspect, angle); const pitch = angle * Math.PI / 180;
       const tangent = Math.tan(44 * Math.PI / 360);
@@ -92,4 +92,42 @@ test('pilhas representativas permanecem compactas, sólidas e limitadas após re
     if (count) assert.ok(pile.at(-1).pose.position[1] <= 0.61);
   }
   assert.equal(parseSettings({ ...defaultSettings, pileHeight: 0.022 }).pileHeight, defaultSettings.pileHeight);
+});
+
+
+test('cada observador recebe a mesma composição com sua mão em primeiro plano e adversários legíveis', () => {
+  for (const players of [2, 3, 4, 6, 8, 12]) {
+    const reference = seatPlacements(players, 0, 4, 3.2, 5.5);
+    for (let viewer = 0; viewer < players; viewer++) {
+      const seats = seatPlacements(players, viewer, 4, 3.2, 5.5);
+      assert.equal(seats[0].seat, viewer);
+      seats.forEach((seat, place) => {
+        assert.deepEqual(seat.position, reference[place].position);
+        assert.equal(seat.seat, (viewer + place) % players);
+        if (place) {
+          assert.ok(seat.position[2] < 1e-9);
+          // At least 79% of the face width remains visible instead of a side-on hand.
+          assert.ok(Math.cos(seat.angle) > 0.79);
+        }
+      });
+    }
+    assert.ok(viewHandOptions(options, true, 36).scale > viewHandOptions(options, false, 36).scale);
+  }
+  const seats = seatPlacements(4, 0, 4, 3.2, 5.5);
+  const right = worldHandPose({ position: [1, 0, 0], rotation: [0, 0, 0], scale: 1 }, seats[1]);
+  const left = worldHandPose({ position: [1, 0, 0], rotation: [0, 0, 0], scale: 1 }, seats[3]);
+  assert.ok(right.position[0] > seats[1].position[0] && right.position[2] > seats[1].position[2]);
+  assert.ok(left.position[0] > seats[3].position[0] && left.position[2] < seats[3].position[2]);
+});
+
+test('superfície fica fora do ajuste de câmera e continua além do primeiro plano', () => {
+  const seats = seatPlacements(4, 0, 4, 3.2, 5.5);
+  const bounds = sceneBounds(seats, options, Array(12).fill(1000), 36);
+  for (const aspect of [0.4, 1, 1.8, 2.4]) {
+    const fit = fitCamera(bounds, aspect, 36);
+    const surface = surfacePlacement(fit, aspect, 4, 3.2);
+    assert.ok(surface.centerZ + surface.depth > fit.position[2]);
+    assert.ok(surface.centerZ - surface.depth < -3.2);
+    assert.ok(surface.radius > 4);
+  }
 });

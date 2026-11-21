@@ -13,7 +13,7 @@ import { TableLighting } from "./lighting";
 import { TableSeat } from "./seat";
 import { TableSurface } from "./table";
 import { useCardResources, useTablePalette, type TablePalette } from "./resources";
-import { sceneBounds, seatPlacements, type CardPose } from "./layout";
+import { sceneBounds, seatPlacements, viewHandOptions, type CardPose, type HandOptions } from "./layout";
 import type { CardTarget } from "./motion";
 
 export type LaboratorySceneProps = {
@@ -31,12 +31,15 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
   }, [invalidate]);
   const seats = useMemo(() => seatPlacements(settings.players, settings.viewer, settings.radius, settings.depth, settings.spread),
     [settings.players, settings.viewer, settings.radius, settings.depth, settings.spread]);
-  const bounds = useMemo(() => sceneBounds(seats, settings.scale, settings.curve), [seats, settings.scale, settings.curve]);
+  const handOptions: HandOptions = useMemo(() => ({ layout: settings.layout, width: settings.spread, curve: settings.curve,
+    spacing: settings.spacing, overlap: settings.overlap, tilt: settings.tilt, scale: settings.scale, orientation: settings.orientation }),
+    [settings.layout, settings.spread, settings.curve, settings.spacing, settings.overlap, settings.tilt, settings.scale, settings.orientation]);
+  // Fixed capacity bounds avoid camera jumps when drawing or discarding within a hand window.
+  const bounds = useMemo(() => sceneBounds(seats, handOptions, Array(12).fill(1000), settings.angle), [seats, handOptions, settings.angle]);
   const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight);
   const deckOrigin: CardPose = { position: [-0.85, deckHeight + 0.05, -0.15], rotation: [-Math.PI / 2, 0, 0], scale: 1 };
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat,
-    options: { layout: settings.layout, width: seat.width, curve: settings.curve, spacing: settings.spacing, overlap: settings.overlap,
-      tilt: settings.tilt, scale: place === 0 ? settings.scale : settings.scale * 0.85, orientation: settings.orientation },
+    options: viewHandOptions({ ...handOptions, width: seat.width }, place === 0, settings.angle),
     hidden: place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
   targets.push(...TablePile({ cards: state.deck, position: [-0.85, 0.035, -0.15], height: settings.pileHeight, faceUp: false,
     moving: state.cue.kind === "collect" ? state.cue.ids : [] }));
@@ -45,9 +48,9 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
   return <>
     <TableCamera angle={settings.angle} bounds={bounds} />
     <TableLighting ambient={settings.ambient} intensity={settings.light} shadows={settings.shadows} />
-    <TableSurface radius={settings.radius * growth + 1.3} depth={settings.depth * growth + 1.2} palette={palette} />
+    <TableSurface radius={settings.radius * growth} depth={settings.depth * growth} angle={settings.angle} bounds={bounds} palette={palette} />
     {seats.map(seat => <TableSeat key={seat.seat} seat={seat} name={`Jogador ${seat.seat + 1}`} count={state.hands[seat.seat].length}
-      active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6} />)}
+      scale={viewHandOptions(handOptions, settings.viewer === seat.seat, settings.angle).scale} active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6} />)}
     {targets.map(target => {
       const cue = state.motions[target.id];
       const transfer = cue && ["draw", "deal", "discard", "collect", "swap"].includes(cue.kind);

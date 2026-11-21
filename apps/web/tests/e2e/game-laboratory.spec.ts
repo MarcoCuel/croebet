@@ -47,3 +47,24 @@ test("visitantes e contas comuns não acessam o laboratório", async ({ page }) 
     await expect(page.locator("canvas")).toHaveCount(0);
   }
 });
+
+
+test("trocar o observador mantém as mãos e permite jogar pelo novo ponto de vista", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
+  await page.getByRole("button", { name: "Comprar carta", exact: true }).click();
+  await expect(page.getByLabel("Cartas na mão", { exact: true })).toHaveValue("8");
+  for (const viewer of [2, 4]) {
+    await page.getByLabel("Observar jogador", { exact: true }).fill(String(viewer));
+    await expect(scene).toContainText(`Você observa o jogador ${viewer}`);
+    await expect(page.getByLabel("Cartas na mão", { exact: true })).toHaveValue("7");
+    await page.getByRole("button", { name: "Selecionar carta 6, posição 7", exact: true }).click();
+    await page.getByRole("button", { name: "Descartar selecionada", exact: true }).click();
+    await expect(page.getByLabel("Cartas na mão", { exact: true })).toHaveValue("6");
+    await expect(scene.getByRole("alert")).toHaveCount(0);
+  }
+  await page.getByLabel("Observar jogador", { exact: true }).fill("1");
+  await expect(page.getByLabel("Cartas na mão", { exact: true })).toHaveValue("8");
+  await expect(scene).toContainText("Deck: 103 · Descarte: 2");
+});

@@ -49,7 +49,7 @@ export function GameLaboratory() {
     setSettings(next); dispatch({ type: "reset", settings: next }); setSelected(null); setFocus(0); setMessage("");
   };
   const hand = state.hands[settings.viewer]; const count = hand.length;
-  const window = handWindow(count, settings.spread, settings.scale, focus);
+  const window = handWindow(count, settings.spread, settings.scale * 1.3, focus);
   const chooseViewer = (viewer: number) => { update("viewer", viewer); setFocus(0); setSelected(null); };
   const changeCount = (value: number) => {
     update("counts", settings.counts.map((count, index) => index === settings.viewer ? value : count));
