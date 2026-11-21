@@ -178,6 +178,9 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
           const initial = input.active && input.code ? await getRoomSync(pool, socket.data.actor, input.code, input.afterVersion) : null;
           if (socket.data.code) await socket.leave(`match:${socket.data.code}`);
           socket.data.code = input.active ? input.code : undefined; socket.data.version = input.afterVersion; socket.data.signature = ""; socket.data.watching = input.active; socket.data.directoryWatching = input.active && input.directory;
+          // A new subscriber has no snapshot, even when the shared transport
+          // already delivered this directory to a previously mounted screen.
+          socket.data.directory = ""; socket.data.matches = "";
           if (initial) {
             await socket.join(`match:${initial.room.code}`);
           }

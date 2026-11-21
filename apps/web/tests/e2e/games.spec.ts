@@ -419,6 +419,8 @@ test("abrir teste do Love Letter mantém link, recarga e volta para o jogo",asyn
   await page.getByRole("link",{name:"Voltar para Love Letter",exact:true}).click();
   await expect(page).toHaveURL("/jogos/love-letter?teste=1");
   await expect(page.getByLabel("Modo do Love Letter")).toBeVisible();
+  await expect(page.getByRole("button",{name:"Visualizar",exact:true})).toBeVisible();
+  await expect(page.getByText("Conectando às salas…",{exact:true})).toHaveCount(0);
  }
 });
 

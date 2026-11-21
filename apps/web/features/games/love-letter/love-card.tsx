@@ -16,11 +16,11 @@ export const loveRoles: Record<string, { icon: LucideIcon; effect: string }> = {
 };
 export const classic = ["", "Guarda", "Sacerdote", "Barão", "Aia", "Príncipe", "Rei", "Condessa", "Princesa"];
 export const modern = ["Espiã", "Guarda", "Sacerdote", "Barão", "Aia", "Príncipe", "Chanceler", "Rei", "Condessa", "Princesa"];
-export function LoveCard({ value, mode, small = false, compact = false }: { value?: number; mode: LoveView["mode"]; small?: boolean; compact?: boolean }) {
+export function LoveCard({ value, mode, small = false, compact = false, className }: { value?: number; mode: LoveView["mode"]; small?: boolean; compact?: boolean; className?: string }) {
   const name = value === undefined ? undefined : (mode === "classic" ? classic : modern)[value];
   const Icon = name ? loveRoles[name].icon : Mail;
   return (
-    <span className={cn("relative flex shrink-0 flex-col items-center justify-between rounded-xl border border-contrast/10 p-3", small ? "h-24 w-16" : "h-44 w-32 sm:h-48 sm:w-36", compact && "h-16 w-11 p-2 [&>span:first-child]:text-sm", name ? "bg-surface text-foreground" : "bg-brand/10 text-brand")}>
+    <span className={cn("relative flex shrink-0 flex-col items-center justify-between rounded-xl border border-contrast/10 p-3", small ? "h-24 w-16" : "h-44 w-32 sm:h-48 sm:w-36", compact && "h-16 w-11 p-2 [&>span:first-child]:text-sm", name ? "bg-surface text-foreground" : "bg-brand/10 text-brand", className)}>
       {name ? <><span className={cn("self-start font-semibold leading-none text-brand", small ? "text-lg" : "text-3xl")}>{value}</span><Icon aria-hidden className={small ? "size-5 text-brand" : "size-10 text-brand sm:size-12"} /><span className={cn("font-medium", small ? "sr-only" : "text-xs sm:text-sm")}>{name}</span></> : <><span /><Icon aria-hidden className={small ? "size-5" : "size-10"} /><span className="h-3" /></>}
     </span>
   );

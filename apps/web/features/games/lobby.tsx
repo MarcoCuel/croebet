@@ -298,7 +298,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
       <>
         {development && <p className="text-sm font-medium">Partidas de teste</p>}
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {listedRooms.length===0?<EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className="grid gap-4">{listedRooms.map(lobby=>{
+        {listedRooms.length===0?connected && <EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className="grid gap-4">{listedRooms.map(lobby=>{
           const active=lobby.status==="playing";
           const people=[...lobby.participants,...(lobby.status==="lobby"?lobby.pendingInvitations:[]),...Array.from({length:lobby.bots},(_,i)=>({userId:`bot-${i}`,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,seat:lobby.participants.length+i}))];
           const hostName=lobby.participants.some(p=>p.userId===lobby.hostId)?playerName(lobby.participants.find(p=>p.userId===lobby.hostId)):lobby.hostId===userId?(displayName || username || "Você"):"Administrador";

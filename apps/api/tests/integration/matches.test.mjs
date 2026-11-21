@@ -261,6 +261,7 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
   sockets.push(socket);socket.rooms=[];socket.closed=[];socket.directories=[];socket.personal=[];
   socket.on("personal-matches",value=>socket.personal.push(value));
   socket.on("lobbies",value=>socket.directories.push(value));socket.on("room",value=>socket.rooms.push(value));socket.on("closed",value=>socket.closed.push(value));
+  socket.matches=[];socket.on("matches",value=>socket.matches.push(value));
   await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("connect_error",error=>reject(new Error(`connect actor=${index} server=${server} overrides=${Object.keys(overrides)}: ${error.message}`,{cause:error})));socket.connect();});
   assert.equal(socket.io.engine.transport.name,"websocket");return socket;
  };
@@ -283,6 +284,17 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  pool.on("acquire",instrument);
  const room=await request(host,{type:"create",input:{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"vengeance",brutal:true}}});
  await watch(host,room.code);
+ // Navigation remounts the directory on the same global connection. With no
+ // intervening changes, every subscription must still receive both snapshots.
+ for(let visit=0;visit<2;visit++){
+  const off=await host.timeout(5000).emitWithAck("watch",{active:false,afterVersion:0});
+  assert.equal(off.ok,true);
+  host.directories.length=0;host.matches.length=0;
+  await watch(host,room.code);
+  assert.equal(host.directories.length,1);
+  assert.ok(host.directories[0].items.some(item=>item.code===room.code));
+  assert.equal(host.matches.length,1);
+ }
  const joined=await request(peer,{type:"join",code:room.code,input:{commandId:randomUUID()}});
  await watch(peer,room.code);
  const waiting=await request(peer,{type:"create",input:{requestId:randomUUID(),game:"flip7",capacity:6,options:{mode:"classic",brutal:false}}});
