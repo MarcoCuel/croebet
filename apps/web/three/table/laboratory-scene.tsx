@@ -32,7 +32,7 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
   const seats = useMemo(() => seatPlacements(settings.players, settings.viewer, settings.radius, settings.depth, settings.spread),
     [settings.players, settings.viewer, settings.radius, settings.depth, settings.spread]);
   const bounds = useMemo(() => sceneBounds(seats, settings.scale, settings.curve), [seats, settings.scale, settings.curve]);
-  const deckHeight = Math.min(2, state.deck.length * settings.pileHeight);
+  const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight);
   const deckOrigin: CardPose = { position: [-0.85, deckHeight + 0.05, -0.15], rotation: [-Math.PI / 2, 0, 0], scale: 1 };
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat,
     options: { layout: settings.layout, width: seat.width, curve: settings.curve, spacing: settings.spacing, overlap: settings.overlap,

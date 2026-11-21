@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera } from '../three/table/layout.ts';
+import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
 const options = { layout: 'fan', width: 5.5, curve: 1.2, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0 };
@@ -75,4 +76,20 @@ test('trajetórias arqueadas preservam os extremos e respeitam atraso e duraçã
   const end = arcPosition(from, to, 1, 2); assert.ok(end.every((n, i) => Math.abs(n - to[i]) < 1e-9));
   assert.ok(arcPosition(from, to, 0.5, 2)[1] > 2);
   assert.equal(easedProgress(0.2, 1, 0.3), 0); assert.equal(easedProgress(1.3, 1, 0.3), 1);
+});
+
+
+test('pilhas representativas permanecem compactas, sólidas e limitadas após recolher cartas', () => {
+  for (const count of [0, 1, 16, 104, 1000]) {
+    const cards = Array.from({ length: count }, (_, i) => ({ id: `pile:${i}`, value: i % 10 }));
+    const pile = TablePile({ cards, position: [0, 0.01, 0], height: defaultSettings.pileHeight, faceUp: false });
+    assert.ok(pile.length <= 16);
+    for (let i = 1; i < pile.length; i++) {
+      const lowerTop = pile[i - 1].pose.position[1] + 0.002;
+      const upperBottom = pile[i].pose.position[1] + 0.002 - pile[i].thickness;
+      assert.ok(Math.abs(lowerTop - upperBottom) < 1e-9);
+    }
+    if (count) assert.ok(pile.at(-1).pose.position[1] <= 0.61);
+  }
+  assert.equal(parseSettings({ ...defaultSettings, pileHeight: 0.022 }).pileHeight, defaultSettings.pileHeight);
 });
