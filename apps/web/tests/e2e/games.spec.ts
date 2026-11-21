@@ -507,7 +507,7 @@ test("estados de teste não recriam assinaturas e sair remove a observação",as
  await expect.poll(()=>roomWatches.length).toBe(3);
 });
 
-test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas", async ({page}) => {
+test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas", async ({page,isMobile}) => {
  await page.route("**/avatar-fixture.svg",route=>route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="pink"/></svg>'}));
  const flip={code:"ABCDEF123456",game:"flip7" as const,gameName:"Flip 7",status:"playing" as const,development:false,yourTurn:false,turnKey:null,participants:[{userId:id,username:"ana",displayName:"Ana",avatarUrl:null,seat:0},{userId:matchId,username:"beto",displayName:"Beto",avatarUrl:"/avatar-fixture.svg",seat:1}]};
  const love={...flip,code:"ABCDEF654321",game:"love-letter" as const,gameName:"Love Letter",status:"lobby" as const,development:true};
@@ -515,7 +515,8 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
  await page.goto("/jogos");
  const direct=page.getByRole("link",{name:"Voltar à partida de Flip 7"});
  await expect(direct).toHaveAttribute("href","/jogos/flip7?partida=ABCDEF123456");
- await page.getByRole("link",{name:"Ver carteira",exact:true}).first().click();
+ if(isMobile)await page.getByRole("button",{name:"Abrir menu",exact:true}).click();
+ await page.getByRole("link",{name:"Ver carteira",exact:true}).filter({visible:true}).first().click();
  await expect(page).toHaveURL(/\/carteira$/);
  await expect(direct).toBeVisible();
  personalMatches={items:[flip,love]};sockets.emit("personal-matches",personalMatches);
@@ -533,6 +534,30 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
  await expect(alert).toBeVisible();
  sockets.emit("personal-matches",personalMatches);
  await expect(alert).toHaveCount(1);
+ await page.getByRole("button",{name:"Fechar notificação",exact:true}).click();
+ await expect(alert).toHaveCount(0);
+ sockets.emit("personal-matches",personalMatches);
+ await page.getByRole("button",{name:"Minhas partidas (2)"}).click();
+ await expect(page.getByRole("menuitem").filter({hasText:"Flip 7"}).getByText("Sua vez",{exact:true})).toBeVisible();
+ await page.keyboard.press("Escape");
+ await expect(alert).toHaveCount(0);
+ // Reconnection replays the same summary without resurrecting a dismissed alert.
+ const connections=[...sockets.sockets.sockets.keys()];
+ for(const socket of sockets.sockets.sockets.values())socket.conn.close();
+ await expect.poll(()=>[...sockets.sockets.sockets.keys()].filter(key=>!connections.includes(key)).length).toBe(connections.length);
+ sockets.emit("personal-matches",personalMatches);
+ await expect(alert).toHaveCount(0);
+ // A new turn can notify again, but the toast expires instead of blocking forever.
+ personalMatches={items:[{...flip,yourTurn:true,turnKey:"2:0"},love]};
+ sockets.emit("personal-matches",personalMatches);
+ await expect(alert).toBeVisible();
+ await page.mouse.move(0,0);
+ await expect(alert).toHaveCount(0,{timeout:10000});
+ sockets.emit("personal-matches",personalMatches);
+ await expect(alert).toHaveCount(0);
+ personalMatches={items:[{...flip,yourTurn:true,turnKey:"3:0"},love]};
+ sockets.emit("personal-matches",personalMatches);
+ await expect(alert).toBeVisible();
  await alert.click();
  await expect(page).toHaveURL(/\/jogos\/flip7\?partida=ABCDEF123456/);
  await expect(alert).toHaveCount(0);

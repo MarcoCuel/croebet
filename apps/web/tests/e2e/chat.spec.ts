@@ -68,15 +68,15 @@ test.beforeEach(async({context})=>{
 test("chat compartilha conexão, recupera eventos e preserva texto e histórico",async({page})=>{
   await page.goto("/");
   await expect.poll(()=>sockets.sockets.sockets.size).toBe(1);
-  await expect.poll(async()=>page.getByRole("button",{name:"Chat geral",exact:true}).count()).toBe(1);
+  await expect.poll(async()=>page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true}).count()).toBe(1);
   // Wait for the initial history before generating an unread event.
-  await page.getByRole("button",{name:"Chat geral",exact:true}).click();
+  await page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true}).click();
   const dialog=page.getByRole("complementary",{name:"Chat geral"});
   await expect(dialog.getByText("Mensagem anterior 55",{exact:true})).toBeVisible();
   await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
   publish(makeMessage("Cheguei na conversa"));
-  await expect(page.getByRole("button",{name:"Chat geral, 1 mensagens não lidas"})).toBeVisible();
-  await page.getByRole("button",{name:"Chat geral, 1 mensagens não lidas"}).click();
+  await expect(page.getByRole("button",{name:"Chat geral, 1 mensagens não lidas"}).filter({visible:true})).toBeVisible();
+  await page.getByRole("button",{name:"Chat geral, 1 mensagens não lidas"}).filter({visible:true}).click();
   await expect(dialog.getByText("Cheguei na conversa")).toBeVisible();
   const scroll=dialog.getByLabel("Mensagens do chat");
   await scroll.evaluate(element=>{element.scrollTop=0;});
@@ -106,11 +106,11 @@ test("chat compartilha conexão, recupera eventos e preserva texto e histórico"
   await expect(last).toHaveCount(0);
   await expect(dialog.getByText("Mensagem removida",{exact:true})).toBeVisible();
   await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
-  await expect(page.getByRole("button",{name:"Chat geral",exact:true})).toBeFocused();
+  await expect(page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true})).toBeFocused();
 });
 test("sidebar reserva espaço no desktop e ocupa a largura disponível no celular",async({page,context,isMobile})=>{
   await page.goto("/");
-  await page.getByRole("button",{name:"Chat geral",exact:true}).click();
+  await page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true}).click();
   const dialog=page.getByRole("complementary",{name:"Chat geral"});
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveCSS("top","0px");
@@ -120,6 +120,8 @@ test("sidebar reserva espaço no desktop e ocupa a largura disponível no celula
   await expect(dialog.getByText("Enter envia · Shift + Enter quebra a linha")).toHaveCount(0);
   const content=page.locator("#page-content");
   if(isMobile) {
+    await expect(page.getByRole("dialog", { name: "Menu da Croebet" })).not.toBeVisible();
+    await expect(page.locator("#general-chat-title")).toBeFocused();
     const box=await dialog.boundingBox();
     expect(Math.round(box!.width)).toBe(page.viewportSize()!.width);
     await expect(content).toHaveCSS("padding-right","0px");
@@ -154,7 +156,7 @@ test("chat desliza a partir da borda sem desmontar nem criar rolagem horizontal"
   await expect(panel).toHaveAttribute("aria-hidden", "true");
   const sample = async (open: boolean) => page.evaluate(async ({ open }) => {
     const panel = document.querySelector<HTMLElement>("#general-chat-sidebar")!;
-    const trigger = document.querySelector<HTMLButtonElement>('[aria-controls="general-chat-sidebar"]')!;
+    const trigger = [...document.querySelectorAll<HTMLButtonElement>('[aria-controls="general-chat-sidebar"]')].find(element => element.getClientRects().length > 0)!;
     const width = panel.getBoundingClientRect().width;
     const initial = panel.getBoundingClientRect().x;
     if (open) trigger.click();

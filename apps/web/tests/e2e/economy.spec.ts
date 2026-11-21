@@ -130,7 +130,8 @@ test("cupom fecha o modal antes de atualizar e animar o saldo", async ({ page, i
   });
   await page.goto("/");
   if (isMobile) {
-    await page.locator("header").getByRole("link", { name: "Ver carteira" }).click();
+    await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+    await page.getByRole("dialog", { name: "Menu da Croebet" }).getByRole("link", { name: "Ver carteira" }).click();
     await page.getByRole("main").getByRole("button", { name: "Resgatar cupom" }).click();
   } else await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
   const dialog = page.getByRole("dialog");

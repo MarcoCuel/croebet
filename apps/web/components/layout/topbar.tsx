@@ -4,6 +4,7 @@ import { ChevronLeft, Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import type { LobbyInvitations } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { AccountMenu } from "@/features/auth/account-menu";
 import { Balance } from "@/features/wallet/balance";
@@ -24,9 +25,11 @@ import { usePageLinks } from "@/features/pages/page-links";
 export function Topbar({
   mobileMenuOpen,
   onOpenMenu,
+  invitations,
 }: {
   mobileMenuOpen: boolean;
   onOpenMenu: () => void;
+  invitations: LobbyInvitations["items"];
 }) {
   const pathname = usePathname();
   const games = useGameLinks();
@@ -157,18 +160,11 @@ export function Topbar({
             <RedeemButton />
           </div>
           <div className="flex min-w-0 items-center justify-self-end gap-2">
-            <Button
-              asChild
-              variant="secondary"
-              className="min-w-0 shrink px-2 font-normal md:hidden"
-            >
-              <Link href="/carteira" aria-label="Ver carteira">
-                <Balance key={username} value={walletReady ? balance : null} showCurrency />
-              </Link>
-            </Button>
-            <DailyBonusButton />
+            <div className="hidden md:contents"><DailyBonusButton /></div>
             <Suspense><ActiveMatchesMenu /></Suspense>
-            <NotificationsMenu />
+            <div className="hidden md:contents">
+              <NotificationsMenu invitations={invitations} />
+            </div>
             <GeneralChat />
             <AccountMenu name={username} />
           </div>

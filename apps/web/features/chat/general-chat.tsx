@@ -19,8 +19,10 @@ const time=(value:string)=>new Date(value).toLocaleTimeString("pt-BR",{hour:"2-d
 export function GeneralChat() {
   const state = useGeneralChat();
   if (!state) return null;
-  const { chat, open, changeOpen, triggerRef } = state;
-  return <Button ref={triggerRef} variant="secondary" size="icon" className="relative" aria-controls="general-chat-sidebar" aria-expanded={open} aria-label={chat.unread ? `Chat geral, ${chat.unread} mensagens não lidas` : "Chat geral"} onClick={() => changeOpen(!open)}>
+  const { chat, open, changeOpen } = state;
+  return <Button variant="secondary" size="icon" className="relative" aria-controls="general-chat-sidebar" aria-expanded={open} aria-label={chat.unread ? `Chat geral, ${chat.unread} mensagens não lidas` : "Chat geral"} onClick={event => {
+    changeOpen(!open, false, event.currentTarget);
+  }}>
     <MessageCircle className="size-4" aria-hidden="true" />
     {chat.unread > 0 && <span className="absolute -top-1 -right-1 min-w-4 rounded-full bg-brand px-1 text-[0.625rem] leading-4 text-white">{chat.unread > 99 ? "99+" : chat.unread}</span>}
   </Button>;

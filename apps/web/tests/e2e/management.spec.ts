@@ -152,7 +152,8 @@ test("cupom é criado com valor livre, datas UTC e resgatado pela carteira", asy
   await expect(page).toHaveURL(new RegExp(`/admin/cupons/${couponId}$`));
   expect(lastBody.startsAt).toBe("2026-01-01T15:00:00.000Z"); expect(lastBody.limit).toBeNull();
   if (isMobile) {
-    await page.locator("header").getByRole("link", { name: "Ver carteira" }).click();
+    await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+    await page.getByRole("dialog", { name: "Menu da Croebet" }).getByRole("link", { name: "Ver carteira" }).click();
     await page.getByRole("main").getByRole("button", { name: "Resgatar cupom" }).click();
   } else await page.locator("header").getByRole("button", { name: "Resgatar cupom" }).click();
   const dialog = page.getByRole("dialog"); await dialog.getByLabel("Código do cupom").fill("live7");

@@ -3,19 +3,29 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogClose,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ChatProvider, useGeneralChat } from "@/features/chat/chat-context";
 import { ChatSidebar } from "@/features/chat/general-chat";
+import { useSession } from "@/features/auth/session-context";
+import { useLobbyInvitations } from "@/features/games/lobby-invitations";
+import { Balance } from "@/features/wallet/balance";
+import { RedeemButton } from "@/features/wallet/redeem-button";
+import { DailyBonusButton } from "@/features/wallet/daily-bonus-button";
+import { Button } from "@/components/ui/button";
+import { NotificationsMenu } from "./notifications-menu";
 import { Sidebar } from "./sidebar";
 import { PageBackProvider } from "./page-back";
 import { Topbar } from "./topbar";
 import { MenuLinks } from "./navigation-links";
 import { AppInstall } from "./app-install";
+import { FooterLinks } from "./footer";
 import { brandLinkClass, Wordmark } from "./brand";
 
 export function Navigation({ children }: { children: ReactNode }) {
@@ -24,6 +34,8 @@ export function Navigation({ children }: { children: ReactNode }) {
 
 function NavigationLayout({ children }: { children: ReactNode }) {
   const chat = useGeneralChat();
+  const { username, balance, walletReady } = useSession();
+  const invitations = useLobbyInvitations();
   const pathname = usePathname();
   const [sidebar, setSidebar] = useState<"expanded" | "collapsed">("expanded");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -65,6 +77,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
         </a>
         <Sidebar expanded={sidebar === "expanded"} onToggle={toggleSidebar} />
         <Topbar
+          invitations={invitations}
           mobileMenuOpen={mobileMenuOpen}
           onOpenMenu={() => {
             menuTrigger.current =
@@ -77,6 +90,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
         <Dialog open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <DialogContent
             variant="drawer"
+            showCloseButton={false}
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               menuTrigger.current?.focus();
@@ -87,16 +101,46 @@ function NavigationLayout({ children }: { children: ReactNode }) {
               Navegue pelas seções da Croebet.
             </DialogDescription>
             <div className="flex min-h-full flex-col gap-5">
-              <Link
-                className={brandLinkClass}
-                href="/"
-                aria-label="Croebet, início"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Wordmark />
-              </Link>
+              <div className="flex min-h-11 items-center justify-between gap-2">
+                <Link
+                  className={brandLinkClass}
+                  href="/"
+                  aria-label="Croebet, início"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Wordmark />
+                </Link>
+                <div className="flex shrink-0 items-center gap-2">
+                  {username && <NotificationsMenu invitations={invitations} />}
+                  <DialogClose asChild>
+                    <Button variant="secondary" size="icon-sm" aria-label="Fechar">
+                      <X className="size-4" aria-hidden="true" />
+                    </Button>
+                  </DialogClose>
+                </div>
+              </div>
               <MenuLinks onNavigate={() => setMobileMenuOpen(false)} />
-              <div className="mt-auto"><AppInstall /></div>
+              <div className="mt-auto space-y-3 pb-[env(safe-area-inset-bottom)]">
+                {username && (
+                  <div className="space-y-3 border-t border-contrast/6 pt-4" aria-label="Atalhos da conta">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <DailyBonusButton />
+                    </div>
+                  </div>
+                )}
+                <AppInstall />
+                {username && (
+                  <div className="flex min-w-0 items-center gap-2 rounded-panel bg-contrast/6 p-1.5">
+                    <Button asChild variant="ghost" className="min-w-0 flex-1 justify-start overflow-hidden px-2 font-normal text-foreground">
+                      <Link href="/carteira" aria-label="Ver carteira" onClick={() => setMobileMenuOpen(false)}>
+                        <Balance key={username} value={walletReady ? balance : null} showCurrency />
+                      </Link>
+                    </Button>
+                    <RedeemButton />
+                  </div>
+                )}
+                <FooterLinks onNavigate={() => setMobileMenuOpen(false)} className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted" />
+              </div>
             </div>
           </DialogContent>
         </Dialog>

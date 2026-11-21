@@ -1,6 +1,7 @@
 "use client";
 
-import { useLobbyInvitations, LobbyInvitationItems } from "@/features/games/lobby-invitations";
+import type { LobbyInvitations } from "@croebet/shared";
+import { LobbyInvitationItems } from "@/features/games/lobby-invitations";
 import { ArrowUpRight, Bell } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -13,8 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function NotificationsMenu() {
-  const invitations=useLobbyInvitations();
+export function NotificationsMenu({ invitations }: { invitations: LobbyInvitations["items"] }) {
   const invitationCount=invitations.length;
   return (
     <DropdownMenu>
