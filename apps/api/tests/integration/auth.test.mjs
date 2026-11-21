@@ -38,6 +38,14 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal(registered.statusCode, 201); assert.equal(registered.json().user.role, "user");
  assert.equal(registered.json().user.username, username);
  assert.equal(registered.json().user.displayName, username);
+ assert.deepEqual(registered.json().user.onboarding, { nameProvided: false, remindAt: null });
+ const beforeDefer = Date.now();
+ const postponed = await request("/api/v1/me/onboarding/defer", "POST");
+ assert.equal(postponed.statusCode, 200);
+ const remindAt = postponed.json().user.onboarding.remindAt;
+ assert.ok(Date.parse(remindAt) >= beforeDefer + 12 * 3600000);
+ assert.ok(Date.parse(remindAt) <= Date.now() + 12 * 3600000);
+ assert.equal((await request("/api/v1/me")).json().user.onboarding.remindAt, remindAt);
  const stored = await pool.query("select username, display_name from users where id=$1", [registered.json().user.id]);
  assert.equal(stored.rows[0].username, username);
  assert.equal(stored.rows[0].display_name, username);
@@ -55,6 +63,7 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  assert.equal((await request("/api/v1/me/avatar", "PUT", Buffer.from("invalid"))).statusCode, 400);
  const avatarResponse = await request("/api/v1/me/avatar", "PUT", photo);
  assert.equal(avatarResponse.statusCode, 200);
+ assert.equal(avatarResponse.json().user.onboarding.nameProvided, false);
  const firstAvatarUrl = avatarResponse.json().user.avatarUrl;
  assert.equal((await request(`/api/v1/profiles/${username}`)).json().avatarUrl, firstAvatarUrl);
  assert.equal((await request(firstAvatarUrl)).statusCode, 200);
@@ -72,6 +81,10 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  const clearedAvatar = await request("/api/v1/me/avatar", "DELETE");
  assert.equal(clearedAvatar.statusCode, 200); assert.equal(clearedAvatar.json().user.avatarUrl, null);
  await cleanupAvatars(pool, avatarStorage, "test"); assert.equal(avatarFiles.size, 0);
+ const named = await request("/api/v1/me/profile", "PATCH", { displayName: username });
+ assert.equal(named.statusCode, 200);
+ assert.equal(named.json().user.onboarding.nameProvided, true);
+ assert.equal(named.json().user.avatarUrl, null);
 
  for (const variant of [username, username.toLowerCase(), username.toUpperCase()]) {
    assert.equal((await request("/api/v1/auth/register", "POST", { username: variant, password })).statusCode, 409);
@@ -84,6 +97,7 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
    assert.equal(loggedIn.statusCode, 200);
    assert.equal(loggedIn.json().user.id, registered.json().user.id);
    assert.equal(loggedIn.json().user.username, username);
+   assert.deepEqual(loggedIn.json().user.onboarding, { nameProvided: true, remindAt });
    assert.equal((await request("/api/v1/me")).json().user.username, username);
  }
  assert.equal((await request("/api/v1/auth/logout", "POST", undefined, "https://evil.example")).statusCode, 403);

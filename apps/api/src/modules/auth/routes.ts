@@ -24,9 +24,10 @@ import { readOwnMatchReplay } from "../admin/match-history.ts";
 import { matchHistoryQuerySchema, matchCodeSchema } from "@croebet/shared";
 import { readAccountHistory } from "./account-history.ts";
 import { accountHistoryQuerySchema, changePasswordSchema } from "@croebet/shared";
+import { updateOwnProfile } from "./profile-onboarding.ts";
 
-type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null };
-const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role });
+type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null; profile_name_provided: boolean; onboarding_remind_at: Date | null };
+const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role, onboarding: { nameProvided: row.profile_name_provided ?? row.display_name !== row.username, remindAt: row.onboarding_remind_at?.toISOString() ?? null } });
 const passwordHash = (password: string) => hash(password, { type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1 });
 let dummyHash: Promise<string> | undefined;
 export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typeof readConfig>; avatarStorage?: AvatarStorage; mediaStorage?: AvatarStorage }> = async (app, { pool, config, avatarStorage, mediaStorage }) => {
@@ -55,7 +56,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
     const result = await pool.query(`update sessions s set idle_expires_at = least(s.expires_at, now() + interval '7 days') from users u
       where s.token_hash = $1 and s.user_id = u.id and u.status = 'active' and s.expires_at > now() and s.idle_expires_at > now()
-      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash, u.username_changed_at, u.avatar_key`, [tokenHash(token)]);
+      returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash, u.username_changed_at, u.avatar_key, u.profile_name_provided, u.onboarding_remind_at`, [tokenHash(token)]);
     return result.rows[0] ?? null;
   }
   async function issue(client: PoolClient, userId: string) {
@@ -352,11 +353,21 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     } finally { client.release(); }
   });
   app.patch("/api/v1/me/profile", async (request, reply) => {
-    const user = await current(request.cookies[sessionName]);
-    if (!user) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const token = request.cookies[sessionName];
+    const user = await current(token);
+    if (!user || !token) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
     const data = profileSchema.safeParse(request.body);
     if (!data.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Informe um nome de 1 a 40 caracteres." } });
-    await pool.query("update users set display_name = $1 where id = $2 and status = 'active'", [data.data.displayName, user.id]);
-    return sessionSchema.parse({ user: { ...publicUser(user), displayName: data.data.displayName } });
+    const updated = await updateOwnProfile(pool, tokenHash(token), { kind: "name", displayName: data.data.displayName });
+    if (!updated) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    return sessionSchema.parse({ user: publicUser(updated) });
+  });
+  app.post("/api/v1/me/onboarding/defer", async (request, reply) => {
+    const token = request.cookies[sessionName];
+    const user = await current(token);
+    if (!user || !token) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    const updated = await updateOwnProfile(pool, tokenHash(token), { kind: "defer" });
+    if (!updated) return reply.code(401).send({ error: { code: "UNAUTHENTICATED", message: "Entre novamente." } });
+    return sessionSchema.parse({ user: publicUser(updated) });
   });
 };

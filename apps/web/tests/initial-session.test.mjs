@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadInitialSession } from "../features/auth/initial-session.ts";
 
-const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho Público", role: "user", avatarUrl: null, usernameChangeAvailableAt: null };
+const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho Público", role: "user", avatarUrl: null, usernameChangeAvailableAt: null, onboarding: { nameProvided: true, remindAt: null } };
 
 test("visitante sem cookie não precisa consultar a API", async () => {
   assert.deepEqual(await loadInitialSession(undefined, "http://api", () => { throw new Error("consulta desnecessária"); }), { user: null, ready: true });

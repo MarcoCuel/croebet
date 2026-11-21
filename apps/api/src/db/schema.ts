@@ -40,6 +40,8 @@ export const users = pgTable("users", {
   deletionScheduledAt: timestamp("deletion_scheduled_at", { withTimezone: true }),
   usernameChangedAt: timestamp("username_changed_at", { withTimezone: true }),
   displayName: text("display_name").notNull(),
+  profileNameProvided: boolean("profile_name_provided").notNull().default(false),
+  onboardingRemindAt: timestamp("onboarding_remind_at", { withTimezone: true }),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("user"),
   status: text("status").notNull().default("active"),

@@ -42,7 +42,7 @@ function RenderedAvatarImage({ className, onError, alt, ...props }: AvatarImageP
       height={props.height ?? 256}
       data-slot="avatar-image"
       data-avatar-visible={!failed}
-      className={cn("peer size-full object-cover", className, failed && "hidden")}
+      className={cn("peer size-full rounded-[inherit] object-cover", className, failed && "hidden")}
       onError={event => { setFailed(true); onError?.(event); }}
     />
   );

@@ -8,6 +8,7 @@ import type { InitialSession } from "@/features/auth/initial-session";
 import type { Economy, DailyStatus, PublicUser } from "@croebet/shared";
 import { SessionContext } from "@/features/auth/session-context";
 import { AuthDialog } from "@/features/auth/auth-dialog";
+import { ProfileOnboarding } from "@/features/auth/profile-onboarding";
 import { loadEconomy, loadDailyStatus, requestDailyClaim } from "@/features/wallet/economy-api";
 import { authRequest } from "@/features/auth/api";
 
@@ -131,12 +132,29 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
     onOpenChange={open => { if (!open) setAuthMode(null); }}
     setIsRegistering={value => setAuthMode(value ? "register" : "login")}
     onSignIn={async (username, password) => {
+      const registering = authMode === "register";
       ++revision.current;
-      const next = await authRequest(authMode === "register" ? "/auth/register" : "/auth/login", "POST", { username, password });
+      const next = await authRequest(registering ? "/auth/register" : "/auth/login", "POST", { username, password });
       const nextDaily = next ? await loadDailyStatus() : null;
       ++revision.current; setUser(next); setWallet(next && nextDaily ? { userId: next.id, daily: nextDaily } : null);
-      setReady(true); setAuthMode(null); router.refresh();
+      setReady(true); setAuthMode(null);
+      router.refresh();
     }}
-    onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus(); }}
-  /></SessionContext.Provider>;
+    onCloseAutoFocus={event => {
+      event.preventDefault();
+      if (!user?.onboarding || (user.onboarding.nameProvided && user.avatarUrl) || (user.onboarding.remindAt && Date.parse(user.onboarding.remindAt) > Date.now())) trigger.current?.focus();
+    }}
+  />{user?.onboarding && (!user.onboarding.nameProvided || !user.avatarUrl) && <ProfileOnboarding
+    key={`${user.id}:${user.onboarding.remindAt}`}
+    remindAt={user.onboarding.remindAt}
+    onDefer={async () => {
+      const accountId = user.id;
+      ++revision.current;
+      const next = await authRequest("/me/onboarding/defer", "POST");
+      ++revision.current;
+      setUser(current => current?.id === accountId && next?.id === accountId ? next : current);
+      router.refresh();
+    }} onComplete={() => {
+    router.refresh();
+  }} />}</SessionContext.Provider>;
 }
