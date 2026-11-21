@@ -101,7 +101,7 @@ test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love L
   assert.deepEqual(result.items.map(item=>item.turnKey),['1:1','1:1']);
   assert.deepEqual(result.items[0].participants,[{userId:actor,seat:1,username:'ana',displayName:'Ana',avatarUrl:null}]);
   assert.deepEqual(result.items[1].participants,[]);
-  assert.ok(result.items.every(item=>Object.keys(item).sort().join(',')==='code,development,game,gameName,participants,status,turnKey,yourTurn'));
+  assert.ok(result.items.every(item=>Object.keys(item).sort().join(',')==='code,development,game,gameName,lobbyExpiresAt,participants,status,turnKey,yourTurn'));
   for(const row of rows)row.controller_id=null;
   const withoutControl=await listPersonalMatches({connect:async()=>client},actor);
   assert.ok(withoutControl.items.every(item=>!item.yourTurn && item.turnKey===null));

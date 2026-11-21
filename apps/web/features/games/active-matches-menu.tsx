@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { gameSocket, retainGameSocket } from "./realtime";
 import { gameUrl } from "./game-url";
+import { useLobbyExpiration } from "./lobby-expiration";
 import { useGameAudio } from "./use-game-audio";
 
 type Item = PersonalMatches["items"][number];
@@ -65,6 +66,7 @@ export function ActiveMatchesMenu() {
   }, [userId, play]);
 
   const items = confirmed?.userId === userId ? confirmed.items : [];
+  useLobbyExpiration(items);
   if (!items.length) return null;
   const icon = <><Gamepad2 className="size-4" aria-hidden="true" />{items.some(item => item.yourTurn) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand" />}</>;
   if (items.length === 1) return <Button asChild variant="secondary" size="icon" className="relative">

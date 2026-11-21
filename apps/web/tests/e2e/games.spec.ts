@@ -75,7 +75,11 @@ test.beforeAll(async () => {
     socket.emit("personal-matches",personalMatches);
     socket.on("request",(value,ack)=>{
       const request=realtimeRequestSchema.parse(value);
-      if(request.type==="command"){gameCommands.push(request.input.action);ack?.({ok:true,data:{ok:true}});}
+      if(request.type==="keep-open"){
+        personalMatches={items:personalMatches.items.map(item=>item.code===request.code?{...item,lobbyExpiresAt:new Date(Date.now()+32*60000).toISOString()}:item)};
+        socket.emit("personal-matches",personalMatches);ack?.({ok:true,data:{id:matchId,code:request.code,game:"flip7",rulesVersion:1,version:2,status:"lobby",state:null,hostId:id,capacity:2,options:{mode:"classic",brutal:false},participants:[],lobbyExpiresAt:personalMatches.items.find(item=>item.code===request.code)?.lobbyExpiresAt}});
+      }
+      else if(request.type==="command"){gameCommands.push(request.input.action);ack?.({ok:true,data:{ok:true}});}
       else if(request.type==="abandon")ack?.({ok:true,data:{ok:true}});
       else ack?.({ok:false,error:{code:"UNSUPPORTED",message:"Operação não configurada na fixture."}});
     });
@@ -522,4 +526,22 @@ test("configurações declaradas pelo jogo respeitam limites e guardam a escolha
  await mode.selectOption("classic");
  await expect(count).toHaveValue("4");
  await page.reload();await expect(mode).toHaveValue("classic");await expect(count).toHaveValue("4");
+});
+
+
+test("aviso de expiração permite manter lobby aberto fora da página do jogo", async ({page}) => {
+ personalMatches={items:[{code:"ABCDEF123456",game:"flip7",gameName:"Flip 7",status:"lobby",development:false,yourTurn:false,turnKey:null,participants:[],lobbyExpiresAt:new Date(Date.now()+31*60000).toISOString()}]};
+ await page.goto("/jogos");
+ const keep=page.getByRole("button",{name:"Manter lobby aberto"});
+ await expect(keep).toHaveCount(0);
+ personalMatches={items:personalMatches.items.map(item=>({...item,lobbyExpiresAt:new Date(Date.now()+90000).toISOString()}))};
+ sockets.emit("personal-matches",personalMatches);
+ await expect(keep).toBeVisible();
+ await keep.click();
+ await expect(keep).toHaveCount(0);
+ await expect(page).toHaveURL(/\/jogos$/);
+ // A second warning disappears when the lobby closes, including other tabs.
+ personalMatches={items:personalMatches.items.map(item=>({...item,lobbyExpiresAt:new Date(Date.now()+90000).toISOString()}))};
+ sockets.emit("personal-matches",personalMatches);await expect(keep).toBeVisible();
+ personalMatches={items:[]};sockets.emit("personal-matches",personalMatches);await expect(keep).toHaveCount(0);
 });

@@ -1,3 +1,4 @@
+import { maintainLobbies } from "./lobby-maintenance.ts";
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { Pool, PoolClient } from "pg";
@@ -47,7 +48,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     }).catch(error => close(socket, error));
   }
   async function syncPresence(c: Connection) {
-    const joined=c.actor ? await pool.query<{id:string}>(`select m.id from game_matches m join game_match_players p on p.match_id=m.id where p.controller_id=$1 and m.status in ('lobby','playing')`,[c.actor]) : {rows:[]};
+    const joined=c.actor ? await pool.query<{id:string}>(`select m.id from game_matches m join game_match_players p on p.match_id=m.id where p.controller_id=$1 and m.status in ('lobby','playing') union select id from game_matches where owner_id=$1 and development and status='lobby'`,[c.actor]) : {rows:[]};
     const wanted=new Set(joined.rows.map(row=>row.id));
     for(const [room,id] of c.presence)if(!wanted.has(room)){
       await pool.query("delete from match_presence where id=$1",[id]);c.presence.delete(room);
@@ -205,10 +206,10 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   const timer = setInterval(() => {
     if (stopping || maintenance) return;
     maintenance = (async () => {
-      if (!io.sockets.sockets.size) return;
       await pool.query("update match_presence set expires_at=clock_timestamp()+interval '30 seconds' where id=any($1::uuid[])", [[...io.sockets.sockets.values()].flatMap(s => [...(s as LiveSocket).data.presence.values()])]);
       await pool.query("delete from match_presence where expires_at<=clock_timestamp()");
       await pool.query("delete from game_match_invitations where expires_at<=clock_timestamp()");
+      await maintainLobbies(pool);
       // Lease/invitation deletions notify affected subscribers; expiry only reauthorizes.
       for (const socket of io.sockets.sockets.values()) schedule(socket as LiveSocket, { auth: true });
     })().catch(error => { app.log.error(error); for (const socket of io.sockets.sockets.values()) socket.conn.close(); }).finally(() => { maintenance = undefined; });

@@ -5,7 +5,7 @@ const code = { code: matchCodeSchema };
 export const matchWatchSchema = z.object({ code: matchCodeSchema.optional(), active: z.boolean().default(true), directory: z.boolean().default(true), afterVersion: z.number().int().nonnegative().default(0) }).strict();
 export const realtimeRequestSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("create"), input: createMatchSchema }).strict(),
-  ...(["join", "leave"] as const).map(type => z.object({ type: z.literal(type), ...code, input: lobbyCommandSchema }).strict()),
+  ...(["join", "leave", "keep-open"] as const).map(type => z.object({ type: z.literal(type), ...code, input: lobbyCommandSchema }).strict()),
   z.object({ type: z.literal("confirm-entry"), ...code, input: confirmEntrySchema }).strict(),
   z.object({ type: z.literal("start"), ...code, input: matchAbandonSchema }).strict(),
   z.object({ type: z.literal("update"), ...code, input: updateLobbySchema }).strict(),

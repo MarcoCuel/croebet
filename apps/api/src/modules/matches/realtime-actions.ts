@@ -6,7 +6,7 @@ import { commandMatch, createMatch, declineInvitation, inviteLobbyPlayer, kickMa
 export function applyRealtimeRequest(pool: Pool, actor: string, session: string, request: RealtimeRequest) {
   switch (request.type) {
     case "create": return createMatch(pool, actor, session, request.input);
-    case "confirm-entry": case "join": case "leave": case "start": case "update": return lobbyAction(pool, actor, session, request.code, request.type, request.input);
+    case "keep-open": case "confirm-entry": case "join": case "leave": case "start": case "update": return lobbyAction(pool, actor, session, request.code, request.type, request.input);
     case "kick": return kickMatch(pool, actor, session, request.code, request.input);
     case "command": return commandMatch(pool, actor, session, request.code, request.input);
     case "abandon": return commandMatch(pool, actor, session, request.code, request.input, true);

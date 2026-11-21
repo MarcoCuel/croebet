@@ -48,7 +48,7 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/update",(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),"update",updateLobbySchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/kick",(req,reply)=>run(req,reply,(id,hash)=>kickMatch(pool,id,hash,matchCodeSchema.parse(req.params.code),kickMatchSchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/confirm-entry",(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),"confirm-entry",confirmEntrySchema.parse(req.body))));
-  for (const kind of ["join","leave","start"] as const) app.post<{Params:{code:string}}>(`/api/v1/matches/:code/${kind}`,(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),kind,kind==="start"?matchAbandonSchema.parse(req.body):lobbyCommandSchema.parse(req.body))));
+  for (const kind of ["join","leave","start","keep-open"] as const) app.post<{Params:{code:string}}>(`/api/v1/matches/:code/${kind}`,(req,reply)=>run(req,reply,(id,hash)=>lobbyAction(pool,id,hash,matchCodeSchema.parse(req.params.code),kind,kind==="start"?matchAbandonSchema.parse(req.body):lobbyCommandSchema.parse(req.body))));
   app.get("/api/v1/matches", (req, reply) => view(req,reply,id => listMatches(pool,id)));
   app.get<{ Params: { code: string } }>("/api/v1/matches/:code", (req, reply) => view(req,reply,id => getMatch(pool,id,matchCodeSchema.parse(req.params.code))));
   app.post("/api/v1/matches", (req, reply) => run(req,reply,(id,hash) => createMatch(pool,id,hash,createMatchSchema.parse(req.body))));

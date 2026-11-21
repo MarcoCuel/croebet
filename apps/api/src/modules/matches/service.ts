@@ -15,7 +15,7 @@ export class MatchError extends Error {
 }
 export const matchLifecycleLock = "select pg_advisory_xact_lock(47851234)";
 
-type Row = { development:boolean; bots:number; only_bots:boolean; entry_amount: string; created_by: string; id: string; code: string; game_id: string; game_slug: GameId; owner_id: string; capacity: number; options: unknown; rules_version: number; version: number; status: Room["status"]; state: unknown };
+type Row = { lobby_expires_at: Date; development:boolean; bots:number; only_bots:boolean; entry_amount: string; created_by: string; id: string; code: string; game_id: string; game_slug: GameId; owner_id: string; capacity: number; options: unknown; rules_version: number; version: number; status: Room["status"]; state: unknown };
 type ParticipantRow = { match_id: string; user_id: string; username: string; display_name: string; avatar_key: string | null; seat: number };
 type Client = Pool | PoolClient;
 type Frame = {version:number;state:GameView;action:GameEngineAction|{type:"start"}|{type:"replace";seat:number}};
@@ -40,7 +40,7 @@ async function participants(client: Client, ids: string[]) {
 function view(row: Row, members: MatchParticipant[], seat:number|null=null): GameRoom {
   const driver=resolveDriver(row);
   const common={ development:row.development,bots:row.bots,onlyBots:row.only_bots, entryAmount:Number(row.entry_amount ?? 0), id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:gameDefinitions[row.game_slug].options.parse(row.options),participants:members };
-  return row.status==="lobby" ? lobbySchema.parse({ ...common,status:"lobby",state:null }) : gameRoomSchema.parse({ ...common,status:row.status,state:driver.projectFor(driver.parse(row.state),seat) });
+  return row.status==="lobby" ? lobbySchema.parse({ ...common,status:"lobby",state:null,lobbyExpiresAt:row.development?null:row.lobby_expires_at?.toISOString() }) : gameRoomSchema.parse({ ...common,status:row.status,state:driver.projectFor(driver.parse(row.state),seat) });
 }
 async function reservations(client: Client, id: string) {
   return (await client.query<{userId:string;username:string;displayName:string;avatarUrl:string|null}>(`select u.id as "userId",u.username,u.display_name as "displayName",u.avatar_key as "avatarUrl" from game_match_invitations i join users u on u.id=i.recipient_id where i.match_id=$1 and i.expires_at>clock_timestamp() and not exists(select 1 from game_match_players p where p.match_id=i.match_id and p.user_id=i.recipient_id) order by i.expires_at,i.id`,[id])).rows.map(p=>({...p,avatarUrl:avatarUrl(p.avatarUrl)}));
@@ -159,7 +159,7 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
         if(yourTurn)turnKey=decision!.key;
       }
       return { code: row.code, game: row.game_slug, gameName: row.game_name, status: row.status,
-        development: row.development, yourTurn, turnKey, participants: people.get(row.id) ?? [] };
+        development: row.development, lobbyExpiresAt:row.status==="lobby" && !row.development && row.owner_id===actor?row.lobby_expires_at.toISOString():null, yourTurn, turnKey, participants: people.get(row.id) ?? [] };
     }) });
   });
 }
@@ -271,7 +271,7 @@ export async function kickMatch(pool: Pool, actor: string, sessionHash: string, 
     return response;
   }, true);
 }
-export async function lobbyAction(pool: Pool, actor: string, sessionHash: string, code: string, kind: "join"|"leave"|"start"|"update"|"confirm-entry", input: {commandId:string;expectedVersion?:number;entryAmount?:number} | UpdateLobby) {
+export async function lobbyAction(pool: Pool, actor: string, sessionHash: string, code: string, kind: "join"|"leave"|"start"|"update"|"confirm-entry"|"keep-open", input: {commandId:string;expectedVersion?:number;entryAmount?:number} | UpdateLobby) {
   return transaction(pool,actor,sessionHash,async(client)=>{
     const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]); const row=found.rows[0];
     if(!row) throw new MatchError("NOT_FOUND",404,"Sala não encontrada.");
@@ -285,7 +285,12 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
     let people=(await participants(client,[row.id])).get(row.id) ?? [];
     const member=people.find(person=>person.userId===actor);
     if(row.development && ["start","update"].includes(kind))await requireAdmin(client,actor);
-    if(kind==="join") {
+    if(!row.development && row.lobby_expires_at.getTime()<=Date.now() && kind!=="leave")throw new MatchError("LOBBY_CLOSED",409,"Este lobby expirou. Crie uma nova sala.");
+    if(kind==="keep-open") {
+      if(row.owner_id!==actor)throw new MatchError("HOST_ONLY",403,"Somente o host pode manter a sala aberta.");
+      const renewed=await client.query<{lobby_expires_at:Date}>("update game_matches set lobby_expires_at=clock_timestamp()+interval '32 minutes' where id=$1 returning lobby_expires_at",[row.id]);
+      row.lobby_expires_at=renewed.rows[0].lobby_expires_at; row.version++;
+    } else if(kind==="join") {
       await authorizeTest(client,row,actor);
       if(row.development && row.only_bots)throw new MatchError("TEST_BOTS_ONLY",403,"Esta partida é apenas de bots.");
       const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);

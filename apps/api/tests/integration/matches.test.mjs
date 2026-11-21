@@ -759,3 +759,88 @@ test('PostgreSQL: Love Letter usa comandos comuns, recibos idempotentes e abando
  assert.equal((await pool.query('select count(*)::int total from game_match_archives where id=$1',[room.id])).rows[0].total,0);
  assert.equal((await pool.query('select count(*)::int total from game_match_stakes where match_id=$1',[room.id])).rows[0].total,0);
 });
+
+test("PostgreSQL: lobby reserva desconectados, transfere host e libera vagas sem cobrar entrada", async t => {
+ const {pool,actors,sessions,create,lobby}=await environment(t);
+ const {maintainLobbies}=await import("../../dist/modules/matches/lobby-maintenance.js");
+ const room=await create(); await lobby(room.code,1,"join"); await lobby(room.code,2,"join");
+ await pool.query("delete from match_presence where match_id=$1 and user_id<>$2",[room.id,actors[1]]);
+ await maintainLobbies(pool);
+ assert.equal((await getMatch(pool,actors[1],room.code)).participants.length,3);
+ await pool.query("update game_match_players set lobby_offline_since=clock_timestamp()-interval '121 seconds' where match_id=$1 and user_id<>$2",[room.id,actors[1]]);
+ await Promise.all([maintainLobbies(pool),maintainLobbies(pool)]);
+ const next=await getMatch(pool,actors[1],room.code);
+ assert.equal(next.hostId,actors[1]); assert.deepEqual(next.participants.map(p=>p.userId),[actors[1]]);
+ assert.equal((await listPersonalMatches(pool,actors[0])).items.some(m=>m.code===room.code),false);
+ assert.equal((await pool.query("select count(*)::int total from game_match_stakes where match_id=$1",[room.id])).rows[0].total,0);
+ const replacement=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"flip7",capacity:2,options:{mode:"classic",brutal:false}});
+ assert.equal(replacement.status,"lobby");
+});
+
+test("PostgreSQL: todos offline têm cinco minutos e encerramento preserva registro", async t => {
+ const {pool,actors,create,lobby}=await environment(t);
+ const {maintainLobbies}=await import("../../dist/modules/matches/lobby-maintenance.js");
+ const room=await create(); await lobby(room.code,1,"join");
+ await pool.query("delete from match_presence where match_id=$1",[room.id]);
+ await maintainLobbies(pool);
+ await pool.query("update game_match_players set lobby_offline_since=clock_timestamp()-interval '3 minutes' where match_id=$1",[room.id]);
+ await pool.query("update game_matches set lobby_offline_since=clock_timestamp()-interval '3 minutes' where id=$1",[room.id]);
+ await maintainLobbies(pool);
+ assert.equal((await getMatch(pool,actors[0],room.code)).participants.length,2);
+ await pool.query("update game_matches set lobby_offline_since=clock_timestamp()-interval '301 seconds' where id=$1",[room.id]);
+ await maintainLobbies(pool);
+ const row=(await pool.query("select status,lobby_closed_reason from game_matches where id=$1",[room.id])).rows[0];
+ assert.deepEqual(row,{status:"abandoned",lobby_closed_reason:"offline"});
+ assert.equal((await pool.query("select count(*)::int total from game_match_players where match_id=$1",[room.id])).rows[0].total,2);
+ await assert.rejects(getMatch(pool,actors[0],room.code),{code:"NOT_FOUND"});
+});
+
+test("PostgreSQL: reconectar com outra aba restaura presença e reinicia tolerância", async t => {
+ const {pool,actors,create,lobby}=await environment(t);
+ const {maintainLobbies}=await import("../../dist/modules/matches/lobby-maintenance.js");
+ const room=await create();await lobby(room.code,1,"join");
+ await pool.query("update game_match_players set lobby_offline_since=clock_timestamp()-interval '3 minutes' where match_id=$1",[room.id]);
+ await pool.query("update game_matches set lobby_offline_since=clock_timestamp()-interval '10 minutes' where id=$1",[room.id]);
+ await maintainLobbies(pool);
+ assert.equal((await getMatch(pool,actors[0],room.code)).participants.length,2);
+ assert.equal((await pool.query("select lobby_offline_since from game_matches where id=$1",[room.id])).rows[0].lobby_offline_since,null);
+ assert.ok((await pool.query("select lobby_offline_since from game_match_players where match_id=$1",[room.id])).rows.every(p=>p.lobby_offline_since===null));
+});
+
+test("PostgreSQL: manter aberto exige host, é idempotente e prazo vencido bloqueia início", async t => {
+ const {pool,actors,sessions,create,lobby}=await environment(t);
+ const {maintainLobbies}=await import("../../dist/modules/matches/lobby-maintenance.js");
+ const room=await create();await lobby(room.code,1,"join");
+ await pool.query("update game_matches set lobby_expires_at=clock_timestamp()+interval '1 minute' where id=$1",[room.id]);
+ const personal=await listPersonalMatches(pool,actors[0]);assert.ok(personal.items.find(m=>m.code===room.code).lobbyExpiresAt);
+ assert.equal((await listPersonalMatches(pool,actors[1])).items.find(m=>m.code===room.code).lobbyExpiresAt,null);
+ await assert.rejects(lobby(room.code,1,"keep-open"),{code:"HOST_ONLY"});
+ const command={commandId:randomUUID()};
+ const renewed=await lobbyAction(pool,actors[0],sessions[0],room.code,"keep-open",command);
+ assert.ok(Date.parse(renewed.lobbyExpiresAt)>Date.now()+31*60000);
+ assert.deepEqual(await lobbyAction(pool,actors[0],sessions[0],room.code,"keep-open",command),JSON.parse(JSON.stringify(renewed)));
+ await pool.query("update game_matches set lobby_expires_at=clock_timestamp()-interval '1 second' where id=$1",[room.id]);
+ await assert.rejects(lobby(room.code,0,"start",{expectedVersion:renewed.version}),{code:"LOBBY_CLOSED"});
+ await assert.rejects(lobby(room.code,0,"keep-open"),{code:"LOBBY_CLOSED"});
+ await maintainLobbies(pool);
+ assert.equal((await pool.query("select lobby_closed_reason from game_matches where id=$1",[room.id])).rows[0].lobby_closed_reason,"expired");
+});
+
+test("PostgreSQL: lobby de desenvolvimento só expira após trinta minutos offline; partida iniciada permanece", async t => {
+ const {pool,actors,sessions,create,lobby}=await environment(t);
+ const {maintainLobbies}=await import("../../dist/modules/matches/lobby-maintenance.js");
+ await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ const dev=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"flip7",capacity:2,options:{mode:"classic",brutal:false},development:true,bots:2,onlyBots:true});
+ await pool.query("update game_matches set lobby_offline_since=clock_timestamp()-interval '29 minutes',lobby_expires_at=clock_timestamp()-interval '1 hour' where id=$1",[dev.id]);
+ await maintainLobbies(pool);assert.equal((await getMatch(pool,actors[0],dev.code)).status,"lobby");
+ await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,clock_timestamp()+interval '1 hour')",[randomUUID(),dev.id,actors[0]]);
+ await maintainLobbies(pool);
+ assert.equal((await pool.query("select lobby_offline_since from game_matches where id=$1",[dev.id])).rows[0].lobby_offline_since,null);
+ await pool.query("delete from match_presence where match_id=$1",[dev.id]);
+ await pool.query("update game_matches set lobby_offline_since=clock_timestamp()-interval '31 minutes' where id=$1",[dev.id]);
+ await maintainLobbies(pool);await assert.rejects(getMatch(pool,actors[0],dev.code),{code:"NOT_FOUND"});
+ const room=await create();const joined=await lobby(room.code,1,"join");await lobby(room.code,0,"start",{expectedVersion:joined.version});
+ await pool.query("update game_matches set lobby_expires_at=clock_timestamp()-interval '1 hour',lobby_offline_since=clock_timestamp()-interval '1 hour' where id=$1",[room.id]);
+ await pool.query("delete from match_presence where match_id=$1",[room.id]);
+ await maintainLobbies(pool);assert.equal((await getMatch(pool,actors[0],room.code)).status,"playing");
+});

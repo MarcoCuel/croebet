@@ -25,7 +25,7 @@ export const matchParticipantSchema = z.object({ userId: z.uuid(), username: z.s
 export const cancellationProposalSchema=z.object({id:z.uuid(),proposedBy:z.uuid(),eligibleUserIds:z.array(z.uuid()).min(1).max(12),acceptedUserIds:z.array(z.uuid()).min(1).max(12),createdAt:z.iso.datetime()}).strict();
 export const cancellationVoteSchema=matchAbandonSchema.extend({proposalId:z.uuid(),accept:z.boolean()}).strict();
 export const matchRoomFields = { cancellation:cancellationProposalSchema.nullable().optional(), development:z.boolean().default(false), bots:integer.min(0).max(12).default(0), onlyBots:z.boolean().default(false), ...matchEconomyFields, id: z.uuid(), code: matchCodeSchema, game: gameIdSchema, rulesVersion: integer.positive(), version: integer.positive(), capacity: integer.min(2).max(12), options: gameOptionsSchema, hostId: z.uuid(), participants: z.array(matchParticipantSchema).max(12) };
-export const lobbySchema = z.object({ ...matchRoomFields, status: z.literal("lobby"), state: z.null(), pendingInvitations: z.array(z.object({userId:z.uuid(),username:z.string(),displayName:z.string().optional(),avatarUrl:z.string().nullable()}).strict()).default([]), onlineUserIds:z.array(z.uuid()).default([]), confirmedUserIds:z.array(z.uuid()).default([]) }).strict();
+export const lobbySchema = z.object({ ...matchRoomFields, status: z.literal("lobby"), state: z.null(), lobbyExpiresAt:z.iso.datetime().nullable().optional(), pendingInvitations: z.array(z.object({userId:z.uuid(),username:z.string(),displayName:z.string().optional(),avatarUrl:z.string().nullable()}).strict()).default([]), onlineUserIds:z.array(z.uuid()).default([]), confirmedUserIds:z.array(z.uuid()).default([]) }).strict();
 export type LobbyList = z.infer<typeof lobbyListSchema>;
 export const gameMatchSchema=z.object({...matchRoomFields,status:z.enum(["playing","finished","abandoned"]),state:gameViewSchema,durationSeconds:integer.min(0).nullable().default(null)}).strict().superRefine((room,ctx)=>{
   const definition=gameDefinitions[room.game];
@@ -63,6 +63,7 @@ export const gameCommandSchema=z.object({commandId:z.uuid(),expectedVersion:inte
 export const personalMatchesSchema = z.object({ items: z.array(z.object({
   code: matchCodeSchema, game: gameIdSchema, gameName: z.string(),
   status: z.enum(["lobby", "playing"]), development: z.boolean(),
+  lobbyExpiresAt:z.iso.datetime().nullable().optional(),
   yourTurn: z.boolean(), turnKey: z.string().nullable(),
   participants: z.array(matchParticipantSchema).max(12).default([]),
 }).strict()) }).strict();
