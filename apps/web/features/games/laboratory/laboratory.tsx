@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
   DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import { TableSeatBadge } from "@/three/table/seat-badge";
 import { handWindow } from "@/three/table/layout";
 import type { TableMenuTarget } from "@/three/table/interaction";
 import { initialState, laboratoryReducer, defaultSettings, parseSettings, type LaboratorySettings } from "./model";
@@ -104,6 +105,7 @@ export function GameLaboratory() {
     <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label="Mesa 3D de teste">
       <SceneBoundary><Scene settings={settings} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
         canDraw={canDraw} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></SceneBoundary>
+      <div className="absolute bottom-4 left-4 z-10" data-testid="local-seat"><TableSeatBadge name="Jogador 1" count={count} active={settings.turn === settings.viewer} local compact={false} onActivate={() => update("turn", settings.viewer)} /></div>
       <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>
       {configOpen && <aside id="laboratory-settings" aria-label="Configuração da mesa" className="absolute inset-y-16 right-3 z-20 grid w-72 max-w-[calc(100%-1.5rem)] content-start gap-5 overflow-y-auto rounded-panel border border-contrast/6 bg-background/95 p-4 shadow-lg backdrop-blur-md">
         <h2 className="font-semibold">Configuração</h2>
@@ -114,7 +116,7 @@ export function GameLaboratory() {
         <details><summary className="cursor-pointer text-sm font-semibold">Mesa e câmera</summary><div className="mt-4 grid gap-4">{controls([["radius", "Largura dos assentos", 2.5, 7, 0.25], ["depth", "Profundidade dos assentos", 2, 6, 0.25], ["angle", "Ângulo da câmera", 25, 65]])}</div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Iluminação</summary><div className="mt-4 grid gap-4">
           <LightControl label="Luz superior" value={settings.light} min={0} max={2.5} step={0.05} onChange={value => update("light", value)} />
-          <LightControl label="Luz ambiente" value={settings.ambient} min={0} max={1.2} step={0.05} onChange={value => update("ambient", value)} />
+          <LightControl label="Luz ambiente" value={settings.ambient} min={0} max={2} step={0.05} onChange={value => update("ambient", value)} />
           <LightControl label="Luz do deck" value={settings.pointLight} min={0} max={8} step={0.1} onChange={value => update("pointLight", value)} />
           <LightControl label="Altura da luz do deck" value={settings.pointHeight} min={1} max={5} step={0.1} onChange={value => update("pointHeight", value)} />
           <LightControl label="Exposição" value={settings.exposure} min={0.5} max={1.2} step={0.05} onChange={value => update("exposure", value)} />

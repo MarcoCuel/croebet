@@ -1,7 +1,7 @@
 import { test } from 'node:test';
-import { OrthographicCamera, Vector3 } from 'three';
+import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
-import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, surfacePlacement, worldHandPose } from '../three/table/layout.ts';
+import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, surfacePlacement, worldHandPose, foregroundSeat } from '../three/table/layout.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
@@ -194,4 +194,25 @@ test('presets antigos restauram iluminação suave e novos controles recusam val
   }
   const customized = { ...defaultSettings, exposure: 0.7, light: 0.9, shadowSoftness: 9, shadowOpacity: 0.2 };
   assert.deepEqual(parseSettings(customized), customized);
+});
+
+
+test('mão local fica no rodapé com a base cortada sem esconder centro ou números', () => {
+  for (const aspect of [0.4, 0.7, 1, 1.8, 2.4]) for (const angle of [25, 36, 65]) {
+    const seats = seatPlacements(4, 0, 4, 3.2, 5.5);
+    const fit = fitCamera(sceneBounds(seats, options, Array(12).fill(1000), angle), aspect, angle);
+    const seat = foregroundSeat(seats[0], fit, options, angle);
+    const pose = worldHandPose(handPlacements(1, viewHandOptions(options, true, angle))[0], seat);
+    const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
+    camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
+    const project = y => new Vector3(0, y * pose.scale, 0).applyEuler(new Euler(...pose.rotation, 'YXZ')).add(new Vector3(...pose.position)).project(camera);
+    assert.ok(project(-0.525).y < -1, 'base deve ultrapassar a borda inferior');
+    assert.ok(project(0.525).y > -1, 'topo deve permanecer dentro da prévia');
+    assert.ok(project(0).y > -1 && project(0).y < -0.5, 'valor deve permanecer visível no rodapé');
+    assert.ok(Math.abs(project(0).z) < 1, 'carta não deve atravessar o near/far da câmera');
+    assert.equal(seat.position[1], seats[0].position[1], 'não enterrar as cartas sob a mesa');
+  }
+  const oldDefaults = parseSettings({ ...defaultSettings, ambient: 0.55, exposure: 0.85, light: 1.1 });
+  assert.equal(oldDefaults.ambient, defaultSettings.ambient);
+  assert.equal(oldDefaults.exposure, defaultSettings.exposure);
 });

@@ -78,9 +78,19 @@ export function fitCamera(points: Vec3[], aspect: number, angle: number, margin 
   const halfHeight = Math.max(1, (maxY - minY) / 2, (maxX - minX) / (2 * safeAspect)) * margin;
   const centerY = (minY + maxY) / 2;
   const target: Vec3 = [(minX + maxX) / 2, centerY * cos, -centerY * sin];
-  const distance = Math.max(12, maxDepth + 4);
+  const distance = Math.max(12, maxDepth + halfHeight / sin + 4);
   return { position: [target[0], target[1] + sin * distance, target[2] + cos * distance] as Vec3,
     target, distance, left: -halfHeight * safeAspect, right: halfHeight * safeAspect, top: halfHeight, bottom: -halfHeight };
+}
+/** Anchor the local hand to the lower screen edge, leaving its bottom fifth outside the frame. */
+export function foregroundSeat(seat: SeatPlacement, fit: ReturnType<typeof fitCamera>, options: HandOptions, cameraAngle: number): SeatPlacement {
+  const pitch = radians(cameraAngle), sin = Math.sin(pitch), cos = Math.cos(pitch);
+  const hand = viewHandOptions(options, true, cameraAngle);
+  const projectedHeight = 1.05 * hand.scale * Math.cos(radians(hand.tilt - cameraAngle));
+  const center = fit.target[1] * cos - fit.target[2] * sin;
+  const desired = center + fit.bottom + projectedHeight * 0.3;
+  const current = (seat.position[1] + 0.65 * hand.scale) * cos - seat.position[2] * sin;
+  return { ...seat, position: [seat.position[0], seat.position[1], seat.position[2] + (current - desired) / sin] };
 }
 /** Frame hands and labels only; the table deliberately extends beyond this composition. */
 export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts: number[], cameraAngle: number): Vec3[] {
@@ -102,8 +112,10 @@ export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts
         points.push(corner, [corner[0], corner[1] + 0.25 * world.scale, corner[2]]);
       }
     }
-    const [x, y, z] = seatLabelPosition(seat, hand.scale, local);
-    points.push([x - 0.75, y + 0.3, z], [x + 0.75, y - 0.3, z]);
+    if (!local) {
+      const [x, y, z] = seatLabelPosition(seat, hand.scale, false);
+      points.push([x - 0.75, y + 0.3, z], [x + 0.75, y - 0.3, z]);
+    }
   });
   return points;
 }

@@ -15,7 +15,7 @@ import { TableLighting } from "./lighting";
 import { TableSeat } from "./seat";
 import { TableSurface } from "./table";
 import { useCardResources, useTablePalette, type TablePalette } from "./resources";
-import { sceneBounds, seatPlacements, viewHandOptions, type CardPose, type HandOptions } from "./layout";
+import { sceneBounds, seatPlacements, viewHandOptions, fitCamera, foregroundSeat, type CardPose, type HandOptions } from "./layout";
 import type { TableMenuHandler } from "./interaction";
 import type { CardTarget } from "./motion";
 
@@ -39,9 +39,11 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
     [settings.layout, settings.spread, settings.curve, settings.spacing, settings.overlap, settings.tilt, settings.scale, settings.orientation]);
   // Fixed capacity bounds avoid camera jumps when drawing or discarding within a hand window.
   const bounds = useMemo(() => sceneBounds(seats, handOptions, Array(12).fill(1000), settings.angle), [seats, handOptions, settings.angle]);
+  const fit = useMemo(() => fitCamera(bounds, size.width / Math.max(1, size.height), settings.angle), [bounds, size.width, size.height, settings.angle]);
+  const localSeat = foregroundSeat(seats[0], fit, handOptions, settings.angle);
   const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight);
   const deckOrigin: CardPose = { position: [-0.85, deckHeight + 0.05, -0.15], rotation: [-Math.PI / 2, 0, 0], scale: 1 };
-  const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat,
+  const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat: place === 0 ? localSeat : seat,
     options: viewHandOptions({ ...handOptions, width: seat.width }, place === 0, settings.angle),
     hidden: place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
   targets.push(...TablePile({ cards: state.deck, position: [-0.85, 0.035, -0.15], height: settings.pileHeight, faceUp: false,
@@ -64,7 +66,7 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
         <button className="cursor-pointer border-l border-contrast/6 p-1.5" aria-label="Ações do deck" onClick={event => { const bounds = event.currentTarget.getBoundingClientRect(); onMenu({ kind: "deck" }, { x: bounds.left, y: bounds.bottom }); }}><MoreHorizontal className="size-3.5" /></button>
       </div>
     </Html>
-    {seats.map(seat => <TableSeat key={seat.seat} seat={seat} name={`Jogador ${seat.seat + 1}`} count={state.hands[seat.seat].length}
+    {seats.filter(seat => seat.seat !== settings.viewer).map(seat => <TableSeat key={seat.seat} seat={seat} name={`Jogador ${seat.seat + 1}`} count={state.hands[seat.seat].length}
       scale={viewHandOptions(handOptions, settings.viewer === seat.seat, settings.angle).scale} onActivate={() => onTurn(seat.seat)} active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6} />)}
     {targets.map(target => {
       const cue = state.motions[target.id];

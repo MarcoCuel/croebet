@@ -19,6 +19,11 @@ test("configuração interna preserva cenários e paginação sem reduzir a larg
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene");
   await expect(scene.locator("canvas")).toBeVisible();
+  const badge = page.getByTestId("local-seat");
+  await expect(badge.getByText("Você", { exact: true })).toBeVisible();
+  const sceneBox = (await scene.boundingBox())!, badgeBox = (await badge.boundingBox())!;
+  expect(badgeBox.x - sceneBox.x).toBeLessThan(24);
+  expect(sceneBox.y + sceneBox.height - badgeBox.y - badgeBox.height).toBeLessThan(24);
   await expect(page.locator("header").getByText("Laboratório de jogos", { exact: true })).toBeVisible();
   await expect(page.locator("header").getByText("Editar jogo", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Laboratório de jogos", exact: true })).toHaveClass("sr-only");
@@ -62,7 +67,7 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   await expect(canvas).toBeVisible();
   // Use the actual camera projection to hit the deck and a card in the WebGL canvas.
   const { OrthographicCamera, Vector3 } = await import("three");
-  const { seatPlacements, sceneBounds, fitCamera, viewHandOptions, handPlacements, worldHandPose } = await import("../../three/table/layout");
+  const { seatPlacements, sceneBounds, fitCamera, viewHandOptions, handPlacements, worldHandPose, foregroundSeat } = await import("../../three/table/layout");
   const { defaultSettings: settings } = await import("../../features/games/laboratory/model");
   const box = (await canvas.boundingBox())!;
   const seats = seatPlacements(settings.players, 0, settings.radius, settings.depth, settings.spread);
@@ -79,7 +84,7 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   await page.mouse.click(deck.x, deck.y);
   await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 0");
   const handOptions = viewHandOptions({ ...options, width: seats[0].width }, true, settings.angle);
-  const card = screen(worldHandPose(handPlacements(8, handOptions)[7], seats[0]).position);
+  const card = screen(worldHandPose(handPlacements(8, handOptions)[7], foregroundSeat(seats[0], fit, options, settings.angle)).position);
   await page.mouse.click(card.x, card.y);
   await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 1");
   await page.mouse.click(deck.x, deck.y, { button: "right" });
@@ -130,7 +135,7 @@ test("iluminação e sombras podem ser ajustadas, salvas e restauradas dentro da
   await expect(softness).toHaveValue("12");
   await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
   await panel.getByRole("button", { name: "Restaurar iluminação", exact: true }).click();
-  await expect(exposure).toHaveValue("0.85");
+  await expect(exposure).toHaveValue("1");
   await expect(softness).toHaveValue("6");
   await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
   await expect(exposure).toHaveValue("0.5");
