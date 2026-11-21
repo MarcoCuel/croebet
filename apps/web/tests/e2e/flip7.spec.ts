@@ -960,3 +960,50 @@ test("limite de assinatura preserva o lobby e recupera os controles sem piscar",
   await page.getByRole("button",{name:"Jogar",exact:true}).click();
   await expect(cancel).toBeEnabled();
 });
+
+for (const input of ["deck", "Enter", "Escape"] as const) {
+  test(`deck e atalhos respeitam o turno e bloqueiam interferências: ${input}`, async ({ page }) => {
+    const code = "ABCDEF102030";
+    const state = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
+    const deck = createDeck("classic");
+    const take = (value: number) => deck.splice(deck.findIndex(card => card.type === "number" && card.value === value), 1)[0];
+    state.players[0].cards = [take(2)];
+    state.players[1].cards = [take(3)];
+    state.players.forEach(player => { player.hasDrawn = true; });
+    state.turn = 0;
+    const next = take(4);
+    state.deck = [...deck, next];
+    const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state: flip7Driver.project(state), hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+    fixture.states.set(code, { room, privateState: state, frames: [] });
+    await page.goto(`/jogos/flip7?partida=${code}`);
+    const pile = page.getByRole("button", { name: "Comprar carta do baralho", exact: true });
+    await expect(pile).toBeEnabled();
+    await page.getByRole("button", { name: "Abandonar partida", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sair da partida?" });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    expect(fixture.commands).toHaveLength(0);
+    await page.evaluate(() => {
+      const field = document.createElement("input");
+      field.id = "shortcut-field";
+      document.body.append(field);
+      field.focus();
+    });
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+    expect(fixture.commands).toHaveLength(0);
+    await page.locator("#shortcut-field").evaluate(element => element.remove());
+    // Holding Enter must not issue repeated purchases.
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", repeat: true, bubbles: true })));
+    expect(fixture.commands).toHaveLength(0);
+    if (input === "deck") await pile.click();
+    else await page.keyboard.press(input);
+    await expect.poll(() => fixture.commands.length).toBe(1);
+    expect(fixture.commands[0]).toEqual(expect.objectContaining({ action: expect.objectContaining({ type: input === "Escape" ? "stay" : "draw" }) }));
+    await expect(pile).toBeDisabled();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+    expect(fixture.commands).toHaveLength(1);
+  });
+}

@@ -36,6 +36,27 @@ import { useMatchLive } from "./live";
 import { KickPlayer } from "../kick-player";
 import { GOAL } from "./presentation";
 
+function Flip7Shortcuts({ enabled, canStop, send }: { enabled: boolean; canStop: boolean; send: (action: Action) => Promise<void> }) {
+  useEffect(() => {
+    if (!enabled) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || document.visibilityState === "hidden") return;
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
+      // Enter keeps the native action of a focused control. Escape first exits fullscreen.
+      if (event.key === "Enter" && target instanceof Element && target.closest('button, a, [role="button"], [role="slider"], summary')) return;
+      if (event.key === "Escape" && (!canStop || document.fullscreenElement)) return;
+      event.preventDefault();
+      void send({ type: event.key === "Enter" ? "draw" : "stay" });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [enabled, canStop, send]);
+  return null;
+}
+
 function Rules({ options }: { options: GameOptions }) {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
     <DialogContent aria-describedby={undefined} className="max-h-[85dvh] w-[min(34rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent>
@@ -618,13 +639,14 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
 
   return (
     <Surface ref={boardRef} className="relative isolate @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
+      <Flip7Shortcuts enabled={playable && !exitOpen && !leaving} canStop={canStay(current, game)} send={send} />
       <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
         <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4", replay?.active ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-8rem)]")}>
           {replay ? <>{replay.active ? replay.controls : <h2 className="text-sm font-medium">{replay.finished ? status : "Partida encerrada"}</h2>}{!replay.finished && !replay.active && <Button onClick={replay.restart}>Replay</Button>}{game.phase === "over" && !replay.loading && <Button ref={resultTriggerRef} size="sm" variant="secondary" onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}</> : <>
           <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${displayGame.players[flight.target].name} está recebendo uma carta` : movingCards ? "Movendo cartas" : status}</h2>
           {playable && <div className="flex gap-2">
-            <Button className="min-w-24" onClick={() => send({ type: "draw" })}>Comprar</Button>
-            <Button className="min-w-24" variant="secondary" disabled={!canStay(current, game)} onClick={() => send({ type: "stay" })}>Parar</Button>
+            <Button className="min-w-24" aria-keyshortcuts="Enter" title="Comprar carta (Enter)" onClick={() => send({ type: "draw" })}>Comprar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Enter</span></Button>
+            <Button className="min-w-24" variant="secondary" aria-keyshortcuts="Escape" title="Parar (Escape)" disabled={!canStay(current, game)} onClick={() => send({ type: "stay" })}>Parar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Esc</span></Button>
           </div>}
           {selectingCards && <div className="flex gap-2">
             <Button disabled={!validSelection} onClick={() => send({ type: "cards", cards: selectedCards })}>Confirmar</Button>
@@ -662,6 +684,9 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                 <svg className="absolute inset-0 size-full font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
                   <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deckCount > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deckCount}</text>
                 </svg>
+                <Button variant="ghost" disabled={!playable || exitOpen || leaving} aria-label="Comprar carta do baralho" title={playable ? "Comprar carta (Enter)" : "Aguarde sua vez de comprar"} onClick={() => send({ type: "draw" })} className="absolute inset-0 z-30 size-full rounded-2xl p-0 hover:bg-contrast/10 disabled:opacity-100 focus-visible:border-foreground">
+                  <span className="sr-only">Comprar carta do baralho</span>
+                </Button>
               </div>
               {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${displayGame.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
                 <PlayingCard card={action.card} />
