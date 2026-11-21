@@ -39,6 +39,8 @@ A navegação dos jogos usa `features/games/game-url.ts` para formar endereços 
 
 ## Componentes e acessibilidade
 
+- `features/games/game-controls.tsx` compartilha os controles da mesa entre jogos. Volume usa um único botão para silenciar/ativar; o slider horizontal aparece no hover ou enquanto o grupo contém foco, permitindo teclado e toque. Volume e silêncio continuam persistidos pelas preferências de áudio.
+
 - App instalável: `app/manifest.ts` define identidade, ícones e abertura standalone; metadata raiz inclui ícone e configuração Apple. `components/layout/app-install.tsx` oferece instalação quando o navegador emite `beforeinstallprompt` e orienta a instalação manual no Safari do iOS. Ocultar por 7 dias ao dispensar; não mostrar em standalone. Exige HTTPS (ou localhost). A instalação/abertura fica sob controle do navegador; jogos continuam exigindo conexão, sem cache offline de sessões ou partidas.
 
 - Procure em `components/ui` e `components/shared` antes de criar. Adaptação de um domínio fica na feature; padrão visual comum vai para shared; controle genérico vai para ui. Não instalar primitives sem uso.
@@ -64,7 +66,7 @@ A navegação dos jogos usa `features/games/game-url.ts` para formar endereços 
 - Preserve gradiente e sombra interna dos primários/Croin. Foco de controles altera apenas a borda; sem focus rings ou bordas coloridas decorativas nos modais/dropdowns.
 - Preserve layout, imagens, textos e comportamento ao refatorar. Página entra diretamente, sem animação de entrada; Lenis e GSAP respeitam `prefers-reduced-motion`. Cancele timers/timelines ao desmontar.
 - Valores em Croins usam o ícone próprio `components/shared/croin-icon.tsx`, compartilhado com o saldo; não usar ícones monetários do Lucide para representar Croins.
-- A navbar exibe Gift ao lado das notificações quando o bônus diário está disponível para o usuário logado. O botão reutiliza o resgate da sessão e desaparece após a confirmação; o prazo informado pela API também libera o ícone sem recarregar a página.
+- A navbar exibe um botão primário com Gift e o texto “Bônus diário” ao lado das notificações quando o bônus diário está disponível para o usuário logado. O botão reutiliza o resgate da sessão e desaparece após a confirmação; o prazo informado pela API também libera o botão sem recarregar a página.
 - Saldos de usuário usam `BalanceValue`/`Balance`: primeira exibição mostra o total; alterações animam por 1 segundo com ease out e indicação da diferença. Resgate de cupom fecha o modal antes de atualizar o saldo. Não duplicar animação nos consumidores.
 
 ## Administração e conteúdo

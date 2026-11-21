@@ -21,8 +21,7 @@ export function DailyBonusButton() {
 
   return (
     <Button
-      variant="secondary"
-      size="icon"
+      variant="default"
       aria-label="Resgatar bônus diário"
       title="Resgatar bônus diário"
       disabled={claimingDaily}
@@ -30,6 +29,7 @@ export function DailyBonusButton() {
       onClick={claimDaily}
     >
       <Gift className="size-4" aria-hidden="true" />
+      Bônus diário
     </Button>
   );
 }

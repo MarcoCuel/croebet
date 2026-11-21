@@ -629,7 +629,6 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!resolvingCardFinished && !flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
-          {!!matchInfo?.entryAmount && <span className="text-sm text-muted">Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</span>}
           {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
           </>}
 
@@ -646,6 +645,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
         <div className={cn("min-w-0", replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
+            {!!matchInfo?.entryAmount && <span className="text-sm text-muted">Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</span>}
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push(gameUrl(gameSlug))}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}

@@ -539,7 +539,10 @@ test("entrada e reduções aceitam automaticamente, aumentos exigem confirmaçã
     await peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
-    await expect(page.getByText("Pote: 20 Croins",{exact:true})).toBeVisible();
+    const pot = page.getByText("Pote: 20 Croins",{exact:true});
+    await expect(pot).toBeVisible();
+    await expect(page.locator("[data-flip7-controls]").getByText(/Pote:/)).toHaveCount(0);
+    await expect(pot.locator("..").getByText("Clássico", { exact: true })).toBeVisible();
   }finally{await peer.context.close();}
 });
 
@@ -630,16 +633,36 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     const controls = page.getByLabel("Controles da partida", { exact: true });
     const exit = controls.getByRole("button", { name: "Abandonar partida", exact: true });
     await expect(exit).toHaveText("");
-    await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
+    await expect(controls.getByRole("button", { name: "Ajustar volume", exact: true })).toHaveCount(0);
+    const sound = controls.getByRole("button", { name: "Silenciar som", exact: true });
+    const volumeGroup = controls.getByRole("group", { name: "Volume", exact: true });
     const volume = controls.getByRole("slider", { name: "Volume dos efeitos" });
-    await volume.fill("30");
-    await expect(controls.getByText("30%", { exact: true })).toBeVisible();
+    await expect(volume).not.toBeVisible();
+    if (testInfo.project.name === "desktop") {
+      await sound.hover();
+      await expect(volume).toBeVisible();
+      await volume.hover();
+      await expect(volume).toBeVisible();
+      await exit.hover();
+      await expect(volume).not.toBeVisible();
+    }
+    await sound.focus();
+    await expect(volume).toBeVisible();
+    await page.keyboard.press("Tab");
+    await expect(volume).toBeFocused();
+    await volume.press("Home");
+    for (let step = 0; step < 6; step++) await volume.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    await expect(volume).toHaveValue("35");
+    await volume.press("ArrowLeft");
+    await expect(volume).toHaveAttribute("aria-valuetext", "30%");
+    await expect(volumeGroup.getByRole("button")).toHaveCount(1);
     await controls.getByRole("button", { name: "Silenciar som", exact: true }).click();
     await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toHaveAttribute("aria-pressed", "false");
     await page.reload();
     await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
-    await controls.getByRole("button", { name: "Ajustar volume", exact: true }).click();
+    await controls.getByRole("button", { name: "Ativar som", exact: true }).focus();
     await expect(volume).toHaveValue("30");
     await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(11);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
@@ -753,7 +776,7 @@ test("mesa de teste mantém identificação e ferramentas na barra sem cabeçalh
  await expect(page.getByLabel("Apresentação do jogo")).toHaveCount(0);
  await expect(page.getByRole("button",{name:"Voltar às salas",exact:true})).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Mesa de Flip7"}).getByText("Desenvolvimento",{exact:true})).toBeVisible();
- await expect(page.getByLabel("Controles da partida").getByRole("button",{name:"Ajustar volume",exact:true})).toBeVisible();
+ await expect(page.getByLabel("Controles da partida").getByRole("button",{name:"Silenciar som",exact:true})).toBeVisible();
 });
 
 

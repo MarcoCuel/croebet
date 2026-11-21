@@ -35,6 +35,7 @@ test("presente permite resgatar uma vez e desaparece após confirmação", async
   const header = page.locator("header");
   const gift = header.getByRole("button", { name: "Resgatar bônus diário", exact: true });
   await expect(gift).toBeVisible();
+  await expect(gift).toHaveText("Bônus diário");
   await expect(gift.locator("xpath=following-sibling::button[1]")).toHaveAttribute("aria-label", "Notificações");
   await gift.click();
   await expect(gift).toHaveCount(0);
