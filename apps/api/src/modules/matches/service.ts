@@ -149,6 +149,7 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
       where m.status in ('lobby','playing') and
         (p.controller_id=$1 or (m.owner_id=$1 and (m.status='lobby' or m.only_bots)))
       order by m.created_at,m.id`, [actor]);
+    const people = await participants(client, rows.rows.map(row => row.id));
     return personalMatchesSchema.parse({ items: rows.rows.map(row => {
       let yourTurn = false;
       let turnKey: string | null = null;
@@ -158,7 +159,7 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
         if(yourTurn)turnKey=decision!.key;
       }
       return { code: row.code, game: row.game_slug, gameName: row.game_name, status: row.status,
-        development: row.development, yourTurn, turnKey };
+        development: row.development, yourTurn, turnKey, participants: people.get(row.id) ?? [] };
     }) });
   });
 }

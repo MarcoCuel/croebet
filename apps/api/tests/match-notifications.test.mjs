@@ -86,16 +86,22 @@ test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love L
   const love=createLove([{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}],"classic");
   love.turn=1;
   const base={rules_version:1,controller_id:actor,seat:1,status:'playing',development:false,only_bots:false};
-  const rows=[{...base,code:'ABCDEF123456',game_slug:'flip7',game_name:'Flip 7',state},
-    {...base,code:'ABCDEF654321',game_slug:'love-letter',game_name:'Love Letter',state:love}];
+  const rows=[{...base,id:randomUUID(),code:'ABCDEF123456',game_slug:'flip7',game_name:'Flip 7',state},
+    {...base,id:randomUUID(),code:'ABCDEF654321',game_slug:'love-letter',game_name:'Love Letter',state:love}];
   const client={release(){},async query(sql,values){
     if(sql.includes('select m.*,g.name')){assert.deepEqual(values,[actor]);return {rows};}
+    if(sql.includes('u.avatar_key')){
+      assert.deepEqual(values,[rows.map(row=>row.id)]);
+      return {rows:[{match_id:rows[0].id,user_id:actor,seat:1,username:'ana',display_name:'Ana',avatar_key:null}]};
+    }
     return {rows:[]};
   }};
   const result=await listPersonalMatches({connect:async()=>client},actor);
   assert.deepEqual(result.items.map(item=>item.yourTurn),[true,true]);
   assert.deepEqual(result.items.map(item=>item.turnKey),['1:1','1:1']);
-  assert.ok(result.items.every(item=>Object.keys(item).sort().join(',')==='code,development,game,gameName,status,turnKey,yourTurn'));
+  assert.deepEqual(result.items[0].participants,[{userId:actor,seat:1,username:'ana',displayName:'Ana',avatarUrl:null}]);
+  assert.deepEqual(result.items[1].participants,[]);
+  assert.ok(result.items.every(item=>Object.keys(item).sort().join(',')==='code,development,game,gameName,participants,status,turnKey,yourTurn'));
   for(const row of rows)row.controller_id=null;
   const withoutControl=await listPersonalMatches({connect:async()=>client},actor);
   assert.ok(withoutControl.items.every(item=>!item.yourTurn && item.turnKey===null));

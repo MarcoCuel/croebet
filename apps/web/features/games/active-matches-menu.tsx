@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Gamepad2 } from "lucide-react";
+import { ChevronRight, Gamepad2 } from "lucide-react";
 import { toast } from "sonner";
 import { getGameDefinition, personalMatchesSchema, type PersonalMatches } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { gameSocket, retainGameSocket } from "./realtime";
 import { gameUrl } from "./game-url";
@@ -71,12 +72,30 @@ export function ActiveMatchesMenu() {
   </Button>;
   return <DropdownMenu>
     <DropdownMenuTrigger asChild><Button variant="secondary" size="icon" className="relative" aria-label={`Minhas partidas (${items.length})`}>{icon}</Button></DropdownMenuTrigger>
-    <DropdownMenuContent align="end" className="w-64">
+    <DropdownMenuContent align="end" className="w-80 space-y-1 p-2 max-h-[min(32rem,70dvh)] overflow-y-auto">
       <DropdownMenuLabel>Minhas partidas</DropdownMenuLabel>
-      {items.map(item => <DropdownMenuItem asChild key={item.code}>
-        <Link href={destination(item)} prefetch={false} className="flex flex-col items-start gap-1">
-          <span>{item.gameName}{item.development && <span className="ml-2 text-xs text-muted">Dev</span>}</span>
-          <span className={item.yourTurn ? "text-xs text-brand" : "text-xs text-muted"}>{item.yourTurn ? "Sua vez" : item.status === "lobby" ? "No lobby" : "Em andamento"}</span>
+      {items.map(item => <DropdownMenuItem asChild key={item.code} className="bg-contrast/4 p-3">
+        <Link href={destination(item)} prefetch={false} aria-current={currentCode === item.code ? "page" : undefined} className="flex flex-col items-stretch gap-3">
+          <span className="flex items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-2"><span className="truncate text-sm font-medium">{item.gameName}</span>{item.development && <span className="rounded bg-contrast/6 px-1.5 py-0.5 text-[0.625rem] text-muted">Dev</span>}</span>
+            <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" />
+          </span>
+          {item.participants.length > 0 && <span className="flex items-center gap-2">
+            <span className="flex -space-x-2">
+              {item.participants.slice(0, 5).map(person => {
+                const name = person.displayName || person.username;
+                return <Avatar key={person.userId} className="size-8 border-2 border-surface" title={name}>
+                  <AvatarImage src={person.avatarUrl ?? undefined} alt={name} />
+                  <AvatarFallback><span aria-label={name}>{name[0]?.toLocaleUpperCase("pt-BR")}</span></AvatarFallback>
+                </Avatar>;
+              })}
+            </span>
+            {item.participants.length > 5 && <span className="text-xs text-muted">+{item.participants.length - 5}</span>}
+          </span>}
+          <span className="flex items-center justify-between gap-3">
+            <span className={item.yourTurn ? "flex items-center gap-1.5 text-xs font-medium text-brand" : "text-xs text-muted"}>{item.yourTurn && <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />}{item.yourTurn ? "Sua vez" : item.status === "lobby" ? "No lobby" : "Em andamento"}</span>
+            <span className="text-[0.625rem] text-muted">#{item.code.slice(-6)}</span>
+          </span>
         </Link>
       </DropdownMenuItem>)}
     </DropdownMenuContent>

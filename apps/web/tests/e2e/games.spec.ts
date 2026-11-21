@@ -474,7 +474,8 @@ test("estados de teste não recriam assinaturas e sair remove a observação",as
 });
 
 test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas", async ({page}) => {
- const flip={code:"ABCDEF123456",game:"flip7" as const,gameName:"Flip 7",status:"playing" as const,development:false,yourTurn:false,turnKey:null};
+ await page.route("**/avatar-fixture.svg",route=>route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="pink"/></svg>'}));
+ const flip={code:"ABCDEF123456",game:"flip7" as const,gameName:"Flip 7",status:"playing" as const,development:false,yourTurn:false,turnKey:null,participants:[{userId:id,username:"ana",displayName:"Ana",avatarUrl:null,seat:0},{userId:matchId,username:"beto",displayName:"Beto",avatarUrl:"/avatar-fixture.svg",seat:1}]};
  const love={...flip,code:"ABCDEF654321",game:"love-letter" as const,gameName:"Love Letter",status:"lobby" as const,development:true};
  personalMatches={items:[flip]};
  await page.goto("/jogos");
@@ -486,6 +487,11 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
  personalMatches={items:[flip,love]};sockets.emit("personal-matches",personalMatches);
  await page.getByRole("button",{name:"Minhas partidas (2)"}).click();
  await expect(page.getByRole("menuitem").filter({hasText:"Love Letter"})).toHaveAttribute("href","/jogos/love-letter?partida=ABCDEF654321");
+ const card=page.getByRole("menuitem").filter({hasText:"Love Letter"});
+ await expect(card.getByLabel("Ana",{exact:true})).toBeVisible();
+ await expect(card.getByRole("img",{name:"Beto",exact:true})).toHaveAttribute("src","/avatar-fixture.svg");
+ await expect(card.getByText("No lobby",{exact:true})).toBeVisible();
+ await expect(card.getByText("#654321",{exact:true})).toBeVisible();
  await page.keyboard.press("Escape");
  personalMatches={items:[{...flip,yourTurn:true,turnKey:"1:0"},love]};
  sockets.emit("personal-matches",personalMatches);
