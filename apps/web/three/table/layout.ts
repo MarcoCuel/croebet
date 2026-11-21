@@ -58,10 +58,18 @@ export function worldHandPose(pose: CardPose, seat: SeatPlacement): CardPose {
     // YXZ rotation order in the renderer keeps tilt/fan in each seat's local frame.
     rotation: [pose.rotation[0], seat.angle + pose.rotation[1], pose.rotation[2]], scale: pose.scale };
 }
-export function pilePose(index: number, position: Vec3, height: number, natural: boolean, scale = 1): CardPose {
+export function pileRotation(faceUp: boolean, cameraAngle = 36): Vec3 {
+  return faceUp ? [-radians(cameraAngle), 0, 0] : [-Math.PI / 2, 0, Math.PI / 2];
+}
+export function pilePose(index: number, position: Vec3, height: number, natural: boolean, scale = 1, rotation = pileRotation(natural)): CardPose {
   const noise = (n: number) => Math.sin((index + 1) * n);
-  return { position: [position[0] + (natural ? noise(13.7) * 0.09 : 0), position[1] + index * height,
-    position[2] + (natural ? noise(8.3) * 0.08 : 0)], rotation: [-Math.PI / 2, natural ? noise(4.1) * 0.17 : 0, 0], scale };
+  const [rx, ry, rz] = rotation;
+  const offset = index * height;
+  // Stack along the face normal so upright piles stay solid instead of separating vertically.
+  return { position: [position[0] + Math.sin(ry) * Math.cos(rx) * offset + (natural ? noise(13.7) * 0.035 : 0),
+    position[1] - Math.sin(rx) * offset,
+    position[2] + Math.cos(ry) * Math.cos(rx) * offset + (natural ? noise(8.3) * 0.025 : 0)],
+    rotation: [rx, ry, rz + (natural ? noise(4.1) * 0.025 : 0)], scale };
 }
 
 /** Fit an orthographic frustum: distance never changes the apparent size of cards. */
@@ -92,7 +100,7 @@ export function foregroundSeat(seat: SeatPlacement, fit: ReturnType<typeof fitCa
   const current = (seat.position[1] + 0.65 * hand.scale) * cos - seat.position[2] * sin;
   return { ...seat, position: [seat.position[0], seat.position[1], seat.position[2] + (current - desired) / sin] };
 }
-/** Frame hands and labels only; the table deliberately extends beyond this composition. */
+/** Frame hands and opponent labels; the background is independent of the camera bounds. */
 export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts: number[], cameraAngle: number): Vec3[] {
   const points: Vec3[] = [[-1.5, 0, -0.8], [1.5, 1, 0.8]];
   seats.forEach((seat, place) => {
@@ -118,12 +126,4 @@ export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts
     }
   });
   return points;
-}
-
-/** Keep the far rim behind opponents, extending the surface past the near and side edges. */
-export function surfacePlacement(fit: ReturnType<typeof fitCamera>, radius: number, depth: number) {
-  const halfViewWidth = fit.right;
-  const surfaceDepth = Math.max(depth * 2.5, fit.position[2] * 1.4);
-  return { radius: Math.max(radius * 2.5, halfViewWidth * 2), depth: surfaceDepth,
-    centerZ: surfaceDepth - depth - 1.5 };
 }

@@ -13,9 +13,8 @@ import { TableCard } from "./card";
 import { TableCamera } from "./camera";
 import { TableLighting } from "./lighting";
 import { TableSeat } from "./seat";
-import { TableSurface } from "./table";
 import { useCardResources, useTablePalette, type TablePalette } from "./resources";
-import { sceneBounds, seatPlacements, viewHandOptions, fitCamera, foregroundSeat, type CardPose, type HandOptions } from "./layout";
+import { sceneBounds, seatPlacements, viewHandOptions, fitCamera, foregroundSeat, pileRotation, type CardPose, type HandOptions } from "./layout";
 import type { TableMenuHandler } from "./interaction";
 import type { CardTarget } from "./motion";
 
@@ -42,22 +41,20 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
   const fit = useMemo(() => fitCamera(bounds, size.width / Math.max(1, size.height), settings.angle), [bounds, size.width, size.height, settings.angle]);
   const localSeat = foregroundSeat(seats[0], fit, handOptions, settings.angle);
   const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight);
-  const deckOrigin: CardPose = { position: [-0.85, deckHeight + 0.05, -0.15], rotation: [-Math.PI / 2, 0, 0], scale: 1 };
+  const deckOrigin: CardPose = { position: [-0.85, deckHeight + 0.05, -0.15], rotation: pileRotation(false), scale: 1 };
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat: place === 0 ? localSeat : seat,
     options: viewHandOptions({ ...handOptions, width: seat.width }, place === 0, settings.angle),
     hidden: place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
   targets.push(...TablePile({ cards: state.deck, position: [-0.85, 0.035, -0.15], height: settings.pileHeight, faceUp: false,
     moving: state.cue.kind === "collect" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "deck" as const, interactive: true })));
-  targets.push(...TablePile({ cards: state.discard, position: [0.85, 0.035, 0.15], height: settings.pileHeight, faceUp: true, moving: state.cue.kind === "discard" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "discard" as const })));
-  const growth = 1 + Math.max(0, settings.players - 6) * 0.07;
+  targets.push(...TablePile({ cards: state.discard, position: [0.85, 0.6, 0.15], height: settings.pileHeight, faceUp: true, rotation: pileRotation(true, settings.angle), moving: state.cue.kind === "discard" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "discard" as const })));
   return <>
     <TableCamera angle={settings.angle} bounds={bounds} />
     <TableLighting ambient={settings.ambient} intensity={settings.light} pointIntensity={settings.pointLight}
       pointHeight={settings.pointHeight} deckHeight={deckHeight} shadows={settings.shadows} softness={settings.shadowSoftness} opacity={settings.shadowOpacity} />
-    <TableSurface radius={settings.radius * growth} depth={settings.depth * growth} angle={settings.angle} bounds={bounds} palette={palette} />
     <mesh position={[-0.85, 0.01, -0.15]} onClick={event => { event.stopPropagation(); onDraw(); }}
       onContextMenu={event => { event.stopPropagation(); event.nativeEvent.preventDefault(); onMenu({ kind: "deck" }, { x: event.clientX, y: event.clientY }); }}>
-      <boxGeometry args={[0.8, 0.03, 1.15]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      <boxGeometry args={[1.15, 0.03, 0.8]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
     <Html position={[-0.85, 0.06, 0.8]} center zIndexRange={[14, 0]}>
       <div className="flex items-center rounded-lg border border-contrast/6 bg-background/90 text-xs text-foreground">

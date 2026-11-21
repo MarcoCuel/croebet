@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
-import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, surfacePlacement, worldHandPose, foregroundSeat } from '../three/table/layout.ts';
+import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
@@ -129,19 +129,6 @@ test('cada observador recebe a mesma composição com sua mão em primeiro plano
   assert.ok(left.position[0] > seats[3].position[0] && left.position[2] < seats[3].position[2]);
 });
 
-test('superfície fica fora do ajuste de câmera e continua além do primeiro plano', () => {
-  const seats = seatPlacements(4, 0, 4, 3.2, 5.5);
-  const bounds = sceneBounds(seats, options, Array(12).fill(1000), 36);
-  for (const aspect of [0.4, 1, 1.8, 2.4]) {
-    const fit = fitCamera(bounds, aspect, 36);
-    const surface = surfacePlacement(fit, 4, 3.2);
-    assert.ok(surface.centerZ + surface.depth > fit.position[2]);
-    assert.ok(surface.centerZ - surface.depth < -3.2);
-    assert.ok(surface.radius > 4);
-  }
-});
-
-
 test('adversários mantêm fileiras paralelas e verticais independentemente do leque local', () => {
   for (const layout of ['fan', 'line']) for (const curve of [0, 1.2, 3]) {
     const configured = { ...options, layout, curve, orientation: 45, tilt: 45 };
@@ -215,4 +202,20 @@ test('mão local fica no rodapé com a base cortada sem esconder centro ou núme
   const oldDefaults = parseSettings({ ...defaultSettings, ambient: 0.55, exposure: 0.85, light: 1.1 });
   assert.equal(oldDefaults.ambient, defaultSettings.ambient);
   assert.equal(oldDefaults.exposure, defaultSettings.exposure);
+});
+
+
+test('deck fica horizontal e descarte apresenta a face para a câmera sem torções fortes', () => {
+  const cards = Array.from({ length: 24 }, (_, i) => ({ id: `pile:${i}`, value: i % 10 }));
+  const deck = TablePile({ cards, position: [0, 0, 0], height: 0.004, faceUp: false });
+  assert.ok(deck.every(card => Math.abs(card.pose.rotation[2] - Math.PI / 2) < 1e-9));
+  for (const angle of [25, 36, 65]) {
+    const pile = TablePile({ cards, position: [0.85, 0.6, 0.15], height: 0.004, faceUp: true, rotation: pileRotation(true, angle) });
+    const towardCamera = new Vector3(0, Math.sin(angle * Math.PI / 180), Math.cos(angle * Math.PI / 180));
+    for (const card of pile) {
+      const normal = new Vector3(0, 0, 1).applyEuler(new Euler(...card.pose.rotation, 'YXZ'));
+      assert.ok(normal.dot(towardCamera) > 0.999);
+      assert.ok(Math.abs(card.pose.rotation[2]) <= 0.025);
+    }
+  }
 });
