@@ -129,13 +129,17 @@ test('cada observador recebe a mesma composição com sua mão em primeiro plano
   assert.ok(left.position[0] > seats[3].position[0] && left.position[2] < seats[3].position[2]);
 });
 
-test('adversários mantêm fileiras paralelas e verticais independentemente do leque local', () => {
+test('adversários envolvem o jogador em arco sem o giro de leque da mão local', () => {
   for (const layout of ['fan', 'line']) for (const curve of [0, 1.2, 3]) {
     const configured = { ...options, layout, curve, orientation: 45, tilt: 45 };
     const opponent = viewHandOptions(configured, false, 36);
     const cards = handPlacements(7, opponent);
-    assert.ok(cards.every(card => card.rotation[2] === 0 && card.rotation[1] === 0));
+    assert.ok(cards.every(card => card.rotation[2] === 0));
     assert.ok(cards.every(card => card.position[1] === cards[0].position[1]));
+    assert.ok(cards[0].rotation[1] < 0 && cards.at(-1).rotation[1] > 0);
+    assert.ok(cards[0].position[2] < cards[3].position[2]);
+    const straight = handPlacements(7, viewHandOptions({ ...configured, spatialCurve: 0 }, false, 36));
+    assert.ok(straight.every(card => card.rotation[1] === 0));
     assert.ok(cards.every(card => Math.abs(card.rotation[0]) <= 8 * Math.PI / 180));
     const local = viewHandOptions(configured, true, 36);
     assert.equal(local.layout, layout);
@@ -153,7 +157,7 @@ test('papel curvo preserva cantos, dimensões e faces alinhadas sem curvar as pi
       const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
       assert.ok(Math.abs(x) <= 0.36 + 1e-6 && Math.abs(y) <= 0.525 + 1e-6);
       assert.ok(Math.abs(z + back.getZ(i)) < 1e-6);
-      if (Math.abs(y) > 0.52) assert.ok(Math.abs(z) < 1e-6);
+      if (Math.abs(Math.abs(y) - 0.525) < 1e-6) assert.ok(Math.abs(z) < 1e-6);
       minZ = Math.min(minZ, z);
     }
     assert.ok(minZ < -0.017 && minZ > -0.019);
@@ -217,5 +221,36 @@ test('deck fica horizontal e descarte apresenta a face para a câmera sem torç�
       assert.ok(normal.dot(towardCamera) > 0.999);
       assert.ok(Math.abs(card.pose.rotation[2]) <= 0.025);
     }
+  }
+});
+
+
+test('cantos seguem arcos de círculo amostrados e UVs preservam as proporções', () => {
+  const geometry = createCardGeometry(0.018);
+  try {
+    const positions = geometry.face.getAttribute('position'), uv = geometry.face.getAttribute('uv');
+    const seen = [new Set(), new Set(), new Set(), new Set()];
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i), y = positions.getY(i);
+      assert.ok(Math.abs(uv.getX(i) - (x / 0.72 + 0.5)) < 1e-6);
+      assert.ok(Math.abs(uv.getY(i) - (y / 1.05 + 0.5)) < 1e-6);
+      const dx = Math.abs(x) - 0.3, dy = Math.abs(y) - 0.465;
+      if (dx > 1e-5 && dy > 1e-5 && Math.abs(dx * dx + dy * dy - 0.06 ** 2) < 1e-7) {
+        seen[(x > 0 ? 1 : 0) + (y > 0 ? 2 : 0)].add(y);
+      }
+    }
+    assert.ok(seen.every(corner => corner.size >= 10), 'cada canto precisa de um arco, não um chanfro');
+  } finally { for (const mesh of Object.values(geometry)) mesh.dispose(); }
+});
+
+test('posição, rotação do deck e arco adversário são persistidos e validados', () => {
+  const configured = { ...defaultSettings, deckX: -3, deckZ: -2.6, deckRotation: -25, opponentCurve: 1.2 };
+  assert.deepEqual(parseSettings(configured), configured);
+  const legacy = { ...defaultSettings };
+  for (const key of ['deckX', 'deckZ', 'deckRotation', 'opponentCurve']) delete legacy[key];
+  const parsed = parseSettings(legacy);
+  for (const key of ['deckX', 'deckZ', 'deckRotation', 'opponentCurve']) assert.equal(parsed[key], defaultSettings[key]);
+  for (const change of [{ deckX: NaN }, { deckZ: -6 }, { deckRotation: 181 }, { opponentCurve: -1 }]) {
+    assert.equal(parseSettings({ ...defaultSettings, ...change }), null);
   }
 });

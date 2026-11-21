@@ -70,9 +70,10 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   const { seatPlacements, sceneBounds, fitCamera, viewHandOptions, handPlacements, worldHandPose, foregroundSeat } = await import("../../three/table/layout");
   const { defaultSettings: settings } = await import("../../features/games/laboratory/model");
   const box = (await canvas.boundingBox())!;
+  expect(Number(await canvas.getAttribute("width"))).toBeGreaterThanOrEqual(box.width * 1.45);
   const seats = seatPlacements(settings.players, 0, settings.radius, settings.depth, settings.spread);
-  const options = { ...settings, width: settings.spread };
-  const fit = fitCamera(sceneBounds(seats, options, Array(12).fill(1000), settings.angle), box.width / box.height, settings.angle);
+  const options = { ...settings, width: settings.spread, spatialCurve: settings.opponentCurve };
+  const fit = fitCamera(sceneBounds(seats, options, Array(12).fill(1000), settings.angle, [settings.deckX, 0.035, settings.deckZ]), box.width / box.height, settings.angle);
   const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
   camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
   const screen = (position: [number, number, number]) => {
@@ -80,7 +81,7 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
     return { x: box.x + (point.x + 1) / 2 * box.width, y: box.y + (1 - point.y) / 2 * box.height };
   };
   await expect(scene.getByRole("button", { name: "Comprar carta", exact: true })).toBeVisible();
-  const deck = screen([-0.85, 0.035 + 103 * settings.pileHeight + 0.0022, -0.15]);
+  const deck = screen([settings.deckX, 0.035 + 103 * settings.pileHeight + 0.0022, settings.deckZ]);
   await page.mouse.click(deck.x, deck.y);
   await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 0");
   const handOptions = viewHandOptions({ ...options, width: seats[0].width }, true, settings.angle);
@@ -151,4 +152,28 @@ test("catálogo usa título e retorno ao laboratório no navbar", async ({ page 
   await expect(page.locator("header").getByText("Cartas do Love Letter", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cartas do Love Letter", exact: true })).toHaveClass("sr-only");
   await expect(page.locator("header").getByRole("link", { name: "Voltar ao laboratório", includeHidden: true })).toHaveAttribute("href", "/admin/jogos/laboratorio");
+});
+
+
+test("posição e rotação do deck são opcionais e acompanham compra e restauração", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByText("Deck e descarte", { exact: true }).click();
+  await panel.getByRole("button", { name: "Superior esquerdo", exact: true }).click();
+  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveValue("-3");
+  await expect(panel.getByLabel("Posição vertical do deck", { exact: true })).toHaveValue("2.6");
+  await panel.getByLabel("Rotação do deck", { exact: true }).fill("-25");
+  await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
+  await panel.getByRole("button", { name: "Ao lado do descarte", exact: true }).click();
+  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveValue("-1.5");
+  await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
+  await expect(panel.getByLabel("Rotação do deck", { exact: true })).toHaveValue("-25");
+  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveValue("-3");
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
+  const scene = page.getByTestId("laboratory-scene");
+  await scene.getByRole("button", { name: "Comprar carta", exact: true }).click();
+  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 0");
+  await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Embaralhar deck", exact: true })).toBeVisible();
 });

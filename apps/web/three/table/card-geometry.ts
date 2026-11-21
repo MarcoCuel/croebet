@@ -2,17 +2,24 @@ import { BufferGeometry, Float32BufferAttribute } from "three";
 
 /** Shared paper mesh: rounded corners, thin edges and a subtle bend along its height. */
 export function createCardGeometry(bend = 0) {
-  const width = 0.72, height = 1.05, radius = 0.045;
-  const columns = 8, rows = 32;
+  const width = 0.72, height = 1.05, radius = 0.06;
+  const columns = 8, cornerSegments = 12, middleSegments = 24;
+  // Sample quarter circles directly: uniform rows left only one segment per corner.
+  const lower = Array.from({ length: cornerSegments + 1 }, (_, i) =>
+    -height / 2 + radius - radius * Math.cos(i / cornerSegments * Math.PI / 2));
+  const middle = Array.from({ length: middleSegments - 1 }, (_, i) =>
+    -height / 2 + radius + (i + 1) / middleSegments * (height - 2 * radius));
+  const ys = [...lower, ...middle, ...lower.toReversed().map(y => -y)];
+  const rows = ys.length - 1;
   const positions: number[] = [], uvs: number[] = [], indices: number[] = [];
   for (let row = 0; row <= rows; row++) {
-    const y = (row / rows - 0.5) * height;
+    const y = ys[row];
     const corner = Math.max(0, Math.abs(y) - (height / 2 - radius));
     const halfWidth = width / 2 - radius + Math.sqrt(Math.max(0, radius ** 2 - corner ** 2));
     const z = -bend * (1 - (2 * y / height) ** 2);
     for (let col = 0; col <= columns; col++) {
       const x = (col / columns * 2 - 1) * halfWidth;
-      positions.push(x, y, z); uvs.push(x / width + 0.5, row / rows);
+      positions.push(x, y, z); uvs.push(x / width + 0.5, y / height + 0.5);
       if (row < rows && col < columns) {
         const a = row * (columns + 1) + col, b = a + columns + 1;
         indices.push(a, a + 1, b, a + 1, b + 1, b);

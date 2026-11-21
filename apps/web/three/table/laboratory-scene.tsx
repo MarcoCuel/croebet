@@ -14,7 +14,7 @@ import { TableCamera } from "./camera";
 import { TableLighting } from "./lighting";
 import { TableSeat } from "./seat";
 import { useCardResources, useTablePalette, type TablePalette } from "./resources";
-import { sceneBounds, seatPlacements, viewHandOptions, fitCamera, foregroundSeat, pileRotation, type CardPose, type HandOptions } from "./layout";
+import { sceneBounds, seatPlacements, viewHandOptions, fitCamera, foregroundSeat, pileRotation, radians, type Vec3, type CardPose, type HandOptions } from "./layout";
 import type { TableMenuHandler } from "./interaction";
 import type { CardTarget } from "./motion";
 
@@ -34,29 +34,31 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
   const seats = useMemo(() => seatPlacements(settings.players, settings.viewer, settings.radius, settings.depth, settings.spread),
     [settings.players, settings.viewer, settings.radius, settings.depth, settings.spread]);
   const handOptions: HandOptions = useMemo(() => ({ layout: settings.layout, width: settings.spread, curve: settings.curve,
-    spacing: settings.spacing, overlap: settings.overlap, tilt: settings.tilt, scale: settings.scale, orientation: settings.orientation }),
-    [settings.layout, settings.spread, settings.curve, settings.spacing, settings.overlap, settings.tilt, settings.scale, settings.orientation]);
+    spacing: settings.spacing, overlap: settings.overlap, tilt: settings.tilt, scale: settings.scale, orientation: settings.orientation, spatialCurve: settings.opponentCurve }),
+    [settings.layout, settings.spread, settings.curve, settings.spacing, settings.overlap, settings.tilt, settings.scale, settings.orientation, settings.opponentCurve]);
+  const deckPosition = useMemo<Vec3>(() => [settings.deckX, 0.035, settings.deckZ], [settings.deckX, settings.deckZ]);
+  const deckRotation = pileRotation(false); deckRotation[1] = radians(settings.deckRotation);
   // Fixed capacity bounds avoid camera jumps when drawing or discarding within a hand window.
-  const bounds = useMemo(() => sceneBounds(seats, handOptions, Array(12).fill(1000), settings.angle), [seats, handOptions, settings.angle]);
+  const bounds = useMemo(() => sceneBounds(seats, handOptions, Array(12).fill(1000), settings.angle, deckPosition), [seats, handOptions, settings.angle, deckPosition]);
   const fit = useMemo(() => fitCamera(bounds, size.width / Math.max(1, size.height), settings.angle), [bounds, size.width, size.height, settings.angle]);
   const localSeat = foregroundSeat(seats[0], fit, handOptions, settings.angle);
   const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight);
-  const deckOrigin: CardPose = { position: [-0.85, deckHeight + 0.05, -0.15], rotation: pileRotation(false), scale: 1 };
+  const deckOrigin: CardPose = { position: [settings.deckX, deckHeight + 0.05, settings.deckZ], rotation: deckRotation, scale: 1 };
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat: place === 0 ? localSeat : seat,
     options: viewHandOptions({ ...handOptions, width: seat.width }, place === 0, settings.angle),
     hidden: place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
-  targets.push(...TablePile({ cards: state.deck, position: [-0.85, 0.035, -0.15], height: settings.pileHeight, faceUp: false,
+  targets.push(...TablePile({ cards: state.deck, position: deckPosition, rotation: deckRotation, height: settings.pileHeight, faceUp: false,
     moving: state.cue.kind === "collect" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "deck" as const, interactive: true })));
-  targets.push(...TablePile({ cards: state.discard, position: [0.85, 0.6, 0.15], height: settings.pileHeight, faceUp: true, rotation: pileRotation(true, settings.angle), moving: state.cue.kind === "discard" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "discard" as const })));
+  targets.push(...TablePile({ cards: state.discard, position: [0, 0.6, 0.15], height: settings.pileHeight, faceUp: true, rotation: pileRotation(true, settings.angle), moving: state.cue.kind === "discard" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "discard" as const })));
   return <>
     <TableCamera angle={settings.angle} bounds={bounds} />
     <TableLighting ambient={settings.ambient} intensity={settings.light} pointIntensity={settings.pointLight}
-      pointHeight={settings.pointHeight} deckHeight={deckHeight} shadows={settings.shadows} softness={settings.shadowSoftness} opacity={settings.shadowOpacity} />
-    <mesh position={[-0.85, 0.01, -0.15]} onClick={event => { event.stopPropagation(); onDraw(); }}
+      pointHeight={settings.pointHeight} deckX={settings.deckX} deckZ={settings.deckZ} deckHeight={deckHeight} shadows={settings.shadows} softness={settings.shadowSoftness} opacity={settings.shadowOpacity} />
+    <mesh position={[settings.deckX, 0.01, settings.deckZ]} rotation={[0, radians(settings.deckRotation), 0]} onClick={event => { event.stopPropagation(); onDraw(); }}
       onContextMenu={event => { event.stopPropagation(); event.nativeEvent.preventDefault(); onMenu({ kind: "deck" }, { x: event.clientX, y: event.clientY }); }}>
       <boxGeometry args={[1.15, 0.03, 0.8]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
-    <Html position={[-0.85, 0.06, 0.8]} center zIndexRange={[14, 0]}>
+    <Html position={[settings.deckX, 0.06, settings.deckZ + 0.95]} center zIndexRange={[14, 0]}>
       <div className="flex items-center rounded-lg border border-contrast/6 bg-background/90 text-xs text-foreground">
         <button className="cursor-pointer px-2 py-1.5 disabled:cursor-default disabled:text-muted" aria-label="Comprar carta" disabled={!canDraw} onClick={onDraw}
           onContextMenu={event => { event.preventDefault(); onMenu({ kind: "deck" }, { x: event.clientX, y: event.clientY }); }}>Deck · {state.deck.length}</button>
@@ -80,6 +82,6 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
 }
 export default function LaboratoryScene(props: LaboratorySceneProps) {
   const palette = useTablePalette();
-  return palette ? <SceneCanvas orthographic gl={{ toneMappingExposure: props.settings.exposure }} shadows={props.settings.shadows ? { type: VSMShadowMap } : false}
+  return palette ? <SceneCanvas orthographic dpr={[1.5, 2]} gl={{ antialias: true, alpha: true, toneMappingExposure: props.settings.exposure }} shadows={props.settings.shadows ? { type: VSMShadowMap } : false}
     camera={{ manual: true, near: 0.1, far: 250 }}><SceneContents {...props} palette={palette} /></SceneCanvas> : null;
 }

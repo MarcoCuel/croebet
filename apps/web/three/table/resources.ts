@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CanvasTexture, SRGBColorSpace } from "three";
+import { CanvasTexture, SRGBColorSpace, LinearFilter, LinearMipmapLinearFilter } from "three";
+import { useThree } from "@react-three/fiber";
 import { createCardGeometry } from "./card-geometry";
 export type TablePalette = { brand: string; surface: string; background: string; foreground: string };
 export function useTablePalette() {
@@ -19,9 +20,9 @@ export function useTablePalette() {
   }, []);
   return palette;
 }
-function texture(value: number | null) {
-  const canvas = document.createElement("canvas"); canvas.width = 256; canvas.height = 384;
-  const ctx = canvas.getContext("2d")!;
+function texture(value: number | null, anisotropy: number) {
+  const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 768;
+  const ctx = canvas.getContext("2d")!; ctx.scale(2, 2);
   ctx.fillStyle = value === null ? "#343638" : "#f2f1ed"; ctx.fillRect(0, 0, 256, 384);
   ctx.strokeStyle = value === null ? "#646668" : "#d5d4cf"; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.roundRect(14, 14, 228, 356, 18); ctx.stroke();
@@ -29,11 +30,12 @@ function texture(value: number | null) {
   ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "500 136px sans-serif";
   ctx.fillText(value === null ? "·" : String(value), 128, 192);
   if (value !== null) { ctx.font = "600 34px sans-serif"; ctx.fillText(String(value), 42, 47); ctx.save(); ctx.translate(214, 337); ctx.rotate(Math.PI); ctx.fillText(String(value), 0, 0); ctx.restore(); }
-  const result = new CanvasTexture(canvas); result.colorSpace = SRGBColorSpace; return result;
+  const result = new CanvasTexture(canvas); result.colorSpace = SRGBColorSpace; result.anisotropy = anisotropy; result.minFilter = LinearMipmapLinearFilter; result.magFilter = LinearFilter; return result;
 }
 export function useCardResources(palette: TablePalette) {
+  const anisotropy = useThree(state => Math.min(8, state.gl.capabilities.getMaxAnisotropy()));
   const geometry = useMemo(() => ({ flat: createCardGeometry(), curved: createCardGeometry(0.018) }), []);
-  const maps = useMemo(() => [...Array.from({ length: 10 }, (_, n) => texture(n)), texture(null)], []);
+  const maps = useMemo(() => [...Array.from({ length: 10 }, (_, n) => texture(n, anisotropy)), texture(null, anisotropy)], [anisotropy]);
   useEffect(() => () => maps.forEach(map => map.dispose()), [maps]);
   useEffect(() => () => { Object.values(geometry).forEach(({ face, backFace, edge }) => { face.dispose(); backFace.dispose(); edge.dispose(); }); }, [geometry]);
   return { ...geometry, maps, palette };

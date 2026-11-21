@@ -111,9 +111,15 @@ export function GameLaboratory() {
         <h2 className="font-semibold">Configuração</h2>
         <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, turn: Math.min(current.turn, players - 1) })); setFocus(0); setMenu(null); }} />
         <details><summary className="cursor-pointer text-sm font-semibold">Mãos e cartas</summary><div className="mt-4 grid gap-4">
-          {controls([["spread", "Largura da mão", 2, 9, 0.25], ["curve", "Curvatura do leque", 0, 3, 0.1], ["spacing", "Espaçamento", 0.2, 1.2, 0.05], ["overlap", "Sobreposição", 0, 0.9, 0.05], ["tilt", "Inclinação das cartas", 0, 45], ["scale", "Escala das cartas", 0.5, 1.8, 0.05], ["orientation", "Orientação da mão", -45, 45]])}
+          {controls([["spread", "Largura da mão", 2, 9, 0.25], ["curve", "Curvatura do leque", 0, 3, 0.1], ["opponentCurve", "Curvatura dos adversários", 0, 1.6, 0.1], ["spacing", "Espaçamento", 0.2, 1.2, 0.05], ["overlap", "Sobreposição", 0, 0.9, 0.05], ["tilt", "Inclinação das cartas", 0, 45], ["scale", "Escala das cartas", 0.5, 1.8, 0.05], ["orientation", "Orientação da mão", -45, 45]])}
         </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Mesa e câmera</summary><div className="mt-4 grid gap-4">{controls([["radius", "Largura dos assentos", 2.5, 7, 0.25], ["depth", "Profundidade dos assentos", 2, 6, 0.25], ["angle", "Ângulo da câmera", 25, 65]])}</div></details>
+        <details><summary className="cursor-pointer text-sm font-semibold">Deck e descarte</summary><div className="mt-4 grid gap-4">
+          <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSettings(current => ({ ...current, deckX: -1.5, deckZ: -0.6 }))}>Ao lado do descarte</Button><Button size="sm" variant="secondary" onClick={() => setSettings(current => ({ ...current, deckX: -3, deckZ: -2.6 }))}>Superior esquerdo</Button></div>
+          <NumberControl label="Posição horizontal do deck" value={settings.deckX} min={-6} max={6} step={0.1} onChange={value => update("deckX", value)} />
+          <NumberControl label="Posição vertical do deck" value={-settings.deckZ} min={-4} max={5} step={0.1} onChange={value => update("deckZ", -value)} />
+          <NumberControl label="Rotação do deck" value={settings.deckRotation} min={-180} max={180} onChange={value => update("deckRotation", value)} />
+        </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Iluminação</summary><div className="mt-4 grid gap-4">
           <LightControl label="Luz superior" value={settings.light} min={0} max={2.5} step={0.05} onChange={value => update("light", value)} />
           <LightControl label="Luz ambiente" value={settings.ambient} min={0} max={2} step={0.05} onChange={value => update("ambient", value)} />
@@ -135,7 +141,6 @@ export function GameLaboratory() {
         <div className="grid gap-2 border-t border-contrast/6 pt-4"><Button variant="secondary" onClick={save}><Save className="size-4" />Salvar configuração</Button><Button variant="ghost" onClick={restore}>Restaurar configuração</Button><Button variant="ghost" onClick={() => reset(defaultSettings)}><RotateCcw className="size-4" />Reiniciar</Button><Button asChild variant="ghost"><Link href="/admin/jogos/laboratorio/love-letter">Cartas do Love Letter</Link></Button></div>
       </aside>}
       {count > window.length && <div className="absolute inset-x-3 bottom-10 flex items-center justify-center gap-2"><Button size="sm" variant="secondary" disabled={window.start === 0} onClick={() => setFocus(Math.max(0, window.start - window.length / 2))}>Anteriores</Button><span className="rounded-lg bg-background/90 px-2 py-1 text-xs text-muted" data-testid="hand-window">{window.start + 1}–{window.start + window.length} de {count}</span><Button size="sm" variant="secondary" disabled={window.start + window.length >= count} onClick={() => setFocus(window.start + window.length * 1.5)}>Próximas</Button></div>}
-      <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-xs text-muted" data-testid="table-counts">Deck: {state.deck.length} · Descarte: {state.discard.length}</p>
       <p role="status" className="sr-only">{message}</p>
       <DropdownMenu modal={false} open={menu !== null} onOpenChange={open => { if (!open) setMenu(null); }}>
         <DropdownMenuTrigger asChild><Button aria-label="Ações na mesa" aria-hidden="true" tabIndex={-1} variant="ghost" className="pointer-events-none absolute size-px min-h-0 p-0 opacity-0" style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }} /></DropdownMenuTrigger>

@@ -1,7 +1,7 @@
 export type HandLayout = "fan" | "line";
 export type Vec3 = [number, number, number];
 export type CardPose = { position: Vec3; rotation: Vec3; scale: number };
-export type HandOptions = { layout: HandLayout; width: number; curve: number; spacing: number; overlap: number; tilt: number; scale: number; orientation: number };
+export type HandOptions = { layout: HandLayout; width: number; curve: number; spacing: number; overlap: number; tilt: number; scale: number; orientation: number; spatialCurve?: number };
 export type SeatPlacement = { seat: number; position: Vec3; angle: number; width: number };
 export const radians = (degrees: number) => degrees * Math.PI / 180;
 
@@ -26,7 +26,8 @@ export function seatPlacements(players: number, viewer: number, radius: number, 
 /** The foreground hand has its own readable size and pitch, shared by layout and controls. */
 export function viewHandOptions(options: HandOptions, local: boolean, cameraAngle: number): HandOptions {
   return { ...options, layout: local ? options.layout : "line", scale: options.scale * (local ? 1.3 : 0.9),
-    // Opponents hold parallel, upright cards; only the whole row follows the seat diagonal.
+    // Opponents wrap around their holder without the local hand's fan/roll.
+    spatialCurve: local ? 0 : options.spatialCurve ?? 0.9,
     orientation: local ? options.orientation : 0,
     tilt: local ? Math.min(75, Math.max(0, options.tilt + cameraAngle - 14)) : Math.min(8, options.tilt * 0.25) };
 }
@@ -47,8 +48,13 @@ export function handPlacements(count: number, options: HandOptions): CardPose[] 
     const centered = index - (count - 1) / 2;
     const t = count <= 1 ? 0 : centered / (count - 1);
     const fan = options.layout === "fan";
-    return { position: [centered * step, (fan ? -t * t * options.curve * 0.5 : 0) + 0.65 * options.scale, index * 0.003 * options.scale],
-      rotation: [-radians(options.tilt), radians(options.orientation), fan ? -t * options.curve * 0.32 : 0], scale: options.scale };
+    const arc = options.spatialCurve ?? 0;
+    const yaw = t * arc;
+    const radius = arc > 0 ? (count - 1) * step / (2 * Math.sin(arc / 2)) : 0;
+    return { position: [arc > 0 ? radius * Math.sin(yaw) : centered * step,
+      (fan ? -t * t * options.curve * 0.5 : 0) + 0.65 * options.scale,
+      (arc > 0 ? radius * (Math.cos(yaw) - 1) : 0) + index * (arc > 0 ? 0.006 : 0.003) * options.scale],
+      rotation: [-radians(options.tilt), radians(options.orientation) + yaw, fan ? -t * options.curve * 0.32 : 0], scale: options.scale };
   });
 }
 export function worldHandPose(pose: CardPose, seat: SeatPlacement): CardPose {
@@ -101,8 +107,11 @@ export function foregroundSeat(seat: SeatPlacement, fit: ReturnType<typeof fitCa
   return { ...seat, position: [seat.position[0], seat.position[1], seat.position[2] + (current - desired) / sin] };
 }
 /** Frame hands and opponent labels; the background is independent of the camera bounds. */
-export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts: number[], cameraAngle: number): Vec3[] {
+export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts: number[], cameraAngle: number, deck?: Vec3): Vec3[] {
   const points: Vec3[] = [[-1.5, 0, -0.8], [1.5, 1, 0.8]];
+  if (deck) for (const x of [-0.85, 0.85]) for (const z of [-0.85, 0.85]) {
+    points.push([deck[0] + x, 0, deck[2] + z], [deck[0] + x, 1, deck[2] + z]);
+  }
   seats.forEach((seat, place) => {
     const local = place === 0;
     const hand = viewHandOptions({ ...options, width: seat.width }, local, cameraAngle);

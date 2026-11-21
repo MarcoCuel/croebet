@@ -1,18 +1,19 @@
 export type LaboratorySettings = {
   players: number; counts: number[]; viewer: number; layout: "fan" | "line";
-  spread: number; curve: number; spacing: number; overlap: number; tilt: number; scale: number; orientation: number;
+  spread: number; curve: number; opponentCurve: number; spacing: number; overlap: number; tilt: number; scale: number; orientation: number;
+  deckX: number; deckZ: number; deckRotation: number;
   radius: number; depth: number; angle: number; light: number; ambient: number; pileHeight: number;
   pointLight: number; pointHeight: number; exposure: number; shadowSoftness: number; shadowOpacity: number;
   duration: number; arc: number; dealCount: number; turn: number; shadows: boolean; reveal: boolean;
 };
 export const defaultSettings: LaboratorySettings = {
   players: 4, counts: Array.from({ length: 12 }, () => 7), viewer: 0, layout: "fan",
-  spread: 5.5, curve: 1.2, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0,
+  spread: 5.5, curve: 1.2, opponentCurve: 0.9, deckX: -1.5, deckZ: -0.6, deckRotation: -18, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0,
   radius: 4, depth: 3.2, angle: 36, light: 1.1, ambient: 1.35, pointLight: 3, pointHeight: 2.5, exposure: 1, shadowSoftness: 6, shadowOpacity: 0.35, pileHeight: 0.004,
   duration: 0.65, arc: 0.8, dealCount: 1, turn: 0, shadows: true, reveal: false,
 };
 const ranges = {
-  players: [2, 12, true], viewer: [0, 11, true], spread: [2, 9], curve: [0, 3], spacing: [0.2, 1.2],
+  players: [2, 12, true], viewer: [0, 11, true], spread: [2, 9], curve: [0, 3], opponentCurve: [0, 1.6], deckX: [-6, 6], deckZ: [-5, 4], deckRotation: [-180, 180], spacing: [0.2, 1.2],
   overlap: [0, 0.9], tilt: [0, 45], scale: [0.5, 1.8], orientation: [-45, 45], radius: [2.5, 7], depth: [2, 6],
   angle: [25, 65], light: [0, 2.5], ambient: [0, 2], pointLight: [0, 8], pointHeight: [1, 5], exposure: [0.5, 1.2], shadowSoftness: [1, 12], shadowOpacity: [0, 0.8], pileHeight: [0.004, 0.008], duration: [0.15, 2], arc: [0, 2],
   dealCount: [1, 10, true], turn: [0, 11, true],
