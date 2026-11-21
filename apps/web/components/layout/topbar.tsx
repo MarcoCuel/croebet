@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
+import { gameUrl } from "@/features/games/game-url";
 import { useGameLinks } from "@/features/games/game-links";
 import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
@@ -195,8 +196,10 @@ type BackLink = { href: string; label: string };
 
 function MatchBackButton({ pathname, backLink }: { pathname: string; backLink: BackLink }) {
   const searchParams = useSearchParams();
-  const destination = pathname === "/jogos/flip7" && searchParams.has("partida")
-    ? { href: "/jogos/flip7", label: "Voltar para Flip7" }
+  const games = useGameLinks();
+  const game = games.find((item) => pathname === `/jogos/${item.slug}`);
+  const destination = pathname.startsWith("/jogos/") && searchParams.has("partida")
+    ? { href: gameUrl(pathname.slice("/jogos/".length),{development:searchParams.get("teste")==="1"}), label: `Voltar para ${game?.name ?? "o jogo"}` }
     : backLink;
   return <BackButton backLink={destination} />;
 }

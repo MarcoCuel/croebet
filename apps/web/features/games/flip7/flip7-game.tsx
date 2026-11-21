@@ -1,4 +1,5 @@
 "use client";
+import { gameUrl } from "../game-url";
 import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
@@ -8,7 +9,7 @@ import { randomUUID } from "@/lib/uuid";
 
 import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import gsap from "gsap";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { matchReplaySchema } from "@croebet/shared";
 import type { GameRecord, MatchFrame, MatchCommand, RoomSync, MatchParticipant } from "@croebet/shared";
 import type { InitialMatches } from "./server-matches";
@@ -176,7 +177,9 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const router = useRouter();
   const audio = useGameAudio();
   const { play: playSound, stop: stopSounds } = audio;
-  const matchUrl = (code: string | null) => router.push(code ? `/jogos/flip7?partida=${code}` : "/jogos/flip7", { scroll: false });
+  const pathname = usePathname();
+  const gameSlug = initial.match?.game ?? pathname.slice("/jogos/".length);
+  const matchUrl = (code: string | null) => router.push(gameUrl(gameSlug,{code}), { scroll: false });
   const {userId,refreshWallet,permissions}=useSession();
   const refreshWalletRef=useRef(refreshWallet);
   useEffect(()=>{refreshWalletRef.current=refreshWallet;},[refreshWallet]);
@@ -190,7 +193,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     const prior=incoming.current;
     incoming.current=prior && !sync.reset ? {...sync,frames:[...prior.frames,...sync.frames.filter(frame=>frame.version>prior.room.version)],reset:prior.reset} : sync;
     setLiveRevision(n=>n+1);
-  },()=>{},message=>{toast.error(message);router.push("/jogos/flip7");router.refresh();});
+  },()=>{},message=>{toast.error(message);router.push(gameUrl(gameSlug));router.refresh();});
   const [creation] = useState(() => replay ? null : createdPresentation(initial.match));
   useEffect(() => { if (!replay) clearCreatedPresentation(initial.match?.code); }, [initial.match?.code, replay]);
   const pendingCommand = useRef<MatchCommand | null>(null);
@@ -529,7 +532,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     incoming.current=null;
     if(sync.room.version<=receivedVersion.current)return;
     if(sync.room.status==="lobby")return;
-    if(sync.room.status==="abandoned"){void refreshWallet();toast.info(sync.room.settlement==="refunded"?"Partida cancelada por acordo. As entradas foram devolvidas.":"A partida foi encerrada.");router.push("/jogos/flip7");router.refresh();return;}
+    if(sync.room.status==="abandoned"){void refreshWallet();toast.info(sync.room.settlement==="refunded"?"Partida cancelada por acordo. As entradas foram devolvidas.":"A partida foi encerrada.");router.push(gameUrl(gameSlug));router.refresh();return;}
     // Fill a gap from persisted events. Large gaps reload a confirmed snapshot.
     const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
@@ -545,7 +548,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
     setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
-  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet]);
+  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet,gameSlug]);
 
   const notifiedTurn = useRef<string | null>(null);
   const turnSeat = game ? game.bonusChoice ?? game.pending?.source ?? game.turn : -1;
@@ -644,11 +647,11 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
-            {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push("/jogos/flip7")}>Sair da reprodução</Button></>}
+            {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push(gameUrl(gameSlug))}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}
             <GameControls audio={audio} developmentControls={testControls}>
             {exitControl}
-            {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(`/jogos/flip7${initial.match?.development && permissions.canManageSite?"?teste=1":""}`)}><LogOut className="size-4" aria-hidden="true"/></Button>}
+            {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(gameUrl(gameSlug,{development:initial.match?.development && permissions.canManageSite}))}><LogOut className="size-4" aria-hidden="true"/></Button>}
             {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
             </GameControls>
           </div>

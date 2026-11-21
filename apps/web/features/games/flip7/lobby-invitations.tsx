@@ -1,4 +1,5 @@
 "use client";
+import { gameUrl } from "../game-url";
 import { useGameAudio } from "../use-game-audio";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useState } from "react";
@@ -57,7 +58,7 @@ function Invitation({invite,onRespond}:{invite:Invite;onRespond?:()=>void}) {
     if(busy)return;
     setBusy(true);
     try{
-      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(`/jogos/${invite.game}?partida=${invite.code}`);}
+      if(accept){await changeLobby(invite.code,"join",randomUUID());router.push(gameUrl(invite.game,{code:invite.code}));}
       else await realtimeRequest({type:"decline",code:invite.code},commandResultSchema);
       onRespond?.();
     }catch(e){toast.error(e instanceof Error?e.message:"Não foi possível responder ao convite.");}

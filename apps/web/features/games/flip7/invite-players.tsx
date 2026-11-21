@@ -1,4 +1,5 @@
 "use client";
+import { gameUrl } from "../game-url";
 import { useEffect, useState } from "react";
 import { Check, Copy, UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-export function InvitePlayers({code,open,onOpenChange}:{code:string;open:boolean;onOpenChange:(open:boolean)=>void}) {
+export function InvitePlayers({gameSlug,code,open,onOpenChange}:{gameSlug:string;code:string;open:boolean;onOpenChange:(open:boolean)=>void}) {
   const [query,setQuery]=useState("");
   const [players,setPlayers]=useState<LobbyPlayers|null>(null);
   const [error,setError]=useState("");
@@ -46,7 +47,7 @@ export function InvitePlayers({code,open,onOpenChange}:{code:string;open:boolean
       <DialogTitle>Convidar jogadores</DialogTitle>
       <div className="mt-5 space-y-4">
         <Button variant="secondary" className="w-full" onClick={async()=>{
-          try{await navigator.clipboard.writeText(`${window.location.origin}/jogos/flip7?partida=${code}`);toast.success("Link de convite copiado.");}
+          try{await navigator.clipboard.writeText(`${window.location.origin}${gameUrl(gameSlug,{code})}`);toast.success("Link de convite copiado.");}
           catch{toast.error("Não foi possível copiar o link.");}
         }}><Copy className="size-4" aria-hidden="true"/>Copiar link de convite</Button>
         <SearchInput aria-label="Encontrar jogadores" placeholder="Encontre jogadores…" value={query} maxLength={80} onChange={e=>setQuery(e.target.value)}/>

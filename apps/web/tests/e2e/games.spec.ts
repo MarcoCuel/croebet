@@ -1,5 +1,6 @@
 import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
-import { seoFieldsSchema } from "@croebet/shared";
+import { Server as SocketServer } from "socket.io";
+import { gameRoomSchema, seoFieldsSchema } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import type { GameRecord } from "@croebet/shared";
@@ -16,9 +17,13 @@ let upcoming: GameRecord | null = null;
 let failure = false;
 let sessionRole: "admin" | "user" = "admin";
 let api: Server;
+let sockets: SocketServer;
+let loveRoom: ReturnType<typeof gameRoomSchema.parse> | null = null;
+let roomWatches: { code: string; afterVersion: number }[] = [];
 function respond(path: string, method: string, body: Record<string, unknown> = {}): { status: number; data: unknown } {
   const url=new URL(path,"http://fixture");
   path=url.pathname;
+  if(loveRoom && path===`/api/v1/matches/${loveRoom.code}`)return {status:200,data:loveRoom};
   if(path===`/api/v1/admin/games/${id}/matches`) return {status:200,data:{items:url.searchParams.get("q")==="ninguém"?[]:[historyMatch],hasMore:false}};
   if(path==="/api/v1/me/history")return {status:200,data:{items:[{id:`game:${matchId}`,matchId,matchCode:historyMatch.code,gameSlug:"flip7",kind:"game",description:"Flip 7 · Partida concluída",createdAt:historyMatch.endedAt,amount:null}],hasMore:false}};
   if(path===`/api/v1/me/matches/${historyMatch.code}` || path===`/api/v1/admin/games/${id}/matches/${matchId}`) {
@@ -63,10 +68,26 @@ test.beforeAll(async () => {
     const result = respond(req.url ?? "", req.method ?? "GET");
     res.writeHead(result.status, { "content-type": "application/json" }); res.end(JSON.stringify(result.data));
   });
+  sockets = new SocketServer(api,{path:"/api/v1/realtime",addTrailingSlash:false});
+  sockets.on("connection",socket=>{
+    socket.on("watch",(request,ack)=>{
+      ack?.({ok:true,data:{}});
+      if(loveRoom && request.active!==false && request.code===loveRoom.code){
+        roomWatches.push({code:request.code,afterVersion:request.afterVersion});
+        // Bound a regression loop so the test fails without flooding its server.
+        if(roomWatches.length<=10)socket.emit("room",{room:loveRoom,frames:[],reset:true});
+      }
+      if(loveRoom && request.directory){
+        const summary={...loveRoom, state:undefined};
+        socket.emit("lobbies",{items:[],joined:[],owned:null,active:null,testMatches:[{...summary,round:1,controllerIds:[]}]});
+      }
+    });
+  });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.afterAll(async () => { await new Promise<void>(resolve => sockets.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
+  loveRoom = null;roomWatches=[];
   game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null; sessionRole = "admin";
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
@@ -319,4 +340,111 @@ test("URL do modo dev retorna 404 para jogador comum antes de renderizar o lobby
  expect(response?.status()).toBe(404);
  await expect(page.getByLabel("Configuração e regras")).toHaveCount(0);
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toHaveCount(0);
+});
+
+
+test("abrir teste do Love Letter mantém link, recarga e volta para o jogo",async({page},testInfo)=>{
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
+ loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:2,options:{mode:"classic",brutal:false},hostId:id,participants:[],development:true,bots:2,onlyBots:true,status:"playing",state:{mode:"classic",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:[],pending:false,players:["Bot 1","Bot 2"].map(name=>({name,kind:"normal",hand:null,handCount:1,discard:[],protected:false,out:false,tokens:0})),privateInfo:[],legalActions:[]}});
+ await page.goto("/jogos/love-letter?teste=1");
+ await page.getByRole("button",{name:"Visualizar",exact:true}).click();
+ await expect(page).toHaveURL("/jogos/love-letter?partida=ABCDEF654321&teste=1");
+ await expect(page.getByLabel("Controles de desenvolvimento",{exact:true})).toBeVisible();
+ await page.reload();
+ await expect(page.getByLabel("Controles de desenvolvimento",{exact:true})).toBeVisible();
+ if(testInfo.project.name==="desktop"){
+  await page.getByRole("link",{name:"Voltar para Love Letter",exact:true}).click();
+  await expect(page).toHaveURL("/jogos/love-letter?teste=1");
+  await expect(page.getByLabel("Modo do Love Letter")).toBeVisible();
+ }
+});
+
+function prepareLoveTable() {
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
+ loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou Aia."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:[],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
+}
+
+test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe histórico",async({page},testInfo)=>{
+ prepareLoveTable();
+ const commands:unknown[]=[];
+ await page.route("**/api/v1/matches/ABCDEF654321/love-command",async route=>{commands.push(route.request().postDataJSON().action);await route.fulfill({json:{ok:true}});});
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ const table=page.getByLabel("Mesa do Love Letter");
+ await expect(table.getByRole("status")).toHaveText("Sua vez");
+ await expect(page.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
+ await expect(table.getByText("Protegido",{exact:false})).toBeVisible();
+ await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
+ const submit=table.getByRole("button",{name:"Jogar carta",exact:true});
+ await expect(submit).toBeDisabled();
+ await expect(page.getByLabel("Jogador",{exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"Selecionar 1 · Guarda",exact:true}).click();
+ await expect(submit).toBeDisabled();
+ await page.getByLabel("Jogador",{exact:true}).selectOption("2");
+ await expect(page.getByLabel("Palpite",{exact:true}).locator('option[value="8"]')).toHaveCount(0);
+ await expect(submit).toBeDisabled();
+ await page.getByLabel("Palpite",{exact:true}).selectOption("9");
+ await expect(submit).toBeEnabled();
+ await submit.click();
+ await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
+ await page.getByRole("button",{name:"Selecionar 4 · Aia",exact:true}).click();
+ await expect(page.getByLabel("Jogador",{exact:true})).toHaveCount(0);
+ await submit.click();
+ await expect.poll(()=>commands.length).toBe(2);
+ expect(commands[1]).toEqual({type:"play",card:4});
+ await page.getByRole("button",{name:"Ocultar histórico",exact:true}).click();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toHaveCount(0);
+ await page.getByRole("button",{name:"Histórico",exact:true}).click();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});
+});
+
+test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxima rodada",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
+ const state=loveRoom.state;
+ state.pending=true;state.players[0].hand=[1,4,9];state.players[0].handCount=3;
+ state.legalActions=[{type:"keep",cards:[9,1,4]},{type:"keep",cards:[9,4,1]}];
+ const commands:unknown[]=[];
+ await page.route("**/api/v1/matches/ABCDEF654321/love-command",async route=>{commands.push(route.request().postDataJSON().action);await route.fulfill({json:{ok:true}});});
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ await page.getByLabel("Carta para manter e ordem no fundo").selectOption("1");
+ await page.getByRole("button",{name:"Confirmar escolha",exact:true}).click();
+ await expect.poll(()=>commands[0]).toEqual({type:"keep",cards:[9,4,1]});
+ state.pending=false;state.players[0].hand=[7,8];state.players[0].handCount=2;
+ state.legalActions=[{type:"play",card:8}];
+ await page.reload();
+ await expect(page.getByRole("button",{name:"Selecionar 7 · Rei",exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"Selecionar 8 · Condessa",exact:true}).click();
+ await page.getByRole("button",{name:"Jogar carta",exact:true}).click();
+ await expect.poll(()=>commands[1]).toEqual({type:"play",card:8});
+ state.phase="summary";state.winners=[0];state.legalActions=[{type:"next"}];
+ await page.reload();
+ await page.getByRole("button",{name:"Próxima rodada",exact:true}).click();
+ await expect.poll(()=>commands[2]).toEqual({type:"next"});
+});
+
+
+test("estados de teste não recriam assinaturas e sair remove a observação",async({page})=>{
+ prepareLoveTable();
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ await expect(page.getByRole("region",{name:"Mesa do Love Letter"})).toBeVisible();
+ await expect.poll(()=>roomWatches.length).toBe(1);
+ for(let index=0;index<5;index++){
+  if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
+  loveRoom=gameRoomSchema.parse({...loveRoom,version:loveRoom.version+1,state:{...loveRoom.state,round:index+2}});
+  sockets.emit("room",{room:loveRoom,frames:[],reset:false});
+  await expect(page.getByText(`Rodada ${index+2}`,{exact:true})).toBeVisible();
+ }
+ expect(roomWatches).toHaveLength(1);
+ const latestVersion=loveRoom!.version;
+ for(const socket of sockets.sockets.sockets.values())socket.conn.close();
+ await expect.poll(()=>roomWatches.length).toBe(2);
+ expect(roomWatches.at(-1)?.afterVersion).toBe(latestVersion);
+ await page.goto("/jogos");
+ sockets.emit("room",{room:loveRoom,frames:[],reset:false});
+ await expect(page.getByRole("region",{name:"Mesa do Love Letter"})).toHaveCount(0);
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ await expect(page.getByRole("region",{name:"Mesa do Love Letter"})).toBeVisible();
+ await expect.poll(()=>roomWatches.length).toBe(3);
 });

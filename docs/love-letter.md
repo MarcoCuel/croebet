@@ -17,4 +17,8 @@ Referências: [regras clássicas de 2–4 jogadores, publicadas na edição Prem
 
 ## Execução e informação privada
 
-Motor em `apps/api/src/modules/games/love-letter/engine.ts`, contratos em `packages/shared/src/love-letter.ts` e apresentação em `apps/web/features/games/test-game.tsx`. O servidor valida cartas, alvos, proteção, Condessa obrigatória, eliminação, escolha e ordem de devolução do Chanceler, rodadas e fichas. Bots escolhem entre ações legais usando a projeção da própria vaga, sem acesso ao baralho ou às mãos adversárias. A API envia mão e informações de Sacerdote/Barão apenas ao respectivo jogador; espectadores recebem descartes e contagens. Logs públicos não revelam cartas privadas.
+Motor em `apps/api/src/modules/games/love-letter/engine.ts`, contratos em `packages/shared/src/love-letter.ts` e integração em `apps/web/features/games/test-game.tsx`. O servidor valida cartas, alvos, proteção, Condessa obrigatória, eliminação, escolha e ordem de devolução do Chanceler, rodadas e fichas. Bots escolhem entre ações legais usando a projeção da própria vaga, sem acesso ao baralho ou às mãos adversárias. A API envia mão e informações de Sacerdote/Barão apenas ao respectivo jogador; espectadores recebem descartes e contagens. Logs públicos não revelam cartas privadas.
+
+## Interface da mesa
+
+`apps/web/features/games/love-letter/love-table.tsx` apresenta adversários compactos, fichas, proteção/eliminação e descartes individuais. No celular, os adversários têm rolagem horizontal; o histórico pode ser ocultado e ocupa a lateral em telas largas. A mão do participante fica em destaque, com seleção direta da carta e campos de alvo/palpite apenas quando necessários. Cartas não permitidas pela API permanecem sem ação; jogar exige confirmação. Chanceler mantém a escolha da carta e da ordem de devolução. A mesa usa os tokens de tema da Croebet, sem alterar regras ou revelar mãos ocultas.

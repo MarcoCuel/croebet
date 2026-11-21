@@ -1,4 +1,5 @@
 "use client";
+import { gameUrl } from "../game-url";
 import { MatchExitControl } from "../match-cancellation";
 import { managementRequest } from "@/features/admin/management-api";
 import { randomUUID } from "@/lib/uuid";
@@ -63,13 +64,13 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   const leaving=useRef(false);
   const visit=(code:string|null,invite=false)=>{
     if(!code)navigating.current=false;
-    window.history.replaceState(null,"",code?`/jogos/${game.slug}?partida=${code}${development && permissions.canManageSite?"&teste=1":""}${invite?"&convidar=1":""}`:`/jogos/${game.slug}${development && permissions.canManageSite?"?teste=1":""}`);
+    window.history.replaceState(null,"",gameUrl(game.slug,{code,development:development && permissions.canManageSite,invite}));
   };
   const openMatch=(code:string)=>{
     if(searchParams.get("partida")===code){
       if(refreshed.current!==code){refreshed.current=code;router.refresh();}
     }
-    else router.replace("/jogos/flip7?partida="+code,{scroll:false});
+    else router.replace(gameUrl(game.slug,{code,development:development && permissions.canManageSite}),{scroll:false});
   };
   function acceptLobby(next:Lobby){
     setRoom(current=>current?.code===next.code && current.version>next.version?current:next);
@@ -254,7 +255,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
           </li>;
         })}
       </ul>
-      {room && host && <InvitePlayers key={room.code} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
+      {room && host && <InvitePlayers key={room.code} gameSlug={game.slug} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="space-y-3">
         {room && member && entry>0 && !confirmed && <Button className="w-full" variant="secondary" loading={busy} disabled={busy || !connected} onClick={()=>void confirmEntry()}>Confirmar entrada de {formatBalance.format(entry)} Croins</Button>}
