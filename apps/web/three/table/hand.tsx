@@ -12,6 +12,6 @@ export function TableHand({ cards, seat, options, hidden, interactive, focus, se
   return visible.map((card, i) => {
     const pose = worldHandPose(placements[i], seat);
     if (flipped.includes(card.id)) pose.rotation[1] += Math.PI;
-    return { ...card, pose, hidden, revealBack: !interactive && !hidden, interactive, selected: selected === card.id };
+    return { ...card, pose, hidden, curved: true, revealBack: !interactive && !hidden, interactive, selected: selected === card.id };
   });
 }

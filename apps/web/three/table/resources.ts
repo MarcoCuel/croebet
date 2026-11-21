@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CanvasTexture, ExtrudeGeometry, Shape, ShapeGeometry, SRGBColorSpace } from "three";
+import { CanvasTexture, SRGBColorSpace } from "three";
+import { createCardGeometry } from "./card-geometry";
 export type TablePalette = { brand: string; surface: string; background: string; foreground: string };
 export function useTablePalette() {
   const [palette, setPalette] = useState<TablePalette | null>(null);
@@ -30,24 +31,11 @@ function texture(value: number | null) {
   if (value !== null) { ctx.font = "600 34px sans-serif"; ctx.fillText(String(value), 42, 47); ctx.save(); ctx.translate(214, 337); ctx.rotate(Math.PI); ctx.fillText(String(value), 0, 0); ctx.restore(); }
   const result = new CanvasTexture(canvas); result.colorSpace = SRGBColorSpace; return result;
 }
-function roundedCard() {
-  const x = -0.36, y = -0.525, w = 0.72, h = 1.05, r = 0.045;
-  const shape = new Shape(); shape.moveTo(x + r, y); shape.lineTo(x + w - r, y);
-  shape.quadraticCurveTo(x + w, y, x + w, y + r); shape.lineTo(x + w, y + h - r);
-  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h); shape.lineTo(x + r, y + h);
-  shape.quadraticCurveTo(x, y + h, x, y + h - r); shape.lineTo(x, y + r); shape.quadraticCurveTo(x, y, x + r, y);
-  const face = new ShapeGeometry(shape, 4);
-  const positions = face.getAttribute("position"); const uv = face.getAttribute("uv");
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, (positions.getX(i) + 0.36) / w, (positions.getY(i) + 0.525) / h);
-  const edge = new ExtrudeGeometry(shape, { depth: 0.004, bevelEnabled: false, steps: 1, curveSegments: 4 });
-  edge.translate(0, 0, -0.002);
-  return { face, edge };
-}
 export function useCardResources(palette: TablePalette) {
-  const geometry = useMemo(() => roundedCard(), []);
+  const geometry = useMemo(() => ({ flat: createCardGeometry(), curved: createCardGeometry(0.018) }), []);
   const maps = useMemo(() => [...Array.from({ length: 10 }, (_, n) => texture(n)), texture(null)], []);
   useEffect(() => () => maps.forEach(map => map.dispose()), [maps]);
-  useEffect(() => () => { geometry.face.dispose(); geometry.edge.dispose(); }, [geometry]);
+  useEffect(() => () => { Object.values(geometry).forEach(({ face, backFace, edge }) => { face.dispose(); backFace.dispose(); edge.dispose(); }); }, [geometry]);
   return { ...geometry, maps, palette };
 }
 export type CardResources = ReturnType<typeof useCardResources>;

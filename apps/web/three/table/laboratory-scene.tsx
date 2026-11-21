@@ -65,6 +65,6 @@ function SceneContents({ palette, settings, state, selected, focus, reducedMotio
 }
 export default function LaboratoryScene(props: LaboratorySceneProps) {
   const palette = useTablePalette();
-  return palette ? <SceneCanvas shadows={props.settings.shadows ? { type: PCFSoftShadowMap } : false}
-    camera={{ fov: 44, near: 0.1, far: 250 }}><SceneContents {...props} palette={palette} /></SceneCanvas> : null;
+  return palette ? <SceneCanvas orthographic shadows={props.settings.shadows ? { type: PCFSoftShadowMap } : false}
+    camera={{ manual: true, near: 0.1, far: 250 }}><SceneContents {...props} palette={palette} /></SceneCanvas> : null;
 }

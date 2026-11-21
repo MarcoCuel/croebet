@@ -58,12 +58,13 @@ export function TableCard({ target, resources, reducedMotion, onSelect }: {
   const front = target.hidden ? resources.maps[10] : resources.maps[target.value];
   const back = target.revealBack ? front : resources.maps[10];
   const thickness = target.thickness ?? 0.004;
+  const geometry = target.curved ? resources.curved : resources.flat;
   return <group ref={ref}
     onClick={target.interactive ? event => { event.stopPropagation(); onSelect(target.id); } : undefined}
     onPointerOver={target.interactive ? event => { event.stopPropagation(); setHovered(true); } : undefined}
     onPointerOut={() => setHovered(false)}>
-    <mesh geometry={resources.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
-    <mesh geometry={resources.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} roughness={0.82} metalness={0} /></mesh>
-    <mesh geometry={resources.face} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} roughness={0.86} metalness={0} /></mesh>
+    <mesh geometry={geometry.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
+    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} roughness={0.82} metalness={0} /></mesh>
+    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} roughness={0.86} metalness={0} /></mesh>
   </group>;
 }

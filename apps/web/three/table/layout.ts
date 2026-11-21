@@ -15,8 +15,8 @@ export function seatPlacements(players: number, viewer: number, radius: number, 
     return { seat: (viewer + place) % players,
       // Hand orientation is relative to the viewer, independently of the seat's bearing.
       angle: local ? 0 : -Math.sin(around) * 0.65,
-      position: [local ? 0 : Math.sin(around) * radius * growth, 0,
-        local ? depth * 1.2 : Math.cos(around) * depth * growth] as Vec3,
+      position: [local ? 0 : Math.sin(around) * radius * growth * 0.9, local ? 0 : 0.18,
+        local ? depth * 1.2 : Math.cos(around) * depth * growth * 0.72 - 0.2] as Vec3,
       width: local ? handWidth : Math.min(handWidth * 0.75,
         Math.PI * Math.min(radius, depth) * growth / Math.max(1, players - 1) * 0.85),
     };
@@ -25,11 +25,13 @@ export function seatPlacements(players: number, viewer: number, radius: number, 
 
 /** The foreground hand has its own readable size and pitch, shared by layout and controls. */
 export function viewHandOptions(options: HandOptions, local: boolean, cameraAngle: number): HandOptions {
-  return { ...options, scale: options.scale * (local ? 1.3 : 0.8),
-    tilt: local ? Math.min(75, Math.max(0, options.tilt + cameraAngle - 14)) : options.tilt };
+  return { ...options, layout: local ? options.layout : "line", scale: options.scale * (local ? 1.3 : 0.9),
+    // Opponents hold parallel, upright cards; only the whole row follows the seat diagonal.
+    orientation: local ? options.orientation : 0,
+    tilt: local ? Math.min(75, Math.max(0, options.tilt + cameraAngle - 14)) : Math.min(8, options.tilt * 0.25) };
 }
 export function seatLabelPosition(seat: SeatPlacement, scale: number, local: boolean): Vec3 {
-  return [seat.position[0], Math.max(1.65, scale * (local ? 1.65 : 1.5)), seat.position[2]];
+  return [seat.position[0], seat.position[1] + Math.max(1.65, scale * (local ? 1.65 : 1.5)), seat.position[2]];
 }
 
 /** Adaptive, navigable window: bounded by readable physical spacing, never a fixed card count. */
@@ -51,7 +53,7 @@ export function handPlacements(count: number, options: HandOptions): CardPose[] 
 }
 export function worldHandPose(pose: CardPose, seat: SeatPlacement): CardPose {
   const [x, y, z] = pose.position;
-  return { position: [seat.position[0] + Math.cos(seat.angle) * x + Math.sin(seat.angle) * z, y,
+  return { position: [seat.position[0] + Math.cos(seat.angle) * x + Math.sin(seat.angle) * z, seat.position[1] + y,
     seat.position[2] - Math.sin(seat.angle) * x + Math.cos(seat.angle) * z],
     // YXZ rotation order in the renderer keeps tilt/fan in each seat's local frame.
     rotation: [pose.rotation[0], seat.angle + pose.rotation[1], pose.rotation[2]], scale: pose.scale };
@@ -62,18 +64,23 @@ export function pilePose(index: number, position: Vec3, height: number, natural:
     position[2] + (natural ? noise(8.3) * 0.08 : 0)], rotation: [-Math.PI / 2, natural ? noise(4.1) * 0.17 : 0, 0], scale };
 }
 
-/** Fits every bound in the perspective frustum, including portrait aspect ratios. */
-export function fitCamera(points: Vec3[], aspect: number, angle: number, fov = 44, margin = 1.15) {
-  const pitch = radians(angle); const tanV = Math.tan(radians(fov) / 2); const tanH = tanV * Math.max(0.1, aspect);
-  const target: Vec3 = [0, 0.4, 0];
-  let distance = 4;
-  for (const [x, worldY, z] of points) {
-    const y = worldY - target[1];
-    const depth = y * Math.sin(pitch) + z * Math.cos(pitch);
-    const vertical = y * Math.cos(pitch) - z * Math.sin(pitch);
-    distance = Math.max(distance, depth + Math.max(Math.abs(x) / tanH, Math.abs(vertical) / tanV) * margin);
+/** Fit an orthographic frustum: distance never changes the apparent size of cards. */
+export function fitCamera(points: Vec3[], aspect: number, angle: number, margin = 1.12) {
+  const pitch = radians(angle), sin = Math.sin(pitch), cos = Math.cos(pitch);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, maxDepth = 0;
+  for (const [x, y, z] of points) {
+    const projectedY = y * cos - z * sin;
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, projectedY); maxY = Math.max(maxY, projectedY);
+    maxDepth = Math.max(maxDepth, Math.abs(y * sin + z * cos));
   }
-  return { position: [0, target[1] + Math.sin(pitch) * distance, Math.cos(pitch) * distance] as Vec3, target, distance };
+  const safeAspect = Math.max(0.1, aspect);
+  const halfHeight = Math.max(1, (maxY - minY) / 2, (maxX - minX) / (2 * safeAspect)) * margin;
+  const centerY = (minY + maxY) / 2;
+  const target: Vec3 = [(minX + maxX) / 2, centerY * cos, -centerY * sin];
+  const distance = Math.max(12, maxDepth + 4);
+  return { position: [target[0], target[1] + sin * distance, target[2] + cos * distance] as Vec3,
+    target, distance, left: -halfHeight * safeAspect, right: halfHeight * safeAspect, top: halfHeight, bottom: -halfHeight };
 }
 /** Frame hands and labels only; the table deliberately extends beyond this composition. */
 export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts: number[], cameraAngle: number): Vec3[] {
@@ -102,8 +109,8 @@ export function sceneBounds(seats: SeatPlacement[], options: HandOptions, counts
 }
 
 /** Keep the far rim behind opponents, extending the surface past the near and side edges. */
-export function surfacePlacement(fit: ReturnType<typeof fitCamera>, aspect: number, radius: number, depth: number) {
-  const halfViewWidth = fit.distance * Math.tan(radians(44) / 2) * aspect;
+export function surfacePlacement(fit: ReturnType<typeof fitCamera>, radius: number, depth: number) {
+  const halfViewWidth = fit.right;
   const surfaceDepth = Math.max(depth * 2.5, fit.position[2] * 1.4);
   return { radius: Math.max(radius * 2.5, halfViewWidth * 2), depth: surfaceDepth,
     centerZ: surfaceDepth - depth - 1.5 };

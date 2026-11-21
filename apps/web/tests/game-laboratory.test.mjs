@@ -1,6 +1,8 @@
 import { test } from 'node:test';
+import { OrthographicCamera, Vector3 } from 'three';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, surfacePlacement, worldHandPose } from '../three/table/layout.ts';
+import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
@@ -23,7 +25,7 @@ test('mãos vazias, únicas e grandes mantêm posições finitas e largura limit
   assert.equal(last.start + last.length, 1000);
 });
 
-test('câmera enquadra todos os limites em retrato/paisagem e mantém o observador na frente', () => {
+test('câmera ortográfica enquadra retrato/paisagem e preserva tamanho independente da profundidade', () => {
   for (const players of [2, 3, 4, 6, 8, 12]) for (const viewer of [0, players - 1]) {
     const seats = seatPlacements(players, viewer, 4, 3.2, 5.5);
     assert.equal(seats[0].seat, viewer); assert.equal(seats[0].position[0], 0); assert.ok(seats[0].position[2] > 0);
@@ -31,13 +33,20 @@ test('câmera enquadra todos os limites em retrato/paisagem e mantém o observad
     const points = sceneBounds(seats, { ...options, scale: 1.8, curve: 3 }, Array(12).fill(1000), 36);
     for (const aspect of [0.4, 0.7, 1, 1.8, 2.4]) for (const angle of [25, 36, 65]) {
       const fit = fitCamera(points, aspect, angle); const pitch = angle * Math.PI / 180;
-      const tangent = Math.tan(44 * Math.PI / 360);
-      for (const [x, worldY, z] of points) {
-        const y = worldY - fit.target[1]; const depth = fit.distance - y * Math.sin(pitch) - z * Math.cos(pitch);
-        assert.ok(depth > 0);
-        assert.ok(Math.abs(x) <= depth * tangent * aspect + 1e-8);
-        assert.ok(Math.abs(y * Math.cos(pitch) - z * Math.sin(pitch)) <= depth * tangent + 1e-8);
+      const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
+      camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
+      for (const point of points) {
+        const projected = new Vector3(...point).project(camera);
+        assert.ok(Math.abs(projected.x) <= 1 + 1e-8);
+        assert.ok(Math.abs(projected.y) <= 1 + 1e-8);
+        assert.ok(Math.abs(projected.z) <= 1);
       }
+      // An equal card moved toward the back must keep exactly the same screen width.
+      const center = new Vector3(...fit.target);
+      const near = center.clone().add(new Vector3(0, Math.sin(pitch) * 3, Math.cos(pitch) * 3));
+      const far = center.clone().sub(new Vector3(0, Math.sin(pitch) * 3, Math.cos(pitch) * 3));
+      const width = position => position.clone().add(new Vector3(0.72, 0, 0)).project(camera).x - position.clone().project(camera).x;
+      assert.ok(Math.abs(width(near) - width(far)) < 1e-9);
     }
   }
 });
@@ -125,9 +134,48 @@ test('superfície fica fora do ajuste de câmera e continua além do primeiro pl
   const bounds = sceneBounds(seats, options, Array(12).fill(1000), 36);
   for (const aspect of [0.4, 1, 1.8, 2.4]) {
     const fit = fitCamera(bounds, aspect, 36);
-    const surface = surfacePlacement(fit, aspect, 4, 3.2);
+    const surface = surfacePlacement(fit, 4, 3.2);
     assert.ok(surface.centerZ + surface.depth > fit.position[2]);
     assert.ok(surface.centerZ - surface.depth < -3.2);
     assert.ok(surface.radius > 4);
+  }
+});
+
+
+test('adversários mantêm fileiras paralelas e verticais independentemente do leque local', () => {
+  for (const layout of ['fan', 'line']) for (const curve of [0, 1.2, 3]) {
+    const configured = { ...options, layout, curve, orientation: 45, tilt: 45 };
+    const opponent = viewHandOptions(configured, false, 36);
+    const cards = handPlacements(7, opponent);
+    assert.ok(cards.every(card => card.rotation[2] === 0 && card.rotation[1] === 0));
+    assert.ok(cards.every(card => card.position[1] === cards[0].position[1]));
+    assert.ok(cards.every(card => Math.abs(card.rotation[0]) <= 8 * Math.PI / 180));
+    const local = viewHandOptions(configured, true, 36);
+    assert.equal(local.layout, layout);
+    assert.equal(local.curve, curve);
+  }
+});
+
+test('papel curvo preserva cantos, dimensões e faces alinhadas sem curvar as pilhas', () => {
+  const flat = createCardGeometry(), curved = createCardGeometry(0.018);
+  try {
+    const positions = curved.face.getAttribute('position');
+    const back = curved.backFace.getAttribute('position');
+    let minZ = 0;
+    for (let i = 0; i < positions.count; i++) {
+      const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+      assert.ok(Math.abs(x) <= 0.36 + 1e-6 && Math.abs(y) <= 0.525 + 1e-6);
+      assert.ok(Math.abs(z + back.getZ(i)) < 1e-6);
+      if (Math.abs(y) > 0.52) assert.ok(Math.abs(z) < 1e-6);
+      minZ = Math.min(minZ, z);
+    }
+    assert.ok(minZ < -0.017 && minZ > -0.019);
+    const flatPositions = flat.face.getAttribute('position');
+    for (let i = 0; i < flatPositions.count; i++) assert.equal(Math.abs(flatPositions.getZ(i)), 0);
+    for (const geometry of Object.values(curved)) {
+      assert.ok([...geometry.getAttribute('normal').array].every(Number.isFinite));
+    }
+  } finally {
+    for (const set of [flat, curved]) for (const geometry of Object.values(set)) geometry.dispose();
   }
 });
