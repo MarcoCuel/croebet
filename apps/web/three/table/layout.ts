@@ -90,7 +90,7 @@ export function pileRotation(faceUp: boolean, cameraAngle = 36): Vec3 {
 export function pilePose(index: number, position: Vec3, height: number, natural: boolean, scale = 1, rotation = pileRotation(natural)): CardPose {
   const noise = (n: number) => Math.sin((index + 1) * n);
   const [rx, ry, rz] = rotation;
-  const offset = index * height;
+  const offset = index * height * scale;
   // Stack along the face normal so upright piles stay solid instead of separating vertically.
   return { position: [position[0] + Math.sin(ry) * Math.cos(rx) * offset + (natural ? noise(13.7) * 0.035 : 0),
     position[1] - Math.sin(rx) * offset,

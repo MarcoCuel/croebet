@@ -15,6 +15,11 @@ async function openSettings(page: import("@playwright/test").Page) {
   if (await button.getAttribute("aria-expanded") !== "true") await button.click();
 }
 
+async function openDeckMenu(page: import("@playwright/test").Page) {
+  const count = page.getByTestId("laboratory-scene").getByRole("button", { name: "Comprar carta", exact: true });
+  await count.focus(); await count.press("Shift+F10");
+}
+
 test("configuração interna preserva cenários e paginação sem reduzir a largura da mesa", async ({ page }) => {
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene");
@@ -107,7 +112,7 @@ test("menu do deck permite distribuir, trocar e recolher sem botões externos", 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene");
-  await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
+  await openDeckMenu(page);
   await page.getByRole("menuitem", { name: "Distribuir cartas", exact: true }).click();
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 100 · Descarte: 0");
   const card = scene.getByRole("button", { name: "Descartar carta 0, posição 1", exact: true });
@@ -115,7 +120,7 @@ test("menu do deck permite distribuir, trocar e recolher sem botões externos", 
   await page.getByRole("menuitem", { name: "Trocar com", exact: true }).click();
   await page.getByRole("menuitem", { name: "Jogador 2", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Cartas trocadas.");
-  await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
+  await openDeckMenu(page);
   await page.getByRole("menuitem", { name: "Recolher cartas", exact: true }).click();
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 132 · Descarte: 0");
   await expect(scene.getByRole("button", { name: /^Descartar carta/ })).toHaveCount(0);
@@ -160,7 +165,7 @@ test("deck pode ser arrastado e salvo, sem comprar nem ultrapassar a área visí
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene"), canvas = scene.locator("canvas");
-  const grip = scene.getByRole("button", { name: "Mover deck", exact: true });
+  const grip = scene.getByRole("button", { name: "Comprar carta", exact: true });
   await expect(grip).toBeVisible();
   await scene.scrollIntoViewIfNeeded();
   const box = (await canvas.boundingBox())!;
@@ -182,10 +187,14 @@ test("deck pode ser arrastado e salvo, sem comprar nem ultrapassar a área visí
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 0");
   await openSettings(page);
   const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
-  await panel.getByText("Deck e descarte", { exact: true }).click();
-  await expect(panel.getByRole("button", { name: "Superior esquerdo", exact: true })).toHaveCount(0);
-  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveCount(0);
-  await panel.getByLabel("Rotação do deck", { exact: true }).fill("-25");
+  await expect(panel.getByLabel("Rotação do deck", { exact: true })).toHaveCount(0);
+  await expect(scene.getByRole("button", { name: "Mover deck", exact: true })).toHaveCount(0);
+  await expect(scene.getByRole("button", { name: "Ações do deck", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
+  const rotation = scene.getByRole("button", { name: "Rotacionar deck", exact: true });
+  await rotation.focus(); await rotation.press("ArrowLeft");
+  const savedRotation = await scene.locator(`[id="${await rotation.getAttribute("aria-describedby")}"]`).textContent();
+  await openSettings(page);
   await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
   const saved = (await grip.boundingBox())!;
@@ -193,16 +202,14 @@ test("deck pode ser arrastado e salvo, sem comprar nem ultrapassar a área visí
   await expect.poll(async () => (await grip.boundingBox())!.x).toBeLessThan(saved.x - 15);
   await openSettings(page);
   await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
-  await expect(panel.getByLabel("Rotação do deck", { exact: true })).toHaveValue("-25");
+  await expect(rotation).toHaveAccessibleDescription(savedRotation!);
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
   await expect.poll(async () => Math.abs((await grip.boundingBox())!.x - saved.x)).toBeLessThan(2);
   const frame = (await scene.boundingBox())!;
-  for (const [dx, dy] of [[-500, -500], [500, -500], [-500, 500], [500, 500]]) {
-    const handle = (await grip.boundingBox())!;
-    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2); await page.mouse.down();
-    await page.mouse.move(dx < 0 ? frame.x + dx : frame.x + frame.width + dx, dy < 0 ? frame.y + dy : frame.y + frame.height + dy, { steps: 10 });
-    await page.mouse.up();
-    const controls = (await grip.locator("..").boundingBox())!;
+  for (const key of ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"]) {
+    await grip.focus();
+    for (let i = 0; i < 70; i++) await grip.press(`Shift+${key}`);
+    const controls = (await grip.boundingBox())!;
     expect(controls.x).toBeGreaterThanOrEqual(frame.x);
     expect(controls.y).toBeGreaterThanOrEqual(frame.y);
     expect(controls.x + controls.width).toBeLessThanOrEqual(frame.x + frame.width);
@@ -232,4 +239,33 @@ test("layout se adapta sozinho ao mudar participantes, cartas e largura", async 
   await card.focus(); await card.press("Enter");
   await expect(handWindow).toHaveText(/^\d+–\d+ de 49$/);
   await expect(page.getByTestId("laboratory-scene").getByRole("alert")).toHaveCount(0);
+});
+
+
+test("descarte tem controles locais de movimento, rotação e tamanho sem sobrepor os jogadores", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  const card = scene.getByRole("button", { name: "Descartar carta 6, posição 7", exact: true });
+  await card.focus(); await card.press("Enter");
+  const rotate = scene.getByRole("button", { name: "Rotacionar descarte", exact: true });
+  const resize = scene.getByRole("button", { name: "Redimensionar descarte", exact: true });
+  await rotate.focus(); await rotate.press("ArrowRight");
+  await expect(rotate).toHaveAccessibleDescription("Rotação atual: 5 graus.");
+  await resize.focus(); await resize.press("ArrowRight");
+  await expect(resize).toHaveAccessibleDescription("Tamanho atual: 105%.");
+  for (let i = 0; i < 20; i++) await resize.press("Alt+ArrowDown");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 1");
+  const frame = (await scene.boundingBox())!, control = (await resize.boundingBox())!;
+  expect(control.x).toBeGreaterThan(frame.x + frame.width * 0.2);
+  expect(control.x + control.width).toBeLessThan(frame.x + frame.width * 0.8);
+  expect(control.y + control.height).toBeLessThan(frame.y + frame.height * 0.8);
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
+  await resize.focus(); await resize.press("ArrowRight");
+  await openSettings(page); await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
+  // Configurations restore transforms; the simulated discard sequence is intentionally not persisted.
+  await expect(scene.getByRole("button", { name: "Redimensionar descarte", exact: true })).toHaveCount(0);
 });

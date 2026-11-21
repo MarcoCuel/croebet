@@ -9,8 +9,8 @@ export function constrainDeckPosition(point: DeckPoint, { fit, angle, width, hei
   const sin = Math.sin(radians(angle)), cos = Math.cos(radians(angle));
   const turn = radians(rotation), c = Math.cos(turn), s = Math.sin(turn);
   const viewWidth = fit.right - fit.left, viewHeight = fit.top - fit.bottom;
-  const marginX = 12 * viewWidth / Math.max(1, width), marginY = 12 * viewHeight / Math.max(1, height);
-  const labelHalfX = 70 * viewWidth / Math.max(1, width), labelHalfY = 20 * viewHeight / Math.max(1, height);
+  const marginX = 30 * viewWidth / Math.max(1, width), marginY = 30 * viewHeight / Math.max(1, height);
+  const labelHalfX = 30 * viewWidth / Math.max(1, width), labelHalfY = 20 * viewHeight / Math.max(1, height);
   let left = -labelHalfX, right = labelHalfX;
   let bottom = 0.06 * cos - 0.95 * sin - labelHalfY, top = 0.06 * cos - 0.95 * sin + labelHalfY;
   for (const x of [-0.575, 0.575]) for (const z of [-0.4, 0.4]) for (const y of [0.01, 0.67]) {

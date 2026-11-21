@@ -1,18 +1,19 @@
 export type LaboratorySettings = {
   players: number; counts: number[]; viewer: number;
   deckX: number; deckZ: number; deckRotation: number;
+  discardX: number; discardZ: number; discardRotation: number; discardScale: number;
   angle: number; light: number; ambient: number; pileHeight: number;
   pointLight: number; pointHeight: number; exposure: number; shadowSoftness: number; shadowOpacity: number;
   duration: number; arc: number; dealCount: number; turn: number; shadows: boolean; reveal: boolean;
 };
 export const defaultSettings: LaboratorySettings = {
   players: 4, counts: Array.from({ length: 12 }, () => 7), viewer: 0,
-  deckX: -1.5, deckZ: -0.6, deckRotation: -18,
+  deckX: -1.5, deckZ: -0.6, deckRotation: -18, discardX: 0, discardZ: 0.15, discardRotation: 0, discardScale: 1,
   angle: 36, light: 1.1, ambient: 1.35, pointLight: 3, pointHeight: 2.5, exposure: 1, shadowSoftness: 6, shadowOpacity: 0.35, pileHeight: 0.004,
   duration: 0.65, arc: 0.8, dealCount: 1, turn: 0, shadows: true, reveal: false,
 };
 const ranges = {
-  players: [2, 12, true], viewer: [0, 11, true], deckX: [-50, 50], deckZ: [-100, 100], deckRotation: [-180, 180],
+  players: [2, 12, true], viewer: [0, 11, true], deckX: [-50, 50], deckZ: [-100, 100], deckRotation: [-180, 180], discardX: [-50, 50], discardZ: [-100, 100], discardRotation: [-180, 180], discardScale: [0.65, 1.8],
   angle: [25, 65], light: [0, 2.5], ambient: [0, 2], pointLight: [0, 8], pointHeight: [1, 5], exposure: [0.5, 1.2], shadowSoftness: [1, 12], shadowOpacity: [0, 0.8], pileHeight: [0.004, 0.008], duration: [0.15, 2], arc: [0, 2],
   dealCount: [1, 10, true], turn: [0, 11, true],
 } as const;

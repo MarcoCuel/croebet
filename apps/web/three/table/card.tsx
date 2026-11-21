@@ -9,8 +9,8 @@ import type { CardTarget } from "./motion";
 import { arcPosition, easedProgress } from "./motion";
 
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
-export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, onDeckPointerDown }: {
-  target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void; onDeckPointerDown?: (event: PointerEvent) => void;
+export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, onPilePointerDown }: {
+  target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void; onPilePointerDown?: (event: PointerEvent) => void;
 }) {
   const ref = useRef<Group>(null); const invalidate = useThree(state => state.invalidate);
   const [hovered, setHovered] = useState(false);
@@ -19,11 +19,11 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, 
   const touchStart = useRef({ x: 0, y: 0 });
   const cancelHold = () => { if (hold.current) clearTimeout(hold.current); hold.current = null; };
   useEffect(() => () => { if (hold.current) clearTimeout(hold.current); }, []);
-  useCursor(hovered && !!target.interactive);
+  useCursor(hovered && !!target.interactive, target.zone === "hand" ? "pointer" : "grab");
   const animation = useRef({ elapsed: 0, active: false, from: new Vector3(), to: new Vector3(), fromQ: new Quaternion(), toQ: new Quaternion(),
     fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, key: "" });
   const mounted = useRef(false);
-  const raised = (target.zone !== "deck" && target.interactive && hovered) || target.selected;
+  const raised = (target.zone === "hand" && target.interactive && hovered) || target.selected;
   const [x, y, z] = target.pose.position; const [rx, ry, rz] = target.pose.rotation;
   const scale = target.pose.scale * (raised ? 1.1 : 1);
   // Depend only on actual destination/motion changes, never the containing snapshot object.
@@ -70,7 +70,7 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, 
     onClick={target.interactive ? event => { event.stopPropagation(); if (suppressClick.current) { suppressClick.current = false; return; } onSelect(target.id); } : undefined}
     onContextMenu={target.interactive ? event => { event.stopPropagation(); event.nativeEvent.preventDefault(); event.nativeEvent.stopPropagation(); onMenu(target.id, { x: event.clientX, y: event.clientY }); } : undefined}
     onPointerDown={target.interactive ? event => {
-      if (target.zone === "deck" && onDeckPointerDown) { event.stopPropagation(); onDeckPointerDown(event.nativeEvent); return; }
+      if (target.zone !== "hand" && onPilePointerDown) { event.stopPropagation(); onPilePointerDown(event.nativeEvent); return; }
       if (event.pointerType !== "touch") return;
       event.stopPropagation(); cancelHold(); suppressClick.current = false;
       const point = { x: event.clientX, y: event.clientY }; touchStart.current = point;

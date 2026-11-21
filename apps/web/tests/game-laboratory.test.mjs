@@ -3,6 +3,7 @@ import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
+import { constrainDiscardTransform, pileBounds } from '../three/table/pile-transform.ts';
 import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
@@ -328,7 +329,7 @@ test('arraste mantém pilha girada e controles inteiros dentro do viewport sem m
           assert.ok(Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1);
         }
         const label = new Vector3(point.x, 0.06, point.z + 0.95).project(camera);
-        assert.ok(Math.abs(label.x) + 140 / width < 1);
+        assert.ok(Math.abs(label.x) + 60 / width < 1);
         assert.ok(Math.abs(label.y) + 40 / 700 < 1);
       }
     }
@@ -340,4 +341,25 @@ test('arraste mantém pilha girada e controles inteiros dentro do viewport sem m
     assert.ok(Math.abs((end.x - start.x) * width / 2 - 30) < 1e-8);
     assert.ok(Math.abs((start.y - end.y) * 700 / 2 - 40) < 1e-8);
   }
+});
+
+
+test('descarte permanece central e separado de mãos, identificações e deck ao mover, girar e crescer', () => {
+  for (const players of [2, 4, 6, 12]) for (const width of [360, 1200, 1800]) for (const height of [512, 700, 900]) {
+    for (const angle of [25, 36, 65]) {
+      const request = { players, viewer: 0, counts: Array(players).fill(7), width, height, angle, deck: [0, 0.035, 0.15] };
+      const layout = resolveTableLayout(request), viewport = { fit: layout.fit, angle, width, height };
+      for (const x of [-100, 0, 100]) for (const z of [-100, 0, 100]) for (const rotation of [-45, 0, 90]) {
+        const transform = constrainDiscardTransform({ x, z, rotation, scale: 1.8 }, viewport, layout.obstacles);
+        const box = pileBounds(transform, 'discard', viewport);
+        assert.ok(transform.scale >= 0.65 && transform.scale <= 1.8);
+        assert.ok(box.left >= width * 0.24 - 1e-6 && box.right <= width * 0.76 + 1e-6);
+        assert.ok(box.top >= height * 0.27 - 1e-6 && box.bottom <= height * 0.8 + 1e-6);
+        assert.ok(layout.obstacles.every(o => box.right <= o.left || box.left >= o.right || box.bottom <= o.top || box.top >= o.bottom));
+      }
+    }
+  }
+  const settings = { ...defaultSettings, discardX: 1, discardZ: -1, discardRotation: 35, discardScale: 1.5 };
+  assert.deepEqual(parseSettings(settings), settings);
+  assert.equal(parseSettings({ ...settings, discardScale: 2 }), null);
 });
