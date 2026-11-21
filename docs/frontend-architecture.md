@@ -103,3 +103,11 @@ Durante partidas de desenvolvimento, o cabeçalho de entrada e o switch não sã
 - Renderer fora de layout/providers/ui; nenhum Canvas global nem loop antes da experiência ser solicitada. Reutilize `SceneCanvas`, `StudioLighting`, modelos e controles, sem regras de domínio nos primitives.
 - `SceneCanvas` usa `frameloop="demand"`, DPR limitado, Suspense e fallback WebGL/erro. `useFrame` somente com animação real; animar refs, sem setState por frame, invalidando quando necessário. Ownership/descarte de modelos e materiais deve ser claro.
 - Materiais leem `--color-brand`. `CroinBanner` monta só na viewport; gira enquanto a página está visível e movimento é permitido. Não captura foco/eventos; falha 3D não bloqueia cadastro. `CroinPreview` permanece como visualização interativa opcional.
+
+### Laboratório de jogos
+
+`/admin/jogos/laboratorio`, acessível por Jogos → Laboratório 3D, exige o acesso administrativo do layout e de `AdminAccess`. A ferramenta usa dados locais simulados, sem partidas, comandos HTTP ou Croins. `features/games/laboratory` controla cenários de 2–12 jogadores, mãos de 0–1000 cartas, observador, revelação, câmera, luz e sombras; salvar/restaurar persiste somente a configuração validada neste navegador, sem salvar a sequência de compras/descarte.
+
+`three/table` contém cartas com espessura, mãos, pilhas e cálculo puro de disposição em linha/leque, sem regras de jogos. A cena carrega sob demanda, utiliza o `SceneCanvas` existente, materiais com cores dos tokens e texturas procedurais descartadas ao desmontar. Animações invalidam frames enquanto se movem e respeitam movimento reduzido. Mãos grandes usam janelas de até 20 cartas; o observador navega por páginas e seleciona também por controles React com teclado/toque. Comprar move a nova carta do deck para a mão; descartar atualiza a pilha.
+
+Pendente: movimentos entre áreas com identidade contínua no descarte, distribuição sequenciada, áudio sincronizado e adaptação aos motores reais. A ferramenta valida componentes visuais; não executa regras no navegador nem altera a apresentação dos jogos existentes.

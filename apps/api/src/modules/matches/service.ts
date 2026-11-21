@@ -205,8 +205,10 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
       return lobbySchema.parse(previous.rows[0].creation_response);
     }
     await requireAvailable(client,[actor],input.game,input.development);
-    const owned=await client.query("select 1 from game_matches m where m.status in ('lobby','playing') and m.game_slug=$2 and ((m.created_by=$1 and m.owner_id=$1) or (m.status='playing' and exists(select 1 from game_match_players p where p.match_id=m.id and p.controller_id=$1))) limit 1",[actor,input.game]);
-    if(owned.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já tem uma sala deste jogo. Conclua ou encerre antes de criar outra.");
+    if(!input.development){
+      const owned=await client.query("select 1 from game_matches m where not m.development and m.status in ('lobby','playing') and m.game_slug=$2 and ((m.created_by=$1 and m.owner_id=$1) or (m.status='playing' and exists(select 1 from game_match_players p where p.match_id=m.id and p.controller_id=$1))) limit 1",[actor,input.game]);
+      if(owned.rows.length)throw new MatchError("LOBBY_EXISTS",409,"Você já tem uma sala deste jogo. Conclua ou encerre antes de criar outra.");
+    }
     const catalog=await client.query("select id from games where slug=$1 and enabled=true for share",[input.game]);
     if(!catalog.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
     const id=randomUUID(),code=randomBytes(6).toString("hex").toUpperCase();

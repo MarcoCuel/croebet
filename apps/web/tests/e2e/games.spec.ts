@@ -334,6 +334,23 @@ test("Love Letter no modo dev reutiliza configurações, vagas e listagem de sal
  await expect(page.getByLabel("Configuração e regras")).toBeVisible();
 });
 
+test("modo dev permite criar outra partida do mesmo jogo com teste em andamento",async({page})=>{
+ prepareLoveTable();
+ await page.goto("/jogos/love-letter?teste=1");
+ await expect(page.getByRole("button",{name:"Visualizar",exact:true})).toBeVisible();
+ const play=page.getByRole("button",{name:"Jogar",exact:true});
+ await expect(play).toBeEnabled();
+ let creation:Record<string,unknown>|undefined;
+ await page.route("**/api/v1/matches",async route=>{
+  creation=route.request().postDataJSON();
+  const lobby=gameRoomSchema.parse({...loveRoom,id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",code:"ABCDEF654322",version:1,status:"lobby",state:null,capacity:creation?.capacity,options:creation?.options,bots:0,onlyBots:false,participants:[{userId:id,username:"Admin",displayName:"Admin",avatarUrl:null,seat:0}]});
+  await route.fulfill({status:200,json:lobby});
+ });
+ await play.click();
+ await expect(page).toHaveURL("/jogos/love-letter?partida=ABCDEF654322&teste=1");
+ expect(creation).toMatchObject({development:true,game:"love-letter"});
+});
+
 test("Love Letter em desenvolvimento não permite criação por jogador comum",async({page})=>{
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};sessionRole="user";
  await page.goto("/jogos/love-letter");

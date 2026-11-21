@@ -642,14 +642,20 @@ test("PostgreSQL: testes restritos a admin/convite, sem economia nem histórico 
 });
 
 
-test("PostgreSQL: criação simultânea por jogo, limite também em dev e resumos privados",async t=>{
+test("PostgreSQL: criação normal limitada, múltiplos testes do mesmo jogo e resumos privados",async t=>{
  const {pool,actors,sessions,createFor,lobby}=await environment(t);
  await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ const testInput={requestId:randomUUID(),game:'flip7',capacity:2,options:{mode:'classic',brutal:false},development:true,bots:1};
+ const firstTest=await createMatch(pool,actors[0],sessions[0],testInput);
+ assert.deepEqual(await createMatch(pool,actors[0],sessions[0],testInput),firstTest);
  const normal=await createFor(0);
+ await assert.rejects(createFor(0),{code:'LOBBY_EXISTS'});
+ const secondTest=await createMatch(pool,actors[0],sessions[0],{...testInput,requestId:randomUUID()});
+ assert.notEqual(secondTest.id,firstTest.id);
  const loveInput=()=>({requestId:randomUUID(),game:'love-letter',capacity:2,options:{mode:'classic',brutal:false},development:true,bots:0,entryAmount:0});
  const attempts=await Promise.allSettled([1,2].map(()=>createMatch(pool,actors[0],sessions[0],loveInput())));
- assert.equal(attempts.filter(r=>r.status==='fulfilled').length,1);
- assert.equal(attempts.find(r=>r.status==='rejected').reason.code,'LOBBY_EXISTS');
+ assert.equal(attempts.filter(r=>r.status==='fulfilled').length,2);
+ assert.notEqual(attempts[0].value.id,attempts[1].value.id);
  const love=attempts.find(r=>r.status==='fulfilled').value;
  const {inviteLobbyPlayer}=await import('../../dist/modules/matches/service.js');
  await inviteLobbyPlayer(pool,actors[0],sessions[0],love.code,actors[1]);
@@ -665,7 +671,9 @@ test("PostgreSQL: criação simultânea por jogo, limite também em dev e resumo
  assert.equal((await listPersonalMatches(pool,actors[2])).items.length,0);
  await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),love.id,actors[0]]);
  await lobbyAction(pool,actors[0],sessions[0],love.code,'start',{commandId:randomUUID(),expectedVersion:loveJoined.version});
- await assert.rejects(createMatch(pool,actors[0],sessions[0],loveInput()),{code:'LOBBY_EXISTS'});
+ const another=await createMatch(pool,actors[0],sessions[0],loveInput());
+ assert.equal(another.status,'lobby');
+ assert.notEqual(another.id,love.id);
  const active=await listPersonalMatches(pool,actors[0]);
  assert.equal(active.items.filter(r=>r.status==='playing').length,2);
  const loveState=(await getRoomSync(pool,actors[0],love.code)).room.state;

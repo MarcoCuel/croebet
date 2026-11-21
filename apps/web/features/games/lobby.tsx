@@ -122,9 +122,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const lobbies=[...new Map((development?(directory.testLobbies ?? []).filter(l=>l.game===game.slug):[...directory.items,...directory.joined].filter(l=>l.game===game.slug)).map(lobby=>[lobby.id,lobby])).values()];
   const listedMatches=matches.filter(match=>match.game===game.slug);
   const listedRooms=development?[...lobbies,...(directory.testMatches ?? []).filter(m=>m.game===game.slug)]:lobbies;
-  const ownTest=(directory.testLobbies ?? []).find(l=>l.game===game.slug && l.hostId===userId);
-  const ownRunningTest=(directory.testMatches ?? []).find(l=>l.game===game.slug && l.hostId===userId);
-  const creationBlocked=!!directory.owned || !!directory.active || !!ownTest || !!ownRunningTest;
+  const creationBlocked=!development && (!!directory.owned || !!directory.active);
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=gameOptionsSchema.parse(definition.options.parse(room?.options ?? options));
