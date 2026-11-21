@@ -1,10 +1,12 @@
 import { fitCamera, foregroundSeat, handWindow, sceneBounds, seatPlacements, type HandOptions, type Vec3 } from "./layout.ts";
 
+import { constrainDeckPosition } from "./deck-placement.ts";
+
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /** Presentation rules only: no game engine state, renderer or stored manual geometry. */
-export function resolveTableLayout({ players, viewer, counts, width, height, angle, deck }: {
-  players: number; viewer: number; counts: number[]; width: number; height: number; angle: number; deck: Vec3;
+export function resolveTableLayout({ players, viewer, counts, width, height, angle, deck, deckRotation = -18 }: {
+  players: number; viewer: number; counts: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number;
 }) {
   const aspect = width / Math.max(1, height);
   const roomy = clamp((aspect - 0.5) / 1.1, 0, 1);
@@ -55,10 +57,12 @@ export function resolveTableLayout({ players, viewer, counts, width, height, ang
     return { ...limits, scale: maxScales[place],
       curve: place === 0 ? 1.35 : 0, spatialCurve: place === 0 ? 0 : 1.05 * clamp(seats[place].width / 2.8, 0.4, 1) };
   });
-  const bounds = sceneBounds(seats, envelope, Array(players).fill(1000), deck);
+  const bounds = sceneBounds(seats, envelope, Array(players).fill(1000));
   const fit = fitCamera(bounds, aspect, angle);
   const localSeat = foregroundSeat(seats[0], fit, hands[0], angle);
-  return { seats, hands, bounds, fit, localSeat };
+  const deckPoint = constrainDeckPosition({ x: deck[0], z: deck[2] }, { fit, angle, width, height, rotation: deckRotation });
+  const deckPosition: Vec3 = [deckPoint.x, 0.035, deckPoint.z];
+  return { seats, hands, bounds, fit, localSeat, deckPosition };
 }
 export type AdaptiveTableLayout = ReturnType<typeof resolveTableLayout>;
 

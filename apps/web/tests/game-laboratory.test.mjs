@@ -3,6 +3,7 @@ import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
+import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
@@ -248,7 +249,7 @@ test('posição e rotação do deck são persistidas sem recuperar ajustes manua
   for (const key of ['deckX', 'deckZ', 'deckRotation']) delete legacy[key];
   const parsed = parseSettings(legacy);
   for (const key of ['deckX', 'deckZ', 'deckRotation']) assert.equal(parsed[key], defaultSettings[key]);
-  for (const change of [{ deckX: NaN }, { deckZ: -6 }, { deckRotation: 181 }]) {
+  for (const change of [{ deckX: NaN }, { deckZ: -101 }, { deckRotation: 181 }]) {
     assert.equal(parseSettings({ ...defaultSettings, ...change }), null);
   }
 });
@@ -307,5 +308,36 @@ test('a partir de seis jogadores as laterais abrem para as bordas com espaços e
       const a = rectangles[i - 1], b = rectangles[i];
       assert.ok(Math.min(a.right, b.right) <= Math.max(a.left, b.left) || Math.min(a.top, b.top) <= Math.max(a.bottom, b.bottom), 'mãos vizinhas precisam ficar separadas');
     }
+  }
+});
+
+
+test('arraste mantém pilha girada e controles inteiros dentro do viewport sem mover a câmera', () => {
+  for (const players of [2, 6, 12]) for (const width of [360, 1200, 1800]) for (const angle of [25, 36, 65]) {
+    const request = { players, viewer: 0, counts: Array(players).fill(7), width, height: 700, angle, deck: [-1.5, 0.035, -0.6] };
+    const layout = resolveTableLayout(request);
+    const camera = new OrthographicCamera(layout.fit.left, layout.fit.right, layout.fit.top, layout.fit.bottom, 0.1, 250);
+    camera.position.fromArray(layout.fit.position); camera.lookAt(...layout.fit.target); camera.updateMatrixWorld();
+    for (const rotation of [-90, -25, 0, 45, 180]) {
+      const viewport = { fit: layout.fit, angle, width, height: 700, rotation };
+      for (const x of [-1e4, 0, 1e4]) for (const z of [-1e4, 0, 1e4]) {
+        const point = constrainDeckPosition({ x, z }, viewport);
+        for (const dx of [-0.525, 0.525]) for (const dz of [-0.36, 0.36]) for (const y of [0.033, 0.64]) {
+          const projected = new Vector3(dx, 0, dz).applyAxisAngle(new Vector3(0, 1, 0), rotation * Math.PI / 180)
+            .add(new Vector3(point.x, y, point.z)).project(camera);
+          assert.ok(Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1);
+        }
+        const label = new Vector3(point.x, 0.06, point.z + 0.95).project(camera);
+        assert.ok(Math.abs(label.x) + 140 / width < 1);
+        assert.ok(Math.abs(label.y) + 40 / 700 < 1);
+      }
+    }
+    const elsewhere = resolveTableLayout({ ...request, deck: [50, 0.035, 50] });
+    assert.deepEqual(elsewhere.fit, layout.fit, 'o enquadramento não deve perseguir o deck');
+    const viewport = { fit: layout.fit, angle, width, height: 700, rotation: -18 };
+    const moved = moveDeckByPixels({ x: 0, z: 0 }, 30, 40, viewport);
+    const start = new Vector3(0, 0.5, 0).project(camera), end = new Vector3(moved.x, 0.5, moved.z).project(camera);
+    assert.ok(Math.abs((end.x - start.x) * width / 2 - 30) < 1e-8);
+    assert.ok(Math.abs((start.y - end.y) * 700 / 2 - 40) < 1e-8);
   }
 });

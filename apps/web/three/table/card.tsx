@@ -9,8 +9,8 @@ import type { CardTarget } from "./motion";
 import { arcPosition, easedProgress } from "./motion";
 
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
-export function TableCard({ target, resources, reducedMotion, onSelect, onMenu }: {
-  target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void;
+export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, onDeckPointerDown }: {
+  target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void; onDeckPointerDown?: (event: PointerEvent) => void;
 }) {
   const ref = useRef<Group>(null); const invalidate = useThree(state => state.invalidate);
   const [hovered, setHovered] = useState(false);
@@ -70,6 +70,7 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu }
     onClick={target.interactive ? event => { event.stopPropagation(); if (suppressClick.current) { suppressClick.current = false; return; } onSelect(target.id); } : undefined}
     onContextMenu={target.interactive ? event => { event.stopPropagation(); event.nativeEvent.preventDefault(); event.nativeEvent.stopPropagation(); onMenu(target.id, { x: event.clientX, y: event.clientY }); } : undefined}
     onPointerDown={target.interactive ? event => {
+      if (target.zone === "deck" && onDeckPointerDown) { event.stopPropagation(); onDeckPointerDown(event.nativeEvent); return; }
       if (event.pointerType !== "touch") return;
       event.stopPropagation(); cancelHold(); suppressClick.current = false;
       const point = { x: event.clientX, y: event.clientY }; touchStart.current = point;

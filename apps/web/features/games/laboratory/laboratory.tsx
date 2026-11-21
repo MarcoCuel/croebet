@@ -68,8 +68,8 @@ export function GameLaboratory() {
   const countKey = state.hands.slice(0, settings.players).map(hand => hand.length).join(":");
   const counts = useMemo(() => countKey.split(":").map(Number), [countKey]);
   const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts,
-    width: viewport.width, height: viewport.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ] }),
-    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.deckX, settings.deckZ]);
+    width: viewport.width, height: viewport.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation }),
+    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.deckX, settings.deckZ, settings.deckRotation]);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
     const normalized = { ...next, viewer: 0 };
@@ -91,7 +91,7 @@ export function GameLaboratory() {
   };
   const save = () => {
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ ...settings, counts: state.hands.map(hand => hand.length) }));
+      localStorage.setItem(storageKey, JSON.stringify({ ...settings, deckX: layout.deckPosition[0], deckZ: layout.deckPosition[2], counts: state.hands.map(hand => hand.length) }));
       setMessage("Configuração salva neste navegador.");
     } catch { setMessage("Não foi possível salvar a configuração neste navegador."); }
   };
@@ -118,7 +118,7 @@ export function GameLaboratory() {
     <h1 className="sr-only">Laboratório de jogos</h1>
     <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label={`Mesa 3D de teste · Deck: ${state.deck.length} · Descarte: ${state.discard.length}`}>
       <SceneBoundary><Scene settings={settings} layout={layout} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
-        canDraw={canDraw} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></SceneBoundary>
+        canDraw={canDraw} onMoveDeck={point => setSettings(current => current.deckX === point.x && current.deckZ === point.z ? current : { ...current, deckX: point.x, deckZ: point.z })} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></SceneBoundary>
       <div className="absolute bottom-4 left-4 z-10" data-testid="local-seat"><TableSeatBadge name="Jogador 1" count={count} active={settings.turn === settings.viewer} local compact={false} onActivate={() => update("turn", settings.viewer)} /></div>
       <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>
       {configOpen && <aside id="laboratory-settings" aria-label="Configuração da mesa" className="absolute inset-y-16 right-3 z-20 grid w-72 max-w-[calc(100%-1.5rem)] content-start gap-5 overflow-y-auto rounded-panel border border-contrast/6 bg-background/95 p-4 shadow-lg backdrop-blur-md">
@@ -127,9 +127,6 @@ export function GameLaboratory() {
         <p className="text-xs text-muted">Layout automático conforme cartas, jogadores e espaço disponível.</p>
         <details><summary className="cursor-pointer text-sm font-semibold">Câmera</summary><div className="mt-4 grid gap-4">{controls([["angle", "Ângulo da câmera", 25, 65]])}</div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Deck e descarte</summary><div className="mt-4 grid gap-4">
-          <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSettings(current => ({ ...current, deckX: -1.5, deckZ: -0.6 }))}>Ao lado do descarte</Button><Button size="sm" variant="secondary" onClick={() => setSettings(current => ({ ...current, deckX: -3, deckZ: -2.6 }))}>Superior esquerdo</Button></div>
-          <NumberControl label="Posição horizontal do deck" value={settings.deckX} min={-6} max={6} step={0.1} onChange={value => update("deckX", value)} />
-          <NumberControl label="Posição vertical do deck" value={-settings.deckZ} min={-4} max={5} step={0.1} onChange={value => update("deckZ", -value)} />
           <NumberControl label="Rotação do deck" value={settings.deckRotation} min={-180} max={180} onChange={value => update("deckRotation", value)} />
         </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Iluminação</summary><div className="mt-4 grid gap-4">

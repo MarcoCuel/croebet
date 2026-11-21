@@ -156,29 +156,62 @@ test("catálogo usa título e retorno ao laboratório no navbar", async ({ page 
 });
 
 
-test("posição e rotação do deck são opcionais e acompanham compra e restauração", async ({ page }) => {
+test("deck pode ser arrastado e salvo, sem comprar nem ultrapassar a área visível", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene"), canvas = scene.locator("canvas");
+  const grip = scene.getByRole("button", { name: "Mover deck", exact: true });
+  await expect(grip).toBeVisible();
+  await scene.scrollIntoViewIfNeeded();
+  const box = (await canvas.boundingBox())!;
+  const { OrthographicCamera, Vector3 } = await import("three");
+  const { resolveTableLayout } = await import("../../three/table/adaptive-layout");
+  const { defaultSettings: settings } = await import("../../features/games/laboratory/model");
+  const { fit, deckPosition } = resolveTableLayout({ players: settings.players, viewer: 0, counts: settings.counts,
+    width: box.width, height: box.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation });
+  const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
+  camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
+  const point = new Vector3(deckPosition[0], 0.035 + 103 * settings.pileHeight + 0.0022, deckPosition[2]).project(camera);
+  const x = box.x + (point.x + 1) / 2 * box.width, y = box.y + (1 - point.y) / 2 * box.height;
+  const before = (await grip.boundingBox())!;
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x + 60, y + 40, { steps: 8 }); await page.mouse.up();
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+  await expect.poll(async () => (await grip.boundingBox())!.x).toBeGreaterThan(before.x + 40);
+  await page.mouse.click(x + 60, y + 40);
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 0");
   await openSettings(page);
   const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
   await panel.getByText("Deck e descarte", { exact: true }).click();
-  await panel.getByRole("button", { name: "Superior esquerdo", exact: true }).click();
-  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveValue("-3");
-  await expect(panel.getByLabel("Posição vertical do deck", { exact: true })).toHaveValue("2.6");
+  await expect(panel.getByRole("button", { name: "Superior esquerdo", exact: true })).toHaveCount(0);
+  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveCount(0);
   await panel.getByLabel("Rotação do deck", { exact: true }).fill("-25");
   await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
-  await panel.getByRole("button", { name: "Ao lado do descarte", exact: true }).click();
-  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveValue("-1.5");
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
+  const saved = (await grip.boundingBox())!;
+  await grip.focus(); await grip.press("Shift+ArrowLeft");
+  await expect.poll(async () => (await grip.boundingBox())!.x).toBeLessThan(saved.x - 15);
+  await openSettings(page);
   await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
   await expect(panel.getByLabel("Rotação do deck", { exact: true })).toHaveValue("-25");
-  await expect(panel.getByLabel("Posição horizontal do deck", { exact: true })).toHaveValue("-3");
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
-  const scene = page.getByTestId("laboratory-scene");
-  await scene.getByRole("button", { name: "Comprar carta", exact: true }).click();
-  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 0");
-  await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
-  await expect(page.getByRole("menuitem", { name: "Embaralhar deck", exact: true })).toBeVisible();
+  await expect.poll(async () => Math.abs((await grip.boundingBox())!.x - saved.x)).toBeLessThan(2);
+  const frame = (await scene.boundingBox())!;
+  for (const [dx, dy] of [[-500, -500], [500, -500], [-500, 500], [500, 500]]) {
+    const handle = (await grip.boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2); await page.mouse.down();
+    await page.mouse.move(dx < 0 ? frame.x + dx : frame.x + frame.width + dx, dy < 0 ? frame.y + dy : frame.y + frame.height + dy, { steps: 10 });
+    await page.mouse.up();
+    const controls = (await grip.locator("..").boundingBox())!;
+    expect(controls.x).toBeGreaterThanOrEqual(frame.x);
+    expect(controls.y).toBeGreaterThanOrEqual(frame.y);
+    expect(controls.x + controls.width).toBeLessThanOrEqual(frame.x + frame.width);
+    expect(controls.y + controls.height).toBeLessThanOrEqual(frame.y + frame.height);
+    await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(grip).toBeVisible();
 });
-
 
 test("layout se adapta sozinho ao mudar participantes, cartas e largura", async ({ page }) => {
   await page.goto("/admin/jogos/laboratorio");

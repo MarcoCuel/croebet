@@ -12,7 +12,7 @@ export const defaultSettings: LaboratorySettings = {
   duration: 0.65, arc: 0.8, dealCount: 1, turn: 0, shadows: true, reveal: false,
 };
 const ranges = {
-  players: [2, 12, true], viewer: [0, 11, true], deckX: [-6, 6], deckZ: [-5, 4], deckRotation: [-180, 180],
+  players: [2, 12, true], viewer: [0, 11, true], deckX: [-50, 50], deckZ: [-100, 100], deckRotation: [-180, 180],
   angle: [25, 65], light: [0, 2.5], ambient: [0, 2], pointLight: [0, 8], pointHeight: [1, 5], exposure: [0.5, 1.2], shadowSoftness: [1, 12], shadowOpacity: [0, 0.8], pileHeight: [0.004, 0.008], duration: [0.15, 2], arc: [0, 2],
   dealCount: [1, 10, true], turn: [0, 11, true],
 } as const;
