@@ -710,7 +710,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                   ? "grid-cols-[minmax(0,var(--hand-first))_repeat(var(--hand-remaining),minmax(0,1fr))]"
                   : "grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))]");
               const flipped = visiblePlayer.status === "busted" && !movingCards?.some(m => m.target === i) && (!flight || flight.target !== i || landed);
-              const sixSeven = !flipped && !flight && !movingCards && !swapPreview
+              const sixSeven = !flipped
                 && player.cards.some(card => card.type === "number" && card.value === 6)
                 && player.cards.some(card => card.type === "number" && card.value === 7);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id} data-resolving-action={resolvingCard?.card.id === card.id || undefined}
