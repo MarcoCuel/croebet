@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { cancellationVoteSchema, gameCommandSchema, confirmEntrySchema, invitePlayerSchema, lobbyPlayersQuerySchema, createMatchSchema, matchCommandSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
+import { cancellationVoteSchema, gameCommandSchema, confirmEntrySchema, invitePlayerSchema, lobbyPlayersQuerySchema, createMatchSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
 import { matchLive } from "./live.ts";
 import { tokenHash } from "../auth/security.ts";
 import { abandonLove, collectiveCancellation, endTest, stepTest, commandLove, declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
@@ -52,6 +52,6 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
   app.get("/api/v1/matches", (req, reply) => view(req,reply,id => listMatches(pool,id)));
   app.get<{ Params: { code: string } }>("/api/v1/matches/:code", (req, reply) => view(req,reply,id => getMatch(pool,id,matchCodeSchema.parse(req.params.code))));
   app.post("/api/v1/matches", (req, reply) => run(req,reply,(id,hash) => createMatch(pool,id,hash,createMatchSchema.parse(req.body))));
-  app.post<{ Params: { code: string } }>("/api/v1/matches/:code/commands", (req, reply) => run(req,reply,(id,hash) => commandMatch(pool,id,hash,matchCodeSchema.parse(req.params.code),matchCommandSchema.parse(req.body))));
+  app.post<{ Params: { code: string } }>("/api/v1/matches/:code/commands", (req, reply) => run(req,reply,(id,hash) => commandMatch(pool,id,hash,matchCodeSchema.parse(req.params.code),gameCommandSchema.parse(req.body))));
   app.post<{ Params: { code: string } }>("/api/v1/matches/:code/abandon", (req, reply) => run(req,reply,(id,hash) => commandMatch(pool,id,hash,matchCodeSchema.parse(req.params.code),matchAbandonSchema.parse(req.body),true)));
 }

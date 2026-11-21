@@ -1,6 +1,6 @@
 "use client";
 
-import { useLobbyInvitations, LobbyInvitationItems } from "@/features/games/flip7/lobby-invitations";
+import { useLobbyInvitations, LobbyInvitationItems } from "@/features/games/lobby-invitations";
 import { ArrowUpRight, Bell } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";

@@ -571,7 +571,8 @@ test("PostgreSQL: empates com bot vão à casa; todos abandonam sem reembolso e 
    await client.query("begin");
    await fundMatch(client,id,room.code,5,started.participants);
    const state=structuredClone(started.state);state.phase='over';state.players.forEach((p,i)=>{p.total=200;p.kind=i===0?'normal':'human';});
-   await settleMatch(client,id,room.code,'finished',state);await settleMatch(client,id,room.code,'finished',state);
+   const outcome={winners:[0,1],humanSeats:[1]};
+   await settleMatch(client,id,room.code,'finished',outcome);await settleMatch(client,id,room.code,'finished',outcome);
    const result=(await client.query("select payouts from game_match_stakes where match_id=$1",[id])).rows[0].payouts;
    assert.deepEqual(result,[{seat:0,amount:5,house:true},{seat:1,amount:5,house:false}]);
  }finally{await client.query("rollback");client.release();}
@@ -722,4 +723,31 @@ test("PostgreSQL: se todos abandonam sozinhos, as entradas ficam com a casa",asy
  assert.equal(current.status,'abandoned');assert.equal(current.settlement,'paid');
  assert.equal(BigInt((await pool.query('select balance from wallet_accounts where id=$1',[house])).rows[0].balance)-prior,10n);
  assert.ok((await pool.query('select balance from wallet_accounts where user_id=any($1::uuid[])',[actors.slice(0,2)])).rows.every(r=>r.balance==='25'));
+});
+
+test('PostgreSQL: Love Letter usa comandos comuns, recibos idempotentes e abandono sem expor mãos',async t=>{
+ const {pool,actors,sessions}=await environment(t);
+ await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:'love-letter',capacity:2,options:{mode:'modern',brutal:false},development:true,bots:1,onlyBots:false,entryAmount:0});
+ await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actors[0]]);
+ await lobbyAction(pool,actors[0],sessions[0],room.code,'start',{commandId:randomUUID(),expectedVersion:room.version});
+ const started=await getMatch(pool,actors[0],room.code);
+ assert.equal(started.game,'love-letter');assert.ok(started.state.legalActions.length);
+ const input={commandId:randomUUID(),expectedVersion:started.version,action:started.state.legalActions[0]};
+ const replies=await Promise.all([1,2].map(()=>commandMatch(pool,actors[0],sessions[0],room.code,input)));
+ assert.deepEqual(replies,[{ok:true},{ok:true}]);
+ assert.equal((await pool.query('select count(*)::int total from game_match_commands where match_id=$1 and command_id=$2',[room.id,input.commandId])).rows[0].total,1);
+ await assert.rejects(commandMatch(pool,actors[0],sessions[0],room.code,{...input,commandId:randomUUID()}),{code:'VERSION_CONFLICT'});
+ const current=await getRoomSync(pool,actors[0],room.code,started.version);
+ assert.equal(current.reset,true);assert.deepEqual(current.frames,[]);
+ const events=(await pool.query('select event from game_match_events where match_id=$1 order by version',[room.id])).rows;
+ for(const {event} of events){
+  if(event.state.phase==='playing')assert.ok(event.state.players.every(player=>player.hand===null));
+  assert.deepEqual(event.state.privateInfo,[]);assert.deepEqual(event.state.legalActions,[]);
+  assert.equal('cards' in event.action,false);
+ }
+ await commandMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:current.room.version},true);
+ assert.equal((await pool.query('select controller_id from game_match_players where match_id=$1 and seat=0',[room.id])).rows[0].controller_id,null);
+ assert.equal((await pool.query('select count(*)::int total from game_match_archives where id=$1',[room.id])).rows[0].total,0);
+ assert.equal((await pool.query('select count(*)::int total from game_match_stakes where match_id=$1',[room.id])).rows[0].total,0);
 });

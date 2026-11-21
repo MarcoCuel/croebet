@@ -85,7 +85,7 @@ test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love L
   assert.equal('bonusChoice' in state,false);
   const love=createLove([{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}],"classic");
   love.turn=1;
-  const base={controller_id:actor,seat:1,status:'playing',development:false,only_bots:false};
+  const base={rules_version:1,controller_id:actor,seat:1,status:'playing',development:false,only_bots:false};
   const rows=[{...base,code:'ABCDEF123456',game_slug:'flip7',game_name:'Flip 7',state},
     {...base,code:'ABCDEF654321',game_slug:'love-letter',game_name:'Love Letter',state:love}];
   const client={release(){},async query(sql,values){

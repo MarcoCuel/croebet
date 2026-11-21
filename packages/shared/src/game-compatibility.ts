@@ -1,0 +1,20 @@
+// Existing game clients retain their concrete projection types during migration.
+import {z} from "zod";
+import {matchRoomFields,lobbySchema} from "./match-contracts.js";
+import {flip7ViewSchema,flip7ActionSchema,flip7EventActionSchema} from "./flip7.js";
+import {loveViewSchema} from "./love-letter.js";
+const integer=z.number().int().safe();
+export const matchCommandSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), action: flip7ActionSchema }).strict();
+export const matchSchema = z.object({ ...matchRoomFields, durationSeconds: integer.min(0).nullable().default(null), status: z.enum(["playing", "finished", "abandoned"]), state: flip7ViewSchema }).strict();
+export const loveMatchSchema=z.object({...matchRoomFields,game:z.literal("love-letter"),status:z.enum(["playing","finished","abandoned"]),state:loveViewSchema}).strict();
+export const roomSchema = z.discriminatedUnion("status", [lobbySchema, matchSchema]);
+export const matchFrameSchema = z.object({ action: flip7EventActionSchema, state: flip7ViewSchema, version: integer.positive() }).strict();
+export const matchResultSchema = z.object({ match: matchSchema, before: flip7ViewSchema, frames: z.array(matchFrameSchema) }).strict();
+export type Flip7View = z.infer<typeof flip7ViewSchema>;
+export type Match = z.infer<typeof matchSchema>;
+export type MatchResult = z.infer<typeof matchResultSchema>;
+export type MatchFrame = z.infer<typeof matchFrameSchema>;
+export type MatchCommand = z.infer<typeof matchCommandSchema>;
+export const roomSyncSchema = z.object({ room: roomSchema, frames: z.array(matchFrameSchema), reset: z.boolean() }).strict();
+export type Room = z.infer<typeof roomSchema>;
+export type RoomSync = z.infer<typeof roomSyncSchema>;

@@ -1,4 +1,6 @@
 "use client";
+import { rememberStart } from "./api";
+import { flip7OptionsSchema, roomSyncSchema } from "@croebet/shared";
 import { gameUrl } from "../game-url";
 import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
@@ -28,9 +30,9 @@ import type { Action, Card, Game, GameOptions } from "./presentation";
 import { cardChoices } from "./vengeance";
 import { forcedActionPresentation } from "./action-presentation";
 import { gameWithPlayerNames } from "./player-name";
-import { LobbyScreen } from "./lobby";
+import { LobbyScreen } from "../lobby";
 import { useMatchLive } from "./live";
-import { KickPlayer } from "./kick-player";
+import { KickPlayer } from "../kick-player";
 import { GOAL } from "./presentation";
 
 function Rules({ options }: { options: GameOptions }) {
@@ -163,7 +165,7 @@ export default function Flip7Game({ initial, game, testControls, exitControl }: 
   if (requestedReplay && requestedReplay.match.code === initial.match?.code) return <Flip7Playback key={`replay:${initial.revision}`} initial={{ ...initial, replay: requestedReplay }} startPlaying />;
   if (initial.replay) return <Flip7Playback key={initial.revision} initial={initial} />;
   if (!game) return null;
-  if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} rules={options=><Rules options={options}/>}/>;
+  if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} onStarted={sync=>{const parsed=roomSyncSchema.safeParse(sync);if(parsed.success)rememberStart(parsed.data);}} rules={options=><Rules options={flip7OptionsSchema.parse(options)}/>}/>;
   return <Flip7Table key={initial.revision} initial={initial} testControls={testControls} exitControl={exitControl} onRequestReplay={openReplay} replayPending={preparingReplay} />;
 }
 

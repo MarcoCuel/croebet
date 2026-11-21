@@ -16,6 +16,8 @@ Todos os caminhos de implementação abaixo são relativos a `apps/web`. Stack e
 
 Use `@/` entre diretórios; tipos ficam no domínio. Só crie hooks/types/styles compartilhados quando houver uso real; evite pastas vazias, barrels e abstrações especulativas. UI não importa features. Client Components são as menores fronteiras interativas necessárias; conteúdo do servidor pode entrar como `children`.
 
+Jogos têm infraestrutura comum em `features/games/`: `lobby.tsx`, `match-api.ts`, `use-room-live.ts`, convites, expulsão, identidade e preferências por identificador. Os campos e limites do lobby vêm do registro público de jogos; entrar numa sala não sobrescreve escolhas pessoais. `registry.tsx` registra apresentações e `server-registry.ts` registra carregamento inicial. Cada módulo recebe estado validado e envia comandos pelo transporte comum; regras e estados privados permanecem na API. O adaptador de apresentação de cada jogo trata sua mesa, áudio e animações. Os arquivos ainda concretos em `flip7` guardam apenas os tipos, cache de apresentação e fila de frames desse jogo. Para integrar outro módulo, seguir [Adicionar um jogo](backend-architecture.md#adicionar-um-jogo).
+
 ## Dados iniciais e sessão
 
 O ambiente de produção independente usa `proxy.ts` com `ENFORCE_HTTPS=true` para redirecionar HTTP ao `WEB_ORIGIN` HTTPS. O Next escuta somente em loopback e considera o protocolo do visitante informado pelo túnel, preservando o proxy HTTP/WebSocket da API. Portas, releases e comandos ficam em [Produção independente no Mac](backend-architecture.md#produção-independente-no-mac).

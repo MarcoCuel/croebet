@@ -1,14 +1,14 @@
 "use client";
-import { gameUrl } from "../game-url";
-import { MatchExitControl } from "../match-cancellation";
+import { gameUrl } from "./game-url";
+import { MatchExitControl } from "./match-cancellation";
 import { managementRequest } from "@/features/admin/management-api";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Eye, Plus, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { loveOptionsSchema, commandResultSchema, flip7OptionsSchema } from "@croebet/shared";
-import type { GameRecord, CreateMatch, Lobby, LobbyList, RoomSync, UpdateLobby } from "@croebet/shared";
+import { getGameDefinition, gameIdSchema, gameOptionsSchema, visibleSettings, settingValue, gameSettingBadges, commandResultSchema } from "@croebet/shared";
+import type { GameRecord, CreateMatch, Lobby, LobbyList, GameRoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { CroinIcon } from "@/components/shared/croin-icon";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -23,15 +23,14 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
-import type { InitialMatches } from "./server-matches";
-import type { GameOptions } from "./types";
-import { createServerMatch, changeLobby, rememberStart, updateServerLobby, confirmServerEntry } from "./api";
-import { useMatchLive } from "./live";
+type LobbyInitial={lobby:Lobby|null;directory:LobbyList;items:import("@croebet/shared").MatchSummary[];error:string;revision?:string;match?:unknown;unavailable?:boolean};
+import { createServerMatch, changeLobby, updateServerLobby, confirmServerEntry } from "./match-api";
+import { useRoomLive } from "./use-room-live";
 import { InvitePlayers } from "./invite-players";
 import { KickPlayer } from "./kick-player";
-import { GameEntryHeader } from "../game-entry-header";
+import { GameEntryHeader } from "./game-entry-header";
 import { playerName } from "./player-name";
-import { readSetupPreferences, saveSetupPreferences } from "./setup-storage";
+import { readGamePreferences, saveGamePreferences } from "./setup-storage";
 
 function SeatOutline() {
   return <svg className="pointer-events-none absolute inset-0 size-full text-field-border" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
@@ -39,7 +38,7 @@ function SeatOutline() {
   </svg>;
 }
 
-export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onTestStarted}:{development?:boolean;onTestOpen?:(lobby:Lobby)=>void;onTestStarted?:(code:string)=>void;initial:InitialMatches;game:GameRecord;rules:(options:GameOptions)=>ReactNode}) {
+export function LobbyScreen({initial,rules,onStarted,game,development=false,onTestOpen,onTestStarted}:{development?:boolean;onTestOpen?:(lobby:Lobby)=>void;onTestStarted?:(code:string)=>void;initial:LobbyInitial;game:GameRecord;onStarted?:(sync:GameRoomSync)=>void;rules?:(options:Lobby["options"])=>ReactNode}) {
   const router=useRouter();
   const searchParams=useSearchParams();
   const {permissions,userId,username,displayName,avatar,openLogin,economy}=useSession();
@@ -50,12 +49,12 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   const [room,setRoom]=useState<Lobby|null>(initial.lobby?.game===game.slug?initial.lobby:null);
   const [directory,setDirectory]=useState<LobbyList>(()=>scopeDirectory(initial.directory));
   const [matches,setMatches]=useState(initial.items);
-  const [preferences]=useState(readSetupPreferences);
-  const [capacity,setCapacity]=useState(game.slug==="love-letter"?2:preferences.count);
+  const definition=getGameDefinition(game.slug)!;
+  const [preferences]=useState(()=>readGamePreferences(game.slug));
+  const [capacity,setCapacity]=useState(preferences.count);
   const [bots,setBots]=useState(0);
   const [onlyBots,setOnlyBots]=useState(false);
-  const isLove=game.slug==="love-letter";
-  const [options,setOptions]=useState<Lobby["options"]>({mode:game.slug==="love-letter"?"classic":preferences.mode,brutal:game.slug!=="love-letter" && preferences.brutal});
+  const [options,setOptions]=useState<Lobby["options"]>(preferences.options);
   const [entryAmount,setEntryAmount]=useState(0);
   const [busy,setBusy]=useState(false);
   const [inviting,setInviting]=useState(searchParams.get("convidar")==="1");
@@ -80,7 +79,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
     setRoom(current=>current?.code===next.code && current.version>next.version?current:next);
     onTestOpen?.(next);
   }
-  function accept(next:RoomSync){
+  function accept(next:GameRoomSync){
     if(leaving.current || navigating.current)return;
     if(next.room.status==="lobby"){
       if(room?.participants.some(person=>person.userId===userId) && !next.room.participants.some(person=>person.userId===userId)){
@@ -91,7 +90,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
     if(development){onTestStarted?.(next.room.code);return;}
     navigating.current=true;
     if(next.room.status==="abandoned"){setRoom(null);setDirectory(current=>({...current,owned:current.owned?.code===next.room.code?null:current.owned,joined:current.joined.filter(lobby=>lobby.code!==next.room.code)}));visit(null);return;}
-    rememberStart(next);openMatch(next.room.code);
+    onStarted?.(next);openMatch(next.room.code);
   }
   function acceptDirectory(next:LobbyList){
     next=scopeDirectory(next);
@@ -111,7 +110,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
       acceptLobby(directory.owned);visit(directory.owned.code);
     }
   });
-  const connected=useMatchLive(room?.code,room?.version ?? 0,true,accept,acceptDirectory,(message,roomClosed)=>{
+  const connected=useRoomLive(room?.code,room?.version ?? 0,true,accept,acceptDirectory,(message,roomClosed)=>{
     if(leaving.current || navigating.current)return;
     setError(message);
     if(room && roomClosed){
@@ -119,7 +118,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
       setDirectory(current=>({...current,owned:current.owned?.code===room.code?null:current.owned,joined:current.joined.filter(lobby=>lobby.code!==room.code),items:current.items.filter(lobby=>lobby.code!==room.code)}));
       visit(null);
     }
-  },development?()=>{}:setMatches,onTestStarted,()=>setError(""));
+  },development?()=>{}:setMatches,()=>setError(""));
   const lobbies=[...new Map((development?(directory.testLobbies ?? []).filter(l=>l.game===game.slug):[...directory.items,...directory.joined].filter(l=>l.game===game.slug)).map(lobby=>[lobby.id,lobby])).values()];
   const listedMatches=matches.filter(match=>match.game===game.slug);
   const listedRooms=development?[...lobbies,...(directory.testMatches ?? []).filter(m=>m.game===game.slug)]:lobbies;
@@ -128,7 +127,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   const creationBlocked=!!directory.owned || !!directory.active || !!ownTest || !!ownRunningTest;
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
-  const settings=isLove?loveOptionsSchema.parse(room?.options ?? options):flip7OptionsSchema.parse(room?.options ?? options);
+  const settings=gameOptionsSchema.parse(definition.options.parse(room?.options ?? options));
   const limit=room?.capacity ?? capacity;
   const entry=development?0:room?.entryAmount ?? entryAmount;
   const confirmed=!!userId && !!room?.confirmedUserIds.includes(userId);
@@ -143,11 +142,10 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   function rememberChoice(choice:Partial<Lobby["options"] & {count:number}>){
     if(!Object.keys(choice).length)return;
     if(choice.count!==undefined)setCapacity(choice.count);
-    const nextOptions=(isLove?loveOptionsSchema:flip7OptionsSchema).parse({...options,...(choice.mode!==undefined?{mode:choice.mode}:{}),...(choice.brutal!==undefined?{brutal:choice.brutal}:{})});
+    const {count:chosenCount,...changed}=choice;
+    const nextOptions=gameOptionsSchema.parse(definition.options.parse({...options,...changed}));
     setOptions(nextOptions);
-    if(!isLove && !development){
-      try{saveSetupPreferences({count:choice.count ?? capacity,...flip7OptionsSchema.parse(nextOptions)});}catch{/* Preferences are optional. */}
-    }
+    try{saveGamePreferences(game.slug,chosenCount ?? capacity,nextOptions);}catch{/* Preferences are optional. */}
   }
   async function configure(nextOptions:Lobby["options"],nextCapacity:number,nextEntry=entry,choice:Partial<Lobby["options"] & {count:number}>={}){
     if(!canEdit)return;
@@ -215,7 +213,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
-    const payload={development,bots,onlyBots,game:game.slug as "flip7"|"love-letter",capacity,options,entryAmount:development?0:room?.entryAmount ?? entryAmount};
+    const payload={development,bots,onlyBots,game:gameIdSchema.parse(game.slug),capacity,options,entryAmount:development?0:room?.entryAmount ?? entryAmount};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
     try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
@@ -223,30 +221,36 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
   }
 
   return <div className="w-full space-y-4">
-    <GameEntryHeader game={game} development={development} actions={!userId?!isLove && rules(flip7OptionsSchema.parse(settings)):undefined}/>
+    <GameEntryHeader game={game} development={development} actions={!userId?rules?.(settings):undefined}/>
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
     {showSettings && <Card className="min-w-0 space-y-4" aria-label="Configuração e regras">
       {editableSettings?<fieldset disabled={!canEdit} className="space-y-4">
-        <Field className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">Modo<Select className="max-w-full" aria-label={isLove?"Modo do Love Letter":"Modo do Flip7"} value={settings.mode} onChange={e=>void configure({mode:e.target.value as Lobby["options"]["mode"],brutal:false},limit,entry,{mode:e.target.value as Lobby["options"]["mode"],brutal:false})}><option value="classic">Clássico</option>{isLove?<option value="modern">Moderno</option>:<option value="vengeance">A vingança nunca é plena</option>}</Select></Field>
-        {settings.mode==="vengeance" && <Field className="grid-cols-[1fr_auto] items-center">Modo Brutal<Switch aria-label="Modo Brutal" checked={settings.brutal} onCheckedChange={brutal=>void configure({...settings,brutal},limit,entry,{brutal})}/></Field>}
-        {!development && <div className="min-w-0 space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
+        {visibleSettings(definition,settings).map(field=>{
+          const value=settingValue(settings,field.key);
+          const change=(value:string|boolean)=>{
+            const choice={...field.reset,[field.key]:value};
+            const next=gameOptionsSchema.parse(definition.options.parse({...settings,...choice}));
+            void configure(next,Math.min(limit,definition.maxPlayers(next)),entry,{...choice,count:Math.min(limit,definition.maxPlayers(next))});
+          };
+          return <Field key={field.key} className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">{field.label}{field.type==="select"?<Select className="max-w-full" aria-label={field.ariaLabel ?? field.label} value={String(value)} onChange={e=>change(e.target.value)}>{field.choices?.map(choice=><option key={choice.value} value={choice.value}>{choice.label}</option>)}</Select>:<Switch aria-label={field.label} checked={value===true} onCheckedChange={change}/>}</Field>;
+        })}
+        {!development && definition.croins && <div className="min-w-0 space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
           <Field className="grid-cols-[1fr_auto] items-center gap-3">Jogar apostando<Switch aria-label="Jogar apostando" checked={entry>0} disabled={!economy && !entry} onCheckedChange={enabled=>{if(!enabled || economy)void configure(settings,limit,enabled?economy!.defaultBet:0);}}/></Field>
           {entry>0 && <BetInput label="Entrada por jogador" value={entry} presets={economy?.suggestedBets ?? []} disabled={!canEdit} onValueChange={amount=>void configure(settings,limit,amount)}/>}
         </div>}
         {development && !room && <><Field>Bots<Select value={bots} onChange={e=>setBots(Number(e.target.value))}>{Array.from({length:limit+(onlyBots?1:0)},(_,i)=>i).filter(n=>!onlyBots || n>=2).map(n=><option key={n}>{n}</option>)}</Select></Field><Field className="flex items-center justify-between">Somente bots<Switch checked={onlyBots} onCheckedChange={v=>{setOnlyBots(v);setBots(v?limit:0);}}/></Field></>}
       </fieldset>:<div className="space-y-4 text-sm font-semibold">
-        <div className="flex min-h-11 items-center justify-between gap-4"><span>Modo</span><span className="text-right">{settings.mode==="classic"?"Clássico":isLove?"Moderno":"A vingança nunca é plena"}</span></div>
-        {settings.mode==="vengeance" && <div className="flex min-h-11 items-center justify-between gap-4"><span>Modo Brutal</span><span>{settings.brutal?"Ativado":"Desativado"}</span></div>}
-        {!development && <div className="space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
+        {visibleSettings(definition,settings).map(field=><div key={field.key} className="flex min-h-11 items-center justify-between gap-4"><span>{field.label}</span><span className="text-right">{field.type==="switch"?(settingValue(settings,field.key)?"Ativado":"Desativado"):field.choices?.find(choice=>choice.value===settingValue(settings,field.key))?.label}</span></div>)}
+        {!development && definition.croins && <div className="space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
           <div className="flex items-center justify-between gap-3"><span>Jogar apostando</span><span>{entry>0?"Sim":"Não"}</span></div>
           {entry>0 && <div className="flex items-center justify-between gap-3"><span>Entrada por jogador</span><span className="flex items-center gap-2"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(entry)} Croins</span></div>}
         </div>}
       </div>}
-      {!isLove && rules(flip7OptionsSchema.parse(settings))}
+      {rules?.(settings)}
     </Card>}
     {((userId && (!development || permissions.canManageSite)) || room) && <Card className="min-w-0 space-y-4" aria-label="Jogadores e vagas">
       {editableSettings?<fieldset disabled={!canEdit}>
-        <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value),entry,{count:Number(e.target.value)})}>{Array.from({length:isLove?(settings.mode==="classic"?3:5):11},(_,i)=>i+2).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
+        <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value),entry,{count:Number(e.target.value)})}>{Array.from({length:definition.maxPlayers(settings)-definition.minPlayers+1},(_,i)=>i+definition.minPlayers).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
       </fieldset>:<div className="flex min-h-11 items-center justify-between gap-4 text-sm font-semibold"><span>Número de jogadores</span><span>{limit}</span></div>}
       {entry>0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-contrast/6 p-3 text-sm mb-8"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
@@ -304,7 +308,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
           const reserved=lobby.status==="lobby" && lobby.pendingInvitations.some(p=>p.userId===userId);
           const canCancel=development && permissions.canManageSite && lobby.hostId===userId;
           return <li key={lobby.code}><Card className="relative isolate h-full space-y-4">
-            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>{active && <Badge variant="secondary">Em andamento</Badge>}<Badge variant="secondary">{lobby.options.mode==="classic"?"Clássico":isLove?"Moderno":"Vingança"}</Badge>{lobby.options.brutal && <Badge>Brutal</Badge>}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
+            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>{active && <Badge variant="secondary">Em andamento</Badge>}{gameSettingBadges(definition,lobby.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];
               return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",lobby.status==="lobby" && person && !person.userId.startsWith("bot-") && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
@@ -312,7 +316,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
                 <span title={person ? playerName(person) : undefined} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person ? playerName(person) : "Disponível"}</span>
               </li>;
             })}</ul>
-            {(active || canCancel || (reserved && !joined)) && <div className="relative z-20 flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/${isLove?"love-abandon":"abandon"}`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
+            {(active || canCancel || (reserved && !joined)) && <div className="relative z-20 flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/abandon`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}>Aceitar convite</Button>}</div>}
 
             {joined && lobby.status==="lobby" && <Button variant="ghost" className="absolute inset-0 z-10 size-full rounded-panel m-0! p-0" aria-label={`Abrir sala de ${hostName}`} disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}/>}
@@ -322,7 +326,7 @@ export function LobbyScreen({initial,rules,game,development=false,onTestOpen,onT
     </section>
     {listedMatches.length>0 && <section className="min-w-0 space-y-4 xl:col-span-3" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{listedMatches.map(match=>{
       const playing=!!userId && match.controllerIds.includes(userId);
-      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {playerName(match.participants.find(p=>p.userId===match.hostId))}</p><Badge variant="secondary">{match.options.mode==="classic"?"Clássico":"Vingança"}</Badge>{match.options.brutal && <Badge>Brutal</Badge>}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
+      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {playerName(match.participants.find(p=>p.userId===match.hostId))}</p>{gameSettingBadges(definition,match.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
     })}</ul></section>}
     </div>
     {!userId && !room && error && <p role="alert" className="text-sm text-destructive">{error}</p>}

@@ -1,15 +1,15 @@
 "use client";
-import { gameUrl } from "../game-url";
-import { useGameAudio } from "../use-game-audio";
+import { gameUrl } from "./game-url";
+import { useGameAudio } from "./use-game-audio";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { commandResultSchema, lobbyInvitationsSchema, type LobbyInvitations } from "@croebet/shared";
-import { changeLobby } from "./api";
+import { changeLobby } from "./match-api";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
-import { gameSocket, retainGameSocket, realtimeRequest } from "../realtime";
+import { gameSocket, retainGameSocket, realtimeRequest } from "./realtime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 

@@ -1,4 +1,4 @@
-import type { MatchHistoryItem } from "@croebet/shared";
+import {getGameDefinition,gameSettingBadges,legacyGameIdentity, type MatchHistoryItem} from "@croebet/shared";
 import { Trophy } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +14,10 @@ export function MatchPlayerAvatar({ player, className }: { player: Pick<HistoryP
   </Avatar>;
 }
 
-export function MatchBadges({ match }: { match: Pick<MatchHistoryItem, "status" | "options"> }) {
+export function MatchBadges({ match }: { match: Pick<MatchHistoryItem, "status" | "options" | "game"> }) {
   return <div className="flex flex-wrap items-center gap-1.5">
     <Badge variant="secondary" className={match.status === "playing" ? "bg-prediction-yes/10 text-prediction-yes" : undefined}>{matchStatusLabels[match.status]}</Badge>
-    <Badge variant="secondary">{match.options.mode === "classic" ? "Clássico" : "Vingança"}</Badge>
-    {match.options.brutal && <Badge>Brutal</Badge>}
+    {gameSettingBadges(getGameDefinition(match.game ?? legacyGameIdentity.id)!,match.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}
   </div>;
 }
 

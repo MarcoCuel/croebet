@@ -149,3 +149,5 @@ export * from "./rankings.js";
 export * from "./achievements.js";
 
 export * from "./love-letter.js";
+
+export * from "./game-registry.js";

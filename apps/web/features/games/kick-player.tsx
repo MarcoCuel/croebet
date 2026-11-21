@@ -1,14 +1,14 @@
 "use client";
 import { randomUUID } from "@/lib/uuid";
 import { useRef, useState } from "react";
-import type { KickMatch, Room } from "@croebet/shared";
+import type { KickMatch, GameRoom } from "@croebet/shared";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { kickServerPlayer } from "./api";
+import { kickServerPlayer } from "./match-api";
 
-export function KickPlayer({code,version,userId,name,duringGame=false,withCroins=false,compact=false,disabled,onSuccess}:{code:string;version:number;userId:string;name:string;duringGame?:boolean;withCroins?:boolean;compact?:boolean;disabled?:boolean;onSuccess?:(room:Room)=>void}) {
+export function KickPlayer({code,version,userId,name,duringGame=false,withCroins=false,compact=false,disabled,onSuccess}:{code:string;version:number;userId:string;name:string;duringGame?:boolean;withCroins?:boolean;compact?:boolean;disabled?:boolean;onSuccess?:(room:GameRoom)=>void}) {
   const [open,setOpen]=useState(false);
   const [busy,setBusy]=useState(false);
   const pending=useRef<KickMatch|null>(null);

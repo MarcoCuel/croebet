@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { z } from "zod";
-import { matchPayoutSchema, type Flip7View } from "@croebet/shared";
+import { matchPayoutSchema } from "@croebet/shared";
+import type { GameOutcome } from "./driver.ts";
 import { transferCroinsInTransaction } from "../wallet/service.ts";
 
 const house = "00000000-0000-4000-8000-000000000002";
@@ -29,23 +30,22 @@ export async function fundMatch(client: PoolClient, id: string, code: string, en
   await client.query("insert into wallet_accounts(id,kind) values($1,'pot')",[pot]);
   const contributions=people.map(p=>({userId:p.userId,seat:p.seat,accountId:accounts.rows.find(a=>a.user_id===p.userId)!.id}));
   await client.query("insert into game_match_stakes(match_id,pot_account_id,entry_amount,pot_total,contributions) values($1,$2,$3,$4,$5)",[id,pot,entry,total.toString(),JSON.stringify(contributions)]);
-  for(const person of contributions)await transferCroinsInTransaction(client,{scope:"match-entry",idempotencyKey:`${id}:${person.seat}`,from:person.accountId,to:pot,actorAccountId:person.accountId,amount:entry,reason:"Entrada no Flip 7",reference:code});
+  for(const person of contributions)await transferCroinsInTransaction(client,{scope:"match-entry",idempotencyKey:`${id}:${person.seat}`,from:person.accountId,to:pot,actorAccountId:person.accountId,amount:entry,reason:"Entrada em partida",reference:code});
 }
 
-export async function settleMatch(client: PoolClient, id: string, code: string, status: string, state: Flip7View) {
+export async function settleMatch(client: PoolClient, id: string, code: string, status: string, outcome: GameOutcome) {
   if(status!=="finished" && status!=="abandoned")return;
   const row=(await client.query("select * from game_match_stakes where match_id=$1 for update",[id])).rows[0];
   if(!row || row.status!=="pending")return;
   const people=contributionsSchema.parse(row.contributions);
-  const maximum=Math.max(...state.players.map(p=>p.total));
-  const seats=status==="abandoned"?people.map(p=>p.seat):state.players.flatMap((p,seat)=>p.total===maximum?[seat]:[]);
-  const payouts=splitPot(Number(row.pot_total),seats).map(p=>({...p,house:status==="abandoned" || state.players[p.seat].kind!=="human"}));
+  const seats=status==="abandoned"?people.map(p=>p.seat):outcome.winners;
+  const payouts=splitPot(Number(row.pot_total),seats).map(p=>({...p,house:status==="abandoned" || !outcome.humanSeats.includes(p.seat)}));
   // Lock every destination together before transfers; concurrent wallets use the same order.
   await client.query("select id from wallet_accounts where id=any($1::uuid[]) order by id for update",[[house,row.pot_account_id,...people.map(p=>p.accountId)]]);
   for(const payout of payouts){
     if(!payout.amount)continue;
     const person=people.find(p=>p.seat===payout.seat)!;
-    await transferCroinsInTransaction(client,{scope:"match-prize",idempotencyKey:`${id}:${payout.seat}`,from:row.pot_account_id,to:payout.house?house:person.accountId,actorAccountId:row.pot_account_id,amount:payout.amount,reason:payout.house?"Prêmio de vaga com bot no Flip 7":"Prêmio do Flip 7",reference:code});
+    await transferCroinsInTransaction(client,{scope:"match-prize",idempotencyKey:`${id}:${payout.seat}`,from:row.pot_account_id,to:payout.house?house:person.accountId,actorAccountId:row.pot_account_id,amount:payout.amount,reason:payout.house?"Prêmio de vaga com bot":"Prêmio de partida",reference:code});
   }
   await client.query("update game_match_stakes set status='paid',payouts=$2,settled_at=clock_timestamp() where match_id=$1",[id,JSON.stringify(payouts)]);
 }
@@ -62,7 +62,7 @@ export async function refundAccountMatches(client: PoolClient, userId: string) {
   for(const row of matches.rows){
     const people=contributionsSchema.parse(row.contributions);
     await client.query("select id from wallet_accounts where id=any($1::uuid[]) order by id for update",[[row.pot_account_id,...people.map(p=>p.accountId)]]);
-    for(const person of people)await transferCroinsInTransaction(client,{scope:"match-refund",idempotencyKey:`${row.match_id}:${person.seat}`,from:row.pot_account_id,to:person.accountId,actorAccountId:row.pot_account_id,amount:Number(row.entry_amount),reason:"Devolução de partida encerrada do Flip 7",reference:row.code});
+    for(const person of people)await transferCroinsInTransaction(client,{scope:"match-refund",idempotencyKey:`${row.match_id}:${person.seat}`,from:row.pot_account_id,to:person.accountId,actorAccountId:row.pot_account_id,amount:Number(row.entry_amount),reason:"Devolução de partida encerrada",reference:row.code});
     await client.query("update game_match_stakes set status='refunded',settled_at=clock_timestamp() where match_id=$1",[row.match_id]);
   }
 }

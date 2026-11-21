@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Gamepad2 } from "lucide-react";
 import { toast } from "sonner";
-import { personalMatchesSchema, type PersonalMatches } from "@croebet/shared";
+import { getGameDefinition, personalMatchesSchema, type PersonalMatches } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -49,7 +49,7 @@ export function ActiveMatchesMenu() {
             </Link>, { id: toastId(item.code), duration: Infinity });
           }
           // Flip 7 announces the turn after its card animations finish.
-          if (location.current !== item.code || item.game !== "flip7") play("notification");
+          if (location.current !== item.code || !getGameDefinition(item.game)?.tableTurnSound) play("notification");
         }
         turns.set(item.code, key);
       }

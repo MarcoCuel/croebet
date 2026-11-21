@@ -1,9 +1,9 @@
-import { createLove, parseLove, projectLove, applyLove, automateLove, botLove } from "../games/love-letter/engine.ts";
-import { cancellationProposalSchema, createMatchSchema, loveOptionsSchema, loveActionSchema, loveMatchSchema, gameRoomSyncSchema, personalMatchesSchema } from "@croebet/shared";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
-import { lobbyPlayersSchema, lobbyInvitationsSchema, lobbySchema, lobbyListSchema, lobbyActionResultSchema, roomSchema, updateLobbySchema, roomSyncSchema, matchSchema, matchResultSchema, matchListSchema, flip7OptionsSchema, type CreateMatch, type MatchCommand, type MatchFrame, type MatchParticipant, type Room, type UpdateLobby, type KickMatch } from "@croebet/shared";
-import { flip7Driver as driver } from "../games/flip7/driver.ts";
+import { lobbyPlayersSchema, lobbyInvitationsSchema, lobbySchema, lobbyListSchema, lobbyActionResultSchema, updateLobbySchema, gameExecutionResultSchema, matchListSchema,  type CreateMatch, type GameCommand, type GameView, type GameEngineAction, type GameId, type GameRoom, type MatchParticipant, type Room, type UpdateLobby, type KickMatch } from "@croebet/shared";
+import { gameDriver } from "../games/registry.ts";
+import { cancellationProposalSchema, createMatchSchema, gameRoomSchema, gameRoomSyncSchema, gameMatchResultSchema, personalMatchesSchema, gameDefinitions } from "@croebet/shared";
+
 import { avatarUrl } from "../avatars/storage.ts";
 import { refundCollectiveMatch, fundMatch, settleMatch, readMatchEconomy, MatchEconomyError } from "./economy.ts";
 import { WalletError } from "../wallet/service.ts";
@@ -15,9 +15,16 @@ export class MatchError extends Error {
 }
 export const matchLifecycleLock = "select pg_advisory_xact_lock(47851234)";
 
-type Row = { development:boolean; bots:number; only_bots:boolean; entry_amount: string; created_by: string; id: string; code: string; game_id: string; game_slug: "flip7" | "love-letter"; owner_id: string; capacity: number; options: unknown; rules_version: number; version: number; status: Room["status"]; state: unknown };
+type Row = { development:boolean; bots:number; only_bots:boolean; entry_amount: string; created_by: string; id: string; code: string; game_id: string; game_slug: GameId; owner_id: string; capacity: number; options: unknown; rules_version: number; version: number; status: Room["status"]; state: unknown };
 type ParticipantRow = { match_id: string; user_id: string; username: string; display_name: string; avatar_key: string | null; seat: number };
 type Client = Pool | PoolClient;
+type Frame = {version:number;state:GameView;action:GameEngineAction|{type:"start"}|{type:"replace";seat:number}};
+function resolveDriver(row:Row) {
+  const driver=gameDriver(row.game_slug);
+  if(row.rules_version!==driver.rulesVersion)throw new MatchError("RULES_VERSION",409,"Versão de regras indisponível.");
+  return driver;
+}
+
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 async function participants(client: Client, ids: string[]) {
   const result = new Map<string,MatchParticipant[]>();
@@ -30,19 +37,19 @@ async function participants(client: Client, ids: string[]) {
   }
   return result;
 }
-function view(row: Row, members: MatchParticipant[]): Room {
-  if (row.rules_version!==driver.rulesVersion) throw new MatchError("RULES_VERSION",409,"Versão de regras indisponível.");
-  const common={ development:row.development,bots:row.bots,onlyBots:row.only_bots, entryAmount:Number(row.entry_amount ?? 0), id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:row.game_slug==="love-letter"?loveOptionsSchema.parse(row.options):flip7OptionsSchema.parse(row.options),participants:members };
-  return row.status==="lobby" ? lobbySchema.parse({ ...common,status:"lobby",state:null }) : matchSchema.parse({ ...common,status:row.status,state:driver.project(driver.parse(row.state)) });
+function view(row: Row, members: MatchParticipant[], seat:number|null=null): GameRoom {
+  const driver=resolveDriver(row);
+  const common={ development:row.development,bots:row.bots,onlyBots:row.only_bots, entryAmount:Number(row.entry_amount ?? 0), id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:gameDefinitions[row.game_slug].options.parse(row.options),participants:members };
+  return row.status==="lobby" ? lobbySchema.parse({ ...common,status:"lobby",state:null }) : gameRoomSchema.parse({ ...common,status:row.status,state:driver.projectFor(driver.parse(row.state),seat) });
 }
 async function reservations(client: Client, id: string) {
   return (await client.query<{userId:string;username:string;displayName:string;avatarUrl:string|null}>(`select u.id as "userId",u.username,u.display_name as "displayName",u.avatar_key as "avatarUrl" from game_match_invitations i join users u on u.id=i.recipient_id where i.match_id=$1 and i.expires_at>clock_timestamp() and not exists(select 1 from game_match_players p where p.match_id=i.match_id and p.user_id=i.recipient_id) order by i.expires_at,i.id`,[id])).rows.map(p=>({...p,avatarUrl:avatarUrl(p.avatarUrl)}));
 }
-async function roomView(client: Client, row: Row, members: MatchParticipant[]): Promise<Room> {
-  const room=roomSchema.parse({...view(row,members),...(Number(row.entry_amount)>0?await readMatchEconomy(client,row.id):{})});
+async function roomView(client: Client, row: Row, members: MatchParticipant[], seat:number|null=null): Promise<GameRoom> {
+  const room=gameRoomSchema.parse({...view(row,members,seat),...(Number(row.entry_amount)>0?await readMatchEconomy(client,row.id):{})});
   if (room.status === "finished") {
     const timing = await client.query<{ seconds: string | null }>("select floor(greatest(0,extract(epoch from (ended_at-started_at))))::text as seconds from game_match_archives where id=$1 and ended_at is not null", [row.id]);
-    room.durationSeconds = timing.rows[0]?.seconds == null ? null : Number(timing.rows[0].seconds);
+    if ("durationSeconds" in room) room.durationSeconds = timing.rows[0]?.seconds == null ? null : Number(timing.rows[0].seconds);
   }
   if(room.status!=="lobby")return {...room,cancellation:row.status==="playing"?await readCancellation(client,row.id):null};
   room.confirmedUserIds=Number(row.entry_amount)>0?(await client.query<{user_id:string}>("select user_id from game_match_players where match_id=$1 and (confirmed_entry_amount=$2 or user_id=$3) order by seat",[row.id,row.entry_amount,row.owner_id])).rows.map(p=>p.user_id):[];
@@ -78,10 +85,10 @@ export async function listLobbies(pool: Pool, actor: string | null) {
   return read(pool,async client => {
     const result=await client.query<Row>(`select m.* from game_matches m join games g on g.id=m.game_id where m.status='lobby' and not m.development and g.enabled=true order by m.created_at desc,m.id limit 100`);
     const joined=await client.query<Row>(`select m.* from game_matches m where m.status='lobby' and not m.development and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc,m.id`,[actor]);
-    const active=await client.query<Row>(`select m.* from game_matches m where m.status='playing' and m.game_slug='flip7' and not m.development and exists(select 1 from game_match_players p where p.match_id=m.id and p.controller_id=$1) order by m.created_at,m.id limit 1`,[actor]);
+    const active=await client.query<Row>(`select m.* from game_matches m where m.status='playing' and not m.development and exists(select 1 from game_match_players p where p.match_id=m.id and p.controller_id=$1) order by m.created_at,m.id limit 1`,[actor]);
     const all=[...result.rows,...joined.rows,...active.rows];
     const people=await participants(client,all.map(row=>row.id));
-    const rooms=new Map<string,Room>();
+    const rooms=new Map<string,GameRoom>();
     for(const row of all)if(!rooms.has(row.id))rooms.set(row.id,await roomView(client,row,people.get(row.id) ?? []));
     const owned=joined.rows.find(row=>row.created_by===actor && row.owner_id===actor);
     const testRows=actor?(await client.query<Row>("select m.* from game_matches m where m.development and m.status='lobby' and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
@@ -146,10 +153,9 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
       let yourTurn = false;
       let turnKey: string | null = null;
       if (row.status === 'playing' && row.controller_id === actor && row.seat !== null && !row.only_bots) {
-        const state = row.game_slug === 'love-letter' ? parseLove(row.state) : driver.parse(row.state);
-        const seat = 'brutal' in state ? state.bonusChoice ?? state.pending?.source ?? state.turn : state.turn;
-        yourTurn = state.phase === 'playing' && row.seat === seat && state.players[seat]?.kind === 'human';
-        if (yourTurn) turnKey = `${state.round}:${seat}`;
+        const decision=resolveDriver(row).decision(row.state);
+        yourTurn=decision?.seat===row.seat;
+        if(yourTurn)turnKey=decision!.key;
       }
       return { code: row.code, game: row.game_slug, gameName: row.game_name, status: row.status,
         development: row.development, yourTurn, turnKey };
@@ -162,17 +168,17 @@ export async function getRoomSync(pool: Pool, actor: string | null, code: string
     if(!row || (row.status==="abandoned" && row.state===null)) throw new MatchError("NOT_FOUND",404,"Sala encerrada ou não encontrada.");
     await authorizeTest(client,row,actor);
     const people=(await participants(client,[row.id])).get(row.id) ?? [];
-    if(row.game_slug==="love-letter" && row.status!=="lobby"){
-      const state=parseLove(row.state),seat=people.find(p=>p.userId===actor)?.seat;
-      return gameRoomSyncSchema.parse({room:loveMatchSchema.parse({development:true,bots:row.bots,onlyBots:row.only_bots,id:row.id,code:row.code,game:row.game_slug,rulesVersion:row.rules_version,version:row.version,hostId:row.owner_id,capacity:row.capacity,options:row.options,participants:people,status:row.status,state:projectLove(state,seat!==undefined && state.players[seat].kind==="human"?seat:null),cancellation:row.status==="playing"?await readCancellation(client,row.id):null}),frames:[],reset:true});
-    }
-    const room=await roomView(client,row,people);
-    if(room.status==="lobby" || afterVersion===0 || afterVersion>row.version) return roomSyncSchema.parse({ room,frames:[],reset:true });
+    const driver=resolveDriver(row);
+    const member=people.find(p=>p.userId===actor);
+    const seat=member && row.state!==null && driver.human(row.state,member.seat)?member.seat:null;
+    const room=await roomView(client,row,people,seat);
+    if(driver.snapshotOnly)return gameRoomSyncSchema.parse({room,frames:[],reset:true});
+    if(room.status==="lobby" || afterVersion===0 || afterVersion>row.version) return gameRoomSyncSchema.parse({ room,frames:[],reset:true });
     const events=await client.query<{ event: unknown }>("select event from game_match_events where match_id=$1 and version>$2 and version<=$3 order by version limit 1001",[row.id,afterVersion,row.version]);
     const frames=events.rows.map(event=>event.event);
-    const parsed=roomSyncSchema.parse({ room,frames,reset:false });
+    const parsed=gameRoomSyncSchema.parse({ room,frames,reset:false });
     const continuous=parsed.frames.every((frame,index)=>frame.version===afterVersion+index+1) && afterVersion+parsed.frames.length===row.version && parsed.frames.length<=1000;
-    return continuous ? parsed : roomSyncSchema.parse({ room,frames:[],reset:true });
+    return continuous ? parsed : gameRoomSyncSchema.parse({ room,frames:[],reset:true });
   });
 }
 export async function getMatch(pool: Pool, actor: string | null, code: string) {
@@ -184,12 +190,14 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
   input=createMatchSchema.parse(input);
   return transaction(pool,actor,sessionHash,async(client,username)=>{
     if(input.development)await requireAdmin(client,actor);
-    if(input.game==="love-letter" && !input.development)throw new MatchError("DEVELOPMENT_ONLY",403,"Este jogo está disponível apenas para testes.");
+    const definition=gameDefinitions[input.game],driver=gameDriver(input.game);
+    if(definition.developmentOnly && !input.development)throw new MatchError("DEVELOPMENT_ONLY",403,"Este jogo está disponível apenas para testes.");
     if(!input.development && (input.bots || input.onlyBots))throw new MatchError("INVALID_INPUT",400,"Bots de teste exigem uma partida de teste.");
     if(input.development && input.entryAmount)throw new MatchError("TEST_ECONOMY",400,"Partidas de teste não movimentam Croins.");
-    const max=input.game==="love-letter"?(input.options.mode==="classic"?4:6):12;
+    const max=definition.maxPlayers(input.options);
     if(input.capacity>max || input.bots+(input.onlyBots?0:1)>input.capacity || (input.onlyBots && input.bots<2))throw new MatchError("INVALID_INPUT",400,"Confira a quantidade de jogadores e bots.");
-    if(input.game==="love-letter")loveOptionsSchema.parse(input.options);else flip7OptionsSchema.parse(input.options);
+    definition.options.parse(input.options);
+    if(input.entryAmount && !definition.croins)throw new MatchError("ECONOMY_UNAVAILABLE",400,"Este jogo não aceita Croins.");
     const payloadHash=hash(input);
     const previous=await client.query("select creation_hash,creation_response from game_matches where created_by=$1 and creation_request_id=$2",[actor,input.requestId]);
     if(previous.rows[0]) {
@@ -211,29 +219,31 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
     return response;
   }, true);
 }
-async function recordFrames(client: PoolClient, id: string, frames: MatchFrame[]) {
+async function recordFrames(client: PoolClient, id: string, frames: Frame[]) {
   for(const frame of frames) await client.query("insert into game_match_events(match_id,version,event) values($1,$2,$3)",[id,frame.version,JSON.stringify(frame)]);
 }
 async function replaceParticipant(client: PoolClient, row: Row, people: MatchParticipant[], seat: number) {
+  const driver=resolveDriver(row);
   const before=driver.project(driver.parse(row.state));
   const state=driver.replace(driver.parse(row.state),seat);
   const version=row.version+1;
-  const replacement: MatchFrame={action:{type:"replace",seat},state:driver.project(state),version};
+  const replacement: Frame={action:{type:"replace",seat},state:driver.project(state),version};
   await client.query("update game_match_players set controller_id=null,kind='bot' where match_id=$1 and seat=$2",[row.id,seat]);
-  const humans=people.filter(person=>state.players[person.seat].kind==="human");
+  const humans=people.filter(person=>driver.human(state,person.seat));
   if(!humans.some(person=>person.userId===row.owner_id) && humans.length)row.owner_id=humans[0].userId;
   // Development bots finish automatically even after the last human leaves.
   const result=humans.length || row.development ? execute(driver,state,version) : {state,version,frames:[],status:"abandoned" as const};
-  return {...result,before,frames:[replacement,...result.frames]};
+  return {...result,before,frames:[replacement,...result.frames.map(frame=>({...frame,action:driver.eventAction(frame.action)}))]};
 }
 export async function kickMatch(pool: Pool, actor: string, sessionHash: string, code: string, input: KickMatch) {
   return transaction(pool,actor,sessionHash,async client=>{
     const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]);const row=found.rows[0];
     if(!row)throw new MatchError("NOT_FOUND",404,"Sala não encontrada.");
-    if(row.game_slug!=="flip7" && row.status!=="lobby")throw new MatchError("LOBBY_CLOSED",409,"Só é possível remover jogadores no lobby deste jogo.");
+    const driver=resolveDriver(row);
+    if(!gameDefinitions[row.game_slug].kickDuringPlay && row.status!=="lobby")throw new MatchError("LOBBY_CLOSED",409,"Só é possível remover jogadores no lobby deste jogo.");
     const payloadHash=hash({actor,kind:"kick",input});
     const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
-    if(receipt.rows[0]){if(receipt.rows[0].payload_hash!==payloadHash)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado.");return roomSchema.parse(receipt.rows[0].response);}
+    if(receipt.rows[0]){if(receipt.rows[0].payload_hash!==payloadHash)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado.");return gameRoomSchema.parse(receipt.rows[0].response);}
     if(row.owner_id!==actor)throw new MatchError("HOST_ONLY",403,"Somente o host pode expulsar participantes.");
     if(row.version!==input.expectedVersion || !["lobby","playing"].includes(row.status))throw new MatchError("VERSION_CONFLICT",409,"A sala mudou. Confira os participantes e tente novamente.");
     const people=(await participants(client,[row.id])).get(row.id) ?? [];
@@ -246,13 +256,13 @@ export async function kickMatch(pool: Pool, actor: string, sessionHash: string, 
       await client.query("delete from game_match_players where match_id=$1 and user_id=$2",[row.id,input.targetUserId]);
       currentPeople=people.filter(person=>person.userId!==input.targetUserId);row.version++;
     }else{
-      if(!target || driver.parse(row.state).players[target.seat].kind!=="human")throw new MatchError("INVALID_TARGET",409,"Um bot já controla esta vaga.");
+      if(!target || !driver.human(row.state,target.seat))throw new MatchError("INVALID_TARGET",409,"Um bot já controla esta vaga.");
       const result=await replaceParticipant(client,row,people,target.seat);
       row.state=result.state;row.version=result.version;row.status=result.status;
       await recordFrames(client,row.id,result.frames);
     }
     await client.query("update game_matches set owner_id=$2,version=$3,status=$4,state=$5,updated_at=clock_timestamp() where id=$1",[row.id,row.owner_id,row.version,row.status,row.state===null?null:JSON.stringify(row.state)]);
-    if(!row.development && row.state!==null)await settleMatch(client,row.id,row.code,row.status,driver.project(driver.parse(row.state)));
+    if(!row.development && row.state!==null)await settleMatch(client,row.id,row.code,row.status,driver.outcome(row.state));
     const response=await roomView(client,row,currentPeople);
     await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
     return response;
@@ -265,6 +275,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
     const payloadHash=hash({actor,kind,input});
     const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
     if(receipt.rows[0]) { if(receipt.rows[0].payload_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado."); return lobbyActionResultSchema.parse(receipt.rows[0].response); }
+    const driver=resolveDriver(row),definition=gameDefinitions[row.game_slug];
     if(row.status!=="lobby") throw new MatchError("LOBBY_CLOSED",409,"Esta sala não está mais aberta.");
 
     await client.query("delete from game_match_players where match_id=$1 and user_id is null",[row.id]);
@@ -302,7 +313,9 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       if(settings.capacity<people.length+(await reservations(client,row.id)).length) throw new MatchError("CAPACITY_TOO_SMALL",409,"O limite não pode ser menor que a quantidade de participantes.");
       if(Number(row.entry_amount)!==settings.entryAmount)await client.query("update game_match_players set confirmed_entry_amount=$2 where match_id=$1",[row.id,settings.entryAmount>0 && settings.entryAmount<Number(row.entry_amount)?settings.entryAmount:null]);
       if(row.development && settings.entryAmount)throw new MatchError("TEST_ECONOMY",400,"Partidas de teste não movimentam Croins.");
-      if(row.game_slug==="love-letter"){loveOptionsSchema.parse(settings.options);if(settings.capacity>(settings.options.mode==="classic"?4:6))throw new MatchError("INVALID_INPUT",400,"Quantidade inválida para este modo.");}
+      definition.options.parse(settings.options);
+      if(settings.capacity>definition.maxPlayers(settings.options))throw new MatchError("INVALID_INPUT",400,"Quantidade inválida para este modo.");
+      if(settings.entryAmount && !definition.croins)throw new MatchError("ECONOMY_UNAVAILABLE",400,"Este jogo não aceita Croins.");
       if(settings.capacity<people.length+row.bots+(await reservations(client,row.id)).length)throw new MatchError("CAPACITY_TOO_SMALL",409,"Não há vagas suficientes.");
       row.entry_amount=String(settings.entryAmount);
       row.capacity=settings.capacity; row.options=settings.options; row.version++;
@@ -325,31 +338,21 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       if(!row.development)await leaveOtherLobbies(client,row.id,people.map(person=>person.userId),row.game_slug);
       await client.query("update game_match_players set seat=seat+100 where match_id=$1",[row.id]);
       for(const [index,person] of people.entries()) { await client.query("update game_match_players set seat=$3 where match_id=$1 and user_id=$2",[row.id,person.userId,index]); person.seat=index; }
-      if(row.game_slug==="love-letter"){
-        const setup=[...people.map(p=>({name:p.displayName || p.username,kind:"human" as const})),...Array.from({length:row.bots},(_,i)=>({name:`Bot ${i+1}`,kind:"normal" as const}))];
-        const initial=createLove(setup,loveOptionsSchema.parse(row.options).mode);
-        const state=row.only_bots?initial:automateLove(initial);
-        await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(state),state.phase==="over"?"finished":"playing"]);
-        await client.query("insert into game_match_events(match_id,version,event) values($1,$2,$3)",[row.id,row.version+1,JSON.stringify({action:{type:"start"},version:row.version+1,state:projectLove(state,null)})]);
-        const response={code:row.code,status:"started" as const};
-        await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
-        return response;
-      }
       if(!row.development)await fundMatch(client,row.id,row.code,Number(row.entry_amount),people);
-      const initial=driver.create({onlyBots:row.only_bots,setup:[...people.map(person=>({name:person.displayName || person.username,kind:"human" as const})),...Array.from({length:row.bots ?? 0},(_,i)=>({name:`Bot ${i+1}`,kind:"normal" as const}))],options:flip7OptionsSchema.parse(row.options)},people[0]?.displayName || people[0]?.username || "Observador");
+      const initial=driver.create({onlyBots:row.only_bots,setup:[...people.map(person=>({name:person.displayName || person.username,kind:"human" as const})),...Array.from({length:row.bots ?? 0},(_,i)=>({name:`Bot ${i+1}`,kind:"normal" as const}))],options:row.options},people[0]?.displayName || people[0]?.username || "Observador");
       const result=row.only_bots?{state:initial,before:driver.project(initial),version:row.version+1,status:"playing" as const,frames:[]}:execute(driver,initial,row.version+1);
       row.state=result.state; row.version=result.version; row.status=result.status;
-      await recordFrames(client,row.id,[{action:{type:"start"},state:result.before,version:result.frames[0]?.version ? result.frames[0].version-1 : row.version},...result.frames]);
+      await recordFrames(client,row.id,[{action:{type:"start"},state:result.before,version:result.frames[0]?.version ? result.frames[0].version-1 : row.version},...result.frames.map(frame=>({...frame,action:driver.eventAction(frame.action)}))]);
     }
     await client.query("update game_matches set owner_id=$2,version=$3,status=$4,state=$5,capacity=$6,options=$7,entry_amount=$8,updated_at=clock_timestamp() where id=$1",[row.id,row.owner_id,row.version,row.status,row.state===null?null:JSON.stringify(row.state),row.capacity,JSON.stringify(row.options),row.entry_amount]);
-    if(!row.development && row.state!==null)await settleMatch(client,row.id,row.code,row.status,driver.project(driver.parse(row.state)));
+    if(!row.development && row.state!==null)await settleMatch(client,row.id,row.code,row.status,driver.outcome(row.state));
     const currentPeople=(await participants(client,[row.id])).get(row.id) ?? [];
     const response=row.status==="abandoned" ? {code:row.code,status:"closed"} : await roomView(client,row,currentPeople);
     await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
     return response;
   }, true);
 }
-export async function commandMatch(pool: Pool, actor: string, sessionHash: string, code: string, input: MatchCommand | {commandId:string;expectedVersion:number}, abandon=false) {
+export async function commandMatch(pool: Pool, actor: string, sessionHash: string, code: string, input: GameCommand | {commandId:string;expectedVersion:number}, abandon=false) {
   return transaction(pool,actor,sessionHash,async client=>{
     const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]); const row=found.rows[0];
     if(!row) throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
@@ -358,22 +361,23 @@ export async function commandMatch(pool: Pool, actor: string, sessionHash: strin
     if(!member) throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
     const payloadHash=hash({actor,abandon,input});
     const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
-    if(receipt.rows[0]) { if(receipt.rows[0].payload_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado."); return matchResultSchema.parse(receipt.rows[0].response); }
+    if(receipt.rows[0]) { if(receipt.rows[0].payload_hash!==payloadHash) throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado."); return gameMatchResultSchema.parse(receipt.rows[0].response); }
     if(row.version!==input.expectedVersion || row.status!=="playing") throw new MatchError("VERSION_CONFLICT",409,"A partida mudou. Sincronize para continuar.");
-    if(row.game_slug!=="flip7")throw new MatchError("INVALID_INPUT",400,"Use os comandos deste jogo.");
+    await authorizeTest(client,row,actor);
+    const driver=resolveDriver(row);
     const state=driver.parse(row.state);
-    if(state.players[member.seat].kind!=="human")throw new MatchError("PARTICIPATION_ENDED",403,"Um bot já controla sua vaga.");
+    if(!driver.human(state,member.seat))throw new MatchError("PARTICIPATION_ENDED",403,"Um bot já controla sua vaga.");
     if(!abandon) {
       const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
       if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
-      const decision=state.bonusChoice ?? state.pending?.source ?? state.turn;
+      const decision=driver.decision(state)?.seat;
       if(member.seat!==decision) throw new MatchError("NOT_YOUR_TURN",403,"Aguarde sua vez.");
     }
     const result=abandon ? await replaceParticipant(client,row,people,member.seat) : execute(driver,state,row.version,"action" in input?input.action:undefined);
-    if(!row.development)await settleMatch(client,row.id,row.code,result.status,driver.project(result.state));
-    const match=matchSchema.parse(await roomView(client,{...row,...result},people));
-    const response=matchResultSchema.parse({match,before:result.before,frames:result.frames});
-    await recordFrames(client,row.id,response.frames);
+    if(!row.development)await settleMatch(client,row.id,row.code,result.status,driver.outcome(result.state));
+    const frames=result.frames.map(frame=>({...frame,action:frame.action.type==="replace" || frame.action.type==="start"?frame.action:driver.eventAction(frame.action)}));
+    const response=driver.snapshotOnly?{ok:true as const}:gameExecutionResultSchema.parse({match:await roomView(client,{...row,...result},people),before:result.before,frames});
+    await recordFrames(client,row.id,frames);
     await client.query("update game_matches set state=$2,version=$3,status=$4,owner_id=$5,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(result.state),result.version,result.status,row.owner_id]);
     await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
     return response;
@@ -457,25 +461,6 @@ async function authorizeTest(client:Client,row:Row,actor:string|null){
  const allowed=await client.query(`select 1 where $1::uuid=$2::uuid or exists(select 1 from game_match_players where match_id=$3 and user_id=$1) or exists(select 1 from game_match_invitations where match_id=$3 and recipient_id=$1 and expires_at>clock_timestamp())`,[actor,row.owner_id,row.id]);
  if(!allowed.rows.length)throw new MatchError("NOT_FOUND",404,"Sala não encontrada.");
 }
-export async function commandLove(pool:Pool,actor:string,sessionHash:string,code:string,input:{commandId:string;expectedVersion:number;action:unknown}){
- return transaction(pool,actor,sessionHash,async client=>{
- const result=await client.query<Row>("select * from game_matches where code=$1 for update",[code]);const row=result.rows[0];
- if(!row || row.game_slug!=="love-letter")throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
- await authorizeTest(client,row,actor);
- const digest=hash(input);const receipt=await client.query("select payload_hash from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
- if(receipt.rows[0]){if(receipt.rows[0].payload_hash!==digest)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já usado.");return {ok:true};}
- if(row.status!=="playing" || row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou.");
- const people=(await participants(client,[row.id])).get(row.id) ?? [];const state=parseLove(row.state);
- if(people.find(p=>p.userId===actor)?.seat!==state.turn)throw new MatchError("NOT_YOUR_TURN",403,"Aguarde sua vez.");
- const action=loveActionSchema.parse(input.action);
- const next=automateLove(applyLove(state,action));
- await client.query("insert into game_match_events(match_id,version,event) values($1,$2,$3)",[row.id,row.version+1,JSON.stringify({action:{type:action.type},version:row.version+1,state:projectLove(next,null)})]);
- await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(next),next.phase==="over"?"finished":"playing"]);
- await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,digest,JSON.stringify({ok:true})]);
- return {ok:true};
- });
-}
-
 export async function stepTest(pool:Pool,actor:string,sessionHash:string,code:string,input:{commandId:string;expectedVersion:number}){
  return transaction(pool,actor,sessionHash,async client=>{
  await requireAdmin(client,actor);
@@ -484,9 +469,11 @@ export async function stepTest(pool:Pool,actor:string,sessionHash:string,code:st
  const digest=hash({kind:"test-step",input});const receipt=await client.query("select payload_hash from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
  if(receipt.rows[0]){if(receipt.rows[0].payload_hash!==digest)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já usado.");return {ok:true as const};}
  if(row.status!=="playing" || row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou.");
- let state:unknown;let finished:boolean;
- if(row.game_slug==="love-letter"){const current=parseLove(row.state);state=applyLove(current,current.phase==="summary"?{type:"next"}:botLove(current));finished=parseLove(state).phase==="over";await client.query("insert into game_match_events(match_id,version,event) values($1,$2,$3)",[row.id,row.version+1,JSON.stringify({action:{type:"step"},version:row.version+1,state:projectLove(parseLove(state),null)})]);}
- else{const current=driver.parse(row.state),action=driver.automatic(current);if(!action)throw new MatchError("NO_AUTOMATION",409,"Não há jogada automática.");const next=driver.apply(current,action);state=next;finished=driver.finished(next);await recordFrames(client,row.id,[{action,state:driver.project(next),version:row.version+1}]);}
+ const driver=resolveDriver(row),current=driver.parse(row.state),action=driver.automatic(current);
+ if(!action)throw new MatchError("NO_AUTOMATION",409,"Não há jogada automática.");
+ const state=driver.apply(current,action),finished=driver.finished(state);
+ driver.parse(state);
+ await recordFrames(client,row.id,[{action:driver.eventAction(action),state:driver.project(state),version:row.version+1}]);
  await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(state),finished?"finished":"playing"]);
  await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,digest,JSON.stringify({ok:true})]);
  return {ok:true as const};
@@ -544,20 +531,6 @@ export async function collectiveCancellation(pool:Pool,actor:string,sessionHash:
  return {ok:true as const};
  },true);
 }
-export async function abandonLove(pool:Pool,actor:string,sessionHash:string,code:string,input:{commandId:string;expectedVersion:number}){
- return transaction(pool,actor,sessionHash,async client=>{
- const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]),row=found.rows[0];
- if(!row || row.game_slug!=="love-letter" || !row.development)throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
- const digest=hash({kind:"abandon-love",input});const previous=await client.query("select payload_hash from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
- if(previous.rows[0]){if(previous.rows[0].payload_hash!==digest)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado.");return {ok:true as const};}
- if(row.status!=="playing" || row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou.");
- const person=(await client.query<{seat:number}>("select seat from game_match_players where match_id=$1 and controller_id=$2",[row.id,actor])).rows[0];
- if(!person)throw new MatchError("NOT_A_PARTICIPANT",403,"Você não controla uma vaga nesta partida.");
- const state=parseLove(row.state);state.players[person.seat].kind="normal";
- await client.query("update game_match_players set controller_id=null,kind='bot' where match_id=$1 and seat=$2",[row.id,person.seat]);
- const next=automateLove(state);
- await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(next),next.phase==="over"?"finished":"playing"]);
- await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,digest,JSON.stringify({ok:true})]);
- return {ok:true as const};
- },true);
-}
+// Compatibility aliases for clients already open during deployment.
+export const commandLove = (pool:Pool,actor:string,session:string,code:string,input:GameCommand)=>commandMatch(pool,actor,session,code,input).then(()=>({ok:true as const}));
+export const abandonLove = (pool:Pool,actor:string,session:string,code:string,input:{commandId:string;expectedVersion:number})=>commandMatch(pool,actor,session,code,input,true).then(()=>({ok:true as const}));

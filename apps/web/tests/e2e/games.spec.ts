@@ -1,6 +1,6 @@
 import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { Server as SocketServer } from "socket.io";
-import { gameRoomSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
+import { gameRoomSchema, realtimeRequestSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test } from "@playwright/test";
 import type { GameRecord } from "@croebet/shared";
@@ -20,6 +20,7 @@ let api: Server;
 let sockets: SocketServer;
 let loveRoom: ReturnType<typeof gameRoomSchema.parse> | null = null;
 let personalMatches: PersonalMatches = {items:[]};
+let gameCommands:unknown[]=[];
 let roomWatches: { code: string; afterVersion: number }[] = [];
 function respond(path: string, method: string, body: Record<string, unknown> = {}): { status: number; data: unknown } {
   const url=new URL(path,"http://fixture");
@@ -72,6 +73,12 @@ test.beforeAll(async () => {
   sockets = new SocketServer(api,{path:"/api/v1/realtime",addTrailingSlash:false});
   sockets.on("connection",socket=>{
     socket.emit("personal-matches",personalMatches);
+    socket.on("request",(value,ack)=>{
+      const request=realtimeRequestSchema.parse(value);
+      if(request.type==="command"){gameCommands.push(request.input.action);ack?.({ok:true,data:{ok:true}});}
+      else if(request.type==="abandon")ack?.({ok:true,data:{ok:true}});
+      else ack?.({ok:false,error:{code:"UNSUPPORTED",message:"Operação não configurada na fixture."}});
+    });
     socket.on("watch",(request,ack)=>{
       ack?.({ok:true,data:{}});
       if(loveRoom && request.active!==false && request.code===loveRoom.code){
@@ -89,7 +96,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await new Promise<void>(resolve => sockets.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  loveRoom = null;roomWatches=[];personalMatches={items:[]};
+  loveRoom = null;roomWatches=[];gameCommands=[];personalMatches={items:[]};
   game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null; sessionRole = "admin";
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
@@ -368,8 +375,7 @@ function prepareLoveTable() {
 
 test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe histórico",async({page},testInfo)=>{
  prepareLoveTable();
- const commands:unknown[]=[];
- await page.route("**/api/v1/matches/ABCDEF654321/love-command",async route=>{commands.push(route.request().postDataJSON().action);await route.fulfill({json:{ok:true}});});
+ const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const table=page.getByLabel("Mesa do Love Letter");
  await expect(table.getByRole("status")).toHaveText("Sua vez");
@@ -407,8 +413,7 @@ test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxim
  const state=loveRoom.state;
  state.pending=true;state.players[0].hand=[1,4,9];state.players[0].handCount=3;
  state.legalActions=[{type:"keep",cards:[9,1,4]},{type:"keep",cards:[9,4,1]}];
- const commands:unknown[]=[];
- await page.route("**/api/v1/matches/ABCDEF654321/love-command",async route=>{commands.push(route.request().postDataJSON().action);await route.fulfill({json:{ok:true}});});
+ const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  await page.getByLabel("Carta para manter e ordem no fundo").selectOption("1");
  await page.getByRole("button",{name:"Confirmar escolha",exact:true}).click();
@@ -479,4 +484,19 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
  await expect(page.getByRole("link",{name:"Voltar à partida de Love Letter"})).toBeVisible();
  personalMatches={items:[]};sockets.emit("personal-matches",personalMatches);
  await expect(page.getByRole("link",{name:"Voltar à partida de Love Letter"})).toHaveCount(0);
+});
+
+test("configurações declaradas pelo jogo respeitam limites e guardam a escolha pessoal",async({page})=>{
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
+ await page.goto("/jogos/love-letter?teste=1");
+ const mode=page.getByLabel("Modo do Love Letter"),count=page.getByLabel("Número de jogadores",{exact:true});
+ await expect(count.locator("option")).toHaveCount(3);
+ await mode.selectOption("modern");
+ await expect(count.locator("option")).toHaveCount(5);
+ await count.selectOption("6");
+ await page.reload();
+ await expect(mode).toHaveValue("modern");await expect(count).toHaveValue("6");
+ await mode.selectOption("classic");
+ await expect(count).toHaveValue("4");
+ await page.reload();await expect(mode).toHaveValue("classic");await expect(count).toHaveValue("4");
 });

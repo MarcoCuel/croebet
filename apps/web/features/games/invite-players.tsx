@@ -1,10 +1,10 @@
 "use client";
-import { gameUrl } from "../game-url";
+import { gameUrl } from "./game-url";
 import { useEffect, useState } from "react";
 import { Check, Copy, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { commandResultSchema, lobbyPlayersSchema, type LobbyPlayers } from "@croebet/shared";
-import { realtimeRequest } from "../realtime";
+import { realtimeRequest } from "./realtime";
 import { managementRequest } from "@/features/admin/management-api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
