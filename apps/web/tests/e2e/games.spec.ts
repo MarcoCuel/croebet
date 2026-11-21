@@ -2,8 +2,33 @@ import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { Server as SocketServer } from "socket.io";
 import { gameRoomSchema, realtimeRequestSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import type { GameRecord } from "@croebet/shared";
+
+async function checkTableControls(page: Page, table: Locator, desktop: boolean) {
+ const controls = page.getByLabel("Controles da partida", {exact:true});
+ const fullscreen = controls.getByRole("button", {name:"Tela cheia", exact:true});
+ const toggle = controls.getByRole("button", {name:"Esconder histórico", exact:true});
+ await expect(fullscreen).toBeVisible();
+ await expect(toggle).toHaveAttribute("aria-expanded", "true");
+ expect(await toggle.evaluate(el => el.previousElementSibling?.getAttribute("aria-label"))).toBe("Tela cheia");
+ const panel = page.getByRole("complementary", {name:"Histórico da partida"});
+ await expect(toggle).toHaveAttribute("aria-controls", await panel.getAttribute("id") ?? "");
+ if (desktop) {
+  const panelBox = await panel.boundingBox();
+  const tableBox = await table.boundingBox();
+  expect(panelBox!.width).toBeCloseTo(224, 0);
+  expect(panelBox!.x).toBeGreaterThan(tableBox!.x + tableBox!.width);
+ }
+ await fullscreen.click();
+ await expect(controls.getByRole("button", {name:"Sair da tela cheia", exact:true})).toBeVisible();
+ await expect(panel).toBeVisible();
+ await controls.getByRole("button", {name:"Sair da tela cheia", exact:true}).click();
+ await toggle.click();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toHaveCount(0);
+ await page.getByRole("button",{name:"Mostrar histórico",exact:true}).click();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeVisible();
+}
 
 const id = "93089d02-0b34-4b78-9d3e-f2679c190b5c";
 const matchId = "93089d02-0b34-4b78-9d3e-f2679c190b5a";
@@ -276,7 +301,7 @@ test("editor de jogos salva configurações e SEO pelo aside", async ({ page }) 
   expect(game.seo.description).toBe("Descrição para buscas.");
 });
 
-test("histórico abre o link original com resultado; Replay usa a mesa e a barra inferior", async ({ page }) => {
+test("histórico abre o link original com resultado; Replay usa a mesa e a barra inferior", async ({ page }, testInfo) => {
   sessionRole="user";
   const requests:string[]=[];
   page.on("request",request=>{if(request.url().includes("/matches/"))requests.push(request.url());});
@@ -300,6 +325,7 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   const controls=page.locator("[data-flip7-controls]");
   await expect(controls.getByLabel("Controles de reprodução")).toBeVisible();
   await controls.getByRole("button",{name:"Pausar",exact:true}).click();
+  await checkTableControls(page, page.getByRole("region",{name:"Mesa de Flip7",exact:true}).getByLabel("Controles da partida", {exact:true}).locator("../.."), testInfo.project.name === "desktop");
   await controls.getByRole("button",{name:"Início",exact:true}).click();
   await expect(page.getByText("Jogada registrada 1.",{exact:true})).toBeVisible();
   await controls.getByRole("button",{name:"Próxima jogada",exact:true}).click();
@@ -420,10 +446,7 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await submit.click();
  await expect.poll(()=>commands.length).toBe(2);
  expect(commands[1]).toEqual({type:"play",card:4});
- await page.getByRole("button",{name:"Ocultar histórico",exact:true}).click();
- await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toHaveCount(0);
- await page.getByRole("button",{name:"Histórico",exact:true}).click();
- await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeVisible();
+ await checkTableControls(page, table, testInfo.project.name === "desktop");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});
 });

@@ -5,6 +5,7 @@ import { gameUrl } from "../game-url";
 import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
+import { GameTableLayout } from "../game-table-layout";
 import { GameControls } from "../game-controls";
 import { useGameAudio } from "../use-game-audio";
 import { randomUUID } from "@/lib/uuid";
@@ -17,7 +18,7 @@ import type { GameRecord, MatchFrame, MatchCommand, RoomSync, MatchParticipant }
 import type { InitialMatches } from "./server-matches";
 import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
-import { LogOut, BookOpen, PanelRightClose, PanelRightOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X } from "lucide-react";
+import { LogOut, BookOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -228,7 +229,6 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const resolvingCardFinished = !!resolvingCard && !game?.forced;
   const [leaving, setLeaving] = useState(false);
   const leavingRef = useRef(false);
-  const [historyVisible, setHistoryVisible] = useState(true);
   const gameRef = useRef<Game | null>(game);
   const [presentationBefore, setPresentationBefore] = useState<Game | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -638,12 +638,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       </div>
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
-      <div className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30">
-        <Button variant="secondary" size="icon" className="rounded-full border border-contrast/6 shadow-sm" aria-label={historyVisible ? "Esconder histórico" : "Mostrar histórico"} title={historyVisible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={historyVisible} aria-controls="flip7-history" disabled={!!flight || !!movingCards} onClick={() => setHistoryVisible(visible => !visible)}>
-          {historyVisible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
-        </Button>
-      </div>
-      <div className={cn("grid items-start transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", historyVisible ? "gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_14rem]" : "gap-0 @[60rem]:grid-cols-[minmax(0,1fr)_0rem]")}>
+      <GameTableLayout history={<GameLog game={visibleGame} participants={tableParticipants} />}>
         <div className={cn("min-w-0", replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
@@ -651,7 +646,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push(gameUrl(gameSlug))}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}
-            <GameControls audio={audio} developmentControls={testControls}>
+            <GameControls historyDisabled={!!flight || !!movingCards} audio={audio} developmentControls={testControls}>
             {exitControl}
             {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(gameUrl(gameSlug,{development:initial.match?.development && permissions.canManageSite}))}><LogOut className="size-4" aria-hidden="true"/></Button>}
             {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
@@ -749,15 +744,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             })}
           </div>
         </div>
-        <div className={cn("grid min-w-0 overflow-clip transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:self-stretch", historyVisible ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
-          <aside id="flip7-history" inert={!historyVisible} aria-hidden={!historyVisible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none @[60rem]:sticky @[60rem]:top-[calc(var(--header-height)+1rem)] @[60rem]:w-56 @[60rem]:self-start", !historyVisible && "invisible translate-x-full")} aria-label="Histórico da partida">
-            {/* Reserve a 1rem gap above and below the panel; padding scrolls with its content. */}
-            <div className="max-h-[max(0rem,calc(100dvh-var(--header-height)-2rem))] overflow-y-auto rounded-panel bg-surface p-4 text-xs leading-relaxed text-muted" data-lenis-prevent>
-              <GameLog game={visibleGame} participants={tableParticipants} />
-            </div>
-          </aside>
-        </div>
-      </div>
+      </GameTableLayout>
       <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
           <Flip7Result game={displayGame} match={replay?.metadata ?? matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />

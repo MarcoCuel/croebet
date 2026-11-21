@@ -123,7 +123,7 @@ function Message({message,admin,refresh,close}:{message:ChatMessage;admin:boolea
     try{await action();refresh();}catch(error){toast.error(messageError(error));}finally{setBusy(false);}
   }
   return <li className="group/message relative flex gap-2" data-message-id={message.id} data-menu-open={menuOpen} tabIndex={admin ? 0 : undefined}>
-    <Avatar className="mt-0.5 size-7"><AvatarImage src={message.avatarUrl??undefined}/><AvatarFallback>{message.name.slice(0,1).toUpperCase()}</AvatarFallback></Avatar>
+    <Avatar className="mt-1 size-10"><AvatarImage src={message.avatarUrl??undefined}/><AvatarFallback>{message.name.slice(0,1).toUpperCase()}</AvatarFallback></Avatar>
     <div className="min-w-0 flex-1">
       <div className="flex items-baseline gap-2"><span className="truncate text-sm font-semibold">{message.username?<Link href={`/perfil/${encodeURIComponent(message.username)}`} onClick={close}>{message.name}</Link>:message.name}</span><time className="shrink-0 text-[0.625rem] text-muted" dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString("pt-BR")}>{time(message.createdAt)}</time></div>
       <p className={message.deleted?"mt-0.5 text-sm italic text-muted":"mt-0.5 whitespace-pre-wrap text-sm wrap-anywhere"}>{message.deleted?"Mensagem removida":message.text}</p>

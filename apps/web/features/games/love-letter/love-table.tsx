@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Eye, Feather, Heart, History, Mail, Search, Shield, Swords, UserRound, X, type LucideIcon } from "lucide-react";
+import { Crown, Eye, Feather, Heart, Mail, Search, Shield, Swords, UserRound, type LucideIcon } from "lucide-react";
 import type { LoveAction, LoveView, MatchParticipant } from "@croebet/shared";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,6 @@ function CardFace({ value, mode, small = false, compact = false }: { value?: num
 }
 
 export function LoveTable({ state, busy, play, viewerSeat, participants }: Props) {
-  const [historyOpen, setHistoryOpen] = useState(true);
   const names = state.mode === "classic" ? classic : modern;
   const me = viewerSeat === undefined ? undefined : state.players[viewerSeat];
   const opponents = state.players.map((player, seat) => ({ player, seat })).filter(({ seat }) => seat !== viewerSeat);
@@ -61,11 +60,9 @@ export function LoveTable({ state, busy, play, viewerSeat, participants }: Props
     </div>;
   }
 
-  return <div className={cn("grid items-start gap-6 pb-6", historyOpen && "xl:grid-cols-[minmax(0,1fr)_17rem]")}>
-    <section aria-label="Mesa do Love Letter" className="min-w-0">
+  return <section aria-label="Mesa do Love Letter" className="min-w-0 pb-6">
       <div className="flex min-h-11 items-center justify-between gap-3 border-b border-contrast/6 pb-3">
         <p className="text-sm text-muted">Rodada <span className="font-medium text-foreground">{state.round}</span></p>
-        <Button variant="ghost" size="sm" aria-expanded={historyOpen} aria-controls="love-history" onClick={() => setHistoryOpen(!historyOpen)}><History aria-hidden className="size-4" />{historyOpen ? "Ocultar histórico" : "Histórico"}</Button>
       </div>
 
       <div className={cn("flex gap-3 overflow-x-auto pt-5 pb-2 sm:grid sm:overflow-visible sm:pb-0", opponents.length > 3 ? "sm:grid-cols-3 lg:grid-cols-5" : opponents.length === 3 ? "sm:grid-cols-3" : opponents.length === 1 ? "mx-auto max-w-sm sm:grid-cols-1" : "sm:grid-cols-2")}>
@@ -91,13 +88,7 @@ export function LoveTable({ state, busy, play, viewerSeat, participants }: Props
       {me && viewerSeat !== undefined && <div className="mx-auto mt-5 flex max-w-lg flex-wrap items-center justify-center gap-4">{playerInfo(viewerSeat)}{discards(viewerSeat)}</div>}
       {state.privateInfo.length > 0 && <div className="mx-auto mt-5 max-w-lg space-y-1 rounded-panel bg-contrast/6 p-4 text-sm" aria-label="Informações privadas">{state.privateInfo.map((info, index) => <p key={index}>{info}</p>)}</div>}
       {state.removed.length > 0 && <p className="mt-6 text-center text-xs text-muted">Cartas fora da rodada: {state.removed.map(card => `${card} · ${names[card]}`).join(", ")}</p>}
-    </section>
-
-    {historyOpen && <aside id="love-history" aria-label="Histórico da partida" className="rounded-panel bg-surface p-4 xl:sticky xl:top-24">
-      <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Histórico</h2><Button variant="ghost" size="icon-sm" aria-label="Fechar histórico" onClick={() => setHistoryOpen(false)}><X aria-hidden className="size-4" /></Button></div>
-      <ol data-lenis-prevent className="max-h-72 space-y-0 overflow-y-auto xl:max-h-[calc(100dvh-15rem)]">{state.log.length ? [...state.log].reverse().map((line, index) => <li key={index} className="border-b border-contrast/6 py-3 text-sm leading-relaxed text-muted last:border-0">{line}</li>) : <li className="py-3 text-sm text-muted">Aguardando a primeira jogada.</li>}</ol>
-    </aside>}
-  </div>;
+    </section>;
 }
 
 function LoveHand({ state, busy, play, viewerSeat }: Props) {
