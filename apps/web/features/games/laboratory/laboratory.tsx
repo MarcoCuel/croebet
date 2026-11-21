@@ -2,13 +2,15 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Component, useEffect, useReducer, useState, type ReactNode } from "react";
-import { ArrowLeft, RotateCcw, Save } from "lucide-react";
+import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, RotateCcw, Save, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+  DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { handWindow } from "@/three/table/layout";
-import { Card } from "@/components/ui/card";
+import type { TableMenuTarget } from "@/three/table/interaction";
 import { initialState, laboratoryReducer, defaultSettings, parseSettings, type LaboratorySettings } from "./model";
 
 const Scene = dynamic(() => import("@/three/table/laboratory-scene"), {
@@ -29,13 +31,21 @@ function NumberControl({ label, value, min, max, step = 1, onChange }: {
     if (Number.isFinite(next)) onChange(Math.max(min, Math.min(max, step === 1 ? Math.round(next) : next)));
   }} /></Field>;
 }
+function LightControl({ label, value, min, max, step, disabled, onChange }: {
+  label: string; value: number; min: number; max: number; step: number; disabled?: boolean; onChange: (value: number) => void;
+}) {
+  return <Field><span className="flex items-center justify-between gap-3">{label}<span className="text-xs tabular-nums text-muted">{value.toFixed(2)}</span></span>
+    <Input type="range" value={value} min={min} max={max} step={step} disabled={disabled} onChange={event => onChange(event.currentTarget.valueAsNumber)} className="h-5 min-h-5 cursor-pointer border-0 bg-transparent p-0 accent-brand" />
+  </Field>;
+}
 const storageKey = "croebet:table-laboratory:v1";
 export function GameLaboratory() {
   const [settings, setSettings] = useState<LaboratorySettings>(defaultSettings);
   const [state, dispatch] = useReducer(laboratoryReducer, defaultSettings, initialState);
-  const [selected, setSelected] = useState<string | null>(null);
   const [focus, setFocus] = useState(0);
-  const [targetSeat, setTargetSeat] = useState(1);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [menu, setMenu] = useState<{ target: TableMenuTarget; x: number; y: number } | null>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
@@ -46,25 +56,23 @@ export function GameLaboratory() {
   }, []);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
-    setSettings(next); dispatch({ type: "reset", settings: next }); setSelected(null); setFocus(0); setMessage("");
+    // Older presets may use a different observer or the redundant line switch.
+    const normalized = { ...next, viewer: 0, layout: "fan" as const, curve: next.layout === "line" ? 0 : next.curve };
+    setSettings(normalized); dispatch({ type: "reset", settings: normalized }); setMenu(null); setFocus(0); setMessage("");
   };
-  const hand = state.hands[settings.viewer]; const count = hand.length;
+  const count = state.hands[settings.viewer].length;
   const window = handWindow(count, settings.spread, settings.scale * 1.3, focus);
-  const chooseViewer = (viewer: number) => { update("viewer", viewer); setFocus(0); setSelected(null); };
-  const changeCount = (value: number) => {
-    update("counts", settings.counts.map((count, index) => index === settings.viewer ? value : count));
-    dispatch({ type: "count", seat: settings.viewer, count: value }); setFocus(0); setSelected(null);
-  };
+  const canDraw = state.deck.length > 0 && count < 1000;
+  const canCollect = state.discard.length > 0 || state.hands.slice(0, settings.players).some(hand => hand.length > 0);
   const draw = () => {
-    if (!state.deck.length || count >= 1000) return;
-    const card = state.deck.at(-1)!;
-    dispatch({ type: "draw", seat: settings.viewer }); setFocus(count); setSelected(card.id);
-    setMessage(`Jogador ${settings.viewer + 1} comprou uma carta.`);
+    if (!canDraw) return;
+    dispatch({ type: "draw", seat: settings.viewer }); setFocus(count);
+    setMessage("Carta comprada.");
   };
-  const discardSelected = () => {
-    if (!selected) return;
-    dispatch({ type: "discard", seat: settings.viewer, id: selected }); setSelected(null); setFocus(Math.min(focus, Math.max(0, count - 2)));
-    setMessage("Carta movida para o descarte.");
+  const discard = (id: string) => {
+    if (!state.hands[settings.viewer].some(card => card.id === id)) return;
+    dispatch({ type: "discard", seat: settings.viewer, id }); setMenu(null);
+    setFocus(Math.min(focus, Math.max(0, count - 2))); setMessage("Carta descartada.");
   };
   const save = () => {
     try {
@@ -86,53 +94,63 @@ export function GameLaboratory() {
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
     dispatch({ type: "shuffle", order }); setMessage("Deck embaralhado.");
   };
-  return <div className="grid min-w-0 gap-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3"><Button asChild size="icon" variant="ghost"><Link href="/admin/jogos" aria-label="Voltar aos jogos"><ArrowLeft className="size-4" /></Link></Button><div><h1 className="text-xl font-semibold">Laboratório de jogos</h1><p className="text-sm text-muted">Mesa 3D · Simulação visual</p></div></div>
-      <Button asChild variant="secondary"><Link href="/admin/jogos/laboratorio/love-letter">Cartas do Love Letter</Link></Button>
-      <Button variant="secondary" onClick={() => reset(defaultSettings)}><RotateCcw className="size-4" aria-hidden />Reiniciar</Button>
-    </div>
-    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
-      <div className="grid min-w-0 gap-4">
-        <div className="relative h-[30rem] overflow-hidden rounded-panel border border-contrast/6 bg-background sm:h-[40rem]" data-lenis-prevent data-testid="laboratory-scene" aria-label="Mesa 3D de teste">
-          <SceneBoundary><Scene settings={settings} state={state} selected={selected} focus={focus} reducedMotion={reducedMotion} onSelect={setSelected} /></SceneBoundary>
-          <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-xs text-muted">Deck: {state.deck.length} · Descarte: {state.discard.length} · Você observa o jogador {settings.viewer + 1}</p>
-        </div>
-        <Card className="grid gap-4">
-          <h2 className="font-semibold">Mão do jogador {settings.viewer + 1} <span className="text-muted">({count})</span></h2>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Ações de teste">
-            <Button onClick={draw} disabled={!state.deck.length || count >= 1000}>Comprar carta</Button>
-            <Button variant="secondary" disabled={!selected} onClick={discardSelected}>Descartar selecionada</Button>
-            <Button variant="secondary" disabled={!selected} onClick={() => { if (selected) dispatch({ type: "flip", seat: settings.viewer, id: selected }); }}>Virar carta</Button>
-            <Button variant="secondary" disabled={!state.deck.length || state.hands.slice(0, settings.players).every(hand => hand.length >= 1000)} onClick={() => { dispatch({ type: "deal", players: settings.players, count: settings.dealCount }); setMessage("Cartas distribuídas em sequência."); }}>Distribuir cartas</Button>
-            <Button variant="secondary" disabled={!state.discard.length && !state.hands.slice(0, settings.players).some(hand => hand.length)} onClick={() => { dispatch({ type: "collect", players: settings.players }); setSelected(null); setFocus(0); setMessage("Cartas recolhidas para o deck."); }}>Recolher cartas</Button>
-            <Button variant="secondary" disabled={state.deck.length < 2} onClick={shuffle}>Embaralhar deck</Button>
-          </div>
-          <div className="flex flex-wrap items-end gap-3"><div className="w-40"><NumberControl label="Trocar com jogador" value={targetSeat + 1} min={1} max={settings.players} onChange={value => setTargetSeat(value - 1)} /></div><Button variant="secondary" disabled={!selected || targetSeat >= settings.players || targetSeat === settings.viewer || state.hands[targetSeat].length >= 1000} onClick={() => { if (selected) dispatch({ type: "swap", seat: settings.viewer, target: targetSeat, id: selected }); setSelected(null); setMessage("Cartas trocadas entre os jogadores."); }}>Trocar cartas</Button></div>
-          <div role="group" aria-label="Selecionar carta da mão" className="flex flex-wrap gap-2">{hand.slice(window.start, window.start + window.length).map((card, index) => <Button key={card.id} size="sm" variant={selected === card.id ? "default" : "secondary"} aria-label={`Selecionar carta ${card.value}, posição ${window.start + index + 1}`} aria-pressed={selected === card.id} onClick={() => setSelected(card.id)}>{card.value}</Button>)}</div>
-          {count > window.length && <div className="flex flex-wrap items-center gap-3"><Button variant="ghost" disabled={window.start === 0} onClick={() => setFocus(Math.max(0, window.start - window.length / 2))}>Anteriores</Button><span className="text-sm text-muted" data-testid="hand-window">{window.start + 1}–{window.start + window.length} de {count}</span><Button variant="ghost" disabled={window.start + window.length >= count} onClick={() => setFocus(window.start + window.length * 1.5)}>Próximas</Button></div>}
-          <p role="status" className="min-h-5 text-sm text-muted">{message || "Selecione uma carta na mesa ou pelos botões acima."}</p>
-        </Card>
-      </div>
-      <Card className="grid gap-5">
+  const openMenu = (target: TableMenuTarget, point: { x: number; y: number }) => {
+    const bounds = sceneRef.current?.getBoundingClientRect(); if (!bounds) return;
+    setMenu({ target, x: point.x - bounds.left, y: point.y - bounds.top });
+  };
+  const menuCard = menu?.target.kind === "card" ? menu.target.id : null;
+  return <div className="grid min-w-0 gap-4">
+    <div className="flex items-center gap-3"><Button asChild size="icon" variant="ghost"><Link href="/admin/jogos" aria-label="Voltar aos jogos"><ArrowLeft className="size-4" /></Link></Button><h1 className="text-xl font-semibold">Laboratório de jogos</h1></div>
+    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-10rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label="Mesa 3D de teste">
+      <SceneBoundary><Scene settings={settings} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
+        canDraw={canDraw} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></SceneBoundary>
+      <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>
+      {configOpen && <aside id="laboratory-settings" aria-label="Configuração da mesa" className="absolute inset-y-16 right-3 z-20 grid w-72 max-w-[calc(100%-1.5rem)] content-start gap-5 overflow-y-auto rounded-panel border border-contrast/6 bg-background/95 p-4 shadow-lg backdrop-blur-md">
         <h2 className="font-semibold">Configuração</h2>
-        <div className="flex flex-wrap gap-2" aria-label="Cenários prontos">{[1, 7, 20, 50].map(amount => <Button key={amount} size="sm" variant="secondary" onClick={() => reset({ ...settings, counts: Array.from({ length: 12 }, () => amount) })}>{amount} cartas</Button>)}</div>
-        <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, viewer: Math.min(current.viewer, players - 1), turn: Math.min(current.turn, players - 1) })); setFocus(0); setSelected(null); setTargetSeat(Math.min(targetSeat, players - 1)); }} />
-        <NumberControl label="Observar jogador" value={settings.viewer + 1} min={1} max={settings.players} onChange={value => chooseViewer(value - 1)} />
-        <NumberControl label="Cartas na mão" value={count} min={0} max={1000} onChange={changeCount} />
-        <NumberControl label="Vez do jogador" value={settings.turn + 1} min={1} max={settings.players} onChange={value => update("turn", value - 1)} />
-        <details open className="grid"><summary className="cursor-pointer text-sm font-semibold">Mãos e cartas</summary><div className="mt-4 grid gap-4">
-          <div className="flex gap-2">{([['fan', 'Leque'], ['line', 'Linha']] as const).map(([value, label]) => <Button key={value} size="sm" variant={settings.layout === value ? "default" : "secondary"} aria-pressed={settings.layout === value} onClick={() => update("layout", value)}>{label}</Button>)}</div>
-          {controls([["spread", "Largura da mão", 2, 9, 0.25], ["curve", "Curvatura", 0, 3, 0.1], ["spacing", "Espaçamento", 0.2, 1.2, 0.05], ["overlap", "Sobreposição", 0, 0.9, 0.05], ["tilt", "Inclinação das cartas", 0, 45], ["scale", "Escala das cartas", 0.5, 1.8, 0.05], ["orientation", "Orientação da mão", -45, 45]])}
+        <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, turn: Math.min(current.turn, players - 1) })); setFocus(0); setMenu(null); }} />
+        <details><summary className="cursor-pointer text-sm font-semibold">Mãos e cartas</summary><div className="mt-4 grid gap-4">
+          {controls([["spread", "Largura da mão", 2, 9, 0.25], ["curve", "Curvatura do leque", 0, 3, 0.1], ["spacing", "Espaçamento", 0.2, 1.2, 0.05], ["overlap", "Sobreposição", 0, 0.9, 0.05], ["tilt", "Inclinação das cartas", 0, 45], ["scale", "Escala das cartas", 0.5, 1.8, 0.05], ["orientation", "Orientação da mão", -45, 45]])}
         </div></details>
-        <details open><summary className="cursor-pointer text-sm font-semibold">Mesa e câmera</summary><div className="mt-4 grid gap-4">{controls([["radius", "Largura dos assentos", 2.5, 7, 0.25], ["depth", "Profundidade dos assentos", 2, 6, 0.25], ["angle", "Ângulo da câmera", 25, 65]])}</div></details>
-        <details><summary className="cursor-pointer text-sm font-semibold">Luz e pilhas</summary><div className="mt-4 grid gap-4">{controls([["light", "Intensidade da luz", 0.5, 5, 0.5], ["ambient", "Luz ambiente", 0.2, 3, 0.1], ["pileHeight", "Altura por carta na pilha", 0.004, 0.008, 0.001]])}
+        <details><summary className="cursor-pointer text-sm font-semibold">Mesa e câmera</summary><div className="mt-4 grid gap-4">{controls([["radius", "Largura dos assentos", 2.5, 7, 0.25], ["depth", "Profundidade dos assentos", 2, 6, 0.25], ["angle", "Ângulo da câmera", 25, 65]])}</div></details>
+        <details><summary className="cursor-pointer text-sm font-semibold">Iluminação</summary><div className="mt-4 grid gap-4">
+          <LightControl label="Luz superior" value={settings.light} min={0} max={2.5} step={0.05} onChange={value => update("light", value)} />
+          <LightControl label="Luz ambiente" value={settings.ambient} min={0} max={1.2} step={0.05} onChange={value => update("ambient", value)} />
+          <LightControl label="Luz do deck" value={settings.pointLight} min={0} max={8} step={0.1} onChange={value => update("pointLight", value)} />
+          <LightControl label="Altura da luz do deck" value={settings.pointHeight} min={1} max={5} step={0.1} onChange={value => update("pointHeight", value)} />
+          <LightControl label="Exposição" value={settings.exposure} min={0.5} max={1.2} step={0.05} onChange={value => update("exposure", value)} />
+          <Button variant="ghost" onClick={() => setSettings(current => ({ ...current, light: defaultSettings.light, ambient: defaultSettings.ambient, pointLight: defaultSettings.pointLight, pointHeight: defaultSettings.pointHeight, exposure: defaultSettings.exposure, shadowSoftness: defaultSettings.shadowSoftness, shadowOpacity: defaultSettings.shadowOpacity, shadows: true }))}>Restaurar iluminação</Button>
+        </div></details>
+        <details><summary className="cursor-pointer text-sm font-semibold">Sombras</summary><div className="mt-4 grid gap-4">
           <Button variant="secondary" aria-pressed={settings.shadows} onClick={() => update("shadows", !settings.shadows)}>Sombras: {settings.shadows ? "ativadas" : "desativadas"}</Button>
+          <LightControl label="Suavidade da sombra" value={settings.shadowSoftness} min={1} max={12} step={0.5} disabled={!settings.shadows} onChange={value => update("shadowSoftness", value)} />
+          <LightControl label="Intensidade da sombra" value={settings.shadowOpacity} min={0} max={0.8} step={0.05} disabled={!settings.shadows} onChange={value => update("shadowOpacity", value)} />
         </div></details>
-        <details open><summary className="cursor-pointer text-sm font-semibold">Animações</summary><div className="mt-4 grid gap-4">{controls([["duration", "Duração do movimento", 0.15, 2, 0.05], ["arc", "Altura da trajetória", 0, 2, 0.1], ["dealCount", "Cartas por distribuição", 1, 10]])}</div></details>
-        <Button variant="secondary" aria-pressed={settings.reveal} onClick={() => update("reveal", !settings.reveal)}>Revelar adversários: {settings.reveal ? "sim" : "não"}</Button>
-        <div className="grid gap-2 border-t border-contrast/6 pt-4"><Button variant="secondary" onClick={save}><Save className="size-4" aria-hidden />Salvar configuração</Button><Button variant="ghost" onClick={restore}>Restaurar configuração</Button></div>
-      </Card>
+        <details><summary className="cursor-pointer text-sm font-semibold">Animações</summary><div className="mt-4 grid gap-4">{controls([["duration", "Duração do movimento", 0.15, 2, 0.05], ["arc", "Altura da trajetória", 0, 2, 0.1], ["dealCount", "Cartas por distribuição", 1, 10], ["pileHeight", "Altura por carta na pilha", 0.004, 0.008, 0.001]])}</div></details>
+        <details><summary className="cursor-pointer text-sm font-semibold">Cenários de teste</summary><div className="mt-4 grid gap-3">
+          <div className="flex flex-wrap gap-2">{[1, 7, 20, 50].map(amount => <Button key={amount} size="sm" variant="secondary" onClick={() => reset({ ...settings, counts: Array.from({ length: 12 }, () => amount) })}>{amount} cartas</Button>)}</div>
+          <Button variant="secondary" aria-pressed={settings.reveal} onClick={() => update("reveal", !settings.reveal)}>Revelar adversários: {settings.reveal ? "sim" : "não"}</Button>
+        </div></details>
+        <div className="grid gap-2 border-t border-contrast/6 pt-4"><Button variant="secondary" onClick={save}><Save className="size-4" />Salvar configuração</Button><Button variant="ghost" onClick={restore}>Restaurar configuração</Button><Button variant="ghost" onClick={() => reset(defaultSettings)}><RotateCcw className="size-4" />Reiniciar</Button><Button asChild variant="ghost"><Link href="/admin/jogos/laboratorio/love-letter">Cartas do Love Letter</Link></Button></div>
+      </aside>}
+      {count > window.length && <div className="absolute inset-x-3 bottom-10 flex items-center justify-center gap-2"><Button size="sm" variant="secondary" disabled={window.start === 0} onClick={() => setFocus(Math.max(0, window.start - window.length / 2))}>Anteriores</Button><span className="rounded-lg bg-background/90 px-2 py-1 text-xs text-muted" data-testid="hand-window">{window.start + 1}–{window.start + window.length} de {count}</span><Button size="sm" variant="secondary" disabled={window.start + window.length >= count} onClick={() => setFocus(window.start + window.length * 1.5)}>Próximas</Button></div>}
+      <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-xs text-muted" data-testid="table-counts">Deck: {state.deck.length} · Descarte: {state.discard.length}</p>
+      <p role="status" className="sr-only">{message}</p>
+      <DropdownMenu modal={false} open={menu !== null} onOpenChange={open => { if (!open) setMenu(null); }}>
+        <DropdownMenuTrigger asChild><Button aria-label="Ações na mesa" aria-hidden="true" tabIndex={-1} variant="ghost" className="pointer-events-none absolute size-px min-h-0 p-0 opacity-0" style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }} /></DropdownMenuTrigger>
+        <DropdownMenuContent align="start" sideOffset={0} onCloseAutoFocus={event => { event.preventDefault(); sceneRef.current?.focus(); }}>
+          {menuCard ? <>
+            <DropdownMenuItem onSelect={() => discard(menuCard)}>Descartar carta</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => { dispatch({ type: "flip", seat: settings.viewer, id: menuCard }); setMessage("Carta virada."); }}>Virar carta</DropdownMenuItem>
+            <DropdownMenuSub><DropdownMenuSubTrigger>Trocar com</DropdownMenuSubTrigger><DropdownMenuSubContent>{Array.from({ length: settings.players }, (_, seat) => seat !== settings.viewer && <DropdownMenuItem key={seat} disabled={state.hands[seat].length >= 1000} onSelect={() => { dispatch({ type: "swap", seat: settings.viewer, target: seat, id: menuCard }); setMessage("Cartas trocadas."); }}>Jogador {seat + 1}</DropdownMenuItem>)}</DropdownMenuSubContent></DropdownMenuSub>
+          </> : <>
+            <DropdownMenuItem disabled={!canDraw} onSelect={draw}>Comprar carta</DropdownMenuItem>
+            <DropdownMenuItem disabled={state.deck.length < 2} onSelect={shuffle}>Embaralhar deck</DropdownMenuItem>
+            <DropdownMenuItem disabled={!state.deck.length || state.hands.slice(0, settings.players).every(hand => hand.length >= 1000)} onSelect={() => { dispatch({ type: "deal", players: settings.players, count: settings.dealCount }); setMessage("Cartas distribuídas."); }}>Distribuir cartas</DropdownMenuItem>
+            <DropdownMenuItem disabled={!canCollect} onSelect={() => { dispatch({ type: "collect", players: settings.players }); setFocus(0); setMessage("Cartas recolhidas."); }}>Recolher cartas</DropdownMenuItem>
+            <DropdownMenuSeparator /><DropdownMenuItem onSelect={() => update("turn", (settings.turn + 1) % settings.players)}>Passar a vez</DropdownMenuItem>
+          </>}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   </div>;
 }

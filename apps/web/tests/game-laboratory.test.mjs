@@ -179,3 +179,19 @@ test('papel curvo preserva cantos, dimensões e faces alinhadas sem curvar as pi
     for (const set of [flat, curved]) for (const geometry of Object.values(set)) geometry.dispose();
   }
 });
+
+
+test('presets antigos restauram iluminação suave e novos controles recusam valores inválidos', () => {
+  const legacy = { ...defaultSettings, light: 3, ambient: 1.2 };
+  for (const key of ['pointLight', 'pointHeight', 'exposure', 'shadowSoftness', 'shadowOpacity']) delete legacy[key];
+  const migrated = parseSettings(legacy);
+  assert.equal(migrated.light, defaultSettings.light);
+  assert.equal(migrated.ambient, defaultSettings.ambient);
+  assert.equal(migrated.radius, legacy.radius);
+  for (const key of ['pointLight', 'pointHeight', 'exposure', 'shadowSoftness', 'shadowOpacity']) assert.equal(migrated[key], defaultSettings[key]);
+  for (const change of [{ pointLight: -1 }, { pointHeight: 0 }, { exposure: 2 }, { shadowSoftness: 0 }, { shadowOpacity: 1 }]) {
+    assert.equal(parseSettings({ ...defaultSettings, ...change }), null);
+  }
+  const customized = { ...defaultSettings, exposure: 0.7, light: 0.9, shadowSoftness: 9, shadowOpacity: 0.2 };
+  assert.deepEqual(parseSettings(customized), customized);
+});
