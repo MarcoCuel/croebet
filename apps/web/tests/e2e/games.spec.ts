@@ -297,8 +297,11 @@ test("Love Letter no modo dev reutiliza configurações, vagas e listagem de sal
  await expect(page.getByRole("switch",{name:"Somente bots",exact:true})).toBeVisible();
  await expect(page.getByRole("group",{name:"Aposta da partida"})).toHaveCount(0);
  await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toHaveCount(0);
- await page.getByRole("switch",{name:"Modo dev",exact:true}).uncheck();
- await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
+ await page.goto("/jogos/love-letter");
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
+ await expect(page.getByLabel("Configuração e regras")).toBeVisible();
 });
 
 test("Love Letter em desenvolvimento não permite criação por jogador comum",async({page})=>{

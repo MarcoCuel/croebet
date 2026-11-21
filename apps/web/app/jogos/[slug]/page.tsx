@@ -23,13 +23,15 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function Game({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
-  if(query.teste==="1"){
+  let developmentOnlyAdmin=false;
+  if(query.teste==="1" || slug==="love-letter"){
     const session=await getInitialSession();
     if(!session.ready)return <PageShell><ManagementUnavailable /></PageShell>;
-    if(session.user?.role!=="admin")notFound();
+    if(query.teste==="1" && session.user?.role!=="admin")notFound();
+    developmentOnlyAdmin=slug==="love-letter" && session.user?.role==="admin";
   }
   const data = await getPublicGames(slug);
-  if(data?.items[0] && (query.teste==="1" || (slug==="love-letter" && !!query.partida)))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
+  if(data?.items[0] && (developmentOnlyAdmin || query.teste==="1" || (slug==="love-letter" && !!query.partida)))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
   const archivedInitial = slug === "flip7" && query.partida ? await getInitialMatches(query.partida) : null;
   if(data?.items[0] && (archivedInitial?.lobby?.development || archivedInitial?.match?.development))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
   if (archivedInitial?.replay) return <PageShell><h1 className="sr-only">{data?.items[0]?.name ?? "Histórico da partida"}</h1><Flip7Loader game={data?.items[0] ?? null} initial={archivedInitial} /></PageShell>;

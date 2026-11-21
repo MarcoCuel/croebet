@@ -2,7 +2,7 @@
 
 ## Escopo
 
-Disponível exclusivamente em partidas de desenvolvimento. O catálogo continua com a indicação “Em breve”; apenas administradores criam e iniciam lobbies, e convidados participam sem movimentação de Croins ou estatísticas. Infraestrutura em [Partidas de desenvolvimento](backend-architecture.md#partidas-de-desenvolvimento).
+Disponível exclusivamente em partidas de desenvolvimento. Administradores abrem diretamente o modo dev, mesmo sem `teste=1` na URL; o switch permanece ligado e desabilitado enquanto não existir modo normal. O catálogo continua com a indicação “Em breve”; apenas administradores criam e iniciam lobbies, e convidados participam sem movimentação de Croins ou estatísticas. Infraestrutura em [Partidas de desenvolvimento](backend-architecture.md#partidas-de-desenvolvimento).
 
 ## Modos
 
