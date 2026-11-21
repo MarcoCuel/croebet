@@ -9,7 +9,8 @@ import { commandResultSchema, lobbyInvitationsSchema, type LobbyInvitations } fr
 import { changeLobby } from "./match-api";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
-import { gameSocket, retainGameSocket, realtimeRequest } from "./realtime";
+import { realtimeSocket, retainRealtimeSocket } from "@/lib/realtime";
+import { realtimeRequest } from "./realtime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 
@@ -19,7 +20,7 @@ export function useLobbyInvitations() {
   const [inbox,setInbox]=useState<{userId:string;data:LobbyInvitations}|null>(null);
   useEffect(()=>{
     if(!userId)return;
-    const socket=gameSocket();
+    const socket=realtimeSocket();
     let active=true;
     const shown=new Map<string,string|number>();
     function receive(value:unknown){
@@ -40,7 +41,7 @@ export function useLobbyInvitations() {
       catch{/* Keep the last confirmed inbox while reconnecting. */}
     }
     socket.on("invitations",receive).on("connect",refresh);
-    const release=retainGameSocket(userId);
+    const release=retainRealtimeSocket(userId);
     void refresh();
     const timer=window.setInterval(()=>void refresh(),15000);
     document.addEventListener("visibilitychange",refresh);

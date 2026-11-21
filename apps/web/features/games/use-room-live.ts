@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { gameRoomSyncSchema, matchListSchema, type MatchSummary, lobbyListSchema, realtimeReplySchema, type LobbyList, type GameRoomSync } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
-import { gameSocket, retainGameSocket } from "./realtime";
+import { realtimeSocket, retainRealtimeSocket } from "@/lib/realtime";
 
 export function useRoomLive(code: string | undefined, version: number, enabled: boolean, onRoom: (sync: GameRoomSync) => void, onLobbies: (directory: LobbyList) => void, onClosed: (message: string, roomClosed: boolean) => void, onMatches?: (matches: MatchSummary[]) => void, onConnected?:()=>void) {
   const {userId} = useSession();
@@ -14,7 +14,7 @@ export function useRoomLive(code: string | undefined, version: number, enabled: 
   useEffect(() => { confirmedVersion.current = { key, version: confirmedVersion.current.key === key ? Math.max(confirmedVersion.current.version, version) : version }; }, [key, version]);
   useEffect(() => {
     if (!enabled) return;
-    const socket = gameSocket();
+    const socket = realtimeSocket();
     let active = true;
     let synchronizedVersion = 0;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -58,7 +58,7 @@ export function useRoomLive(code: string | undefined, version: number, enabled: 
     const disconnected = () => { clearTimeout(retryTimer); status(false); };
     socket.on("connect", watch).on("disconnect", disconnected).on("connect_error", disconnected)
       .on("matches", matches).on("room", room).on("lobbies", directory).on("room-closed", roomClosed).on("closed", closed);
-    const release = retainGameSocket(userId);
+    const release = retainRealtimeSocket(userId);
     if (socket.connected) watch();
     return () => {
       active = false;

@@ -274,3 +274,27 @@ export const gameMatchCancellations=pgTable("game_match_cancellations",{
  proposedBy:uuid("proposed_by").notNull(),eligibleUserIds:jsonb("eligible_user_ids").notNull(),acceptedUserIds:jsonb("accepted_user_ids").notNull(),
  status:text("status").notNull().default("pending"),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),resolvedAt:timestamp("resolved_at",{withTimezone:true}),
 },t=>[uniqueIndex("one_pending_match_cancellation").on(t.matchId).where(sql`${t.status}='pending'`),index("match_cancellation_history").on(t.matchId,t.createdAt),check("match_cancellation_status",sql`${t.status} in ('pending','accepted','rejected','closed')`)]);
+
+// Chat messages retain moderation evidence after account deletion.
+export const chatMessages = pgTable("chat_messages", {
+  id: bigserial("id", { mode: "bigint" }).primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  requestId: uuid("request_id").notNull().unique(),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: uuid("deleted_by"),
+}, table => [index("chat_messages_user_created_idx").on(table.userId,table.createdAt), check("chat_text_length", sql`char_length(${table.text}) between 1 and 500`)]);
+export const chatMutes = pgTable("chat_mutes", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  until: timestamp("until", { withTimezone: true }).notNull(),
+});
+export const chatEvents = pgTable("chat_events", {
+  id: bigserial("id", { mode: "bigint" }).primaryKey(),
+  kind: text("kind").notNull(),
+  messageId: bigint("message_id", { mode: "bigint" }).references(() => chatMessages.id),
+  subjectId: uuid("subject_id"),
+  actorId: uuid("actor_id"),
+  mutedUntil: timestamp("muted_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [check("chat_event_kind", sql`${table.kind} in ('message','delete','mute')`)]);

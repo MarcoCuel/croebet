@@ -1,3 +1,4 @@
+import { chatRoutes } from "../chat/routes.ts";
 import { readRanking } from "../rankings/service.ts";
 import { rankingQuerySchema } from "@croebet/shared";
 import { refundAccountMatches } from "../matches/economy.ts";
@@ -52,8 +53,14 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       window_start = date_trunc('hour', now()) returning attempts`, [tokenHash(key)]);
     return result.rows[0].attempts <= maximum;
   }
-  async function current(token: string | undefined): Promise<UserRow | null> {
+  async function current(token: string | undefined, touch = true): Promise<UserRow | null> {
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    // Background chat reconciliation validates the session without extending idle time.
+    if (!touch) {
+      const result = await pool.query(`select u.* from sessions s join users u on u.id=s.user_id
+        where s.token_hash=$1 and u.status='active' and s.expires_at>clock_timestamp() and s.idle_expires_at>clock_timestamp()`, [tokenHash(token)]);
+      return result.rows[0] ?? null;
+    }
     const result = await pool.query(`update sessions s set idle_expires_at = least(s.expires_at, now() + interval '7 days') from users u
       where s.token_hash = $1 and s.user_id = u.id and u.status = 'active' and s.expires_at > now() and s.idle_expires_at > now()
       returning u.id, u.username, u.display_name, u.role, u.status, u.password_hash, u.username_changed_at, u.avatar_key, u.profile_name_provided, u.onboarding_remind_at`, [tokenHash(token)]);
@@ -72,6 +79,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const user = await current(request.cookies[sessionName]);
     return readRanking(pool, input.data, user?.id ?? null);
   });
+  await chatRoutes(app, { pool, current, sessionName, limit });
   await managementRoutes(app, { pool, current, sessionName, limit, mediaStorage });
   await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, trustCloudflareProxy: config.TRUST_CLOUDFLARE_PROXY, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
 

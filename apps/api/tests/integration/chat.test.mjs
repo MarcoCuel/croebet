@@ -1,0 +1,89 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { io } from "socket.io-client";
+import { createDatabase } from "../../dist/db/client.js";
+import { createApp } from "../../dist/app.js";
+import { authRoutes } from "../../dist/modules/auth/routes.js";
+import { readConfig } from "../../dist/config.js";
+import { newToken, tokenHash } from "../../dist/modules/auth/security.js";
+
+test("chat: persistência, recuperação, idempotência, spam e moderação autorizada", async t => {
+  if(!process.env.TEST_DATABASE_URL)throw Error("Configure TEST_DATABASE_URL com banco exclusivo de test migrado.");
+  const config=readConfig({APP_ENV:"test",DATABASE_URL:process.env.TEST_DATABASE_URL,CSRF_SECRET:"chat-teste-isolado-segredo-com-32-caracteres",WEB_ORIGIN:"http://localhost:3000"});
+  const {pool}=createDatabase(config.DATABASE_URL);
+  assert.equal((await pool.query("select environment from application_environment where id=1")).rows[0]?.environment,"test");
+  const app=createApp(async()=>{});
+  await app.register(authRoutes,{pool,config});
+  const actors=[];
+  let socket;
+  t.after(async()=>{
+    socket?.disconnect();await app.close();
+    const ids=actors.map(actor=>actor.id);
+    await pool.query("delete from chat_events where actor_id=any($1::uuid[]) or subject_id=any($1::uuid[])",[ids]);
+    await pool.query("delete from chat_messages where user_id=any($1::uuid[])",[ids]);
+    await pool.query("delete from users where id=any($1::uuid[])",[ids]);
+    await pool.end();
+  });
+  for(const role of ["user","admin"]) {
+    const id=randomUUID(),token=newToken(),username="Chat_"+id.replaceAll("-","").slice(0,12);
+    await pool.query("insert into users(id,username,display_name,password_hash,role) values($1,$2,$3,'unused',$4)",[id,username,`Nome ${role}`,role]);
+    await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')",[tokenHash(token),id]);
+    const jar={"croebet-session":token};
+    const csrf=await app.inject({url:"/api/v1/auth/csrf",cookies:jar});
+    for(const cookie of csrf.cookies)jar[cookie.name]=cookie.value;
+    actors.push({id,token,jar,csrf:csrf.json().token});
+  }
+  const [user,admin]=actors;
+  const request=(actor,url,method="GET",payload)=>app.inject({url,method,payload,cookies:actor.jar,headers:{origin:config.WEB_ORIGIN,"x-csrf-token":actor.csrf}});
+  assert.equal((await app.inject({url:"/api/v1/chat"})).statusCode,401);
+  assert.equal((await app.inject({url:"/api/v1/chat",method:"POST",cookies:user.jar,payload:{requestId:randomUUID(),text:"sem csrf"}})).statusCode,403);
+  assert.equal((await request(user,"/api/v1/chat","POST",{requestId:randomUUID(),text:" ".repeat(10)})).statusCode,400);
+  assert.equal((await request(user,"/api/v1/chat?before=9223372036854775808")).statusCode,400);
+  const idleBefore=(await pool.query("select idle_expires_at from sessions where token_hash=$1",[tokenHash(user.token)])).rows[0].idle_expires_at;
+  const initial=(await request(user,"/api/v1/chat")).json();
+  assert.equal((await pool.query("select idle_expires_at from sessions where token_hash=$1",[tokenHash(user.token)])).rows[0].idle_expires_at.toISOString(),idleBefore.toISOString());
+  await app.listen({port:0,host:"127.0.0.1"});
+  socket=io(`http://127.0.0.1:${app.server.address().port}`,{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"],reconnection:false,auth:{csrf:user.csrf},extraHeaders:{origin:config.WEB_ORIGIN,cookie:Object.entries(user.jar).map(([key,value])=>`${key}=${value}`).join("; ")}});
+  await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("connect_error",reject);});
+  const signal=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error("Sinal do chat ausente")),3000);socket.once("chat:changed",(...payload)=>{clearTimeout(timer);resolve(payload);});});
+  const command={requestId:randomUUID(),text:"Olá comunidade <script>texto</script>"};
+  const responses=await Promise.all([request(user,"/api/v1/chat","POST",command),request(user,"/api/v1/chat","POST",command)]);
+  assert.ok(responses.every(response=>response.statusCode===200));
+  const messageId=responses[0].json().id;
+  assert.equal(responses[1].json().id,messageId);
+  assert.deepEqual(await signal,[]); // Notification contains no message content or session data.
+  assert.equal((await request(user,"/api/v1/chat","POST",{...command,text:"outro texto"})).statusCode,409);
+  assert.equal((await request(user,"/api/v1/chat","POST",{requestId:randomUUID(),text:"spam"})).statusCode,429);
+  const sync=(await request(user,`/api/v1/chat/sync?after=${initial.cursor}`)).json();
+  assert.equal(sync.events.filter(event=>event.message?.id===messageId).length,1);
+  assert.equal(sync.events.find(event=>event.message?.id===messageId).message.name,"Nome user");
+  assert.equal((await request(user,`/api/v1/chat/messages/${messageId}`,"DELETE")).statusCode,403);
+  assert.equal((await request(user,`/api/v1/chat/users/${admin.id}/mute`,"PATCH",{minutes:10})).statusCode,403);
+  assert.equal((await request(admin,`/api/v1/chat/users/${user.id}/mute`,"PATCH",{minutes:10})).statusCode,200);
+  assert.equal((await request(user,"/api/v1/chat","POST",{requestId:randomUUID(),text:"silenciado"})).statusCode,403);
+  assert.ok((await request(user,`/api/v1/chat/sync?after=${sync.cursor}`)).json().mutedUntil);
+  await request(admin,`/api/v1/chat/messages/${messageId}`,"DELETE");
+  const deleted=(await request(user,`/api/v1/chat/sync?after=${sync.cursor}`)).json();
+  const removed=deleted.events.find(event=>event.kind==="delete").message;
+  assert.equal(removed.text,null);assert.equal(removed.deleted,true);
+  assert.equal((await pool.query("select text,deleted_by from chat_messages where id=$1",[messageId])).rows[0].text,command.text);
+  assert.equal((await request(admin,`/api/v1/chat/users/${user.id}/mute`,"PATCH",{minutes:0})).statusCode,200);
+  assert.equal((await request(user,"/api/v1/chat")).json().mutedUntil,null);
+  // Pagination uses stable IDs, and deleted content stays absent from every page.
+  await pool.query(`insert into chat_messages(user_id,request_id,text) select $1,gen_random_uuid(),'Antiga '||n from generate_series(1,55) n`,[user.id]);
+  const page=(await request(user,"/api/v1/chat")).json();
+  assert.equal(page.items.length,50);assert.equal(page.hasMore,true);
+  const older=(await request(user,`/api/v1/chat?before=${page.items[0].id}`)).json();
+  assert.ok(older.items.every(message=>BigInt(message.id)<BigInt(page.items[0].id)));
+  assert.equal(older.items.find(message=>message.id===messageId).text,null);
+  // More than one synchronization page must preserve numeric event ordering.
+  const start=(await request(user,"/api/v1/chat")).json().cursor;
+  await pool.query("insert into chat_events(kind,actor_id) select 'mute',$1 from generate_series(1,205)",[admin.id]);
+  const batch=(await request(user,`/api/v1/chat/sync?after=${start}`)).json();
+  assert.equal(batch.events.length,200);assert.equal(batch.hasMore,true);
+  assert.ok(batch.events.every((event,index)=>index===0 || BigInt(event.id)>BigInt(batch.events[index-1].id)));
+  assert.equal((await request(user,`/api/v1/chat/sync?after=${batch.cursor}`)).json().events.length,5);
+  await pool.query("delete from sessions where user_id=$1",[user.id]);
+  assert.equal((await request(user,"/api/v1/chat")).statusCode,401);
+});

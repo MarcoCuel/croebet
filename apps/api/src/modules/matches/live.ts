@@ -133,8 +133,14 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
       };
       client.on("error", lost);
       client.on("end", lost);
-      client.on("notification", message => { if (message.channel === "croebet_matches") changed(message.payload); });
-      try { await client.query("LISTEN croebet_matches"); listener = client; }
+      client.on("notification", message => {
+        if (message.channel === "croebet_matches") changed(message.payload);
+        if (message.channel === "croebet_chat") for (const raw of io.sockets.sockets.values()) {
+          const socket = raw as LiveSocket;
+          if (socket.data.actor) enqueue(socket, async () => { await authorize(socket.data); socket.emit("chat:changed"); });
+        }
+      });
+      try { await client.query("LISTEN croebet_matches"); await client.query("LISTEN croebet_chat"); listener = client; }
       catch (error) { client.release(true); throw error; }
     })().catch(error => { listening = undefined; throw error; });
   }
@@ -220,6 +226,6 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     const tails = [...io.sockets.sockets.values()].map(s => s.data.tail as Promise<void>);
     await new Promise<void>(resolve => io.close(() => resolve()));
     await Promise.allSettled(tails); await maintenance;
-    if (listener) { const client = listener; listener = undefined; await client.query("UNLISTEN croebet_matches"); client.release(); }
+    if (listener) { const client = listener; listener = undefined; await client.query("UNLISTEN *"); client.release(); }
   });
 }

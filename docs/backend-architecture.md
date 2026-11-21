@@ -178,6 +178,14 @@ Envio/exclusão exigem admin, CSRF, limite de tentativas e revalidação transac
 
 Implantação: faça backup e aplique `0026_panoramic_zzzax.sql` antes de atualizar API/web. A migration só acrescenta tabela, índice e restrições; não altera imagens ou dados existentes. Em rollback de aplicação, mantenha a tabela e os objetos: versões antigas continuam lendo suas URLs enquanto a API que serve mídia permanecer disponível; recuperação exige restabelecer API compatível e os backups de banco/bucket, sem reverter migrations antigas.
 
+## Chat geral
+
+O chat exige conta ativa e usa `modules/chat/routes.ts` dentro dos hooks de sessão, Origin/CSRF, ambiente e cache da autenticação. `GET /api/v1/chat` entrega as últimas 50 mensagens e paginação por ID; `/chat/sync?after=` recupera eventos confirmados em lotes. Envio aceita texto simples de até 500 caracteres e `requestId` idempotente; a API impõe intervalo de dois segundos e até vinte mensagens por minuto, além do limite de requisições por conta.
+
+A migration `0033_slimy_gamora.sql` acrescenta mensagens, silenciamentos e eventos, sem modificar dados existentes. Aplicar com o fluxo normal de migrations antes de usar o chat; rollback da aplicação pode manter essas tabelas, preservando a conversa. Escritas são serializadas por advisory lock transacional para que os cursores sigam a ordem de commit. Uma leitura inicial usa snapshot consistente; reconexões percorrem os eventos pendentes. `LISTEN croebet_chat`, no transporte Socket.IO existente, transmite somente um sinal aos usuários autenticados; histórico e conteúdo vêm de consultas HTTP autorizadas. A sincronização automática valida a sessão sem renovar seu prazo ocioso. Não mistura comandos ou estados privados dos motores.
+
+Admin pode remover mensagens ou silenciar por 10 minutos, uma hora ou 24 horas e desfazer o silenciamento. Remoção pública retorna um marcador sem texto; conteúdo original e autor da moderação permanecem no banco para auditoria, sem endpoint público de acesso. Eventos de silenciamento registram responsável, destinatário e prazo. Exclusão de conta mantém as mensagens com identidade pública “Conta excluída”, sem FK que impeça excluir a conta. Não há anexos, mensagens privadas ou interpretação de HTML/Markdown.
+
 ## Base compartilhada dos jogos
 
 Os jogos são módulos revisados no repositório. O registro público em `packages/shared/src/game-registry.ts` declara configurações, limites e capacidades; `modules/games/registry.ts` liga cada identificador ao seu driver na API. Flip 7 e Love Letter usam o mesmo executor, autorização, recibos, locks, persistência e transporte. O catálogo administrativo não instala código: um cadastro sem módulo registrado continua em desenvolvimento.

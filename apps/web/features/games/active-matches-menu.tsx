@@ -10,7 +10,7 @@ import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { gameSocket, retainGameSocket } from "./realtime";
+import { realtimeSocket, retainRealtimeSocket } from "@/lib/realtime";
 import { gameUrl } from "./game-url";
 import { useLobbyExpiration } from "./lobby-expiration";
 import { useGameAudio } from "./use-game-audio";
@@ -31,7 +31,7 @@ export function ActiveMatchesMenu() {
 
   useEffect(() => {
     if (!userId) return;
-    const socket = gameSocket();
+    const socket = realtimeSocket();
     const turns = new Map<string, string | null>();
     function receive(value: unknown) {
       const result = personalMatchesSchema.safeParse(value);
@@ -57,7 +57,7 @@ export function ActiveMatchesMenu() {
       }
     }
     socket.on("personal-matches", receive);
-    const release = retainGameSocket(userId);
+    const release = retainRealtimeSocket(userId);
     return () => {
       socket.off("personal-matches", receive);
       for (const code of turns.keys()) toast.dismiss(toastId(code));
