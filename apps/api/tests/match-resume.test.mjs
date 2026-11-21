@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { getRoomSync } from "../dist/modules/matches/service.js";
 import { flip7Driver } from "../dist/modules/games/flip7/driver.js";
+import { loveDriver } from "../dist/modules/games/love-letter/driver.js";
 import { createLove } from "../dist/modules/games/love-letter/engine.js";
 import { execute } from "../dist/modules/matches/execution.js";
 
@@ -115,4 +116,23 @@ test("executor comum aguarda uma decisão humana e não inventa ações ao ser r
   assert.equal(resumed.status, "playing");
   assert.deepEqual(resumed.frames, []);
   assert.deepEqual(resumed.state, state);
+});
+
+
+test("Love Letter sincroniza frames públicos contínuos e mantém a mão privada só no snapshot do jogador", async () => {
+  const sample = fixture({ game: "love-letter" });
+  const publicState = loveDriver.project(sample.row.state);
+  const events = [4, 5].map(version => ({ version, action: { type: "step" }, state: publicState }));
+  const { pool, row, actor } = fixture({ game: "love-letter", events });
+  const sync = await getRoomSync(pool, actor, row.code, 3);
+  assert.equal(sync.reset, false);
+  assert.deepEqual(sync.frames.map(frame => frame.version), [4, 5]);
+  for (const frame of sync.frames) {
+    assert.ok(frame.state.players.every(player => player.hand === null));
+    assert.deepEqual(frame.state.privateInfo, []);
+    assert.deepEqual(frame.state.legalActions, []);
+    assert.deepEqual(frame.action, { type: "step" });
+  }
+  assert.ok(sync.room.state.players[0].hand);
+  assert.equal(sync.room.state.players[1].hand, null);
 });

@@ -52,6 +52,8 @@ A apresentação usa apenas título, mensagens e campo de envio, sem descrição
 
 ## Componentes e acessibilidade
 
+- `components/layout/navigation.tsx` oculta a sidebar por padrão apenas nas partidas `/jogos/[slug]?partida=[código]`, incluindo replay, e volta a expandi-la ao sair para o lobby ou a navegação do site. A tela do jogo com o lobby mantém a sidebar visível. A regra é compartilhada entre todos os jogos e vale também no acesso direto e no voltar/avançar do navegador. O botão manual continua disponível; mudanças de outros parâmetros da mesma partida preservam a escolha atual. No celular, o menu continua fechado até ser aberto pelo usuário.
+
 - O menu “Minhas partidas” da navbar mostra cada mesa em um card clicável com nome do jogo, indicador Dev, avatares dos participantes (até cinco e contador dos demais), status e sufixo do código para distinguir salas do mesmo jogo. Sem avatar, usa a inicial do nome de exibição; uma única partida mantém o acesso direto.
   Fora da mesa, “Sua vez em…” aparece uma vez por chave de decisão, com botão de fechar e duração de seis segundos. Fechar ou expirar não remove o atalho nem o indicador de turno da navbar; atualizações e reconexões da mesma assinatura não reapresentam a decisão já avisada.
 

@@ -79,11 +79,11 @@ test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love L
   const {createLove}=await import("../dist/modules/games/love-letter/engine.js");
   const {randomUUID}=await import("node:crypto");
   const actor=randomUUID();
-  const state=flip7Driver.create({setup:[{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}],options:{mode:"classic",brutal:false}},"Ana");
+  const state=flip7Driver.create({setup:[{name:"Ana",kind:"human"},{name:"Beto",kind:"human"},{name:"Bot 1",kind:"normal"}],options:{mode:"classic",brutal:false}},"Ana");
   const index=state.deck.findIndex(card=>card.type==='freeze');
   state.pending={source:1,card:state.deck.splice(index,1)[0],give:false};
   assert.equal('bonusChoice' in state,false);
-  const love=createLove([{name:"Ana",kind:"human"},{name:"Beto",kind:"human"}],"classic");
+  const love=createLove([{name:"Ana",kind:"human"},{name:"Beto",kind:"human"},{name:"Bot 1",kind:"normal"}],"classic");
   love.turn=1;
   const base={rules_version:1,controller_id:actor,seat:1,status:'playing',development:false,only_bots:false};
   const rows=[{...base,id:randomUUID(),code:'ABCDEF123456',game_slug:'flip7',game_name:'Flip 7',state},
@@ -99,10 +99,32 @@ test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love L
   const result=await listPersonalMatches({connect:async()=>client},actor);
   assert.deepEqual(result.items.map(item=>item.yourTurn),[true,true]);
   assert.deepEqual(result.items.map(item=>item.turnKey),['1:1','1:1']);
-  assert.deepEqual(result.items[0].participants,[{userId:actor,seat:1,username:'ana',displayName:'Ana',avatarUrl:null}]);
-  assert.deepEqual(result.items[1].participants,[]);
+  assert.deepEqual(result.items[0].participants,[
+    {userId:null,seat:0,username:'Ana',displayName:'Ana',avatarUrl:null,bot:false},
+    {userId:actor,seat:1,username:'ana',displayName:'Ana',avatarUrl:null,bot:false},
+    {userId:null,seat:2,username:'Bot 1',displayName:'Bot 1',avatarUrl:null,bot:true},
+  ]);
+  assert.deepEqual(result.items[1].participants.map(person=>[person.seat,person.displayName,person.bot]),[[0,'Ana',false],[1,'Beto',false],[2,'Bot 1',true]]);
   assert.ok(result.items.every(item=>Object.keys(item).sort().join(',')==='code,development,game,gameName,lobbyExpiresAt,participants,status,turnKey,yourTurn'));
   for(const row of rows)row.controller_id=null;
   const withoutControl=await listPersonalMatches({connect:async()=>client},actor);
   assert.ok(withoutControl.items.every(item=>!item.yourTurn && item.turnKey===null));
 });
+
+ test("resumo de lobby inclui bots previstos, inclusive mesas somente de bots",async()=>{
+  const {listPersonalMatches}=await import("../dist/modules/matches/service.js");
+  const {randomUUID}=await import("node:crypto");
+  const actor=randomUUID(),id=randomUUID();
+  const row={id,code:"ABCDEF123456",game_slug:"flip7",game_name:"Flip 7",status:"lobby",development:true,bots:3,only_bots:false,state:null};
+  const client={release(){},async query(sql){
+    if(sql.includes("select m.*,g.name"))return {rows:[row]};
+    if(sql.includes("u.avatar_key"))return {rows:row.only_bots?[]:[{match_id:id,user_id:actor,seat:0,username:"ana",display_name:"Ana",avatar_key:null}]};
+    return {rows:[]};
+  }};
+  const pool={connect:async()=>client};
+  const mixed=(await listPersonalMatches(pool,actor)).items[0];
+  assert.deepEqual(mixed.participants.map(p=>[p.seat,p.displayName,p.bot]),[[0,"Ana",false],[1,"Bot 1",true],[2,"Bot 2",true],[3,"Bot 3",true]]);
+  row.only_bots=true;
+  const bots=(await listPersonalMatches(pool,actor)).items[0];
+  assert.deepEqual(bots.participants.map(p=>[p.seat,p.userId,p.bot]),[[0,null,true],[1,null,true],[2,null,true]]);
+ });

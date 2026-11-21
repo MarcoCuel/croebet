@@ -151,6 +151,17 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
       order by m.created_at,m.id`, [actor]);
     const people = await participants(client, rows.rows.map(row => row.id));
     return personalMatchesSchema.parse({ items: rows.rows.map(row => {
+      const members = people.get(row.id) ?? [];
+      const players = row.status === "playing"
+        ? resolveDriver(row).summarize(resolveDriver(row).projectFor(row.state, null))
+        : [...members.map(person => ({ name:person.displayName || person.username, bot:false })),
+          ...Array.from({ length:row.bots ?? 0 }, (_, index) => ({ name:`Bot ${index+1}`, bot:true }))];
+      const emptySeats = Array.from({ length:12 }, (_, seat) => seat).filter(seat => !members.some(person => person.seat === seat));
+      const roster = players.map((player, seat) => {
+        const member = row.status === "lobby" ? members[seat] : members.find(person => person.seat === seat);
+        return { userId:member?.userId ?? null, seat:member?.seat ?? (row.status === "lobby" ? emptySeats[seat-members.length] : seat), username:member?.username ?? player.name,
+          displayName:member?.displayName || player.name, avatarUrl:member?.avatarUrl ?? null, bot:player.bot };
+      });
       let yourTurn = false;
       let turnKey: string | null = null;
       if (row.status === 'playing' && row.controller_id === actor && row.seat !== null && !row.only_bots) {
@@ -159,7 +170,7 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
         if(yourTurn)turnKey=decision!.key;
       }
       return { code: row.code, game: row.game_slug, gameName: row.game_name, status: row.status,
-        development: row.development, lobbyExpiresAt:row.status==="lobby" && !row.development && row.owner_id===actor?row.lobby_expires_at.toISOString():null, yourTurn, turnKey, participants: people.get(row.id) ?? [] };
+        development: row.development, lobbyExpiresAt:row.status==="lobby" && !row.development && row.owner_id===actor?row.lobby_expires_at.toISOString():null, yourTurn, turnKey, participants: roster };
     }) });
   });
 }

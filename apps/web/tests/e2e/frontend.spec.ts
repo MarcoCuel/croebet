@@ -30,6 +30,34 @@ async function signIn(page: Page, username = "Arquitetura") {
   await expect(dialog).not.toBeVisible();
 }
 
+test("sidebar oculta apenas na partida e reaparece no lobby", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Sidebar fixa é exclusiva do desktop");
+  const sidebar = page.locator("#lobby-sidebar");
+  await page.goto("/jogos");
+  await expect(sidebar).toBeVisible();
+  await page.getByRole("link", { name: /Flip da comunidade/ }).first().click();
+  await expect(page).toHaveURL(/\/jogos\/flip7/);
+  await expect(sidebar).toBeVisible();
+  // Entering a match also updates the query through the native history API.
+  await page.evaluate(() => window.history.pushState(null, "", "/jogos/flip7?partida=ABCDEF123456&teste=1"));
+  await expect(sidebar).toBeHidden();
+  await page.getByRole("button", { name: "Mostrar menu lateral", exact: true }).click();
+  await expect(sidebar).toBeVisible();
+  await page.getByRole("button", { name: "Ocultar menu lateral", exact: true }).click();
+  await expect(sidebar).toBeHidden();
+  await page.getByRole("link", { name: "Voltar para Flip da comunidade", exact: true }).click();
+  await expect(page).toHaveURL(/\/jogos\/flip7\?teste=1$/);
+  await expect(sidebar).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/partida=ABCDEF123456/);
+  await expect(sidebar).toBeHidden();
+  await page.reload();
+  await expect(sidebar).toBeHidden();
+  await page.goForward();
+  await expect(page).toHaveURL(/\/jogos\/flip7\?teste=1$/);
+  await expect(sidebar).toBeVisible();
+});
+
 test("modal de autenticação alterna modo, fecha por Escape e devolve o foco", async ({
   page,
 }) => {

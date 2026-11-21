@@ -424,7 +424,7 @@ test("abrir teste do Love Letter mantém link, recarga e volta para o jogo",asyn
 
 function prepareLoveTable() {
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
- loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou Aia."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:[],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
+ loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou 4."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:[],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
 }
 
 test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe histórico",async({page},testInfo)=>{
@@ -436,23 +436,19 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await expect(page.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
  await expect(table.getByText("Protegido",{exact:false})).toBeVisible();
  await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
- const submit=table.getByRole("button",{name:"Jogar carta",exact:true});
- await expect(submit).toBeDisabled();
- await expect(page.getByRole("combobox",{name:/^Jogador/})).toHaveCount(0);
- await page.getByRole("button",{name:"Selecionar 1 · Guarda",exact:true}).click();
- await expect(submit).toBeDisabled();
- await page.getByRole("combobox",{name:/^Jogador/}).selectOption("2");
- await expect(page.getByRole("combobox",{name:/^Palpite/}).locator('option[value="8"]')).toHaveCount(0);
- await expect(submit).toBeDisabled();
- await page.getByRole("combobox",{name:/^Palpite/}).selectOption("9");
- await expect(submit).toBeEnabled();
- await submit.click();
+ await expect(table.getByRole("combobox")).toHaveCount(0);
+ await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toHaveCount(0);
+ await table.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
+ await page.getByRole("button",{name:"Descartar 1 · Guarda",exact:true}).click();
+ await expect(table.getByRole("button",{name:"Escolher jogador Bot 1",exact:true})).toHaveCount(0);
+ await table.getByRole("button",{name:"Escolher jogador Bot 2",exact:true}).click();
+ await expect(table.getByRole("button",{name:"Adivinhar 8 · Condessa",exact:true})).toHaveCount(0);
+ await table.getByRole("button",{name:"Adivinhar 9 · Princesa",exact:true}).click();
  await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
- await page.getByRole("button",{name:"Selecionar 4 · Aia",exact:true}).click();
- await expect(page.getByRole("combobox",{name:/^Jogador/})).toHaveCount(0);
- await submit.click();
+ await page.getByRole("button",{name:"Descartar 4 · Aia",exact:true}).click();
  await expect.poll(()=>commands.length).toBe(2);
  expect(commands[1]).toEqual({type:"play",card:4});
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"}).getByText("Aia",{exact:true})).toBeAttached();
  await checkTableControls(page, table, testInfo.project.name === "desktop");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});
@@ -466,22 +462,52 @@ test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxim
  state.legalActions=[{type:"keep",cards:[9,1,4]},{type:"keep",cards:[9,4,1]}];
  const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
- await page.getByLabel("Carta para manter e ordem no fundo").selectOption("1");
- await page.getByRole("button",{name:"Confirmar escolha",exact:true}).click();
+ await page.getByRole("button",{name:"Manter carta 3: 9 · Princesa",exact:true}).click();
+ await page.getByRole("button",{name:"Devolver carta 2: 4 · Aia",exact:true}).click();
  await expect.poll(()=>commands[0]).toEqual({type:"keep",cards:[9,4,1]});
  state.pending=false;state.players[0].hand=[7,8];state.players[0].handCount=2;
  state.legalActions=[{type:"play",card:8}];
  await page.reload();
- await expect(page.getByRole("button",{name:"Selecionar 7 · Rei",exact:true})).toHaveCount(0);
- await page.getByRole("button",{name:"Selecionar 8 · Condessa",exact:true}).click();
- await page.getByRole("button",{name:"Jogar carta",exact:true}).click();
+ await page.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Descartar 7 · Rei",exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"Descartar 8 · Condessa",exact:true}).click();
  await expect.poll(()=>commands[1]).toEqual({type:"play",card:8});
  state.phase="summary";state.winners=[0];state.legalActions=[{type:"next"}];
  await page.reload();
- await page.getByRole("button",{name:"Próxima rodada",exact:true}).click();
+ await page.getByRole("button",{name:"Distribuir próxima rodada",exact:true}).click();
  await expect.poll(()=>commands[2]).toEqual({type:"next"});
 });
 
+
+test("Love Letter apresenta bots em sequência e libera apenas a decisão final privada",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture ausente");
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ await expect(page.getByRole("status").filter({hasText:"Sua vez"})).toBeVisible();
+ const initial=structuredClone(loveRoom);
+ const publicState={...initial.state,turn:2,legalActions:[],privateInfo:[],players:initial.state.players.map(p=>({...p,hand:null}))};
+ const second={...publicState,turn:3,deckCount:10,log:[...publicState.log,"Bot 2 jogou 4."],players:publicState.players.map((p,i)=>i===2?{...p,discard:[4,4]}:p)};
+ loveRoom=gameRoomSchema.parse({...initial,version:5,state:{...initial.state,log:second.log,deckCount:9}});
+ sockets.emit("room",{room:loveRoom,reset:false,frames:[{version:3,action:{type:"step"},state:publicState},{version:4,action:{type:"step"},state:second},{version:5,action:{type:"step"},state:{...second,turn:0}}]});
+ const table=page.getByLabel("Mesa do Love Letter");
+ await expect(table.getByRole("status")).toHaveText("Vez de Bot 2");
+ await expect(table.getByRole("button",{name:"Comprar carta do baralho",exact:true})).toHaveCount(0);
+ // A duplicate final snapshot must not cancel the active frame queue.
+ sockets.emit("room",{room:loveRoom,reset:false,frames:[]});
+ await expect(table.getByRole("status")).toHaveText("Vez de Bot 3");
+ await expect(table.getByRole("button",{name:"Comprar carta do baralho",exact:true})).toBeEnabled({timeout:10000});
+ await table.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
+ await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeVisible();
+});
+
+test("catálogo Love Letter reutiliza cartas, miniaturas e versos das duas edições",async({page})=>{
+ await page.goto("/admin/jogos/laboratorio/love-letter");
+ await expect(page.getByRole("heading",{name:"Cartas do Love Letter",exact:true})).toBeVisible();
+ await expect(page.getByRole("region",{name:"Edição clássica"}).getByRole("article")).toHaveCount(8);
+ await expect(page.getByRole("region",{name:"Edição moderna"}).getByRole("article")).toHaveCount(10);
+ await expect(page.getByText("Verso · normal, reduzido e miniatura",{exact:true})).toHaveCount(2);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
 
 test("estados de teste não recriam assinaturas e sair remove a observação",async({page})=>{
  prepareLoveTable();
@@ -510,7 +536,7 @@ test("estados de teste não recriam assinaturas e sair remove a observação",as
 test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas", async ({page,isMobile}) => {
  await page.route("**/avatar-fixture.svg",route=>route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="pink"/></svg>'}));
  const flip={code:"ABCDEF123456",game:"flip7" as const,gameName:"Flip 7",status:"playing" as const,development:false,yourTurn:false,turnKey:null,participants:[{userId:id,username:"ana",displayName:"Ana",avatarUrl:null,seat:0},{userId:matchId,username:"beto",displayName:"Beto",avatarUrl:"/avatar-fixture.svg",seat:1}]};
- const love={...flip,code:"ABCDEF654321",game:"love-letter" as const,gameName:"Love Letter",status:"lobby" as const,development:true};
+ const love={...flip,code:"ABCDEF654321",game:"love-letter" as const,gameName:"Love Letter",status:"lobby" as const,development:true,participants:[...flip.participants,...Array.from({length:6},(_,i)=>({userId:null,seat:i+2,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,bot:true}))]};
  personalMatches={items:[flip]};
  await page.goto("/jogos");
  const direct=page.getByRole("link",{name:"Voltar à partida de Flip 7"});
@@ -525,6 +551,7 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
  const card=page.getByRole("menuitem").filter({hasText:"Love Letter"});
  await expect(card.getByLabel("Ana",{exact:true})).toBeVisible();
  await expect(card.getByRole("img",{name:"Beto",exact:true})).toHaveAttribute("src",new URL("/avatar-fixture.svg",page.url()).href);
+ for(let i=1;i<=6;i++)await expect(card.getByLabel(`Bot ${i}`,{exact:true})).toBeVisible();
  await expect(card.getByText("No lobby",{exact:true})).toBeVisible();
  await expect(card.getByText("#654321",{exact:true})).toBeVisible();
  await page.keyboard.press("Escape");

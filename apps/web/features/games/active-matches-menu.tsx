@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight, Gamepad2 } from "lucide-react";
+import { Bot, ChevronRight, Gamepad2 } from "lucide-react";
 import { toast } from "sonner";
 import { getGameDefinition, personalMatchesSchema, type PersonalMatches } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
@@ -83,16 +83,15 @@ export function ActiveMatchesMenu() {
             <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" />
           </span>
           {item.participants.length > 0 && <span className="flex items-center gap-2">
-            <span className="flex -space-x-2">
-              {item.participants.slice(0, 5).map(person => {
+            <span className="flex flex-wrap gap-1">
+              {item.participants.map(person => {
                 const name = person.displayName || person.username;
-                return <Avatar key={person.userId} className="size-8 border-2 border-surface" title={name}>
+                return <Avatar key={person.seat} className="size-8 border-2 border-surface" title={name}>
                   <AvatarImage src={person.avatarUrl ?? undefined} alt={name} />
-                  <AvatarFallback><span aria-label={name}>{name[0]?.toLocaleUpperCase("pt-BR")}</span></AvatarFallback>
+                  <AvatarFallback><span aria-label={name}>{person.bot ? <Bot className="size-4" aria-hidden="true" /> : name[0]?.toLocaleUpperCase("pt-BR")}</span></AvatarFallback>
                 </Avatar>;
               })}
             </span>
-            {item.participants.length > 5 && <span className="text-xs text-muted">+{item.participants.length - 5}</span>}
           </span>}
           <span className="flex items-center justify-between gap-3">
             <span className={item.yourTurn ? "flex items-center gap-1.5 text-xs font-medium text-brand" : "text-xs text-muted"}>{item.yourTurn && <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />}{item.yourTurn ? "Sua vez" : item.status === "lobby" ? "No lobby" : "Em andamento"}</span>

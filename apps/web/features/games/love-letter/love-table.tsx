@@ -1,126 +1,144 @@
 "use client";
 
-import { useState } from "react";
-import { Crown, Eye, Feather, Heart, Mail, Search, Shield, Swords, UserRound, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Crown, X } from "lucide-react";
 import type { LoveAction, LoveView, MatchParticipant } from "@croebet/shared";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { LoveCard, classic, modern, loveRoles } from "./love-card";
 
-const roles: Record<string, { icon: LucideIcon; effect: string }> = {
-  Espiã: { icon: Eye, effect: "Sobreviva para disputar uma ficha extra." },
-  Guarda: { icon: Search, effect: "Adivinhe a carta de outro jogador." },
-  Sacerdote: { icon: Eye, effect: "Veja a mão de outro jogador." },
-  Barão: { icon: Swords, effect: "Compare mãos. A menor é eliminada." },
-  Aia: { icon: Shield, effect: "Proteja-se até seu próximo turno." },
-  Príncipe: { icon: UserRound, effect: "Escolha quem descarta e compra outra carta." },
-  Chanceler: { icon: Feather, effect: "Compre duas cartas e escolha uma para manter." },
-  Rei: { icon: Crown, effect: "Troque sua mão com outro jogador." },
-  Condessa: { icon: Crown, effect: "Descarte se tiver o Rei ou o Príncipe." },
-  Princesa: { icon: Heart, effect: "Se descartar esta carta, você é eliminado." },
-};
-const classic = ["", "Guarda", "Sacerdote", "Barão", "Aia", "Príncipe", "Rei", "Condessa", "Princesa"];
-const modern = ["Espiã", "Guarda", "Sacerdote", "Barão", "Aia", "Príncipe", "Chanceler", "Rei", "Condessa", "Princesa"];
 type Props = { state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[] };
+type Play = Extract<LoveAction, { type: "play" }>;
 
-function CardFace({ value, mode, small = false, compact = false }: { value?: number; mode: LoveView["mode"]; small?: boolean; compact?: boolean }) {
-  const name = value === undefined ? undefined : (mode === "classic" ? classic : modern)[value];
-  const Icon = name ? roles[name].icon : Mail;
-  return (
-    <span className={cn("relative flex shrink-0 flex-col items-center justify-between rounded-xl border border-contrast/10 p-3", small ? "h-24 w-16" : "h-44 w-32 sm:h-48 sm:w-36", compact && "h-16 w-11 p-2", name ? "bg-surface text-foreground" : "bg-brand/10 text-brand")}>
-      {name ? <><span className={cn("self-start font-semibold leading-none text-brand", small ? "text-lg" : "text-3xl")}>{value}</span><Icon aria-hidden className={small ? "size-5 text-brand" : "size-10 text-brand sm:size-12"} /><span className={cn("font-medium", small ? "sr-only" : "text-xs sm:text-sm")}>{name}</span></> : <><span /><Icon aria-hidden className={small ? "size-5" : "size-10"} /><span className="h-3" /></>}
-    </span>
-  );
+export function LoveTable(props: Props) {
+  const root = useRef<HTMLDivElement>(null);
+  const previous = useRef(props.state);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = props.state;
+    if (before === props.state || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const animations: Animation[] = [];
+    function fly(value: number | undefined, from: string, to: string, delay: number) {
+      const source = root.current?.querySelector(from)?.getBoundingClientRect();
+      const destination = root.current?.querySelector(to)?.getBoundingClientRect();
+      const element = root.current?.querySelector<HTMLElement>(`[data-flight="${value ?? "back"}"]`);
+      if (!source || !destination || !element) return;
+      const animation = element.animate([
+        { transform: `translate(${source.x}px, ${source.y}px) rotate(-10deg)`, opacity: 0 },
+        { transform: `translate(${source.x}px, ${source.y}px) rotate(-10deg)`, opacity: 1, offset: .1 },
+        { transform: `translate(${destination.x}px, ${destination.y}px) rotate(0deg)`, opacity: 1, offset: .85 },
+        { transform: `translate(${destination.x}px, ${destination.y}px) rotate(0deg)`, opacity: 0 },
+      ], { duration: 600, delay, easing: "cubic-bezier(.2,.7,.2,1)" });
+      animations.push(animation);
+    }
+    if (before.round === props.state.round) {
+      props.state.players.forEach((player, seat) => {
+        const prior = before.players[seat];
+        const added = player.discard.slice(prior.discard.length);
+        if (added.length) fly(added[0], `[data-love-seat="${seat}"]`, `[data-love-discard="${seat}"]`, 0);
+      });
+    }
+    if (props.state.phase === "playing" && props.state.turn !== props.viewerSeat && (before.turn !== props.state.turn || before.round !== props.state.round || props.state.pending !== before.pending)) {
+      fly(undefined, '[data-love-deck]', `[data-love-seat="${props.state.turn}"]`, 550);
+    }
+    return () => animations.forEach(animation => animation.cancel());
+  }, [props.state, props.viewerSeat]);
+  return <div ref={root}>
+    <LoveDecision key={`${props.state.round}:${props.state.turn}:${props.state.pending}:${props.state.log.length}`} {...props} />
+    {[undefined, ...Array.from({ length: 10 }, (_, i) => i)].map(value => <span key={value ?? "back"} data-flight={value ?? "back"} aria-hidden className="pointer-events-none fixed top-0 left-0 z-50 opacity-0"><LoveCard value={value} mode={props.state.mode} small compact /></span>)}
+  </div>;
 }
 
-export function LoveTable({ state, busy, play, viewerSeat, participants }: Props) {
+function LoveDecision({ state, busy, play, viewerSeat, participants }: Props) {
+  const [drawn, setDrawn] = useState(false);
+  const [card, setCard] = useState<number | null>(null);
+  const [target, setTarget] = useState<number | null>(null);
+  const [chosen, setChosen] = useState<number[]>([]);
+  const root = useRef<HTMLElement>(null);
   const names = state.mode === "classic" ? classic : modern;
   const me = viewerSeat === undefined ? undefined : state.players[viewerSeat];
-  const opponents = state.players.map((player, seat) => ({ player, seat })).filter(({ seat }) => seat !== viewerSeat);
-  const discardCount = state.players.reduce((total, player) => total + player.discard.length, 0);
+  const plays = state.legalActions.filter((action): action is Play => action.type === "play");
+  const keeps = state.legalActions.filter(action => action.type === "keep");
+  const myTurn = state.phase === "playing" && viewerSeat === state.turn && state.legalActions.length > 0;
+  const needsDraw = myTurn && !state.pending && !drawn && (me?.handCount ?? 0) > 1;
+  const hand = me?.hand ?? [];
+  const shownHand = needsDraw ? hand.slice(0, 1) : hand;
+  const selected = plays.filter(action => action.card === card);
+  const targets = [...new Set(selected.flatMap(action => action.target === undefined ? [] : [action.target]))];
+  const guesses = [...new Set(selected.filter(action => action.target === target).flatMap(action => action.guess === undefined ? [] : [action.guess]))];
   const status = state.phase === "over" ? `Vitória: ${state.winners.map(i => state.players[i].name).join(", ")}` : state.phase === "summary" ? `Rodada encerrada · ${state.winners.map(i => state.players[i].name).join(", ")}` : viewerSeat === state.turn ? "Sua vez" : `Vez de ${state.players[state.turn].name}`;
+  const instruction = busy ? "Aguarde a jogada…" : state.pending && myTurn ? chosen.length ? "Toque nas cartas restantes na ordem de devolução ao fundo." : "Escolha a carta que deseja manter." : needsDraw ? "Toque no baralho para comprar sua carta." : card === null ? myTurn ? "Toque na carta que deseja descartar." : "" : target === null && targets.length ? "Toque no jogador que receberá a carta." : guesses.length ? "Qual carta você acha que ele tem?" : "";
+
+  function chooseCard(value: number) {
+    if (busy || needsDraw) return;
+    const actions = plays.filter(action => action.card === value);
+    if (actions.length === 1 && actions[0].target === undefined) { void play(actions[0]); return; }
+    setCard(card === value ? null : value); setTarget(null);
+  }
+  function chooseTarget(seat: number) {
+    if (busy) return;
+    const actions = selected.filter(action => action.target === seat);
+    if (actions.length === 1 && actions[0].guess === undefined) { void play(actions[0]); return; }
+    setTarget(seat);
+  }
+  function chooseKeep(index: number) {
+    if (busy || chosen.includes(index)) return;
+    const order = [...chosen, index];
+    const candidates = keeps.filter(action => order.every((handIndex, position) => action.cards[position] === hand[handIndex]));
+    if (!candidates.length) return;
+    if (order.length === hand.length || candidates.every(action => JSON.stringify(action) === JSON.stringify(candidates[0]))) { void play(candidates[0]); return; }
+    setChosen(order);
+  }
+  // Animate the visible draw from the actual deck to the anchored local hand.
+  useEffect(() => {
+    if (!drawn || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const deck = root.current?.querySelector('[data-love-deck]')?.getBoundingClientRect();
+    const element = root.current?.querySelector<HTMLElement>('[data-love-hand] > :last-child');
+    if (!deck || !element) return;
+    const end = element.getBoundingClientRect();
+    const animation = element.animate([{ transform: `translate(${deck.x - end.x}px, ${deck.y - end.y}px) rotate(-12deg) scale(.5)`, opacity: 0 }, { transform: "translate(0,0) rotate(0) scale(1)", opacity: 1 }], { duration: 550, easing: "cubic-bezier(.2,.7,.2,1)" });
+    return () => animation.cancel();
+  }, [drawn]);
 
   function playerInfo(seat: number) {
     const player = state.players[seat];
     const participant = participants.find(p => p.seat === seat);
-    return <div className="flex min-w-0 items-center gap-2.5">
-      <Avatar className={cn("size-9", state.phase === "playing" && seat === state.turn && "shadow-[0_0_0_2px_var(--color-brand)]")}>
-        <AvatarImage src={participant?.avatarUrl ?? undefined} />
-        <AvatarFallback>{player.name.slice(0, 1).toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0"><p className="truncate text-sm font-medium">{player.name}{seat === viewerSeat && <span className="ml-1 text-xs font-normal text-muted">(você)</span>}</p><p className="flex items-center gap-1 text-xs text-muted"><Crown className="size-3" aria-hidden />{player.tokens} {player.tokens === 1 ? "ficha" : "fichas"}{player.out ? " · Eliminado" : player.protected ? " · Protegido" : ""}</p></div>
-    </div>;
+    return <span className="flex min-w-0 items-center gap-2.5">
+      <Avatar className={cn("size-9", state.phase === "playing" && seat === state.turn && "shadow-[0_0_0_2px_var(--color-brand)]")}><AvatarImage src={participant?.avatarUrl ?? undefined} /><AvatarFallback>{player.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
+      <span className="min-w-0 text-left"><span className="block truncate text-sm font-medium">{player.name}{seat === viewerSeat && <span className="ml-1 text-xs font-normal text-muted">(você)</span>}</span><span className="flex items-center gap-1 text-xs text-muted"><Crown className="size-3" aria-hidden />{player.tokens} {player.tokens === 1 ? "ficha" : "fichas"}{player.out ? " · Eliminado" : player.protected ? " · Protegido" : ""}</span></span>
+    </span>;
   }
-
   function discards(seat: number) {
-    return <div aria-label={`Descartes de ${state.players[seat].name}`} className="flex min-h-6 flex-wrap items-center gap-1">
-      {state.players[seat].discard.length ? state.players[seat].discard.map((card, index) => <span key={index} title={`${card} · ${names[card]}`} className="inline-flex size-6 items-center justify-center rounded-md bg-contrast/6 text-xs font-medium text-muted">{card}</span>) : <span className="text-xs text-muted">Sem descartes</span>}
-    </div>;
+    return <span data-love-discard={seat} aria-label={`Descartes de ${state.players[seat].name}`} className="flex min-h-6 flex-wrap gap-1">{state.players[seat].discard.map((value, index) => <span key={index} title={`${value} · ${names[value]}`}><LoveCard value={value} mode={state.mode} small compact /></span>)}</span>;
+  }
+  function playerSeat(seat: number) {
+    const player = state.players[seat];
+    const eligible = targets.includes(seat) && !needsDraw && !busy;
+    const content = <><span data-love-seat={seat} className="flex items-center justify-between gap-2">{playerInfo(seat)}{eligible && <span className="text-xs text-brand">Escolher</span>}</span>{seat !== viewerSeat && <span className="flex -space-x-6">{Array.from({ length: player.handCount }, (_, index) => <span key={index} aria-label={player.hand ? `${player.hand[index]} · ${names[player.hand[index]]}` : "Carta oculta"}><LoveCard mode={state.mode} value={player.hand?.[index]} small compact /></span>)}</span>}{discards(seat)}</>;
+    const className = cn("flex min-w-0 flex-col gap-3 rounded-panel bg-contrast/3 p-3", player.out && "opacity-50", target === seat && "shadow-[0_0_0_2px_var(--color-brand)]");
+    return eligible ? <Button key={seat} variant="ghost" aria-label={`Escolher jogador ${player.name}`} aria-pressed={target === seat} className={cn(className, "h-auto items-stretch justify-start whitespace-normal border-brand/50 hover:bg-brand/10")} onClick={() => chooseTarget(seat)}>{content}</Button> : <div key={seat} aria-label={`Jogador ${player.name}`} className={className}>{content}</div>;
   }
 
-  return <section aria-label="Mesa do Love Letter" className="min-w-0 pb-6">
-      <div className="flex min-h-11 items-center justify-between gap-3 border-b border-contrast/6 pb-3">
-        <p className="text-sm text-muted">Rodada <span className="font-medium text-foreground">{state.round}</span></p>
-      </div>
-
-      <div className={cn("flex gap-3 overflow-x-auto pt-5 pb-2 sm:grid sm:overflow-visible sm:pb-0", opponents.length > 3 ? "sm:grid-cols-3 lg:grid-cols-5" : opponents.length === 3 ? "sm:grid-cols-3" : opponents.length === 1 ? "mx-auto max-w-sm sm:grid-cols-1" : "sm:grid-cols-2")}>
-        {opponents.map(({ player, seat }) => <div key={seat} aria-label={`Jogador ${player.name}`} className={cn("flex w-40 min-w-0 shrink-0 flex-col gap-3 rounded-panel bg-contrast/3 p-3 sm:w-auto", player.out && "opacity-50")}>
-          {playerInfo(seat)}
-          <div className="flex min-h-16 items-center justify-between gap-2">
-            <div className="flex -space-x-8">{Array.from({ length: player.handCount }, (_, index) => <span key={index} aria-label={player.hand ? `${player.hand[index]} · ${names[player.hand[index]]}` : "Carta oculta"}><CardFace mode={state.mode} value={player.hand?.[index]} small compact /></span>)}</div>
-            <span className="text-xs text-muted">{player.handCount} {player.handCount === 1 ? "carta" : "cartas"}</span>
-          </div>
-          {discards(seat)}
-        </div>)}
-      </div>
-
-      <div className="flex flex-col items-center justify-center gap-5 py-6">
-        <div className="flex items-start gap-8 sm:gap-12">
-          <div className="grid justify-items-center gap-3"><div className="relative"><span aria-hidden className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-contrast/10 bg-surface" /><span className="relative block"><CardFace mode={state.mode} small /></span></div><p className="text-xs text-muted">Baralho · <span className="tabular-nums text-foreground">{state.deckCount}</span></p></div>
-          <div className="grid justify-items-center gap-3"><span className="flex h-24 w-16 items-center justify-center rounded-xl border border-dashed border-contrast/10 text-2xl font-medium tabular-nums text-muted">{discardCount}</span><p className="text-xs text-muted">Descartes</p></div>
-        </div>
-        <p role="status" className={cn("text-center text-sm font-medium", viewerSeat === state.turn && state.phase === "playing" ? "text-brand" : "text-foreground")}>{status}</p>
-      </div>
-
-      <LoveHand key={`${state.round}:${state.turn}:${state.pending}:${state.log.length}`} state={state} busy={busy} play={play} viewerSeat={viewerSeat} participants={participants} />
-      {me && viewerSeat !== undefined && <div className="mx-auto mt-5 flex max-w-lg flex-wrap items-center justify-center gap-4">{playerInfo(viewerSeat)}{discards(viewerSeat)}</div>}
-      {state.privateInfo.length > 0 && <div className="mx-auto mt-5 max-w-lg space-y-1 rounded-panel bg-contrast/6 p-4 text-sm" aria-label="Informações privadas">{state.privateInfo.map((info, index) => <p key={index}>{info}</p>)}</div>}
-      {state.removed.length > 0 && <p className="mt-6 text-center text-xs text-muted">Cartas fora da rodada: {state.removed.map(card => `${card} · ${names[card]}`).join(", ")}</p>}
-    </section>;
-}
-
-function LoveHand({ state, busy, play, viewerSeat }: Props) {
-  const [card, setCard] = useState<number | null>(null);
-  const [target, setTarget] = useState<number | null>(null);
-  const [guess, setGuess] = useState<number | null>(null);
-  const [keep, setKeep] = useState(0);
-  const names = state.mode === "classic" ? classic : modern;
-  const hand = viewerSeat === undefined ? [] : state.players[viewerSeat].hand ?? [];
-  const plays = state.legalActions.filter(action => action.type === "play");
-  const keeps = state.legalActions.filter(action => action.type === "keep");
-  const selectedPlays = plays.filter(action => action.card === card);
-  const targets = [...new Set(selectedPlays.flatMap(action => action.target === undefined ? [] : [action.target]))];
-  const guesses = [...new Set(selectedPlays.filter(action => action.target === (target ?? undefined)).flatMap(action => action.guess === undefined ? [] : [action.guess]))];
-  const action = keeps.at(keep) ?? selectedPlays.find(action => action.target === (target ?? undefined) && action.guess === (guess ?? undefined)) ?? state.legalActions.find(action => action.type === "next");
-
-  return <div className="mx-auto max-w-lg space-y-5">
-    {hand.length > 0 && <div role="group" aria-label="Sua mão" className="flex flex-wrap justify-center gap-3 sm:gap-4">{hand.map((value, index) => {
-      const playable = plays.some(action => action.card === value);
-      return <div key={index} className="relative">
-        {playable ? <Button variant="ghost" className={cn("h-auto rounded-xl p-0 text-left transition-transform motion-reduce:transition-none hover:-translate-y-1 hover:bg-transparent focus-visible:border-foreground", card === value && "-translate-y-2 shadow-[0_0_0_2px_var(--color-brand)]")} disabled={busy} aria-label={`Selecionar ${value} · ${names[value]}`} aria-pressed={card === value} onClick={() => { setCard(value); setTarget(null); setGuess(null); }}><CardFace value={value} mode={state.mode} /></Button> : <CardFace value={value} mode={state.mode} />}
-      </div>;
-    })}</div>}
-    {plays.length > 0 && <div className="space-y-4">
-      <p className="min-h-10 text-center text-sm text-muted">{card === null ? "Escolha uma carta para jogar." : roles[names[card]].effect}</p>
-      <div className="flex flex-wrap items-end justify-center gap-3">
-        {targets.length > 0 && <Field className="min-w-40 flex-1">Jogador<Select value={target ?? ""} disabled={busy} onChange={event => { setTarget(Number(event.target.value)); setGuess(null); }}><option value="" disabled>Escolha o jogador</option>{targets.map(seat => <option key={seat} value={seat}>{state.players[seat].name}</option>)}</Select></Field>}
-        {guesses.length > 0 && <Field className="min-w-40 flex-1">Palpite<Select value={guess ?? ""} disabled={busy} onChange={event => setGuess(Number(event.target.value))}><option value="" disabled>Escolha a carta</option>{guesses.map(value => <option key={value} value={value}>{value} · {names[value]}</option>)}</Select></Field>}
-        <Button loading={busy} disabled={!action} onClick={() => { if (action) void play(action); }}>Jogar carta</Button>
-      </div>
-    </div>}
-    {keeps.length > 0 && <div className="space-y-3"><Field>Carta para manter e ordem no fundo<Select value={keep} disabled={busy} onChange={event => setKeep(Number(event.target.value))}>{keeps.map((action, index) => <option key={index} value={index}>Manter {action.cards[0]} · {names[action.cards[0]]}; fundo: {action.cards.slice(1).map(value => `${value} · ${names[value]}`).join(", ") || "nenhuma"}</option>)}</Select></Field><Button loading={busy} onClick={() => { if (action) void play(action); }}>Confirmar escolha</Button></div>}
-    {action?.type === "next" && <div className="flex justify-center"><Button loading={busy} onClick={() => void play(action)}>Próxima rodada</Button></div>}
-  </div>;
+  return <section ref={root} aria-label="Mesa do Love Letter" className="relative flex min-h-[calc(100dvh-var(--header-height)-10rem)] min-w-0 flex-col gap-5 pb-2">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{state.players.map((_, seat) => seat !== viewerSeat && playerSeat(seat))}</div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 py-5">
+      <Button data-love-deck variant="ghost" aria-label={needsDraw ? "Comprar carta do baralho" : state.phase === "summary" && state.legalActions.some(a => a.type === "next") ? "Distribuir próxima rodada" : "Baralho"} disabled={busy || !(needsDraw || state.legalActions.some(a => a.type === "next"))} onClick={() => { if (needsDraw) setDrawn(true); else void play({ type: "next" }); }} className="relative h-auto rounded-xl p-0 disabled:opacity-100 hover:-translate-y-1 hover:bg-transparent"><span aria-hidden className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-contrast/10 bg-surface" /><span className="relative"><LoveCard mode={state.mode} small /></span></Button>
+      <span className="text-xs text-muted">{state.deckCount + (needsDraw ? 1 : 0)} cartas no baralho</span>
+      <p role="status" className={cn("text-center text-sm font-medium", myTurn && "text-brand")}>{status}</p>
+      {state.privateInfo.length > 0 && <div className="max-w-lg rounded-panel bg-contrast/6 p-3 text-sm" aria-label="Informações privadas">{state.privateInfo.map((info, index) => <p key={index}>{info}</p>)}</div>}
+    </div>
+    <div className="sticky bottom-0 z-20 -mx-2 rounded-t-panel border-t border-contrast/6 bg-background/95 px-2 pt-3 pb-4 backdrop-blur-md">
+      <div className="mb-3 flex min-h-8 items-center justify-center gap-2"><p aria-live="polite" className="text-center text-sm text-muted">{instruction}</p>{(card !== null || chosen.length > 0) && <Button size="icon-sm" variant="ghost" aria-label="Cancelar escolha" onClick={() => { setCard(null); setTarget(null); setChosen([]); }}><X className="size-4" /></Button>}</div>
+      {guesses.length > 0 && target !== null && <div role="group" aria-label="Escolher palpite" className="mb-4 flex flex-wrap justify-center gap-2">{guesses.map(value => <Button key={value} variant="ghost" disabled={busy} aria-label={`Adivinhar ${value} · ${names[value]}`} className="h-auto rounded-xl p-0 hover:-translate-y-1 hover:bg-transparent" onClick={() => { const action = selected.find(a => a.target === target && a.guess === value); if (action) void play(action); }}><LoveCard value={value} mode={state.mode} small /></Button>)}</div>}
+      <div data-love-hand role="group" aria-label="Sua mão" className="flex justify-center gap-3 sm:gap-4">{shownHand.map((value, index) => {
+        const canKeep = keeps.some(action => [...chosen, index].every((handIndex, position) => action.cards[position] === hand[handIndex])) && !chosen.includes(index);
+        const playable = myTurn && !needsDraw && (state.pending ? canKeep : plays.some(a => a.card === value));
+        return <span key={index} className="relative">{playable ? <Button variant="ghost" disabled={busy} aria-label={state.pending ? `${chosen.length ? "Devolver" : "Manter"} carta ${index + 1}: ${value} · ${names[value]}` : `Descartar ${value} · ${names[value]}`} aria-pressed={card === value} title={loveRoles[names[value]].effect} className={cn("h-auto rounded-xl p-0 transition-transform hover:-translate-y-2 hover:bg-transparent motion-reduce:transition-none", card === value && "-translate-y-3 shadow-[0_0_0_2px_var(--color-brand)]")} onClick={() => state.pending ? chooseKeep(index) : chooseCard(value)}><LoveCard value={value} mode={state.mode} /></Button> : <LoveCard value={value} mode={state.mode} />}{chosen.includes(index) && <span className="absolute top-2 right-2 rounded-full bg-brand px-2 py-1 text-xs text-white">{chosen.indexOf(index) === 0 ? "Manter" : chosen.indexOf(index)}</span>}</span>;
+      })}{hand.length === 0 && me && Array.from({ length: me.handCount }, (_, index) => <LoveCard key={`hidden-${index}`} mode={state.mode} />)}</div>
+      {card !== null && <p className="mt-3 text-center text-xs text-muted">{loveRoles[names[card]].effect}</p>}
+      {me && viewerSeat !== undefined && <div className="mx-auto mt-3 max-w-lg">{targets.includes(viewerSeat) ? playerSeat(viewerSeat) : <span data-love-seat={viewerSeat}>{playerInfo(viewerSeat)}<span data-love-discard={viewerSeat}>{discards(viewerSeat)}</span></span>}</div>}
+    </div>
+    {state.removed.length > 0 && <p className="text-center text-xs text-muted">Fora da rodada: {state.removed.map(value => `${value} · ${names[value]}`).join(", ")}</p>}
+  </section>;
 }

@@ -46,7 +46,8 @@ for(const game of Object.keys(gameDefinitions)){
   assert.equal(f.events.length,count);
   await assert.rejects(commandMatch(f.pool,f.ids[seat],'session',f.row.code,{...input,commandId:randomUUID()}),{code:'VERSION_CONFLICT'});
   if(game==='love-letter'){
-   assert.deepEqual(reply,{ok:true});
+   assert.ok(reply.frames.length);
+   assert.deepEqual(reply.match.state.privateInfo,[]);
    for(const event of f.events){if(event.state.phase==='playing')assert.ok(event.state.players.every(p=>p.hand===null));assert.deepEqual(event.state.privateInfo,[]);assert.deepEqual(event.state.legalActions,[]);assert.equal('cards' in event.action,false);}
   }
  });

@@ -27,7 +27,7 @@ export const loveDriver:MatchDriver<GameView,GameEngineAction> = {
   },
   // Chancellor choices include private cards: neither receipts nor events store them.
   eventAction:()=>({type:"step"}),
-  snapshotOnly:true,
+  snapshotOnly:false,
   outcome:state=>{
     const s=parseLove(state);
     return {winners:s.winners,humanSeats:s.players.flatMap((p,i)=>p.kind==="human"?[i]:[])};

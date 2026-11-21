@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import {
   Dialog,
@@ -37,9 +37,25 @@ function NavigationLayout({ children }: { children: ReactNode }) {
   const { username, balance, walletReady } = useSession();
   const invitations = useLobbyInvitations();
   const pathname = usePathname();
-  const [sidebar, setSidebar] = useState<"expanded" | "collapsed">("expanded");
+  const searchParams = useSearchParams();
+  const matchCode = searchParams.get("partida");
+  const sidebarScope = pathname.startsWith("/jogos/") && matchCode
+    ? `${pathname}?partida=${matchCode}`
+    : null;
+  const defaultSidebar = sidebarScope ? "collapsed" : "expanded";
+  const [sidebarState, setSidebarState] = useState<{
+    scope: string | null;
+    value: "expanded" | "collapsed";
+  }>({ scope: sidebarScope, value: defaultSidebar });
+  const sidebar = sidebarState.scope === sidebarScope ? sidebarState.value : defaultSidebar;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuTrigger = useRef<HTMLElement | null>(null);
+
+  // Apply the destination's default before rendering children, including direct entry
+  // and browser back/forward. Manual toggles last while staying in this scope.
+  if (sidebarState.scope !== sidebarScope) {
+    setSidebarState({ scope: sidebarScope, value: defaultSidebar });
+  }
 
   useEffect(() => {
     // Route changes dismiss navigation overlays, including browser back/forward.
@@ -57,9 +73,10 @@ function NavigationLayout({ children }: { children: ReactNode }) {
   }, []);
 
   function toggleSidebar() {
-    setSidebar((current) =>
-      current === "expanded" ? "collapsed" : "expanded",
-    );
+    setSidebarState({
+      scope: sidebarScope,
+      value: sidebar === "expanded" ? "collapsed" : "expanded",
+    });
   }
 
   return (

@@ -65,7 +65,7 @@ export const personalMatchesSchema = z.object({ items: z.array(z.object({
   status: z.enum(["lobby", "playing"]), development: z.boolean(),
   lobbyExpiresAt:z.iso.datetime().nullable().optional(),
   yourTurn: z.boolean(), turnKey: z.string().nullable(),
-  participants: z.array(matchParticipantSchema).max(12).default([]),
+  participants: z.array(matchParticipantSchema.extend({ userId:z.uuid().nullable(), bot:z.boolean().optional() })).max(12).default([]),
 }).strict()) }).strict();
 export type PersonalMatches = z.infer<typeof personalMatchesSchema>;
 

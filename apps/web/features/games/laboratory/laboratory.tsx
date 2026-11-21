@@ -89,6 +89,7 @@ export function GameLaboratory() {
   return <div className="grid min-w-0 gap-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3"><Button asChild size="icon" variant="ghost"><Link href="/admin/jogos" aria-label="Voltar aos jogos"><ArrowLeft className="size-4" /></Link></Button><div><h1 className="text-xl font-semibold">Laboratório de jogos</h1><p className="text-sm text-muted">Mesa 3D · Simulação visual</p></div></div>
+      <Button asChild variant="secondary"><Link href="/admin/jogos/laboratorio/love-letter">Cartas do Love Letter</Link></Button>
       <Button variant="secondary" onClick={() => reset(defaultSettings)}><RotateCcw className="size-4" aria-hidden />Reiniciar</Button>
     </div>
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
