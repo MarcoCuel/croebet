@@ -65,7 +65,7 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, 
   const front = target.hidden ? resources.maps[10] : resources.maps[target.value];
   const back = target.revealBack ? front : resources.maps[10];
   const thickness = target.thickness ?? 0.004;
-  const geometry = target.curved ? resources.curved : resources.flat;
+  const geometry = target.curved === "fan" ? resources.fan : target.curved ? resources.curved : resources.flat;
   return <group ref={ref}
     onClick={target.interactive ? event => { event.stopPropagation(); if (suppressClick.current) { suppressClick.current = false; return; } onSelect(target.id); } : undefined}
     onContextMenu={target.interactive ? event => { event.stopPropagation(); event.nativeEvent.preventDefault(); event.nativeEvent.stopPropagation(); onMenu(target.id, { x: event.clientX, y: event.clientY }); } : undefined}

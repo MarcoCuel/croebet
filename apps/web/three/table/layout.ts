@@ -64,17 +64,33 @@ export function handWindow(count: number, width: number, scale: number, focus = 
 }
 export function handPlacements(count: number, options: HandOptions): CardPose[] {
   const step = Math.min(options.spacing * (1 - options.overlap) * options.scale, options.width / Math.max(1, count - 1));
+  const pitch = radians(options.tilt);
+  const fanArc = options.layout === "fan" ? options.curve * 0.32 : 0;
+  const fanRadius = fanArc > 0 ? (count - 1) * step / (2 * Math.sin(fanArc / 2)) : 0;
   return Array.from({ length: count }, (_, index) => {
     const centered = index - (count - 1) / 2;
     const t = count <= 1 ? 0 : centered / (count - 1);
     const fan = options.layout === "fan";
+    if (fan) {
+      // One pivot controls both the card centers and their tangents. Keep the
+      // entire fan in its tilted plane; world-Z offsets intersect that plane.
+      const turn = t * fanArc;
+      const drop = fanRadius * (Math.cos(turn) - 1);
+      // Later cards cover earlier ones, including the newly purchased card.
+      // Separation exceeds the shallow paper bend plus its physical thickness.
+      const layer = index * 0.014 * options.scale;
+      return { position: [fanArc > 0 ? fanRadius * Math.sin(turn) : centered * step,
+        0.65 * options.scale + drop * Math.cos(pitch) + layer * Math.sin(pitch),
+        -drop * Math.sin(pitch) + layer * Math.cos(pitch)],
+        rotation: [-pitch, radians(options.orientation), -turn], scale: options.scale };
+    }
     const arc = options.spatialCurve ?? 0;
     const yaw = t * arc;
     const radius = arc > 0 ? (count - 1) * step / (2 * Math.sin(arc / 2)) : 0;
     return { position: [arc > 0 ? radius * Math.sin(yaw) : centered * step,
-      (fan ? -t * t * options.curve * 0.5 : 0) + 0.65 * options.scale,
+      0.65 * options.scale,
       (arc > 0 ? radius * (Math.cos(yaw) - 1) : 0) + index * (arc > 0 ? 0.006 : 0.003) * options.scale],
-      rotation: [-radians(options.tilt), radians(options.orientation) + yaw, fan ? -t * options.curve * 0.32 : 0], scale: options.scale };
+      rotation: [-pitch, radians(options.orientation) + yaw, 0], scale: options.scale };
   });
 }
 export function worldHandPose(pose: CardPose, seat: SeatPlacement): CardPose {

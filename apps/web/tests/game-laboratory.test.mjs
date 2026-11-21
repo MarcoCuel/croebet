@@ -11,6 +11,51 @@ import { arcPosition, easedProgress } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
 const options = { layout: 'fan', width: 5.5, curve: 1.2, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0 };
 
+test('leque mantém bordas tangentes ao mesmo arco e cada carta inteiramente à frente da anterior', () => {
+  const paper = createCardGeometry(0.004);
+  try {
+    for (const count of [2, 7, 15, 26]) for (const angle of [25, 36, 65]) {
+      const layout = resolveTableLayout({ players: 4, viewer: 0, counts: Array(12).fill(count), width: 1200, height: 700, angle, deck: [-1.5, 0.035, -0.6] });
+      const poses = handPlacements(Math.min(count, layout.hands[0].visibleLimit), layout.hands[0]);
+      const normal = new Vector3(0, Math.sin(angle * Math.PI / 180), Math.cos(angle * Math.PI / 180));
+      const up = new Vector3(0, normal.z, -normal.y);
+      let previousFront = -Infinity;
+      for (const pose of poses) {
+        const rotation = new Euler(...pose.rotation, 'YXZ');
+        const depths = [];
+        for (const [mesh, offset] of [[paper.face, 0.0022], [paper.edge, 0], [paper.backFace, -0.0022]]) {
+          const vertices = mesh.getAttribute('position');
+          for (let i = 0; i < vertices.count; i++) {
+            const point = new Vector3().fromBufferAttribute(vertices, i);
+            if (mesh === paper.backFace) point.applyEuler(new Euler(0, Math.PI, 0));
+            point.z += offset;
+            depths.push(point.multiplyScalar(pose.scale).applyEuler(rotation).add(new Vector3(...pose.position)).dot(normal));
+          }
+        }
+        assert.ok(Math.min(...depths) > previousFront, 'a carta seguinte não pode atravessar ou ficar atrás da anterior');
+        previousFront = Math.max(...depths);
+      }
+      for (let i = 1; i < poses.length; i++) {
+        const previous = poses[i - 1], current = poses[i];
+        const displacement = new Vector3(...current.position).sub(new Vector3(...previous.position));
+        const tangent = Math.atan2(displacement.dot(up), displacement.x);
+        assert.ok(Math.abs(tangent - (previous.rotation[2] + current.rotation[2]) / 2) < 1e-8, 'centros e inclinações devem seguir o mesmo arco');
+      }
+    }
+  } finally { for (const geometry of Object.values(paper)) geometry.dispose(); }
+});
+
+test('carta comprada entra no fim da mão e ocupa a camada superior do leque', () => {
+  const before = initialState(defaultSettings);
+  const purchased = before.deck.at(-1);
+  const after = laboratoryReducer(before, { type: 'draw', seat: 0 });
+  assert.equal(after.hands[0].at(-1).id, purchased.id);
+  const poses = handPlacements(after.hands[0].length, { ...options, tilt: 36 });
+  const normal = new Vector3(0, Math.sin(Math.PI / 5), Math.cos(Math.PI / 5));
+  const depth = pose => new Vector3(...pose.position).dot(normal);
+  assert.ok(poses.slice(0, -1).every(pose => depth(pose) < depth(poses.at(-1))));
+});
+
 test('mãos vazias, únicas e grandes mantêm posições finitas e largura limitada', () => {
   for (const count of [0, 1, 7, 20, 50, 1000]) {
     for (const layout of ['line', 'fan']) {

@@ -34,7 +34,7 @@ function texture(value: number | null, anisotropy: number) {
 }
 export function useCardResources(palette: TablePalette) {
   const anisotropy = useThree(state => Math.min(8, state.gl.capabilities.getMaxAnisotropy()));
-  const geometry = useMemo(() => ({ flat: createCardGeometry(), curved: createCardGeometry(0.018) }), []);
+  const geometry = useMemo(() => ({ flat: createCardGeometry(), fan: createCardGeometry(0.004), curved: createCardGeometry(0.018) }), []);
   const maps = useMemo(() => [...Array.from({ length: 10 }, (_, n) => texture(n, anisotropy)), texture(null, anisotropy)], [anisotropy]);
   useEffect(() => () => maps.forEach(map => map.dispose()), [maps]);
   useEffect(() => () => { Object.values(geometry).forEach(({ face, backFace, edge }) => { face.dispose(); backFace.dispose(); edge.dispose(); }); }, [geometry]);
