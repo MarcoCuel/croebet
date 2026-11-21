@@ -1,11 +1,9 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { LoveCard, classic, modern, loveRoles } from "./love-card";
 
 export function LoveCardCatalog() {
   return <div className="space-y-8">
-    <div className="flex items-center gap-3"><Button asChild size="icon" variant="ghost"><Link href="/admin/jogos/laboratorio" aria-label="Voltar ao laboratório"><ArrowLeft className="size-4" /></Link></Button><div><h1 className="text-xl font-semibold">Cartas do Love Letter</h1><p className="text-sm text-muted">Frentes, miniaturas e versos usados na mesa.</p></div></div>
+    <h1 className="sr-only">Cartas do Love Letter</h1>
+    <p className="text-sm text-muted">Frentes, miniaturas e versos usados na mesa.</p>
     {(["classic", "modern"] as const).map(mode => {
       const names = mode === "classic" ? classic : modern;
       const counts = mode === "classic" ? [0,5,2,2,2,2,1,1,1] : [2,6,2,2,2,2,2,1,1,1];

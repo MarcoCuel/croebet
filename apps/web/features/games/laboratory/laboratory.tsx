@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, RotateCcw, Save, Settings2, X } from "lucide-react";
+import { RotateCcw, Save, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -100,8 +100,8 @@ export function GameLaboratory() {
   };
   const menuCard = menu?.target.kind === "card" ? menu.target.id : null;
   return <div className="grid min-w-0 gap-4">
-    <div className="flex items-center gap-3"><Button asChild size="icon" variant="ghost"><Link href="/admin/jogos" aria-label="Voltar aos jogos"><ArrowLeft className="size-4" /></Link></Button><h1 className="text-xl font-semibold">Laboratório de jogos</h1></div>
-    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-10rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label="Mesa 3D de teste">
+    <h1 className="sr-only">Laboratório de jogos</h1>
+    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label="Mesa 3D de teste">
       <SceneBoundary><Scene settings={settings} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
         canDraw={canDraw} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></SceneBoundary>
       <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>

@@ -49,6 +49,10 @@ export function Topbar({
           : "Gerenciar aposta"
         : pathname.startsWith("/admin/paginas/")
           ? pathname.endsWith("/nova") ? "Nova página" : "Editar página"
+        : pathname === "/admin/jogos/laboratorio"
+          ? "Laboratório de jogos"
+        : pathname === "/admin/jogos/laboratorio/love-letter"
+          ? "Cartas do Love Letter"
         : pathname.startsWith("/admin/jogos/")
           ? pathname.endsWith("/novo") ? "Criar jogo" : "Editar jogo"
           : (
@@ -91,6 +95,8 @@ export function Topbar({
         ? { href: adminRoutes.markets, label: "Voltar para Apostas do admin" }
         : pathname.startsWith("/admin/paginas/")
           ? { href: adminRoutes.pages, label: "Voltar para Páginas do admin" }
+        : pathname === "/admin/jogos/laboratorio/love-letter"
+          ? { href: "/admin/jogos/laboratorio", label: "Voltar ao laboratório" }
         : pathname.startsWith("/admin/jogos/")
           ? { href: adminRoutes.games, label: "Voltar para Jogos do admin" }
           : { href: "/admin", label: "Voltar para Admin" }

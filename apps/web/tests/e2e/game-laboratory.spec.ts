@@ -19,6 +19,10 @@ test("configuração interna preserva cenários e paginação sem reduzir a larg
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene");
   await expect(scene.locator("canvas")).toBeVisible();
+  await expect(page.locator("header").getByText("Laboratório de jogos", { exact: true })).toBeVisible();
+  await expect(page.locator("header").getByText("Editar jogo", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Laboratório de jogos", exact: true })).toHaveClass("sr-only");
+  await expect(page.locator("header").getByRole("link", { name: "Voltar para Jogos do admin", includeHidden: true })).toHaveAttribute("href", "/admin/jogos");
   await expect(page.getByRole("complementary", { name: "Configuração da mesa" })).toHaveCount(0);
   await openSettings(page);
   const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
@@ -134,4 +138,12 @@ test("iluminação e sombras podem ser ajustadas, salvas e restauradas dentro da
   await panel.getByRole("button", { name: "Sombras: ativadas", exact: true }).click();
   await expect(softness).toBeDisabled();
   await expect(panel.getByRole("slider", { name: /^Intensidade da sombra/ })).toBeDisabled();
+});
+
+
+test("catálogo usa título e retorno ao laboratório no navbar", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio/love-letter");
+  await expect(page.locator("header").getByText("Cartas do Love Letter", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cartas do Love Letter", exact: true })).toHaveClass("sr-only");
+  await expect(page.locator("header").getByRole("link", { name: "Voltar ao laboratório", includeHidden: true })).toHaveAttribute("href", "/admin/jogos/laboratorio");
 });
