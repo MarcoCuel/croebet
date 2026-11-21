@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
-import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, viewHandOptions, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
+import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
+import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, easedProgress } from '../three/table/motion.ts';
@@ -30,7 +31,7 @@ test('câmera ortográfica enquadra retrato/paisagem e preserva tamanho independ
     const seats = seatPlacements(players, viewer, 4, 3.2, 5.5);
     assert.equal(seats[0].seat, viewer); assert.equal(seats[0].position[0], 0); assert.ok(seats[0].position[2] > 0);
     assert.equal(new Set(seats.map(seat => seat.seat)).size, players);
-    const points = sceneBounds(seats, { ...options, scale: 1.8, curve: 3 }, Array(12).fill(1000), 36);
+    const points = sceneBounds(seats, seats.map(seat => ({ ...options, width: seat.width, scale: 1.8, curve: 3 })), Array(12).fill(1000));
     for (const aspect of [0.4, 0.7, 1, 1.8, 2.4]) for (const angle of [25, 36, 65]) {
       const fit = fitCamera(points, aspect, angle); const pitch = angle * Math.PI / 180;
       const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
@@ -53,11 +54,10 @@ test('câmera ortográfica enquadra retrato/paisagem e preserva tamanho independ
 
 test('preferências migram presets anteriores e recusam valores corrompidos', () => {
   assert.deepEqual(parseSettings(defaultSettings), defaultSettings);
-  const { tilt, overlap, ...legacy } = defaultSettings;
-  assert.equal(parseSettings(legacy).tilt, tilt); assert.equal(parseSettings(legacy).overlap, overlap);
+  assert.deepEqual(parseSettings({ ...defaultSettings, tilt: 45, overlap: 0.9, scale: 0.5, curve: 3, opponentCurve: 1.6, layout: 'line' }), defaultSettings);
   for (const value of [null, {}, { ...defaultSettings, viewer: 8 }, { ...defaultSettings, angle: NaN },
     { ...defaultSettings, counts: Array(12).fill(1001) }, { ...defaultSettings, players: 4.5 },
-    { ...defaultSettings, shadows: 'sim' }, { ...defaultSettings, layout: 'unknown' }, { ...defaultSettings, scale: Infinity }]) assert.equal(parseSettings(value), null);
+    { ...defaultSettings, shadows: 'sim' }, { ...defaultSettings, exposure: NaN }, { ...defaultSettings, deckX: Infinity }]) assert.equal(parseSettings(value), null);
 });
 const identities = state => [...state.hands.flat(), ...state.deck, ...state.discard].map(card => card.id).sort();
 test('comprar, distribuir, virar, descartar, trocar, recolher e embaralhar preservam cartas e identidades', () => {
@@ -114,13 +114,14 @@ test('cada observador recebe a mesma composição com sua mão em primeiro plano
         assert.deepEqual(seat.position, reference[place].position);
         assert.equal(seat.seat, (viewer + place) % players);
         if (place) {
-          assert.ok(seat.position[2] < 1e-9);
+          assert.ok(seat.position[2] < seats[0].position[2]);
           // At least 79% of the face width remains visible instead of a side-on hand.
           assert.ok(Math.cos(seat.angle) > 0.79);
         }
       });
     }
-    assert.ok(viewHandOptions(options, true, 36).scale > viewHandOptions(options, false, 36).scale);
+    const layout = resolveTableLayout({ players, viewer: 0, counts: Array(players).fill(7), width: 1200, height: 700, angle: 36, deck: [-1.5, 0.035, -0.6] });
+    assert.ok(layout.hands[0].scale > layout.hands[1].scale);
   }
   const seats = seatPlacements(4, 0, 4, 3.2, 5.5);
   const right = worldHandPose({ position: [1, 0, 0], rotation: [0, 0, 0], scale: 1 }, seats[1]);
@@ -129,21 +130,18 @@ test('cada observador recebe a mesma composição com sua mão em primeiro plano
   assert.ok(left.position[0] > seats[3].position[0] && left.position[2] < seats[3].position[2]);
 });
 
-test('adversários envolvem o jogador em arco sem o giro de leque da mão local', () => {
-  for (const layout of ['fan', 'line']) for (const curve of [0, 1.2, 3]) {
-    const configured = { ...options, layout, curve, orientation: 45, tilt: 45 };
-    const opponent = viewHandOptions(configured, false, 36);
-    const cards = handPlacements(7, opponent);
+test('arco adversário é espacial e mantém as cartas verticais, enquanto o leque local se adapta à quantidade', () => {
+  for (const count of [1, 2, 7, 20, 50]) {
+    const layout = resolveTableLayout({ players: 4, viewer: 0, counts: Array(4).fill(count), width: 1200, height: 700, angle: 36, deck: [-1.5, 0.035, -0.6] });
+    const opponent = layout.hands[1];
+    const visible = adaptiveHandWindow(count, opponent, 0, false);
+    const cards = handPlacements(visible.length, opponent);
     assert.ok(cards.every(card => card.rotation[2] === 0));
     assert.ok(cards.every(card => card.position[1] === cards[0].position[1]));
-    assert.ok(cards[0].rotation[1] < 0 && cards.at(-1).rotation[1] > 0);
-    assert.ok(cards[0].position[2] < cards[3].position[2]);
-    const straight = handPlacements(7, viewHandOptions({ ...configured, spatialCurve: 0 }, false, 36));
-    assert.ok(straight.every(card => card.rotation[1] === 0));
     assert.ok(cards.every(card => Math.abs(card.rotation[0]) <= 8 * Math.PI / 180));
-    const local = viewHandOptions(configured, true, 36);
-    assert.equal(local.layout, layout);
-    assert.equal(local.curve, curve);
+    assert.equal(layout.hands[0].spatialCurve, 0);
+    if (count === 1) assert.equal(layout.hands[0].curve, 0);
+    if (count > 1) assert.ok(cards[0].rotation[1] < 0 && cards.at(-1).rotation[1] > 0);
   }
 });
 
@@ -178,7 +176,7 @@ test('presets antigos restauram iluminação suave e novos controles recusam val
   const migrated = parseSettings(legacy);
   assert.equal(migrated.light, defaultSettings.light);
   assert.equal(migrated.ambient, defaultSettings.ambient);
-  assert.equal(migrated.radius, legacy.radius);
+  assert.equal(migrated.deckX, legacy.deckX);
   for (const key of ['pointLight', 'pointHeight', 'exposure', 'shadowSoftness', 'shadowOpacity']) assert.equal(migrated[key], defaultSettings[key]);
   for (const change of [{ pointLight: -1 }, { pointHeight: 0 }, { exposure: 2 }, { shadowSoftness: 0 }, { shadowOpacity: 1 }]) {
     assert.equal(parseSettings({ ...defaultSettings, ...change }), null);
@@ -191,9 +189,9 @@ test('presets antigos restauram iluminação suave e novos controles recusam val
 test('mão local fica no rodapé com a base cortada sem esconder centro ou números', () => {
   for (const aspect of [0.4, 0.7, 1, 1.8, 2.4]) for (const angle of [25, 36, 65]) {
     const seats = seatPlacements(4, 0, 4, 3.2, 5.5);
-    const fit = fitCamera(sceneBounds(seats, options, Array(12).fill(1000), angle), aspect, angle);
-    const seat = foregroundSeat(seats[0], fit, options, angle);
-    const pose = worldHandPose(handPlacements(1, viewHandOptions(options, true, angle))[0], seat);
+    const fit = fitCamera(sceneBounds(seats, seats.map(seat => ({ ...options, width: seat.width, tilt: angle })), Array(12).fill(1000)), aspect, angle);
+    const seat = foregroundSeat(seats[0], fit, { ...options, tilt: angle }, angle);
+    const pose = worldHandPose(handPlacements(1, { ...options, tilt: angle })[0], seat);
     const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
     camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
     const project = y => new Vector3(0, y * pose.scale, 0).applyEuler(new Euler(...pose.rotation, 'YXZ')).add(new Vector3(...pose.position)).project(camera);
@@ -243,14 +241,71 @@ test('cantos seguem arcos de círculo amostrados e UVs preservam as proporções
   } finally { for (const mesh of Object.values(geometry)) mesh.dispose(); }
 });
 
-test('posição, rotação do deck e arco adversário são persistidos e validados', () => {
-  const configured = { ...defaultSettings, deckX: -3, deckZ: -2.6, deckRotation: -25, opponentCurve: 1.2 };
+test('posição e rotação do deck são persistidas sem recuperar ajustes manuais antigos', () => {
+  const configured = { ...defaultSettings, deckX: -3, deckZ: -2.6, deckRotation: -25 };
   assert.deepEqual(parseSettings(configured), configured);
   const legacy = { ...defaultSettings };
-  for (const key of ['deckX', 'deckZ', 'deckRotation', 'opponentCurve']) delete legacy[key];
+  for (const key of ['deckX', 'deckZ', 'deckRotation']) delete legacy[key];
   const parsed = parseSettings(legacy);
-  for (const key of ['deckX', 'deckZ', 'deckRotation', 'opponentCurve']) assert.equal(parsed[key], defaultSettings[key]);
-  for (const change of [{ deckX: NaN }, { deckZ: -6 }, { deckRotation: 181 }, { opponentCurve: -1 }]) {
+  for (const key of ['deckX', 'deckZ', 'deckRotation']) assert.equal(parsed[key], defaultSettings[key]);
+  for (const change of [{ deckX: NaN }, { deckZ: -6 }, { deckRotation: 181 }]) {
     assert.equal(parseSettings({ ...defaultSettings, ...change }), null);
+  }
+});
+
+test('regras automáticas respondem a cartas, participantes e viewport sem recuperar ajustes manuais', () => {
+  const request = { players: 4, viewer: 0, width: 1200, height: 700, angle: 36, deck: [-1.5, 0.035, -0.6] };
+  const one = resolveTableLayout({ ...request, counts: Array(4).fill(1) });
+  const seven = resolveTableLayout({ ...request, counts: Array(4).fill(7) });
+  const fifty = resolveTableLayout({ ...request, counts: Array(4).fill(50) });
+  assert.equal(one.hands[0].curve, 0);
+  assert.ok(seven.hands[0].curve > one.hands[0].curve);
+  assert.ok(fifty.hands[0].scale < seven.hands[0].scale);
+  assert.ok(fifty.hands[0].overlap >= seven.hands[0].overlap);
+  assert.deepEqual(one.fit, fifty.fit, 'comprar e descartar não deve disparar zoom de câmera');
+  const mobile = resolveTableLayout({ ...request, width: 390, counts: Array(4).fill(50) });
+  assert.ok(mobile.hands[0].visibleLimit < fifty.hands[0].visibleLimit);
+  for (const players of [2, 3, 4, 6, 8, 12]) for (const count of [0, 1, 7, 50, 1000]) {
+    for (const width of [390, 1200, 1800]) {
+      const layout = resolveTableLayout({ ...request, players, width, counts: Array(players).fill(count) });
+      assert.equal(layout.hands.length, players);
+      assert.ok(layout.hands[0].scale >= 1.15);
+      assert.ok(layout.hands[0].scale > layout.hands[1].scale);
+      layout.hands.forEach((hand, place) => {
+        const window = adaptiveHandWindow(count, hand, 999, place === 0);
+        assert.ok(window.start >= 0 && window.start + window.length <= count);
+        assert.ok(window.length <= hand.visibleLimit);
+        const poses = handPlacements(window.length, hand);
+        assert.ok(poses.every(pose => [...pose.position, ...pose.rotation, pose.scale].every(Number.isFinite)));
+        if (poses.length > 1) assert.ok(poses.at(-1).position[0] - poses[0].position[0] <= hand.width + 1e-8);
+      });
+    }
+  }
+});
+
+test('a partir de seis jogadores as laterais abrem para as bordas com espaços equilibrados', () => {
+  for (const players of [6, 7, 8, 12]) for (const width of [390, 1200, 1800]) {
+    const layout = resolveTableLayout({ players, viewer: 0, counts: Array(players).fill(7), width, height: 700, angle: 36, deck: [-1.5, 0.035, -0.6] });
+    const opponents = layout.seats.slice(1), maxX = Math.max(...opponents.map(seat => Math.abs(seat.position[0])));
+    assert.equal(opponents[0].position[0], maxX);
+    assert.equal(opponents.at(-1).position[0], -maxX);
+    const gaps = opponents.slice(1).map((seat, i) => Math.hypot(seat.position[0] - opponents[i].position[0], (seat.position[2] - opponents[i].position[2]) * Math.sin(36 * Math.PI / 180)));
+    assert.ok(Math.max(...gaps) / Math.min(...gaps) < 1.4);
+    const camera = new OrthographicCamera(layout.fit.left, layout.fit.right, layout.fit.top, layout.fit.bottom, 0.1, 250);
+    camera.position.fromArray(layout.fit.position); camera.lookAt(...layout.fit.target); camera.updateMatrixWorld();
+    const rectangles = opponents.map((seat, index) => {
+      const options = layout.hands[index + 1], window = adaptiveHandWindow(7, options, 0, false);
+      const points = handPlacements(window.length, options).flatMap(pose => {
+        const world = worldHandPose(pose, seat);
+        return [-0.36, 0.36].flatMap(x => [-0.525, 0.525].map(y => new Vector3(x * world.scale, y * world.scale, 0)
+          .applyEuler(new Euler(...world.rotation, 'YXZ')).add(new Vector3(...world.position)).project(camera)));
+      });
+      assert.ok(points.every(point => Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1));
+      return { left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)), bottom: Math.min(...points.map(p => p.y)), top: Math.max(...points.map(p => p.y)) };
+    });
+    for (let i = 1; i < rectangles.length; i++) {
+      const a = rectangles[i - 1], b = rectangles[i];
+      assert.ok(Math.min(a.right, b.right) <= Math.max(a.left, b.left) || Math.min(a.top, b.top) <= Math.max(a.bottom, b.bottom), 'mãos vizinhas precisam ficar separadas');
+    }
   }
 });

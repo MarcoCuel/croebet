@@ -32,7 +32,7 @@ test("configuração interna preserva cenários e paginação sem reduzir a larg
   await openSettings(page);
   const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
   await expect(scene.getByRole("complementary")).toBeVisible();
-  for (const name of ["Observar jogador", "Cartas na mão", "Vez do jogador"]) await expect(page.getByLabel(name, { exact: true })).toHaveCount(0);
+  for (const name of ["Observar jogador", "Cartas na mão", "Vez do jogador", "Escala das cartas", "Curvatura do leque", "Curvatura dos adversários", "Largura dos assentos"]) await expect(page.getByLabel(name, { exact: true })).toHaveCount(0);
   await panel.getByText("Cenários de teste", { exact: true }).click();
   await panel.getByRole("button", { name: "50 cartas", exact: true }).click();
   await panel.getByLabel("Jogadores", { exact: true }).fill("6");
@@ -67,13 +67,14 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   await expect(canvas).toBeVisible();
   // Use the actual camera projection to hit the deck and a card in the WebGL canvas.
   const { OrthographicCamera, Vector3 } = await import("three");
-  const { seatPlacements, sceneBounds, fitCamera, viewHandOptions, handPlacements, worldHandPose, foregroundSeat } = await import("../../three/table/layout");
+  const { handPlacements, worldHandPose } = await import("../../three/table/layout");
+  const { resolveTableLayout } = await import("../../three/table/adaptive-layout");
   const { defaultSettings: settings } = await import("../../features/games/laboratory/model");
   const box = (await canvas.boundingBox())!;
   expect(Number(await canvas.getAttribute("width"))).toBeGreaterThanOrEqual(box.width * 1.45);
-  const seats = seatPlacements(settings.players, 0, settings.radius, settings.depth, settings.spread);
-  const options = { ...settings, width: settings.spread, spatialCurve: settings.opponentCurve };
-  const fit = fitCamera(sceneBounds(seats, options, Array(12).fill(1000), settings.angle, [settings.deckX, 0.035, settings.deckZ]), box.width / box.height, settings.angle);
+  const request = { players: settings.players, viewer: 0, counts: settings.counts, width: box.width, height: box.height,
+    angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ] as [number, number, number] };
+  const { fit } = resolveTableLayout(request);
   const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
   camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
   const screen = (position: [number, number, number]) => {
@@ -83,11 +84,11 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   await expect(scene.getByRole("button", { name: "Comprar carta", exact: true })).toBeVisible();
   const deck = screen([settings.deckX, 0.035 + 103 * settings.pileHeight + 0.0022, settings.deckZ]);
   await page.mouse.click(deck.x, deck.y);
-  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 0");
-  const handOptions = viewHandOptions({ ...options, width: seats[0].width }, true, settings.angle);
-  const card = screen(worldHandPose(handPlacements(8, handOptions)[7], foregroundSeat(seats[0], fit, options, settings.angle)).position);
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 0");
+  const boughtLayout = resolveTableLayout({ ...request, counts: settings.counts.map((count, seat) => seat === 0 ? count + 1 : count) });
+  const card = screen(worldHandPose(handPlacements(8, boughtLayout.hands[0])[7], boughtLayout.localSeat).position);
   await page.mouse.click(card.x, card.y);
-  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 1");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 1");
   await page.mouse.click(deck.x, deck.y, { button: "right" });
   await expect(page.getByRole("menuitem", { name: "Embaralhar deck", exact: true })).toBeVisible();
   await page.getByRole("menuitem", { name: "Embaralhar deck", exact: true }).click();
@@ -97,7 +98,7 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   await page.getByRole("menuitem", { name: "Virar carta", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Carta virada.");
   await accessibleCard.focus(); await accessibleCard.press("Enter");
-  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 2");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 2");
   await scene.getByRole("button", { name: "Passar vez para Jogador 2", exact: true }).click();
   await expect(scene.getByRole("button", { name: "Passar vez para Jogador 2", exact: true })).toContainText("Vez deste jogador");
 });
@@ -108,7 +109,7 @@ test("menu do deck permite distribuir, trocar e recolher sem botões externos", 
   const scene = page.getByTestId("laboratory-scene");
   await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
   await page.getByRole("menuitem", { name: "Distribuir cartas", exact: true }).click();
-  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 100 · Descarte: 0");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 100 · Descarte: 0");
   const card = scene.getByRole("button", { name: "Descartar carta 0, posição 1", exact: true });
   await card.focus(); await card.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Trocar com", exact: true }).click();
@@ -116,7 +117,7 @@ test("menu do deck permite distribuir, trocar e recolher sem botões externos", 
   await expect(page.getByRole("status")).toHaveText("Cartas trocadas.");
   await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
   await page.getByRole("menuitem", { name: "Recolher cartas", exact: true }).click();
-  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 132 · Descarte: 0");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 132 · Descarte: 0");
   await expect(scene.getByRole("button", { name: /^Descartar carta/ })).toHaveCount(0);
   await expect(scene.getByRole("alert")).toHaveCount(0);
 });
@@ -173,7 +174,29 @@ test("posição e rotação do deck são opcionais e acompanham compra e restaur
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
   const scene = page.getByTestId("laboratory-scene");
   await scene.getByRole("button", { name: "Comprar carta", exact: true }).click();
-  await expect(page.getByTestId("table-counts")).toHaveText("Deck: 103 · Descarte: 0");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 0");
   await scene.getByRole("button", { name: "Ações do deck", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "Embaralhar deck", exact: true })).toBeVisible();
+});
+
+
+test("layout se adapta sozinho ao mudar participantes, cartas e largura", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await expect(panel.getByText("Layout automático conforme cartas, jogadores e espaço disponível.")).toBeVisible();
+  await panel.getByLabel("Jogadores", { exact: true }).fill("12");
+  await panel.getByText("Cenários de teste", { exact: true }).click();
+  await panel.getByRole("button", { name: "50 cartas", exact: true }).click();
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
+  const handWindow = page.getByTestId("hand-window");
+  await expect(handWindow).toHaveText(/^\d+–\d+ de 50$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(handWindow).toHaveText(/^\d+–\d+ de 50$/);
+  await page.getByRole("button", { name: "Próximas", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Anteriores", exact: true })).toBeEnabled();
+  const card = page.getByRole("button", { name: /^Descartar carta/ }).first();
+  await card.focus(); await card.press("Enter");
+  await expect(handWindow).toHaveText(/^\d+–\d+ de 49$/);
+  await expect(page.getByTestId("laboratory-scene").getByRole("alert")).toHaveCount(0);
 });

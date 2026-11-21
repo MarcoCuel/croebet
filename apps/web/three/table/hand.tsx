@@ -6,7 +6,7 @@ export function TableHand({ cards, seat, options, hidden, interactive, focus, se
   cards: VisualCard[]; seat: SeatPlacement; options: HandOptions; hidden: boolean; interactive: boolean;
   focus: number; selected: string | null; flipped: string[];
 }): Omit<CardTarget, "motion">[] {
-  const window = handWindow(cards.length, options.width, options.scale, focus, interactive);
+  const window = handWindow(cards.length, options.width, options.scale, focus, interactive, options.visibleLimit);
   const visible = cards.slice(window.start, window.start + window.length);
   const placements = handPlacements(visible.length, options);
   return visible.map((card, i) => {

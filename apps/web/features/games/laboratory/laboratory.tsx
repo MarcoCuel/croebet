@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Component, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { RotateCcw, Save, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/field";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
   DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { TableSeatBadge } from "@/three/table/seat-badge";
-import { handWindow } from "@/three/table/layout";
+import { resolveTableLayout, adaptiveHandWindow } from "@/three/table/adaptive-layout";
 import type { TableMenuTarget } from "@/three/table/interaction";
 import { initialState, laboratoryReducer, defaultSettings, parseSettings, type LaboratorySettings } from "./model";
 
@@ -47,6 +47,7 @@ export function GameLaboratory() {
   const [configOpen, setConfigOpen] = useState(false);
   const [menu, setMenu] = useState<{ target: TableMenuTarget; x: number; y: number } | null>(null);
   const sceneRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ width: 960, height: 640 });
   const [message, setMessage] = useState("");
   const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
@@ -55,14 +56,27 @@ export function GameLaboratory() {
     update(); query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);
+  useEffect(() => {
+    const scene = sceneRef.current; if (!scene) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setViewport(current => current.width === width && current.height === height ? current : { width, height });
+    });
+    observer.observe(scene);
+    return () => observer.disconnect();
+  }, []);
+  const countKey = state.hands.slice(0, settings.players).map(hand => hand.length).join(":");
+  const counts = useMemo(() => countKey.split(":").map(Number), [countKey]);
+  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts,
+    width: viewport.width, height: viewport.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ] }),
+    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.deckX, settings.deckZ]);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
-    // Older presets may use a different observer or the redundant line switch.
-    const normalized = { ...next, viewer: 0, layout: "fan" as const, curve: next.layout === "line" ? 0 : next.curve };
+    const normalized = { ...next, viewer: 0 };
     setSettings(normalized); dispatch({ type: "reset", settings: normalized }); setMenu(null); setFocus(0); setMessage("");
   };
   const count = state.hands[settings.viewer].length;
-  const window = handWindow(count, settings.spread, settings.scale * 1.3, focus);
+  const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const canDraw = state.deck.length > 0 && count < 1000;
   const canCollect = state.discard.length > 0 || state.hands.slice(0, settings.players).some(hand => hand.length > 0);
   const draw = () => {
@@ -102,18 +116,16 @@ export function GameLaboratory() {
   const menuCard = menu?.target.kind === "card" ? menu.target.id : null;
   return <div className="grid min-w-0 gap-4">
     <h1 className="sr-only">Laboratório de jogos</h1>
-    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label="Mesa 3D de teste">
-      <SceneBoundary><Scene settings={settings} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
+    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label={`Mesa 3D de teste · Deck: ${state.deck.length} · Descarte: ${state.discard.length}`}>
+      <SceneBoundary><Scene settings={settings} layout={layout} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
         canDraw={canDraw} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></SceneBoundary>
       <div className="absolute bottom-4 left-4 z-10" data-testid="local-seat"><TableSeatBadge name="Jogador 1" count={count} active={settings.turn === settings.viewer} local compact={false} onActivate={() => update("turn", settings.viewer)} /></div>
       <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>
       {configOpen && <aside id="laboratory-settings" aria-label="Configuração da mesa" className="absolute inset-y-16 right-3 z-20 grid w-72 max-w-[calc(100%-1.5rem)] content-start gap-5 overflow-y-auto rounded-panel border border-contrast/6 bg-background/95 p-4 shadow-lg backdrop-blur-md">
         <h2 className="font-semibold">Configuração</h2>
         <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, turn: Math.min(current.turn, players - 1) })); setFocus(0); setMenu(null); }} />
-        <details><summary className="cursor-pointer text-sm font-semibold">Mãos e cartas</summary><div className="mt-4 grid gap-4">
-          {controls([["spread", "Largura da mão", 2, 9, 0.25], ["curve", "Curvatura do leque", 0, 3, 0.1], ["opponentCurve", "Curvatura dos adversários", 0, 1.6, 0.1], ["spacing", "Espaçamento", 0.2, 1.2, 0.05], ["overlap", "Sobreposição", 0, 0.9, 0.05], ["tilt", "Inclinação das cartas", 0, 45], ["scale", "Escala das cartas", 0.5, 1.8, 0.05], ["orientation", "Orientação da mão", -45, 45]])}
-        </div></details>
-        <details><summary className="cursor-pointer text-sm font-semibold">Mesa e câmera</summary><div className="mt-4 grid gap-4">{controls([["radius", "Largura dos assentos", 2.5, 7, 0.25], ["depth", "Profundidade dos assentos", 2, 6, 0.25], ["angle", "Ângulo da câmera", 25, 65]])}</div></details>
+        <p className="text-xs text-muted">Layout automático conforme cartas, jogadores e espaço disponível.</p>
+        <details><summary className="cursor-pointer text-sm font-semibold">Câmera</summary><div className="mt-4 grid gap-4">{controls([["angle", "Ângulo da câmera", 25, 65]])}</div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Deck e descarte</summary><div className="mt-4 grid gap-4">
           <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSettings(current => ({ ...current, deckX: -1.5, deckZ: -0.6 }))}>Ao lado do descarte</Button><Button size="sm" variant="secondary" onClick={() => setSettings(current => ({ ...current, deckX: -3, deckZ: -2.6 }))}>Superior esquerdo</Button></div>
           <NumberControl label="Posição horizontal do deck" value={settings.deckX} min={-6} max={6} step={0.1} onChange={value => update("deckX", value)} />
