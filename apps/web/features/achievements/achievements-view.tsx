@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { achievementMetrics, type Achievements } from "@croebet/shared";
 import { Award, CalendarDays, Check, PlayingCards, Coins, Icon } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -41,7 +42,7 @@ export function AchievementsView({ data }: { data: Achievements }) {
           ))}
         </div>
         <ul className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {data.items.map(({ id, name: title, iconNode, current, metric, levels }) => {
+          {data.items.map(({ id, name: title, iconNode, imageUrl, current, metric, levels }) => {
             const level = levels.filter(item=>item.unlockedAt).length;
             const completed = level === levels.length;
             const milestone = levels.find(item=>!item.unlockedAt) ?? levels[levels.length-1];
@@ -54,18 +55,18 @@ export function AchievementsView({ data }: { data: Achievements }) {
                 <li className="flex min-w-0 flex-col items-center text-center">
                   <div
                     className={cn(
-                      "relative my-3 grid size-24 place-items-center rounded-full border-4 bg-primary-button inset-shadow-primary-button",
-                      level > 0
+                      "relative my-10 grid size-24 place-items-center",
+                      !imageUrl && "rounded-full border-4 bg-primary-button inset-shadow-primary-button",
+                      !imageUrl && (level > 0
                         ? "border-brand/30 bg-brand/15 text-brand"
-                        : "border-contrast/6 bg-contrast/6 text-muted",
+                        : "border-contrast/6 bg-contrast/6 text-muted"),
                     )}
                   >
-                    <div className="grid size-16 place-items-center rounded-full border border-current/20">
+                    {imageUrl ? <Image src={imageUrl} alt={`Emblema de ${title}`} width={500} height={500} unoptimized className="size-24 object-contain" /> : <div className="grid size-16 place-items-center rounded-full border border-current/20">
                       <Icon iconNode={iconNode} className="size-8" aria-hidden="true" />
-                    </div>
-                    <span className="absolute -bottom-2 rounded-full bg-surface px-2 text-xs font-semibold tabular-nums">
-                      <span className="sr-only">Nível </span>
-                      {level}/{levels.length}
+                    </div>}
+                    <span className="absolute -bottom-6 rounded-full bg-contrast/6 backdrop-blur-3xl px-3 py-2 text-xs font-semibold tabular-nums">
+                      Nível {level}
                     </span>
                   </div>
 

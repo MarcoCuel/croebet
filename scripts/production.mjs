@@ -59,7 +59,7 @@ export async function guardMatches(connection) {
   const rows=(await connection.query("select count(*)::int as count from game_matches where status='playing'")).rows;
   if(rows[0].count)throw new Error(`Há ${rows[0].count} partida(s) em andamento. Publicação/parada recusada; aguarde a conclusão. Nenhuma partida foi encerrada.`);
 }
-async function facts(connection) {
+export async function facts(connection) {
   const result={};
   for(const table of ['users','wallet_accounts','wallet_operations','wallet_entries','game_matches','game_match_archives','game_match_archive_frames','media_assets','admin_audit','coupons']) {
     result[table]=(await connection.query(`select count(*)::text as count from ${table}`)).rows[0].count;
@@ -67,7 +67,7 @@ async function facts(connection) {
   result.balances=(await connection.query("select coalesce(sum(balance),0)::text as balance from wallet_accounts where kind <> 'issuance'")).rows[0].balance;
   return result;
 }
-async function verifyImages(connection, imageRoot) {
+export async function verifyImages(connection, imageRoot) {
   const avatarKeys=(await connection.query('select avatar_key as key from users where avatar_key is not null')).rows;
   const mediaKeys=(await connection.query("select id::text || '.webp' as key from media_assets where state='ready'")).rows;
   for(const [namespace,rows]of [['avatars',avatarKeys],['media',mediaKeys]])for(const row of rows) {

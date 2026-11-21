@@ -47,6 +47,7 @@ export async function deleteMedia(pool: Pool, actorId: string, hash: string, id:
     // Include drafts, paused games and trash. JSON text also catches absolute legacy URLs.
     const pattern = `%/api/v1/media/${id}.webp%`;
     const used = await client.query(`select 1 where exists(select 1 from games where image_url like $1 or seo::text like $1)
+      or exists(select 1 from achievement_definitions where image_url like $1)
       or exists(select 1 from pages where seo::text like $1)
       or exists(select 1 from seo_settings where data::text like $1)
       or exists(select 1 from navigation_menus where items::text like $1)`, [pattern]);

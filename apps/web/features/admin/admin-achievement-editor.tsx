@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IconPicker } from "@/components/ui/icon-picker";
+import { ImagePicker } from "@/features/media/image-picker";
 import { EditableRow } from "@/components/shared/editable-row";
 import { managementRequest } from "@/features/admin/management-api";
 
@@ -21,6 +22,7 @@ export function AdminAchievementEditor({ initial }: { initial?: AchievementDefin
   const router = useRouter();
   const [name,setName] = useState(initial?.name??"");
   const [icon,setIcon] = useState<IconName|null>(initial?.icon??"award");
+  const [imageUrl,setImageUrl] = useState(initial?.imageUrl??"");
   const [metric,setMetric] = useState<AchievementMetric>(initial?.metric??"games");
   const [active,setActive] = useState(initial?.active??true);
   const [order,setOrder] = useState(initial?.order??0);
@@ -32,7 +34,7 @@ export function AdminAchievementEditor({ initial }: { initial?: AchievementDefin
     <h1 className="sr-only">{initial?"Editar conquista":"Criar conquista"}</h1>
     <form className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]" onSubmit={async event=>{
       event.preventDefault();if(saving)return;
-      const input=achievementWriteSchema.safeParse({name,icon,metric,active,order,version:initial?.version??0,levels:levels.map(({id,target,description})=>({id,target,description}))});
+      const input=achievementWriteSchema.safeParse({name,icon,imageUrl,metric,active,order,version:initial?.version??0,levels:levels.map(({id,target,description})=>({id,target,description}))});
       if(!input.success){toast.error(input.error.issues[0].message);return;}
       setSaving(true);
       try{
@@ -44,6 +46,7 @@ export function AdminAchievementEditor({ initial }: { initial?: AchievementDefin
         <Card className="grid gap-5">
           <Field>Nome<Input value={name} maxLength={80} required onChange={event=>setName(event.target.value)} disabled={saving}/></Field>
           <div className="grid gap-5 sm:grid-cols-2"><Field>Critério<Select value={metric} disabled={saving||locked} onChange={event=>setMetric(event.target.value as AchievementMetric)}>{Object.entries(achievementMetrics).map(([value,item])=><option key={value} value={value}>{item.label}</option>)}</Select></Field><Field>Ícone<IconPicker value={icon} onValueChange={setIcon} disabled={saving}/></Field></div>
+          <div className="grid gap-2"><p className="text-sm font-medium">Emblema</p><ImagePicker value={imageUrl} onChange={setImageUrl} label="Emblema da conquista" disabled={saving}/><p className="text-xs text-muted">Sem imagem, o card usa o ícone selecionado.</p></div>
           {locked&&<p className="text-xs text-muted">O critério e as metas já conquistadas estão protegidos. Você pode editar os textos e adicionar níveis.</p>}
         </Card>
         <Card className="grid gap-5">

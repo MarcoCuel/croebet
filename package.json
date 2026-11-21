@@ -38,6 +38,6 @@
     "prod:backup": "node scripts/production.mjs backup",
     "prod:rollback": "node scripts/production.mjs rollback",
     "test:ops": "node --test scripts/tests/*.test.mjs",
-    "test:ops:integration": "node --test scripts/tests/postgres.integration.mjs"
+    "test:ops:integration": "node --test --test-concurrency=1 scripts/tests/*.integration.mjs"
   }
 }

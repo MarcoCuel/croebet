@@ -2,12 +2,13 @@ import type { Pool, PoolClient } from "pg";
 import { achievementDefinitionSchema, achievementDefinitionsSchema, achievementsSchema, type AchievementWrite, type AchievementDefinition } from "@croebet/shared";
 import { lucideIconNodes } from "@croebet/shared/lucide-icon-nodes";
 import { adminTransaction, audit, ManagementError } from "../admin/service.ts";
+import { validateMediaReferences } from "../media/service.ts";
 import { readAchievementMetrics } from "./metrics.ts";
 
 const selection = `select d.*, coalesce((select jsonb_agg(jsonb_build_object('id',l.id,'target',l.target,'description',l.description,
   'locked',exists(select 1 from achievement_unlocks u where u.level_id=l.id)) order by l.target,l.id)
   from achievement_levels l where l.achievement_id=d.id),'[]'::jsonb) as levels from achievement_definitions d`;
-const project = (row: Record<string, unknown>) => achievementDefinitionSchema.parse({ ...row, order: row.sort_order });
+const project = (row: Record<string, unknown>) => achievementDefinitionSchema.parse({ ...row, order: row.sort_order, imageUrl: row.image_url });
 export async function readAchievementDefinitions(client: Pick<Pool | PoolClient, "query">) {
   const result = await client.query(`${selection} order by d.sort_order,d.id`);
   return achievementDefinitionsSchema.parse({ items: result.rows.map(project) });
@@ -36,8 +37,9 @@ export async function saveAchievement(pool: Pool, actorId: string, hash: string,
       if (before.version !== input.version) throw new ManagementError(409, "VERSION_CONFLICT", "A conquista foi alterada. Recarregue antes de salvar.");
       validateAchievementChanges(before, input);
     } else if (input.version !== 0) throw new ManagementError(409, "VERSION_CONFLICT", "Recarregue antes de criar a conquista.");
-    const row = id ? (await client.query("update achievement_definitions set name=$2,icon=$3,metric=$4,active=$5,sort_order=$6,version=version+1 where id=$1 returning id", [id,input.name,input.icon,input.metric,input.active,input.order])).rows[0]
-      : (await client.query("insert into achievement_definitions(name,icon,metric,active,sort_order) values($1,$2,$3,$4,$5) returning id", [input.name,input.icon,input.metric,input.active,input.order])).rows[0];
+    await validateMediaReferences(client, [input.imageUrl]);
+    const row = id ? (await client.query("update achievement_definitions set name=$2,icon=$3,metric=$4,active=$5,sort_order=$6,image_url=$7,version=version+1 where id=$1 returning id", [id,input.name,input.icon,input.metric,input.active,input.order,input.imageUrl ?? ""])).rows[0]
+      : (await client.query("insert into achievement_definitions(name,icon,metric,active,sort_order,image_url) values($1,$2,$3,$4,$5,$6) returning id", [input.name,input.icon,input.metric,input.active,input.order,input.imageUrl ?? ""])).rows[0];
     const definitionId: string = row.id;
     // Existing level identities cannot be moved between achievements.
     const existing = await client.query("select id from achievement_levels where id=any($1::uuid[]) and achievement_id<>$2", [input.levels.map(level=>level.id), definitionId]);
@@ -75,7 +77,7 @@ export async function readOwnAchievements(pool: Pool, userId: string, hash: stri
     const unlocked = await client.query<{level_id: string; unlocked_at: Date}>("select level_id,unlocked_at from achievement_unlocks where user_id=$1", [userId]);
     const dates = new Map(unlocked.rows.map(row=>[row.level_id,row.unlocked_at.toISOString()]));
     const result = achievementsSchema.parse({ stats, items: active.map(item=>({
-      id:item.id, name:item.name, icon:item.icon, iconNode:lucideIconNodes[item.icon], metric:item.metric, current:metrics[item.metric],
+      id:item.id, name:item.name, icon:item.icon, imageUrl:item.imageUrl, iconNode:lucideIconNodes[item.icon], metric:item.metric, current:metrics[item.metric],
       levels:item.levels.map(({id,target,description})=>({id,target,description,unlockedAt:dates.get(id)??null})),
     })) });
     await client.query("commit");

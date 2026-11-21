@@ -1,6 +1,6 @@
 import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { Server as SocketServer } from "socket.io";
-import { gameRoomSchema, realtimeRequestSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
+import { gameRoomSchema, lobbySchema, realtimeRequestSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import type { GameRecord } from "@croebet/shared";
@@ -46,6 +46,7 @@ let sockets: SocketServer;
 let loveRoom: ReturnType<typeof gameRoomSchema.parse> | null = null;
 let personalMatches: PersonalMatches = {items:[]};
 let gameCommands:unknown[]=[];
+let createRequest:((input:Record<string,unknown>)=>unknown)|undefined;
 let roomWatches: { code: string; afterVersion: number }[] = [];
 function respond(path: string, method: string, body: Record<string, unknown> = {}): { status: number; data: unknown } {
   const url=new URL(path,"http://fixture");
@@ -104,6 +105,7 @@ test.beforeAll(async () => {
         personalMatches={items:personalMatches.items.map(item=>item.code===request.code?{...item,lobbyExpiresAt:new Date(Date.now()+32*60000).toISOString()}:item)};
         socket.emit("personal-matches",personalMatches);ack?.({ok:true,data:{id:matchId,code:request.code,game:"flip7",rulesVersion:1,version:2,status:"lobby",state:null,hostId:id,capacity:2,options:{mode:"classic",brutal:false},participants:[],lobbyExpiresAt:personalMatches.items.find(item=>item.code===request.code)?.lobbyExpiresAt}});
       }
+      else if(request.type==="create" && createRequest)ack?.({ok:true,data:createRequest(request.input)});
       else if(request.type==="command"){gameCommands.push(request.input.action);ack?.({ok:true,data:{ok:true}});}
       else if(request.type==="abandon")ack?.({ok:true,data:{ok:true}});
       else ack?.({ok:false,error:{code:"UNSUPPORTED",message:"Operação não configurada na fixture."}});
@@ -115,8 +117,9 @@ test.beforeAll(async () => {
         // Bound a regression loop so the test fails without flooding its server.
         if(roomWatches.length<=10)socket.emit("room",{room:loveRoom,frames:[],reset:true});
       }
-      if(loveRoom && request.directory){
-        const summary={...loveRoom, state:undefined};
+      if(loveRoom && loveRoom.status!=="lobby" && request.directory){
+        const {state: _state, durationSeconds: _duration, ...summary}=loveRoom;
+        void _state; void _duration;
         socket.emit("lobbies",{items:[],joined:[],owned:null,active:null,testMatches:[{...summary,round:1,controllerIds:[]}]});
       }
     });
@@ -125,7 +128,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await new Promise<void>(resolve => sockets.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
-  loveRoom = null;roomWatches=[];gameCommands=[];personalMatches={items:[]};
+  loveRoom = null;createRequest=undefined;roomWatches=[];gameCommands=[];personalMatches={items:[]};
   game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null; sessionRole = "admin";
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
   await page.route("**/api/v1/**", async route => {
@@ -147,9 +150,9 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   // Click the row padding, away from the title and cover.
   await gameLink.click({ position: { x: 5, y: 5 } });
   await expect(page).toHaveURL(`/admin/jogos/${id}`);
-  await expect(page.getByLabel("Imagem de capa")).toHaveValue("");
+  await expect(page.getByRole("button", {name:"Selecionar imagem",exact:true})).toBeVisible();
   await page.getByLabel("Nome do jogo").fill("Flip da comunidade");
-  await page.getByLabel("Descrição",{exact:true}).fill("Compre cartas com seus amigos.");
+  await page.locator('textarea[name="description"]').fill("Compre cartas com seus amigos.");
   await page.getByRole("button", { name: "Salvar jogo" }).click();
   await expect(page).toHaveURL("/admin/jogos");
   await page.reload();
@@ -259,8 +262,9 @@ test("admin cadastra um jogo em desenvolvimento e publica página em breve sem l
   await page.getByRole("link",{name:"Criar jogo",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Criar jogo",exact:true})).toBeVisible();
   await page.getByLabel("Nome do jogo",{exact:true}).fill("Blackjack");
-  await page.getByLabel("Endereço do jogo",{exact:true}).fill("blackjack");
-  await page.getByLabel("Descrição",{exact:true}).fill("Um novo jogo para a comunidade.");
+  await page.getByLabel("Nome do jogo",{exact:true}).blur();
+  await expect(page.getByLabel("Endereço do jogo",{exact:true})).toHaveValue("blackjack");
+  await page.locator('textarea[name="description"]').fill("Um novo jogo para a comunidade.");
   await page.getByRole("button",{name:"Criar jogo",exact:true}).click();
   await expect(page).toHaveURL("/admin/jogos");
   const row = page.getByRole("listitem").filter({has:page.getByRole("link",{name:"Blackjack",exact:true})});
@@ -326,6 +330,8 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   await expect(controls.getByLabel("Controles de reprodução")).toBeVisible();
   await controls.getByRole("button",{name:"Pausar",exact:true}).click();
   await checkTableControls(page, page.getByRole("region",{name:"Mesa de Flip7",exact:true}).getByLabel("Controles da partida", {exact:true}).locator("../.."), testInfo.project.name === "desktop");
+  await controls.getByRole("button",{name:"Próxima jogada",exact:true}).click();
+  await expect(page.getByText("Jogada registrada 2.",{exact:true})).toBeVisible();
   await controls.getByRole("button",{name:"Início",exact:true}).click();
   await expect(page.getByText("Jogada registrada 1.",{exact:true})).toBeVisible();
   await controls.getByRole("button",{name:"Próxima jogada",exact:true}).click();
@@ -371,11 +377,12 @@ test("modo dev permite criar outra partida do mesmo jogo com teste em andamento"
  const play=page.getByRole("button",{name:"Jogar",exact:true});
  await expect(play).toBeEnabled();
  let creation:Record<string,unknown>|undefined;
- await page.route("**/api/v1/matches",async route=>{
-  creation=route.request().postDataJSON();
-  const lobby=gameRoomSchema.parse({...loveRoom,id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",code:"ABCDEF654322",version:1,status:"lobby",state:null,capacity:creation?.capacity,options:creation?.options,bots:0,onlyBots:false,participants:[{userId:id,username:"Admin",displayName:"Admin",avatarUrl:null,seat:0}]});
-  await route.fulfill({status:200,json:lobby});
- });
+ createRequest=input=>{
+  creation=input;
+  if(!loveRoom || loveRoom.status==="lobby")throw Error("Partida de teste não iniciada");
+  const {durationSeconds: _duration,...base}=loveRoom;void _duration;
+  return lobbySchema.parse({...base,id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",code:"ABCDEF654322",version:1,status:"lobby",state:null,capacity:input.capacity,options:input.options,bots:0,onlyBots:false,participants:[{userId:id,username:"Admin",displayName:"Admin",avatarUrl:null,seat:0}]});
+ };
  await play.click();
  await expect(page).toHaveURL("/jogos/love-letter?partida=ABCDEF654322&teste=1");
  expect(creation).toMatchObject({development:true,game:"love-letter"});
@@ -431,18 +438,18 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
  const submit=table.getByRole("button",{name:"Jogar carta",exact:true});
  await expect(submit).toBeDisabled();
- await expect(page.getByLabel("Jogador",{exact:true})).toHaveCount(0);
+ await expect(page.getByRole("combobox",{name:/^Jogador/})).toHaveCount(0);
  await page.getByRole("button",{name:"Selecionar 1 · Guarda",exact:true}).click();
  await expect(submit).toBeDisabled();
- await page.getByLabel("Jogador",{exact:true}).selectOption("2");
- await expect(page.getByLabel("Palpite",{exact:true}).locator('option[value="8"]')).toHaveCount(0);
+ await page.getByRole("combobox",{name:/^Jogador/}).selectOption("2");
+ await expect(page.getByRole("combobox",{name:/^Palpite/}).locator('option[value="8"]')).toHaveCount(0);
  await expect(submit).toBeDisabled();
- await page.getByLabel("Palpite",{exact:true}).selectOption("9");
+ await page.getByRole("combobox",{name:/^Palpite/}).selectOption("9");
  await expect(submit).toBeEnabled();
  await submit.click();
  await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
  await page.getByRole("button",{name:"Selecionar 4 · Aia",exact:true}).click();
- await expect(page.getByLabel("Jogador",{exact:true})).toHaveCount(0);
+ await expect(page.getByRole("combobox",{name:/^Jogador/})).toHaveCount(0);
  await submit.click();
  await expect.poll(()=>commands.length).toBe(2);
  expect(commands[1]).toEqual({type:"play",card:4});
@@ -516,7 +523,7 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
  await expect(page.getByRole("menuitem").filter({hasText:"Love Letter"})).toHaveAttribute("href","/jogos/love-letter?partida=ABCDEF654321");
  const card=page.getByRole("menuitem").filter({hasText:"Love Letter"});
  await expect(card.getByLabel("Ana",{exact:true})).toBeVisible();
- await expect(card.getByRole("img",{name:"Beto",exact:true})).toHaveAttribute("src","/avatar-fixture.svg");
+ await expect(card.getByRole("img",{name:"Beto",exact:true})).toHaveAttribute("src",new URL("/avatar-fixture.svg",page.url()).href);
  await expect(card.getByText("No lobby",{exact:true})).toBeVisible();
  await expect(card.getByText("#654321",{exact:true})).toBeVisible();
  await page.keyboard.press("Escape");
@@ -540,6 +547,7 @@ test("configurações declaradas pelo jogo respeitam limites e guardam a escolha
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
  await page.goto("/jogos/love-letter?teste=1");
  const mode=page.getByLabel("Modo do Love Letter"),count=page.getByLabel("Número de jogadores",{exact:true});
+ await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
  await expect(count.locator("option")).toHaveCount(3);
  await mode.selectOption("modern");
  await expect(count.locator("option")).toHaveCount(5);

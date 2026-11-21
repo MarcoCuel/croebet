@@ -239,6 +239,13 @@
       "when": 1795236469470,
       "tag": "0033_slimy_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795243631728,
+      "tag": "0034_achievement_emblems",
+      "breakpoints": true
     }
   ]
 }

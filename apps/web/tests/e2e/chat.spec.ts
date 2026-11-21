@@ -148,6 +148,7 @@ test("sidebar reserva espaço no desktop e ocupa a largura disponível no celula
 });
 
 test("chat desliza a partir da borda sem desmontar nem criar rolagem horizontal", async ({ page, isMobile }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   const panel = page.locator("#general-chat-sidebar");
   await expect(panel).toHaveAttribute("aria-hidden", "true");

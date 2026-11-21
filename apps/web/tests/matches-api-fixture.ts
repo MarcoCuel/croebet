@@ -31,7 +31,7 @@ export function matchesFixture() {
     const active=[...states.values()].map(s=>s.room).find(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor && room.state.players[p.seat].kind==="human")) ?? null;
     const testRooms=[...states.values()].map(s=>s.room).filter(r=>r.development && (r.hostId===actor || r.participants.some(p=>p.userId===actor)));
     const testLobbies=testRooms.filter(r=>r.status==="lobby");
-    const testMatches=testRooms.filter(r=>r.status==="playing").map(r=>{if(r.status==="lobby")throw Error("Partida não iniciada");const {state,...summary}=r;return matchSummarySchema.parse({...summary,round:state.round,controllerIds:[]});});
+    const testMatches=testRooms.filter(r=>r.status==="playing").map(r=>{if(r.status==="lobby")throw Error("Partida não iniciada");const {state,durationSeconds,...summary}=r;void durationSeconds;return matchSummarySchema.parse({...summary,round:state.round,controllerIds:[]});});
     return {items:items.filter(r=>!r.development),joined:joined.filter(r=>!r.development),owned:owned?.development?null:owned,active:active?.development?null:active,testLobbies,testMatches};
   };
   function replace(saved:{room:Room;privateState?:Game;frames:MatchFrame[]},seat:number){
@@ -46,7 +46,7 @@ export function matchesFixture() {
   }
   const matchSummaries=()=>[...states.values()].flatMap(({room})=>{
     if(room.status!=="playing")return [];
-    const {state,...summary}=room;
+    const {state,durationSeconds,...summary}=room;void durationSeconds;
     return [{...summary,round:state.round,controllerIds:room.participants.filter(p=>state.players[p.seat]?.kind==="human").map(p=>p.userId)}];
   });
   function notify(){for(const stream of streams){

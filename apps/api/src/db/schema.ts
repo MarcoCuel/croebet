@@ -252,6 +252,7 @@ export const gameMatchStakes = pgTable("game_match_stakes", {
   check("match_stake_amounts", sql`${table.entryAmount}>0 and ${table.potTotal}>=${table.entryAmount} and ${table.potTotal}<=9007199254740991`)]);
 
 export const achievementDefinitions = pgTable("achievement_definitions", {
+  imageUrl: text("image_url").notNull().default(""),
   id: uuid("id").primaryKey().defaultRandom(), name: text("name").notNull(), icon: text("icon").notNull(),
   metric: text("metric").notNull(), active: boolean("active").notNull().default(true),
   order: integer("sort_order").notNull().default(0), version: integer("version").notNull().default(1),

@@ -1,3 +1,4 @@
+import { tokenHash } from "../../dist/modules/auth/security.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -29,7 +30,7 @@ test("PostgreSQL: exclusão em 30 dias, cancelamento e preservação dos histór
     const username = `Delete_${randomBytes(6).toString("hex")}`;
     const id = (await pool.query("insert into users(username,display_name,password_hash,role) values($1,$1,'test',$2) returning id", [username, role])).rows[0].id;
     ids.push(id);
-    const hash = randomUUID();
+    const hash = tokenHash(randomUUID());
     await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')", [hash, id]);
     const client = await pool.connect();
     try { await client.query("begin"); await grantInitialBalance(client, id); await client.query("commit"); }

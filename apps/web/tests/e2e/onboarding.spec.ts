@@ -8,7 +8,7 @@ test.afterAll(async () => { await closeApi?.(); });
 const initialUser = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role: "user" };
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=", "base64");
 
-async function setup(page: Page, completed = false) {
+async function setup(page: Page, completed = false, remindAt: string | null = null) {
   let user: typeof initialUser & { avatarUrl?: string; onboarding: { nameProvided: boolean; remindAt: string | null } } | null = null;
   let deferWrites = 0;
   let registrations = 0;
@@ -22,7 +22,7 @@ async function setup(page: Page, completed = false) {
     if (path === "/api/v1/auth/register" || path === "/api/v1/auth/login") {
       expect(request.postDataJSON()).toEqual({ username: "Tonho", password: "senha-segura" });
       if (path.endsWith("register")) registrations++;
-      user ??= { ...initialUser, ...(completed ? { avatarUrl: `/api/v1/avatars/${initialUser.id}.webp` } : {}), onboarding: { nameProvided: completed, remindAt: null } };
+      user ??= { ...initialUser, ...(completed ? { avatarUrl: `/api/v1/avatars/${initialUser.id}.webp` } : {}), onboarding: { nameProvided: completed, remindAt } };
       return route.fulfill({ json: { user } });
     }
     if (path === "/api/v1/me/onboarding/defer") {
@@ -175,4 +175,28 @@ test("foto inválida e nome em branco não são enviados", async ({ page }) => {
   await dialog.getByRole("button", { name: "Salvar e continuar" }).click();
   await expect(page.getByText("Digite um nome de 1 a 40 caracteres válidos.", { exact: true })).toBeVisible();
   expect(state.counts()).toEqual({ registrations: 1, profileWrites: 0, avatarWrites: 0 });
+});
+
+
+test("lembrete distante não estoura o timer nem bloqueia navegação antes do prazo", async ({ page }) => {
+  const now = Date.parse("2026-11-21T00:00:00.000Z"), deadline = Date.parse("2027-01-01T00:00:00.000Z");
+  await page.clock.install({time:new Date(now)});
+  await page.clock.pauseAt(new Date(now+1000));
+  const state = await setup(page,false,new Date(deadline).toISOString());
+  await authenticate(page,false);
+  const dialog = page.getByRole("dialog",{name:"Como você quer aparecer?"});
+  await expect(page.getByRole("button",{name:"Conta de Tonho",exact:true}).first()).toBeVisible();
+  await page.clock.runFor(1000);
+  await expect(dialog).toHaveCount(0);
+  let remaining = deadline-now-2001;
+  while (remaining > 0) {
+    const step = Math.min(remaining, 2_147_483_647);
+    await page.clock.fastForward(step);
+    remaining -= step;
+  }
+  await expect(dialog).toHaveCount(0);
+  await page.clock.fastForward(1);
+  await expect(dialog).toBeVisible();
+  expect(state.counts()).toEqual({registrations:0,profileWrites:0,avatarWrites:0});
+  expect(state.deferWrites()).toBe(0);
 });

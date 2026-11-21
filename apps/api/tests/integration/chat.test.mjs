@@ -22,6 +22,7 @@ test("chat: persistência, recuperação, idempotência, spam e moderação auto
     const ids=actors.map(actor=>actor.id);
     await pool.query("delete from chat_events where actor_id=any($1::uuid[]) or subject_id=any($1::uuid[])",[ids]);
     await pool.query("delete from chat_messages where user_id=any($1::uuid[])",[ids]);
+    await pool.query("delete from sessions where user_id=any($1::uuid[])",[ids]);
     await pool.query("delete from users where id=any($1::uuid[])",[ids]);
     await pool.end();
   });

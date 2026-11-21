@@ -23,7 +23,10 @@ test("configurações: histórico privado e paginado; troca de senha revoga outr
   t.after(async () => {
     await app.close();
     try {
-      if (userId) await pool.query("delete from users where id=$1", [userId]);
+      if (userId) {
+        await pool.query("delete from sessions where user_id=$1", [userId]);
+        await pool.query("delete from users where id=$1", [userId]);
+      }
       await pool.query("delete from auth_rate_limits where key=any($1::text[])", [[`register:${remoteAddress}`, `login-ip:${remoteAddress}`, `login-user:${username.toLowerCase()}`, `password:${userId}`].map(tokenHash)]);
     } finally { await pool.end(); }
   });

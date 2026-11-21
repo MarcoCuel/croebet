@@ -1,5 +1,5 @@
 import { matchSchema } from "@croebet/shared";
-import { createGame, transition } from "../../../api/src/modules/games/flip7/engine";
+import { createDeck, createGame, transition } from "../../../api/src/modules/games/flip7/engine";
 import { flip7Driver } from "../../../api/src/modules/games/flip7/driver";
 import { test, expect, type Page, type Browser } from "@playwright/test";
 import { startPublicApi } from "../public-api-fixture";
@@ -47,7 +47,7 @@ test("header e três colunas mantêm configuração, vagas e lobbies ao criar e 
   await expect(list.getByRole("button",{name:"Voltar ao lobby",exact:true})).toHaveCount(0);
   await expect(list.getByText("1 vaga disponível")).toHaveCount(0);
   await expect(list.getByRole("button",{name:"Ver lobby",exact:true})).toHaveCount(0);
-  await expect(list.getByRole("button",{name:"Sala de Marco",exact:true})).toBeVisible();
+  await expect(list.getByRole("button",{name:"Abrir sala de Marco",exact:true})).toBeVisible();
   await expect(list.locator('[data-slot="empty-state"]')).toHaveCount(0);
   await expect(page.getByLabel("Modo do Flip7")).toBeEnabled();
   expect(await originalSettings!.evaluate(element=>element.isConnected)).toBe(true);
@@ -163,7 +163,7 @@ test("lobby e mesa exibem nome da pessoa quando diferente do usuário", async ({
     await expect(seats.getByText("Marco Pessoa", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Jogar", exact: true }).click();
     await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
-    await expect(page.getByRole("button", { name: "Sala de Marco Pessoa", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Abrir sala de Marco Pessoa", exact: true })).toBeVisible();
     await peer.page.goto(page.url());
     await expect(seats.getByText("Roberto Pessoa", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Jogar", exact: true })).toBeEnabled();
@@ -288,6 +288,85 @@ test("Socket.IO reconecta sem reload e recupera a decisão recebida durante a qu
     expect(sockets.some(url=>new URL(url).pathname==="/api/v1/realtime")).toBe(true);
   }finally{await peer.context.close();}
 });
+test("navegação e aba oculta recuperam snapshot sem repetir ações ou sons",async({page,browser})=>{
+  await instrumentAudio(page);
+  const peer=await start(page,browser);
+  try{
+    const url=page.url();
+    const leave=async()=>{
+      const menu=page.getByRole("button",{name:"Abrir menu",exact:true});
+      if(await menu.isVisible())await menu.click();
+      await page.getByRole("link",{name:"Jogos",exact:true}).first().click();
+      await expect(page).toHaveURL(/\/jogos$/);
+    };
+    const before=fixture.commands.length;
+    // Client navigation must release the room watcher without abandoning the seat.
+    await leave();
+    await expect.poll(()=>fixture.watches.at(-1)?.active).toBe(false);
+    for(let visit=0;visit<3;visit++){
+      await page.goto(url);
+      await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+      expect(fixture.commands).toHaveLength(before);
+      if(visit<2)await leave();
+    }
+    await page.evaluate(()=>{
+      Object.defineProperty(document,"hidden",{configurable:true,value:true});
+      Object.defineProperty(document,"visibilityState",{configurable:true,value:"hidden"});
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page.getByRole("button",{name:"Parar",exact:true}).click();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeVisible();
+    const effects=await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects);
+    await peer.page.getByRole("button",{name:"Comprar",exact:true}).click();
+    await expect.poll(()=>fixture.commands.length).toBe(before+2);
+    const saved=[...fixture.states.values()][0].room;
+    if(saved.status==="lobby")throw Error("Partida não iniciada");
+    // Wait for the remote snapshot to be consumed while the tab is still hidden.
+    await expect(page.locator('[data-player-hand="1"] [data-hand-card]')).toHaveCount(saved.state.players[1].cards.length);
+    await page.evaluate(()=>{Reflect.deleteProperty(document,"hidden");Reflect.deleteProperty(document,"visibilityState");document.dispatchEvent(new Event("visibilitychange"));});
+    await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+    expect(await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects)).toBe(effects);
+    await page.reload();
+    await expect(page.locator('[data-player-hand="1"] [data-hand-card]')).toHaveCount(saved.state.players[1].cards.length);
+    expect(await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects)).toBe(0);
+    expect(fixture.commands).toHaveLength(before+2);
+  }finally{await peer.context.close();}
+});
+
+test("reconexões durante escolha pendente preservam alvo e enviam uma única decisão",async({page,browser})=>{
+  const peer=await second(browser);
+  try{
+    const code="ABCDEF112233";
+    const state=createGame(matchUsers.map(user=>({name:user.username,kind:"human" as const})),42,{mode:"classic",brutal:false});
+    const deck=createDeck("classic");
+    const take=(type:string,value?:number)=>deck.splice(deck.findIndex(card=>card.type===type && (value===undefined || card.value===value)),1)[0];
+    state.players[0].cards=[take("number",1)];state.players[1].cards=[take("number",2)];
+    state.players.forEach(player=>{player.hasDrawn=true;});
+    state.pending={source:1,card:take("freeze")};state.deck=deck;state.discard=[];state.turn=1;
+    flip7Driver.parse(state);
+    const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,game:"flip7",rulesVersion:1,version:1,status:"playing",state:flip7Driver.project(state),hostId:matchUsers[0].id,capacity:2,options:{mode:"classic",brutal:false},participants:matchUsers.map((user,seat)=>({userId:user.id,username:user.username,displayName:user.displayName,avatarUrl:null,seat}))});
+    fixture.states.set(code,{room,privateState:state,frames:[]});
+    await page.goto(`/jogos/flip7?partida=${code}`);await peer.page.goto(page.url());
+    const target=peer.page.getByRole("button",{name:"Escolher Marco",exact:true});
+    await expect(target).toBeEnabled();
+    for(let retry=0;retry<2;retry++){
+      await peer.context.setOffline(true);fixture.disconnectUser(matchUsers[1].id);
+      await expect(peer.page.getByRole("status").filter({hasText:"Reconectando à partida"})).toBeVisible();
+      await expect(target).toHaveCount(0);
+      expect(fixture.commands).toHaveLength(0);
+      await peer.context.setOffline(false);await expect(target).toBeEnabled({timeout:15000});
+    }
+    await target.click();
+    await expect.poll(()=>fixture.commands.length).toBe(1);
+    await expect(target).toHaveCount(0);
+    const saved=fixture.states.get(code)!.room;
+    if(saved.status==="lobby")throw Error("Partida não iniciada");
+    expect(saved.state.players[0].status).toBe("frozen");
+    await peer.page.reload();await expect(target).toHaveCount(0);
+    expect(fixture.commands).toHaveLength(1);
+  }finally{await peer.context.close();}
+});
+
 test("saída do host transfere a sala para o outro participante",async({page,browser})=>{
   await lobby(page);const peer=await second(browser);
   try{
@@ -358,7 +437,7 @@ test("abandono do host transfere controle ao bot e host para a outra conta",asyn
   const peer=await start(page,browser);
   try{
     await page.getByRole("button",{name:"Abandonar partida",exact:true}).click();
-    await expect(page.getByRole("dialog")).toContainText("Um bot assumirá suas cartas e seus pontos");
+    await expect(page.getByRole("dialog")).toContainText("Abandonar sozinho entrega sua vaga a um bot");
     await page.getByRole("dialog").getByRole("button",{name:"Abandonar sozinho",exact:true}).click();
     await expect(page).toHaveURL(/\/jogos\/flip7$/);
     await expect(peer.page.getByText("Bot",{exact:true})).toBeVisible();
@@ -485,7 +564,7 @@ for(const mode of ["login","register"] as const)test(`visitante escolhe uma vaga
     const dialog=view.getByRole("dialog");
     await expect(dialog.getByRole("heading",{name:"Entrar na Croebet"})).toBeVisible();
     expect([...fixture.states.values()][0].room.participants).toHaveLength(1);
-    if(mode==="register")await dialog.getByRole("button",{name:"Criar conta",exact:true}).click();
+    if(mode==="register")await dialog.getByRole("button",{name:"Cadastre-se",exact:true}).click();
     await dialog.getByLabel("Nome de usuário").fill("Beto");
     await dialog.getByLabel("Senha",{exact:true}).fill("senha-teste-123");
     await dialog.getByRole("button",{name:mode==="register"?"Criar conta":"Entrar",exact:true}).click();
@@ -518,7 +597,8 @@ test("visitante vê vagas e acompanha uma partida sem controles",async({page,bro
 
 test("entrada e reduções aceitam automaticamente, aumentos exigem confirmação",async({page,browser})=>{
   await page.goto("/jogos/flip7");
-  await page.getByRole("switch",{name:"Jogar apostando"}).check();
+  await page.getByRole("switch",{name:"Jogar apostando"}).click();
+    await expect(page.getByRole("switch",{name:"Jogar apostando"})).toBeChecked();
   await expect(page.getByLabel("Entrada por jogador",{exact:true})).toHaveValue("5");
   const prize=page.getByText("Prêmio (Pote)",{exact:true}).locator("..");
   await expect(prize).toContainText("5 Croins");
@@ -542,10 +622,12 @@ test("entrada e reduções aceitam automaticamente, aumentos exigem confirmaçã
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"})).toHaveCount(0);
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toHaveCount(0);
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
-    await page.getByRole("switch",{name:"Jogar apostando"}).uncheck();
+    await page.getByRole("switch",{name:"Jogar apostando"}).click();
+    await expect(page.getByRole("switch",{name:"Jogar apostando"})).not.toBeChecked();
     await expect(peer.page.getByRole("button",{name:/Confirmar entrada de/})).toHaveCount(0);
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
-    await page.getByRole("switch",{name:"Jogar apostando"}).check();
+    await page.getByRole("switch",{name:"Jogar apostando"}).click();
+    await expect(page.getByRole("switch",{name:"Jogar apostando"})).toBeChecked();
     await expect(peer.page.getByRole("button",{name:"Confirmar entrada de 5 Croins"})).toBeVisible();
     await page.getByLabel("Entrada por jogador",{exact:true}).fill("10");
     await page.getByLabel("Entrada por jogador",{exact:true}).blur();
@@ -591,16 +673,19 @@ test("six seven oscila em sentidos opostos apenas com o par e respeita movimento
   const code = "ABCDEF123456";
   const privateState = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
   const state = flip7Driver.project(privateState);
-  state.players[0].cards = [{ id: 60, type: "number", value: 6 }, { id: 70, type: "number", value: 7 }, { id: 80, type: "number", value: 8 }];
-  state.players[1].cards = [{ id: 61, type: "number", value: 6 }];
+  const deck = createDeck("classic");
+  const take = (value: number) => deck.splice(deck.findIndex(card => card.type === "number" && card.value === value), 1)[0];
+  state.players[0].cards = [take(6), take(7), take(8)];
+  state.players[1].cards = [take(6)];
   state.players.forEach(player => { player.hasDrawn = true; });
   const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state, hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
   privateState.players = structuredClone(state.players);
-  privateState.deck = [{ id: 90, type: "number", value: 9 }];
+  const next = take(9);
+  privateState.deck = [...deck, next];
   fixture.states.set(code, { room, privateState, frames: [] });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`/jogos/flip7?partida=${code}`);
-  const six = page.locator('[data-hand-card="60"]');
+  const six = page.locator(`[data-hand-card="${state.players[0].cards[0].id}"]`);
   await expect(six).toBeVisible();
   await expect.poll(() => six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(1);
   const offsets = await page.locator("[data-hand-card]").evaluateAll(elements => elements.map(element => {
@@ -695,7 +780,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).focus();
     await expect(volume).toHaveValue("30");
-    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(11);
+    await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(14);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
     await expect(controls.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
     if (testInfo.project.name === "desktop") {

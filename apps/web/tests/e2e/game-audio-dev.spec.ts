@@ -55,10 +55,10 @@ test("aviso de turno toca uma vez e não repete ao reconectar", async ({ page, c
     await context.addCookies([{ name: "croebet-session", value: "game-fixture-marco", url: "http://127.0.0.1:3100" }]);
     await page.goto(`/jogos/flip7?partida=${code}`);
     const decoded = page.waitForResponse(response => response.url().endsWith("/audio/notification.mp3"));
-    await page.getByRole("button", { name: "Regras", exact: true }).click();
+    await page.getByRole("region", {name:"Mesa de Flip7",exact:true}).click({position:{x:5,y:5}});
     await decoded;
     await page.keyboard.press("Escape");
-    await expect(page.locator("html")).toHaveAttribute("data-notification-ready", "2");
+    await expect(page.locator("html")).toHaveAttribute("data-notification-ready", "3");
     room.state.turn = 0; room.version++;
     fixture.disconnectUser(matchUsers[0].id);
     await expect(page.locator("html")).toHaveAttribute("data-notification-plays", "1");
@@ -66,7 +66,7 @@ test("aviso de turno toca uma vez e não repete ao reconectar", async ({ page, c
     fixture.disconnectUser(matchUsers[0].id);
     await reconnected;
     await expect(page.getByText("Reconectando à partida…")).toHaveCount(0);
-    await page.getByRole("button", { name: "Regras", exact: true }).click();
+    await page.getByRole("region", {name:"Mesa de Flip7",exact:true}).click({position:{x:5,y:5}});
     await page.keyboard.press("Escape");
     await expect(page.locator("html")).toHaveAttribute("data-notification-plays", "1");
   } finally { await context.close(); await close(); }
@@ -109,7 +109,7 @@ test("novo alerta de convite toca uma vez mesmo com atualizações da sala", asy
     await recordNotifications(page);
     await page.goto("/jogos/flip7");
     await page.getByLabel("Número de jogadores").selectOption("6");
-    await expect(page.locator("html")).toHaveAttribute("data-notification-ready", "1");
+    await expect(page.locator("html")).toHaveAttribute("data-notification-ready", "2");
     const host = await peer.newPage();
     await host.goto("/jogos/flip7");
     await host.getByRole("button", { name: "Jogar", exact: true }).click();

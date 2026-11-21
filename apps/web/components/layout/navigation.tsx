@@ -65,7 +65,6 @@ function NavigationLayout({ children }: { children: ReactNode }) {
         </a>
         <Sidebar expanded={sidebar === "expanded"} onToggle={toggleSidebar} />
         <Topbar
-          key={pathname}
           mobileMenuOpen={mobileMenuOpen}
           onOpenMenu={() => {
             menuTrigger.current =

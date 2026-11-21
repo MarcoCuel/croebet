@@ -1,3 +1,4 @@
+import { tokenHash } from "../../dist/modules/auth/security.js";
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -14,8 +15,8 @@ test('PostgreSQL: cadastro de jogo preserva catálogo, valida unicidade, permiss
   t.after(async () => {
     try {
       if (!verified) return;
-      await pool.query('delete from admin_audit where target_id=any($1::uuid[])', [games]);
       await pool.query('delete from games where id=any($1::uuid[])', [games]);
+      await pool.query('delete from sessions where user_id=any($1::uuid[])', [ids]);
       await pool.query('delete from users where id=any($1::uuid[])', [ids]);
     } finally { await pool.end(); }
   });
@@ -25,7 +26,7 @@ test('PostgreSQL: cadastro de jogo preserva catálogo, valida unicidade, permiss
     const name = `Game_${randomUUID().replaceAll('-', '').slice(0,12)}`;
     const id = (await pool.query('insert into users(username,display_name,password_hash,role) values($1,$1,$1,$2) returning id', [name,role])).rows[0].id;
     ids.push(id);
-    const hash = randomUUID();
+    const hash = tokenHash(randomUUID());
     await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')", [hash,id]);
     return {id,hash};
   }

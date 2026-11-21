@@ -10,10 +10,11 @@ export const achievementMetrics = {
   losingGames: { label: "Partidas com prejuízo em Croins", unit: "partidas" },
 } as const;
 export const achievementMetricSchema = z.enum(["games", "wins", "dailyDays", "dailyStreak", "coupons", "losingGames"]);
+const emblemImageSchema = z.string().regex(/^$|^\/api\/v1\/media\/[0-9a-f-]{36}\.webp$/, "Selecione uma imagem da biblioteca.").default("");
 const positive = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 export const achievementLevelWriteSchema = z.object({ id: z.uuid(), target: positive, description: z.string().trim().min(1).max(240) }).strict();
 export const achievementWriteSchema = z.object({
-  name: z.string().trim().min(1).max(80), icon: iconNameSchema,
+  name: z.string().trim().min(1).max(80), icon: iconNameSchema, imageUrl: emblemImageSchema,
   metric: achievementMetricSchema, active: z.boolean(), order: z.number().int().min(0).max(2147483647),
   version: z.number().int().nonnegative(), levels: z.array(achievementLevelWriteSchema).min(1, "Adicione pelo menos um nível."),
 }).strict().superRefine((input, ctx) => {
@@ -25,13 +26,13 @@ export const achievementWriteSchema = z.object({
   });
 });
 export const achievementDefinitionSchema = z.object({
-  id: z.uuid(), name: z.string(), icon: iconNameSchema, metric: achievementMetricSchema, active: z.boolean(),
+  id: z.uuid(), name: z.string(), icon: iconNameSchema, imageUrl: emblemImageSchema, metric: achievementMetricSchema, active: z.boolean(),
   order: z.number().int().nonnegative(), version: z.number().int().positive(),
   levels: z.array(achievementLevelWriteSchema.extend({ locked: z.boolean() })),
 });
 export const achievementDefinitionsSchema = z.object({ items: z.array(achievementDefinitionSchema) });
 export const achievementProgressSchema = z.object({
-  id: z.uuid(), name: z.string(), icon: iconNameSchema, iconNode: iconNodeSchema, metric: achievementMetricSchema,
+  id: z.uuid(), name: z.string(), icon: iconNameSchema, imageUrl: emblemImageSchema, iconNode: iconNodeSchema, metric: achievementMetricSchema,
   current: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   levels: z.array(achievementLevelWriteSchema.extend({ unlockedAt: z.iso.datetime().nullable() })),
 });

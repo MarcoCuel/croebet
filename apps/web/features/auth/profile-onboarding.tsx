@@ -22,7 +22,15 @@ export function ProfileOnboarding({ remindAt, onDefer, onComplete }: { remindAt:
   useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.url); }, [photo]);
   useEffect(() => {
     if (!remindAt) return;
-    const timer = setTimeout(() => setDue(true), Math.max(0, Date.parse(remindAt) - Date.now()));
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const remaining = Date.parse(remindAt) - Date.now();
+      if (remaining <= 0) setDue(true);
+      // Browser timers overflow beyond a signed 32-bit delay. Recheck the
+      // confirmed deadline instead of opening a deferred dialog immediately.
+      else timer = setTimeout(schedule, Math.min(remaining, 2_147_483_647));
+    };
+    schedule();
     return () => clearTimeout(timer);
   }, [remindAt]);
 
@@ -66,7 +74,7 @@ export function ProfileOnboarding({ remindAt, onDefer, onComplete }: { remindAt:
             setSaving(false);
           }
         }}>
-          <div className="flex flex-wrap items-center gap-4" role="group" aria-label="Avatar">
+          <div className="flex flex-col justify-center items-center gap-4" role="group" aria-label="Avatar">
             <Avatar className="size-20">
               {(photo?.url ?? avatar) && <AvatarImage src={photo?.url ?? avatar ?? undefined} alt="Seu avatar" />}
               <AvatarFallback className="text-2xl">{Array.from(name.trim() || username || "")[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
@@ -75,7 +83,7 @@ export function ProfileOnboarding({ remindAt, onDefer, onComplete }: { remindAt:
               <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => input.current?.click()}>
                 {photo || avatar ? "Trocar foto" : "Adicionar foto"}
               </Button>
-              {photo && <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setPhoto(null)}>Remover foto</Button>}
+              {photo && <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => setPhoto(null)}>Remover foto</Button>}
             </div>
             <Input ref={input} type="file" accept="image/jpeg,image/png,image/webp" aria-label="Escolher avatar" className="hidden" disabled={saving} onChange={event => {
               const file = event.currentTarget.files?.[0];
@@ -98,7 +106,7 @@ export function ProfileOnboarding({ remindAt, onDefer, onComplete }: { remindAt:
           </Field>
           <div className="grid gap-2">
             <Button type="submit" loading={saving}>Salvar e continuar</Button>
-            <Button type="button" variant="ghost" size="sm" className="justify-self-center" disabled={saving} onClick={() => void defer()}>Agora não</Button>
+            <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => void defer()}>Agora não</Button>
           </div>
         </form>
       </DialogContent>

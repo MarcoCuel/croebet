@@ -1,0 +1,1 @@
+ALTER TABLE "achievement_definitions" ADD COLUMN "image_url" text DEFAULT '' NOT NULL;

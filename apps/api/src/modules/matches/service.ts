@@ -384,9 +384,11 @@ export async function commandMatch(pool: Pool, actor: string, sessionHash: strin
     const result=abandon ? await replaceParticipant(client,row,people,member.seat) : execute(driver,state,row.version,"action" in input?input.action:undefined);
     if(!row.development)await settleMatch(client,row.id,row.code,result.status,driver.outcome(result.state));
     const frames=result.frames.map(frame=>({...frame,action:frame.action.type==="replace" || frame.action.type==="start"?frame.action:driver.eventAction(frame.action)}));
-    const response=driver.snapshotOnly?{ok:true as const}:gameExecutionResultSchema.parse({match:await roomView(client,{...row,...result},people),before:result.before,frames});
     await recordFrames(client,row.id,frames);
     await client.query("update game_matches set state=$2,version=$3,status=$4,owner_id=$5,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(result.state),result.version,result.status,row.owner_id]);
+    // The archive trigger records ended_at on update. Read the final projection
+    // afterwards so the command receipt includes the same duration as a reload.
+    const response=driver.snapshotOnly?{ok:true as const}:gameExecutionResultSchema.parse({match:await roomView(client,{...row,...result},people),before:result.before,frames});
     await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,payloadHash,JSON.stringify(response)]);
     return response;
   }, abandon);

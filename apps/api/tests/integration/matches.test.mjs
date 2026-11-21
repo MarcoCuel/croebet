@@ -448,6 +448,7 @@ test("PostgreSQL: arquivo transacional, replay completo, idempotência e preserv
  assert.equal((await readMatchReplay(pool,gameId,room.id,0,100)).match.status,"finished");
  await pool.query("delete from game_matches where id=$1",[room.id]);
  assert.equal((await readOwnMatchReplay(pool,actors[1],room.code,0,100)).match.id,room.id);
+ await pool.query("delete from sessions where user_id=$1",[actors[0]]);
  await pool.query("delete from users where id=$1",[actors[0]]);
  assert.deepEqual((await readMatchReplay(pool,gameId,room.id,0,100)).match,{...replay.match,players:replay.match.players.map(p=>p.userId===actors[0]?{...p,avatarUrl:null}:p)});
 });
@@ -552,6 +553,38 @@ test("PostgreSQL: prêmio autoritativo, pote vazio, retry e arquivo financeiro p
  await pool.query("delete from game_matches where id=$1",[room.id]);
  const archived=(await readGameHistory(pool,gameId,{offset:0,limit:20,q:room.code,status:'finished'})).items[0];
  assert.equal(archived.entryAmount,5);assert.deepEqual(archived.payouts,match.payouts);
+});
+
+test("PostgreSQL: falha após prêmio reverte ledger e arquivo; retry concorrente rateia sobra uma única vez",async t=>{
+ const {pool,actors,sessions,lobby,room,confirm,balances}=await paidEnvironment(t,1);
+ await lobby(room.code,2,"join");
+ const ready=await confirm(1);
+ const started=await lobby(room.code,0,"start",{expectedVersion:ready.version});
+ const {createGame}=await import("../../dist/modules/games/flip7/engine.js");
+ const {flip7Driver}=await import("../../dist/modules/games/flip7/driver.js");
+ // Conserved synthetic end-of-round fixture: seats 0 and 2 tie at 200.
+ const state=createGame(started.participants.map(p=>({name:p.username,kind:"human"})),42,{mode:"classic",brutal:false});
+ state.players.forEach((p,seat)=>{p.total=seat===1?199:200;p.hasDrawn=true;p.status=seat===0?"playing":"stayed";});
+ state.players[0].cards=state.deck.splice(state.deck.findIndex(card=>card.type==="number" && card.value===0),1);
+ flip7Driver.parse(state);
+ await pool.query("update game_matches set state=$2 where id=$1",[room.id,JSON.stringify(state)]);
+ const before=await balances();
+ const framesBefore=(await pool.query("select count(*)::int total from game_match_archive_frames where match_id=$1",[room.id])).rows[0].total;
+ const input={commandId:randomUUID(),expectedVersion:started.version,action:{type:"stay"}};
+ const failingPool={connect:async()=>{const c=await pool.connect();return {query:(sql,args)=>sql.startsWith("insert into game_match_commands")?Promise.reject(Error("receipt failure after payout")):c.query(sql,args),release:()=>c.release()};}};
+ await assert.rejects(commandMatch(failingPool,actors[0],sessions[0],room.code,input),/receipt failure after payout/);
+ assert.deepEqual(await balances(),before);
+ assert.equal((await getMatch(pool,actors[0],room.code)).settlement,"pending");
+ assert.equal((await pool.query("select status from game_match_archives where id=$1",[room.id])).rows[0].status,"playing");
+ assert.equal((await pool.query("select count(*)::int total from game_match_archive_frames where match_id=$1",[room.id])).rows[0].total,framesBefore);
+ assert.equal((await pool.query("select count(*)::int total from wallet_operations where scope='match-prize' and reference=$1",[room.code])).rows[0].total,0);
+ const results=await Promise.all([1,2].map(()=>commandMatch(pool,actors[0],sessions[0],room.code,input)));
+ assert.deepEqual(wire(results[0]),wire(results[1]));
+ assert.equal(results[0].match.status,"finished");
+ assert.deepEqual(results[0].match.payouts,[{seat:0,amount:2,house:false},{seat:2,amount:1,house:false}]);
+ assert.equal((await pool.query("select count(*)::int total from wallet_operations where scope='match-prize' and reference=$1",[room.code])).rows[0].total,2);
+ assert.equal((await pool.query("select balance from wallet_accounts where id=(select pot_account_id from game_match_stakes where match_id=$1)",[room.id])).rows[0].balance,'0');
+ assert.equal((await balances()).reduce((sum,row)=>sum+Number(row.balance),0),120);
 });
 
 test("PostgreSQL: empates com bot vão à casa; todos abandonam sem reembolso e liquidam pote",async t=>{
