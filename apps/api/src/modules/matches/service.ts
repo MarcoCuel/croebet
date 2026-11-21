@@ -222,8 +222,8 @@ async function replaceParticipant(client: PoolClient, row: Row, people: MatchPar
   await client.query("update game_match_players set controller_id=null,kind='bot' where match_id=$1 and seat=$2",[row.id,seat]);
   const humans=people.filter(person=>state.players[person.seat].kind==="human");
   if(!humans.some(person=>person.userId===row.owner_id) && humans.length)row.owner_id=humans[0].userId;
-  // No decisions or timers remain when the last person leaves the free game.
-  const result=humans.length ? execute(driver,state,version) : {state,version,frames:[],status:"abandoned" as const};
+  // Development bots finish automatically even after the last human leaves.
+  const result=humans.length || row.development ? execute(driver,state,version) : {state,version,frames:[],status:"abandoned" as const};
   return {...result,before,frames:[replacement,...result.frames]};
 }
 export async function kickMatch(pool: Pool, actor: string, sessionHash: string, code: string, input: KickMatch) {
@@ -498,8 +498,8 @@ export async function endTest(pool:Pool,actor:string,sessionHash:string,code:str
  await requireAdmin(client,actor);
  const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]);const row=found.rows[0];
  if(!row || !row.development || row.owner_id!==actor)throw new MatchError("NOT_FOUND",404,"Teste não encontrado.");
- if(row.status==="playing" && !row.only_bots)throw new MatchError("COLLECTIVE_REQUIRED",409,"Uma partida com jogadores exige abandono individual ou aprovação coletiva.");
  if(row.status==="abandoned")return {ok:true as const};
+ if(row.status==="finished")throw new MatchError("MATCH_FINISHED",409,"A partida já terminou.");
  if(row.version!==input.expectedVersion)throw new MatchError("VERSION_CONFLICT",409,"A partida mudou.");
  await client.query("update game_matches set status='abandoned',version=version+1,updated_at=clock_timestamp() where id=$1",[row.id]);
  return {ok:true as const};
@@ -514,6 +514,7 @@ export async function collectiveCancellation(pool:Pool,actor:string,sessionHash:
  return transaction(pool,actor,sessionHash,async client=>{
  const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]),row=found.rows[0];
  if(!row)throw new MatchError("NOT_FOUND",404,"Partida não encontrada.");
+ if(row.development)throw new MatchError("DEVELOPMENT_CANCELLATION",409,"Partidas de desenvolvimento usam cancelamento direto pelo administrador da sala.");
  const digest=hash({kind:"collective-cancellation",input});
  const receipt=await client.query("select payload_hash,response from game_match_commands where match_id=$1 and actor_id=$2 and command_id=$3",[row.id,actor,input.commandId]);
  if(receipt.rows[0]){if(receipt.rows[0].payload_hash!==digest)throw new MatchError("IDEMPOTENCY_CONFLICT",409,"Comando já utilizado.");return {ok:true as const};}
@@ -554,8 +555,8 @@ export async function abandonLove(pool:Pool,actor:string,sessionHash:string,code
  if(!person)throw new MatchError("NOT_A_PARTICIPANT",403,"Você não controla uma vaga nesta partida.");
  const state=parseLove(row.state);state.players[person.seat].kind="normal";
  await client.query("update game_match_players set controller_id=null,kind='bot' where match_id=$1 and seat=$2",[row.id,person.seat]);
- const stillHuman=state.players.some(p=>p.kind==="human"),next=stillHuman?automateLove(state):state;
- await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(next),stillHuman?(next.phase==="over"?"finished":"playing"):"abandoned"]);
+ const next=automateLove(state);
+ await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(next),next.phase==="over"?"finished":"playing"]);
  await client.query("insert into game_match_commands(match_id,actor_id,command_id,payload_hash,response) values($1,$2,$3,$4,$5)",[row.id,actor,input.commandId,digest,JSON.stringify({ok:true})]);
  return {ok:true as const};
  },true);

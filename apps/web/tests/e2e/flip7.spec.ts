@@ -796,6 +796,12 @@ test("testes em andamento reutilizam card de lobby sem estado vazio adicional",a
  await expect(list.getByRole("button",{name:"Cancelar",exact:true})).toBeVisible();
  await expect(list.locator('[data-slot="empty-state"]')).toHaveCount(0);
  await expect(list.getByText(code,{exact:false})).toHaveCount(0);
+ await list.getByRole("button",{name:"Cancelar",exact:true}).click();
+ const exit=page.getByRole("dialog");
+ await expect(exit.getByRole("button",{name:"Propor abandono coletivo",exact:true})).toHaveCount(0);
+ await expect(exit.getByRole("button",{name:"Abandonar sozinho",exact:true})).toBeVisible();
+ await expect(exit.getByRole("button",{name:"Cancelar partida",exact:true})).toBeVisible();
+ await exit.getByRole("button",{name:"Continuar",exact:true}).click();
 });
 
 test("porta do teste com bots pede confirmação e não encerra ao abrir ou desistir do modal",async({page})=>{
@@ -809,7 +815,7 @@ test("porta do teste com bots pede confirmação e não encerra ao abrir ou desi
  await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Encerrar partida de teste?'});await expect(dialog).toBeVisible();expect(ended).toBe(0);
  await dialog.getByRole('button',{name:'Continuar',exact:true}).click();expect(ended).toBe(0);
- await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();await dialog.getByRole('button',{name:'Encerrar teste',exact:true}).click();await expect.poll(()=>ended).toBe(1);
+ await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();await dialog.getByRole('button',{name:'Cancelar partida',exact:true}).click();await expect.poll(()=>ended).toBe(1);
 });
 
 

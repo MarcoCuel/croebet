@@ -764,10 +764,10 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>
         <DialogContent onCloseAutoFocus={event => { event.preventDefault(); exitTriggerRef.current?.focus(); }}>
           <DialogTitle>Sair da partida?</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted">Abandonar sozinho entrega sua vaga a um bot e a partida continua para os demais. O abandono coletivo exige a aprovação de todos que continuam, encerra a partida sem resultado e devolve todas as entradas, inclusive de quem já saiu.{!!matchInfo?.entryAmount && " No abandono individual, sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
+          <DialogDescription className="mt-3 text-sm text-muted">Abandonar sozinho entrega sua vaga a um bot e a partida continua para os demais. {!matchInfo?.development && "O abandono coletivo exige a aprovação de todos que continuam, encerra a partida sem resultado e devolve todas as entradas, inclusive de quem já saiu."}{!!matchInfo?.entryAmount && " No abandono individual, sua entrada não será devolvida. Se esta vaga vencer, o prêmio irá para a casa."}</DialogDescription>
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
-            <Button variant="secondary" disabled={leaving || !!matchInfo?.cancellation} onClick={async()=>{const match=serverMatch.current;if(!match)return;setLeaving(true);try{await proposeCancellation(match);setExitOpen(false);}catch(e){toast.error(e instanceof Error?e.message:"Não foi possível propor o abandono coletivo.");}finally{setLeaving(false);}}}>Propor abandono coletivo</Button>
+            {!matchInfo?.development && <Button variant="secondary" disabled={leaving || !!matchInfo?.cancellation} onClick={async()=>{const match=serverMatch.current;if(!match)return;setLeaving(true);try{await proposeCancellation(match);setExitOpen(false);}catch(e){toast.error(e instanceof Error?e.message:"Não foi possível propor o abandono coletivo.");}finally{setLeaving(false);}}}>Propor abandono coletivo</Button>}
             <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {
               if (exitOpen && await leave()) {
                 setExitOpen(false);
