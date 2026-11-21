@@ -71,9 +71,9 @@ test("chat compartilha conexão, recupera eventos e preserva texto e histórico"
   await expect.poll(async()=>page.getByRole("button",{name:"Chat geral",exact:true}).count()).toBe(1);
   // Wait for the initial history before generating an unread event.
   await page.getByRole("button",{name:"Chat geral",exact:true}).click();
-  const dialog=page.getByRole("dialog",{name:"Chat geral"});
+  const dialog=page.getByRole("complementary",{name:"Chat geral"});
   await expect(dialog.getByText("Mensagem anterior 55",{exact:true})).toBeVisible();
-  await dialog.getByRole("button",{name:"Fechar",exact:true}).click();
+  await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
   publish(makeMessage("Cheguei na conversa"));
   await expect(page.getByRole("button",{name:"Chat geral, 1 mensagens não lidas"})).toBeVisible();
   await page.getByRole("button",{name:"Chat geral, 1 mensagens não lidas"}).click();
@@ -100,21 +100,86 @@ test("chat compartilha conexão, recupera eventos e preserva texto e histórico"
   await expect(dialog.getByText("Mensagem durante reconexão",{exact:true})).toBeVisible();
   await expect.poll(()=>sockets.sockets.sockets.size).toBe(1);
   const last=dialog.locator("li").filter({hasText:"Mensagem durante reconexão"});
+  await last.focus();
   await last.getByRole("button",{name:"Moderar mensagem de Ana da comunidade"}).click();
   await page.getByRole("menuitem",{name:"Remover mensagem",exact:true}).click();
   await expect(last).toHaveCount(0);
   await expect(dialog.getByText("Mensagem removida",{exact:true})).toBeVisible();
-  await dialog.getByRole("button",{name:"Fechar",exact:true}).click();
+  await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
   await expect(page.getByRole("button",{name:"Chat geral",exact:true})).toBeFocused();
 });
-test("chat ocupa o viewport no celular e não aparece para visitantes",async({page,context,isMobile})=>{
+test("sidebar reserva espaço no desktop e ocupa a largura disponível no celular",async({page,context,isMobile})=>{
   await page.goto("/");
   await page.getByRole("button",{name:"Chat geral",exact:true}).click();
-  const dialog=page.getByRole("dialog",{name:"Chat geral"});
+  const dialog=page.getByRole("complementary",{name:"Chat geral"});
   await expect(dialog).toBeVisible();
-  const box=await dialog.boundingBox();
-  if(isMobile)expect(Math.round(box!.width)).toBe(page.viewportSize()!.width);
-  await dialog.getByRole("button",{name:"Fechar",exact:true}).click();
+  await expect(dialog).toHaveCSS("top","0px");
+  await expect(page.locator('[data-slot="dialog-overlay"]')).toHaveCount(0);
+  await expect(page.locator("body")).not.toHaveAttribute("data-scroll-locked", "1");
+  await expect(dialog.getByText("Conversa da comunidade")).toHaveCount(0);
+  await expect(dialog.getByText("Enter envia · Shift + Enter quebra a linha")).toHaveCount(0);
+  const content=page.locator("#page-content");
+  if(isMobile) {
+    const box=await dialog.boundingBox();
+    expect(Math.round(box!.width)).toBe(page.viewportSize()!.width);
+    await expect(content).toHaveCSS("padding-right","0px");
+  } else {
+    await expect(dialog).toHaveCSS("width","320px");
+    await expect(content).toHaveCSS("padding-right","320px");
+    await expect(page.locator("header")).toHaveCSS("right","320px");
+    const row=dialog.locator("li").last();
+    const menu=row.getByRole("button",{name:/Moderar mensagem/});
+    await page.locator("#general-chat-title").focus();
+    await expect(menu).toHaveCSS("opacity","0");
+    await row.hover();
+    await expect(menu).toHaveCSS("opacity","1");
+    await page.locator("#general-chat-title").hover();
+    await expect(menu).toHaveCSS("opacity","0");
+    await row.focus();
+    await expect(menu).toHaveCSS("opacity","1");
+    // Navigation remains available while the chat stays open.
+    await page.locator("header").getByRole("link",{name:"Ver carteira"}).first().focus();
+    await expect(dialog).toBeVisible();
+  }
+  await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
+  if(!isMobile)await expect(content).toHaveCSS("padding-right","0px");
   await context.clearCookies();await page.reload();
   await expect(page.getByRole("button",{name:/^Chat geral/})).toHaveCount(0);
+});
+
+test("chat desliza a partir da borda sem desmontar nem criar rolagem horizontal", async ({ page, isMobile }) => {
+  await page.goto("/");
+  const panel = page.locator("#general-chat-sidebar");
+  await expect(panel).toHaveAttribute("aria-hidden", "true");
+  const sample = async (open: boolean) => page.evaluate(async ({ open }) => {
+    const panel = document.querySelector<HTMLElement>("#general-chat-sidebar")!;
+    const trigger = document.querySelector<HTMLButtonElement>('[aria-controls="general-chat-sidebar"]')!;
+    const width = panel.getBoundingClientRect().width;
+    const initial = panel.getBoundingClientRect().x;
+    if (open) trigger.click();
+    else panel.querySelector<HTMLButtonElement>('[aria-label="Fechar chat"]')!.click();
+    const frames: { x: number; display: string; pageWidth: number }[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 400) {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      frames.push({ x: panel.getBoundingClientRect().x, display: getComputedStyle(panel).display, pageWidth: document.documentElement.scrollWidth });
+    }
+    return { initial, width, viewport: innerWidth, frames, samePanel: panel === document.querySelector("#general-chat-sidebar") };
+  }, { open });
+  const opening = await sample(true);
+  expect(opening.initial).toBeCloseTo(opening.viewport, 0);
+  expect(opening.frames.at(-1)!.x).toBeCloseTo(opening.viewport - opening.width, 0);
+  expect(opening.frames.some(frame => frame.x > opening.viewport - opening.width + 1 && frame.x < opening.viewport - 1)).toBe(true);
+  for (const [index, frame] of opening.frames.entries()) {
+    expect(frame.display).toBe("flex");
+    if (index) expect(frame.x).toBeLessThanOrEqual(opening.frames[index - 1].x + 1);
+    if (!isMobile) expect(frame.pageWidth).toBeLessThanOrEqual(opening.viewport);
+  }
+  expect(opening.samePanel).toBe(true);
+  const closing = await sample(false);
+  expect(closing.frames.at(-1)!.x).toBeCloseTo(closing.viewport, 0);
+  expect(closing.frames.every(frame => frame.display === "flex")).toBe(true);
+  expect(closing.samePanel).toBe(true);
+  await expect(panel).toHaveAttribute("inert", "");
+  await expect(page.locator("header")).toHaveCSS("right", "0px");
 });

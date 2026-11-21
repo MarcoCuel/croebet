@@ -18,8 +18,6 @@ const contentVariants = cva(
       variant: {
         default:
           "top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(26rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-panel p-6 motion-safe:data-[state=open]:animate-dialog-in",
-        "drawer-right":
-          "inset-y-0 right-0 flex h-dvh w-full flex-col bg-background sm:w-[26rem]",
         drawer:
           "inset-y-0 left-0 h-dvh w-[min(19rem,calc(100%-2rem))] bg-background p-4 motion-safe:data-[state=open]:animate-drawer-in",
       },
