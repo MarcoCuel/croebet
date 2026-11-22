@@ -35,6 +35,35 @@ async function openDeckMenu(page: import("@playwright/test").Page) {
   await count.focus(); await count.press("Shift+F10");
 }
 
+test("hover dos oponentes recalcula a curvatura junto com a ampliação", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/admin/jogos/laboratorio");
+  await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
+  const card = page.getByRole("button", { name: "Passar vez para Jogador 2 pelas cartas", exact: true }).first();
+  const measure = () => card.evaluate(button => {
+    type Group = { scale: { x: number }; receiveShadow: boolean; castShadow: boolean; children: Group[]; geometry: { attributes: { position: { array: number[] } } } };
+    type Fiber = { return: Fiber | null; memoizedProps: { target?: { pose: { scale: number } } }; memoizedState: { memoizedState: { current: Group } } };
+    const key = Object.keys(button).find(key => key.startsWith("__reactFiber$"))!;
+    let fiber = (button as unknown as Record<string, Fiber>)[key];
+    while (fiber && !fiber.memoizedProps?.target) fiber = fiber.return!;
+    const group = fiber.memoizedState.memoizedState.current;
+    return { shadows: group.children[0].children[0].children.map(mesh => ({ receives: mesh.receiveShadow, casts: mesh.castShadow })), scale: group.scale.x, targetScale: fiber.memoizedProps.target!.pose.scale, positions: Array.from(group.children[0].children[0].children[1].geometry.attributes.position.array) };
+  });
+  // Wait for the initial deal before exercising the independent hover animation.
+  await expect.poll(async () => { const m = await measure(); return Math.abs(m.scale - m.targetScale); }).toBeLessThan(1e-6);
+  const before = await measure();
+  expect(before.shadows).toEqual(Array(3).fill({ receives: false, casts: true }));
+  await card.focus();
+  await expect.poll(async () => (await measure()).scale).toBeCloseTo(before.scale * 1.1, 5);
+  expect((await measure()).positions).not.toEqual(before.positions);
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).focus();
+  await expect.poll(async () => (await measure()).scale).toBeCloseTo(before.scale, 5);
+  await expect.poll(async () => {
+    const after = await measure();
+    return Math.max(...after.positions.map((value, index) => Math.abs(value - before.positions[index])));
+  }).toBeLessThan(1e-6);
+});
+
 test("revelação gira a carta no lugar, sem repetir o arco de compra", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/admin/jogos/laboratorio");
@@ -344,16 +373,19 @@ test("descarte tem controles locais de movimento, rotação e tamanho sem sobrep
 });
 
 
-test("laboratório carrega as mesmas artes das duas edições usadas pela mesa real", async ({ page }) => {
+test("laboratório oferece somente Neutras e Love Letter com as artes originais", async ({ page }) => {
   const loaded = new Set<string>();
   page.on("response", response => { if (response.ok() && response.url().includes("/games/love-letter/")) loaded.add(new URL(response.url()).pathname); });
   await page.goto("/admin/jogos/laboratorio");
   await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
   await openSettings(page);
-  await page.getByRole("button", { name: "Love Letter moderno", exact: true }).click();
+  await page.getByRole("button", { name: "Love Letter", exact: true }).click();
   await expect.poll(() => ["card", "0", "9"].every(card => loaded.has(`/games/love-letter/${card}.png`))).toBe(true);
-  await page.getByRole("button", { name: "Love Letter clássico", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Love Letter clássico", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const choices = page.getByRole("group", { name: "Arte das cartas" });
+  await expect(choices.getByRole("button")).toHaveCount(2);
+  await expect(choices.getByRole("button", { name: "Love Letter", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await choices.getByRole("button", { name: "Neutras", exact: true }).click();
+  await expect(choices.getByRole("button", { name: "Neutras", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
 

@@ -1,18 +1,18 @@
 import { test } from 'node:test';
 import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
-import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
+import { handPlacements, handWindow, offsetHandPose, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
 import { constrainDeckTransform, constrainDiscardTransform, pileBounds, poseBounds } from '../three/table/pile-transform.ts';
 import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
-import { createCardGeometry } from '../three/table/card-geometry.ts';
+import { createCardGeometry, interpolateCardGeometry, updateCardGeometry, scaledPaperCurvature } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
 import { arcPosition, cardMotionUpdate, consumeCardMotion, distributionDelay, easedProgress, raisedCardPosition } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
 const options = { layout: 'fan', width: 5.5, curve: 1.2, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0 };
 
 test('leque mantém bordas tangentes ao mesmo arco e cada carta inteiramente à frente da anterior', () => {
-  const paper = createCardGeometry(0.004);
+  const paper = createCardGeometry(0.06);
   try {
     for (const count of [2, 7, 15, 26]) for (const angle of [25, 36, 65]) {
       const layout = resolveTableLayout({ players: 4, viewer: 0, counts: Array(12).fill(count), width: 1200, height: 700, angle, deck: [-1.5, 0.035, -0.6] });
@@ -197,7 +197,7 @@ test('arco adversário é espacial e mantém as cartas verticais, enquanto o leq
 });
 
 test('papel curvo preserva cantos, dimensões e faces alinhadas sem curvar as pilhas', () => {
-  const flat = createCardGeometry(), curved = createCardGeometry(0.018);
+  const flat = createCardGeometry(), curved = createCardGeometry(0.3);
   try {
     const positions = curved.face.getAttribute('position');
     const back = curved.backFace.getAttribute('position');
@@ -206,10 +206,11 @@ test('papel curvo preserva cantos, dimensões e faces alinhadas sem curvar as pi
       const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
       assert.ok(Math.abs(x) <= 0.36 + 1e-6 && Math.abs(y) <= 0.525 + 1e-6);
       assert.ok(Math.abs(z + back.getZ(i)) < 1e-6);
-      if (Math.abs(Math.abs(y) - 0.525) < 1e-6) assert.ok(Math.abs(z) < 1e-6);
+      if (Math.abs(x) < 1e-6) assert.ok(Math.abs(z) < 1e-6);
+      assert.ok(Math.abs(x + back.getX(i)) < 1e-6);
       minZ = Math.min(minZ, z);
     }
-    assert.ok(minZ < -0.017 && minZ > -0.019);
+    assert.ok(minZ < -0.019 && minZ > -0.020);
     const flatPositions = flat.face.getAttribute('position');
     for (let i = 0; i < flatPositions.count; i++) assert.equal(Math.abs(flatPositions.getZ(i)), 0);
     for (const geometry of Object.values(curved)) {
@@ -220,6 +221,112 @@ test('papel curvo preserva cantos, dimensões e faces alinhadas sem curvar as pi
   }
 });
 
+
+
+test('curvatura permanece horizontal com cartas a 0°, 90° e no leque', () => {
+  for (const angle of [0, Math.PI / 2, -0.2, Math.PI / 2 - 0.2]) {
+    const paper = createCardGeometry(0.3, angle);
+    try {
+      const vertices = paper.face.getAttribute('position');
+      const uv = paper.face.getAttribute('uv');
+      for (let i = 0; i < vertices.count; i++) {
+        const originalX = (uv.getX(i) - 0.5) * 0.72;
+        const originalY = (uv.getY(i) - 0.5) * 1.05;
+        const horizontal = originalX * Math.cos(angle) - originalY * Math.sin(angle);
+        assert.ok(Math.abs(vertices.getZ(i) - (Math.cos(horizontal * 0.3) - 1) / 0.3) < 1e-7);
+        const vertical = vertices.getX(i) * Math.sin(angle) + vertices.getY(i) * Math.cos(angle);
+        assert.ok(Math.abs(vertical - (originalX * Math.sin(angle) + originalY * Math.cos(angle))) < 1e-7);
+      }
+    } finally { Object.values(paper).forEach(mesh => mesh.dispose()); }
+  }
+});
+
+test('cartas dos oponentes compartilham cilindros concêntricos sem atravessar a sobreposição', () => {
+  for (const count of [2, 7, 18]) for (const tilt of [0, 3.5]) for (const sideways of [0, Math.PI / 2]) for (const hidden of [false, true]) {
+    const hand = { ...options, layout: 'line', width: 2, spatialCurve: 1.05, tilt, scale: 1 };
+    const poses = handPlacements(count, hand);
+    const radius = 1 / poses[0].paperCurve;
+    let previous = 0;
+    for (const pose of poses) {
+      const paper = createCardGeometry(pose.paperCurve, sideways, tilt * Math.PI / 180, hidden);
+      try {
+        const vertices = paper.face.getAttribute('position');
+        for (let i = 0; i < vertices.count; i++) {
+          const point = new Vector3().fromBufferAttribute(vertices, i);
+          if (hidden) point.applyEuler(new Euler(0, Math.PI, 0));
+          point.applyEuler(new Euler(pose.rotation[0], pose.rotation[1], sideways, 'YXZ')).add(new Vector3(...pose.position));
+          const distance = Math.hypot(point.x, point.z + radius);
+          const expected = 1 / pose.paperCurve - (point.y - pose.position[1]) * Math.tan(tilt * Math.PI / 180);
+          assert.ok(Math.abs(distance - expected) < 1e-6);
+          assert.ok(distance + (point.y - pose.position[1]) * Math.tan(tilt * Math.PI / 180) > previous);
+        }
+        previous = 1 / pose.paperCurve;
+      } finally { Object.values(paper).forEach(mesh => mesh.dispose()); }
+    }
+  }
+});
+
+test('espessura e triângulos das cartas não cruzam vizinhas com hover, giro e mão estreita', () => {
+  for (const width of [0.08, 2]) for (const count of [2, 7]) for (const hidden of [false, true]) for (const active of [0, 1]) {
+    const tilt = 3.5 * Math.PI / 180;
+    const hand = { ...options, layout: 'line', width, spatialCurve: 1.05, tilt: 3.5, scale: 0.6 };
+    const poses = handPlacements(count, hand), originRadius = hand.scale / poses[0].paperCurve;
+    let previousFront = -Infinity;
+    for (let index = 0; index < count; index++) {
+      const pose = offsetHandPose(poses[index], (index % 2 ? -0.08 : 0.08) * hand.scale, true);
+      const hover = index === active, scale = pose.scale * (hover ? 1.1 : 1);
+      const position = raisedCardPosition(pose, hover ? 0.25 * pose.scale : 0);
+      const yaw = pose.rotation[1], rotation = Math.PI / 2 + (hover ? 0.12 : -0.12);
+      const radial = (position[0] - pose.position[0]) * Math.sin(yaw) + (position[2] - pose.position[2]) * Math.cos(yaw);
+      const curvature = scaledPaperCurvature(pose.paperCurve, pose.scale, scale, radial);
+      const paper = createCardGeometry(pose.paperCurve);
+      updateCardGeometry(paper, curvature, rotation, tilt, hidden);
+      let min = Infinity, max = -Infinity;
+      try {
+        for (const [mesh, offset, reverse] of [[paper.face, 0.0022, false], [paper.backFace, -0.0022, true], [paper.edge, 0, false]]) {
+          const vertices = mesh.getAttribute('position'), indices = mesh.getIndex();
+          const points = [];
+          for (let i = 0; i < vertices.count; i++) {
+            const p = new Vector3().fromBufferAttribute(vertices, i);
+            if (reverse) p.applyEuler(new Euler(0, Math.PI, 0));
+            p.z += offset;
+            if (hidden) p.applyEuler(new Euler(0, Math.PI, 0));
+            p.multiplyScalar(scale).applyEuler(new Euler(-tilt, yaw, rotation, 'YXZ')).add(new Vector3(...position));
+            points.push(p);
+          }
+          const measure = p => {
+            const shell = Math.hypot(p.x, p.z + originRadius) + (p.y - pose.position[1]) * Math.tan(tilt);
+            min = Math.min(min, shell); max = Math.max(max, shell);
+          };
+          points.forEach(measure);
+          for (let i = 0; i < indices.count; i += 3) measure(points[indices.getX(i)].clone().add(points[indices.getX(i + 1)]).add(points[indices.getX(i + 2)]).divideScalar(3));
+        }
+        assert.ok(min > previousFront, `interseção: largura ${width}, cartas ${count}, carta ${index}, hover ${active}, oculta ${hidden}`);
+        previousFront = max;
+      } finally { Object.values(paper).forEach(mesh => mesh.dispose()); }
+    }
+  }
+});
+
+test('revelação interpola a deformação sem trocar a malha nem perder o verso', () => {
+  const front = createCardGeometry(0.4, Math.PI / 2, 0.06);
+  const back = createCardGeometry(0.4, Math.PI / 2, 0.06, true);
+  const current = { face: front.face.clone(), backFace: front.backFace.clone(), edge: front.edge.clone() };
+  try {
+    const identity = current.face;
+    for (const mix of [0, 0.25, 0.5, 0.75, 1]) {
+      interpolateCardGeometry(current, front, back, mix);
+      assert.equal(current.face, identity);
+      for (const key of ['face', 'backFace', 'edge']) {
+        const a = front[key].getAttribute('position').array;
+        const b = back[key].getAttribute('position').array;
+        const value = current[key].getAttribute('position').array;
+        for (let i = 0; i < value.length; i++) assert.ok(Math.abs(value[i] - (a[i] + (b[i] - a[i]) * mix)) < 1e-7);
+        assert.ok([...current[key].getAttribute('normal').array].every(Number.isFinite));
+      }
+    }
+  } finally { for (const set of [front, back, current]) Object.values(set).forEach(mesh => mesh.dispose()); }
+});
 
 test('presets antigos restauram iluminação suave e novos controles recusam valores inválidos', () => {
   const legacy = { ...defaultSettings, light: 3, ambient: 1.2 };
@@ -275,12 +382,12 @@ test('deck fica horizontal e descarte apresenta a face para a câmera sem torç�
 
 
 test('cantos seguem arcos de círculo amostrados e UVs preservam as proporções', () => {
-  const geometry = createCardGeometry(0.018);
+  const geometry = createCardGeometry(0.3);
   try {
     const positions = geometry.face.getAttribute('position'), uv = geometry.face.getAttribute('uv');
     const seen = [new Set(), new Set(), new Set(), new Set()];
     for (let i = 0; i < positions.count; i++) {
-      const x = positions.getX(i), y = positions.getY(i);
+      const x = Math.asin(positions.getX(i) * 0.3) / 0.3, y = positions.getY(i);
       assert.ok(Math.abs(uv.getX(i) - (x / 0.72 + 0.5)) < 1e-6);
       assert.ok(Math.abs(uv.getY(i) - (y / 1.05 + 0.5)) < 1e-6);
       const dx = Math.abs(x) - 0.3, dy = Math.abs(y) - 0.465;

@@ -1,6 +1,6 @@
 export type HandLayout = "fan" | "line";
 export type Vec3 = [number, number, number];
-export type CardPose = { position: Vec3; rotation: Vec3; scale: number };
+export type CardPose = { position: Vec3; rotation: Vec3; scale: number; paperCurve?: number };
 export type HandOptions = { layout: HandLayout; width: number; curve: number; spacing: number; overlap: number; tilt: number; scale: number; orientation: number; spatialCurve?: number; visibleLimit?: number };
 export type SeatPlacement = { seat: number; position: Vec3; angle: number; width: number };
 export const radians = (degrees: number) => degrees * Math.PI / 180;
@@ -82,23 +82,40 @@ export function handPlacements(count: number, options: HandOptions): CardPose[] 
       return { position: [fanArc > 0 ? fanRadius * Math.sin(turn) : centered * step,
         0.65 * options.scale + drop * Math.cos(pitch) + layer * Math.sin(pitch),
         -drop * Math.sin(pitch) + layer * Math.cos(pitch)],
-        rotation: [-pitch, radians(options.orientation), -turn], scale: options.scale };
+        rotation: [-pitch, radians(options.orientation), -turn], scale: options.scale, paperCurve: options.curve > 0 ? 0.06 : 0 };
     }
-    const arc = options.spatialCurve ?? 0;
+    // Never squeeze the layer below the physical paper thickness. In narrow
+    // hands reduce the arc instead, keeping its cylinders and width consistent.
+    const layerStep = 0.02 * options.scale;
+    const span = (count - 1) * step;
+    const minimumRadius = 0.9 * options.scale;
+    const arc = Math.min(options.spatialCurve ?? 0,
+      2 * Math.asin(Math.min(1, span / (2 * minimumRadius + (count - 1) * layerStep))));
     const yaw = t * arc;
-    const radius = arc > 0 ? (count - 1) * step / (2 * Math.sin(arc / 2)) : 0;
-    return { position: [arc > 0 ? radius * Math.sin(yaw) : centered * step,
+    const radius = arc > 0 ? (count - 1) * (step / (2 * Math.sin(arc / 2)) - layerStep / 2) : 0;
+    // Concentric paper surfaces preserve overlap instead of intersecting tangent planes.
+    const layer = index * layerStep;
+    const paperRadius = radius + layer;
+    return { position: [arc > 0 ? paperRadius * Math.sin(yaw) : centered * step,
       0.65 * options.scale,
-      (arc > 0 ? radius * (Math.cos(yaw) - 1) : 0) + index * (arc > 0 ? 0.006 : 0.003) * options.scale],
-      rotation: [-pitch, radians(options.orientation) + yaw, 0], scale: options.scale };
+      (arc > 0 ? paperRadius * Math.cos(yaw) - radius : layer)],
+      rotation: [-pitch, radians(options.orientation) + yaw, 0], scale: options.scale, paperCurve: radius > 0 ? options.scale / paperRadius : 0 };
   });
 }
+/** Slide decorative pairs along their existing cylinder rather than through it. */
+export function offsetHandPose(pose: CardPose, distance: number, cylindrical: boolean): CardPose {
+  if (!cylindrical || !pose.paperCurve) return { ...pose, position: [pose.position[0] + distance, pose.position[1], pose.position[2]] };
+  const radius = pose.scale / pose.paperCurve, yaw = pose.rotation[1], nextYaw = yaw + distance / radius;
+  return { ...pose, position: [pose.position[0] + radius * (Math.sin(nextYaw) - Math.sin(yaw)), pose.position[1],
+    pose.position[2] + radius * (Math.cos(nextYaw) - Math.cos(yaw))], rotation: [pose.rotation[0], nextYaw, pose.rotation[2]] };
+}
+
 export function worldHandPose(pose: CardPose, seat: SeatPlacement): CardPose {
   const [x, y, z] = pose.position;
   return { position: [seat.position[0] + Math.cos(seat.angle) * x + Math.sin(seat.angle) * z, seat.position[1] + y,
     seat.position[2] - Math.sin(seat.angle) * x + Math.cos(seat.angle) * z],
     // YXZ rotation order in the renderer keeps tilt/fan in each seat's local frame.
-    rotation: [pose.rotation[0], seat.angle + pose.rotation[1], pose.rotation[2]], scale: pose.scale };
+    rotation: [pose.rotation[0], seat.angle + pose.rotation[1], pose.rotation[2]], scale: pose.scale, paperCurve: pose.paperCurve };
 }
 export function pileRotation(faceUp: boolean, cameraAngle = 36): Vec3 {
   return faceUp ? [-radians(cameraAngle), 0, 0] : [-Math.PI / 2, 0, Math.PI / 2];

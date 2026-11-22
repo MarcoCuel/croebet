@@ -41,7 +41,7 @@ const storageKey = tableSettingsKey;
 export function GameLaboratory() {
   const [settings, setSettings] = useState<LaboratorySettings>(defaultSettings);
   const [state, dispatch] = useReducer(laboratoryReducer, defaultSettings, initialState);
-  const [artworkMode, setArtworkMode] = useState<"neutral" | "classic" | "modern">("neutral");
+  const [artworkMode, setArtworkMode] = useState<"neutral" | "love-letter">("neutral");
   const [focus, setFocus] = useState(0);
   const [configOpen, setConfigOpen] = useState(false);
   const [menu, setMenu] = useState<{ target: TableMenuTarget; x: number; y: number } | null>(null);
@@ -149,13 +149,13 @@ export function GameLaboratory() {
     <h1 className="sr-only">Laboratório de jogos</h1>
     <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" data-choice={!!state.choice} data-exposed-count={state.exposed?.slice(0, settings.players).reduce((total, hand) => total + hand.length, 0) ?? 0} aria-label={`Mesa 3D de teste · Deck: ${state.deck.length} · Descarte: ${state.discard.length}`}>
       <TableSceneBoundary><Scene settings={settings} layout={layout} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
-        artwork={artworkMode === "neutral" ? undefined : loveArtwork[artworkMode]} canDraw={canDraw} onDeckChange={point => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation, deckScale: point.scale }))}
+        artwork={artworkMode === "neutral" ? undefined : loveArtwork.modern} canDraw={canDraw} onDeckChange={point => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation, deckScale: point.scale }))}
         onDiscardChange={point => setSettings(current => ({ ...current, discardX: point.x, discardZ: point.z, discardRotation: point.rotation, discardScale: point.scale }))} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></TableSceneBoundary>
       <div className="absolute bottom-4 left-4 z-10" data-testid="local-seat"><TableSeatBadge name="Jogador 1" active={settings.turn === settings.viewer} local compact={false} onActivate={() => update("turn", settings.viewer)} /></div>
       <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>
       {configOpen && <aside id="laboratory-settings" aria-label="Configuração da mesa" className="absolute inset-y-16 right-3 z-20 grid w-72 max-w-[calc(100%-1.5rem)] content-start gap-5 overflow-y-auto rounded-panel border border-contrast/6 bg-background/95 p-4 shadow-lg backdrop-blur-md">
         <h2 className="font-semibold">Configuração</h2>
-        <div role="group" aria-label="Arte das cartas" className="flex flex-wrap gap-2">{(["neutral", "classic", "modern"] as const).map(mode => <Button key={mode} size="sm" variant="secondary" aria-pressed={artworkMode === mode} onClick={() => setArtworkMode(mode)}>{mode === "neutral" ? "Neutras" : mode === "classic" ? "Love Letter clássico" : "Love Letter moderno"}</Button>)}</div>
+        <div role="group" aria-label="Arte das cartas" className="flex flex-wrap gap-2">{(["neutral", "love-letter"] as const).map(mode => <Button key={mode} size="sm" variant="secondary" aria-pressed={artworkMode === mode} onClick={() => setArtworkMode(mode)}>{mode === "neutral" ? "Neutras" : "Love Letter"}</Button>)}</div>
         <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, turn: Math.min(current.turn, players - 1) })); setFocus(0); setMenu(null); }} />
         <p className="text-xs text-muted">Layout automático conforme cartas, jogadores e espaço disponível.</p>
         <details><summary className="cursor-pointer text-sm font-semibold">Cartas</summary><div className="mt-4 grid gap-4">

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Html, useCursor } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Euler, Quaternion, Vector3, type Group, type MeshStandardMaterial } from "three";
+import { createCardGeometry, interpolateCardGeometry, updateCardGeometry, scaledPaperCurvature } from "./card-geometry";
 import type { CardResources } from "./resources";
 import type { CardTarget } from "./motion";
 import { arcPosition, cardMotionUpdate, consumeCardMotion, easedProgress, routeProgress, raisedCardPosition } from "./motion";
@@ -107,6 +108,20 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     if (reduce) { group.position.copy(a.to); group.quaternion.copy(a.toQ); group.scale.setScalar(size); }
     invalidate();
   }, [destination, invalidate, motionHistory]);
+  // Rotation is compensated inside the mesh, so sideways cards bend across the hand.
+  const paper = useMemo(() => {
+    if (!target.paperCurve) return null;
+    const front = createCardGeometry(target.paperCurve, rz, target.paperTilt);
+    const back = createCardGeometry(target.paperCurve, rz, target.paperTilt, true);
+    return { curvature: target.paperCurve, rotation: rz, mix: -1, front, back, current: { face: front.face.clone(), backFace: front.backFace.clone(), edge: front.edge.clone() } };
+  }, [target.paperCurve, target.paperTilt, rz]);
+  const paperRef = useRef(paper);
+  useLayoutEffect(() => {
+    paperRef.current = paper;
+    if (paper) interpolateCardGeometry(paper.current, paper.front, paper.back, (1 - Math.cos(revealRef.current?.rotation.y ?? 0)) / 2);
+  }, [paper, target.hidden]);
+  useEffect(() => () => { if (paper) [paper.front, paper.back, paper.current].forEach(set => Object.values(set).forEach(mesh => mesh.dispose())); }, [paper]);
+  const geometry = paper?.current ?? resources.flat;
   useFrame((scene, delta) => {
     const group = ref.current; const a = animation.current; if (!group || paused) return;
     const turn = reveal.current;
@@ -140,8 +155,26 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     if (!a.active) motionCallback.current?.(target.id, a.key, false);
     if (a.active || idle) invalidate();
   });
+  useFrame(() => {
+    const shape = paperRef.current, group = ref.current;
+    if (!shape || !group || !target.paperCurve) return;
+    const cylindrical = target.paperTilt !== undefined;
+    const radialOffset = (group.position.x - x) * Math.sin(ry) + (group.position.z - z) * Math.cos(ry);
+    const curvature = cylindrical ? scaledPaperCurvature(target.paperCurve, target.pose.scale, group.scale.x,
+      animation.current.active && animation.current.transfer ? 0 : radialOffset) : target.paperCurve;
+    const rotation = rz + (idleRef.current?.rotation.z ?? 0);
+    const mix = (1 - Math.cos(revealRef.current?.rotation.y ?? 0)) / 2;
+    const changed = Math.abs(shape.curvature - curvature) > 1e-7 || Math.abs(shape.rotation - rotation) > 1e-7;
+    if (changed) {
+      updateCardGeometry(shape.front, curvature, rotation, target.paperTilt);
+      updateCardGeometry(shape.back, curvature, rotation, target.paperTilt, true);
+      shape.curvature = curvature; shape.rotation = rotation;
+    }
+    if (changed || shape.mix !== mix) {
+      interpolateCardGeometry(shape.current, shape.front, shape.back, mix); shape.mix = mix;
+    }
+  });
   const thickness = target.thickness ?? 0.004;
-  const geometry = target.curved === "fan" ? resources.fan : target.curved ? resources.curved : resources.flat;
   return <group ref={ref}
     onClick={target.interactive ? event => { event.stopPropagation(); if (suppressClick.current) { suppressClick.current = false; return; } onSelect(target.id); } : undefined}
     onContextMenu={target.interactive ? event => { event.stopPropagation(); event.nativeEvent.preventDefault(); event.nativeEvent.stopPropagation(); onMenu(target.id, { x: event.clientX, y: event.clientY }); } : undefined}
@@ -159,9 +192,9 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     onPointerOut={() => { setHovered(false); cancelHold(); }}>
     <group ref={idleRef}>
     <group ref={revealRef}>
-    <mesh geometry={geometry.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
-    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial ref={frontMaterial} map={resources.maps.back} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={target.glow && !target.hidden ? 0.12 : hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
-    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial ref={backMaterial} map={resources.maps.back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
+    <mesh geometry={geometry.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow={target.zone !== "hand"}><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
+    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow={target.zone !== "hand"}><meshStandardMaterial ref={frontMaterial} map={resources.maps.back} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={target.glow && !target.hidden ? 0.12 : hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
+    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow={target.zone !== "hand"}><meshStandardMaterial ref={backMaterial} map={resources.maps.back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
     </group>
     </group>
     {target.zone === "staging" && target.label && <Html position={[0, -0.95, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-48 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.label}</span></Html>}

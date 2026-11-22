@@ -54,7 +54,7 @@ function texture(value: number | null, anisotropy: number, palette: TablePalette
 export function useCardResources(palette: TablePalette, artwork?: TableArtwork, numberColor = "#ad158f") {
   const invalidate = useThree(state => state.invalidate);
   const anisotropy = useThree(state => Math.min(8, state.gl.capabilities.getMaxAnisotropy()));
-  const geometry = useMemo(() => ({ flat: createCardGeometry(), fan: createCardGeometry(0.004), curved: createCardGeometry(0.018) }), []);
+  const geometry = useMemo(() => ({ flat: createCardGeometry() }), []);
   const maps = useMemo(() => {
     const keys = new Set([...Array.from({ length: 14 }, (_, i) => String(i)), ...Object.keys(artwork?.faces ?? {})]);
     const result: Record<string, CanvasTexture> = { back: texture(null, anisotropy, palette, numberColor, artwork?.back) };
