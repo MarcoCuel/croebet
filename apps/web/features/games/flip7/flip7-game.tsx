@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { LogOut, BookOpen, PlayingCardsFan, PlayingCard as PlayingCardIcon, Heart, Lock, Plus, Minus, Divide, ArrowLeftRight, Hand, ArrowUp, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { CroinIcon } from "@/components/shared/croin-icon";
 import { Button } from "@/components/ui/button";
 import { Card as Surface } from "@/components/ui/card";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -644,7 +645,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const tableHeader = { identity: <>
             {tableView.view === "3d" && <span className="text-sm font-medium">Flip 7</span>}
             <Badge variant="secondary">{modeLabel(game)}</Badge>
-            {!!matchInfo?.entryAmount && <span className="text-sm text-muted">Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</span>}
+            {!!matchInfo?.entryAmount && <Badge className="gap-1.5 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]" />Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</Badge>}
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push(gameUrl(gameSlug))}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}

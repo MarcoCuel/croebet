@@ -13,11 +13,11 @@ export const rankingTitles = { wins: "Vitórias", richest: "Mais ricos", losers:
 const empty = {
   wins: ["O trono está vago.", "Todo mundo tem potencial. Falta alguém ganhar uma partida."],
   richest: ["A elite financeira ainda não chegou.", "Por enquanto, o patrimônio da comunidade é a amizade."],
-  losers: ["Ninguém no prejuízo. Suspeito.", "Por enquanto, todo mundo pode dizer que sabe o que está fazendo."],
+  losers: ["Ninguém perdeu ainda. Suspeito.", "Por enquanto, todo mundo pode dizer que sabe o que está fazendo."],
 };
 const format = new Intl.NumberFormat("pt-BR");
 function Amount({ item, category }: { item: Ranking["items"][number]; category: Ranking["category"] }) {
-  return <>{format.format(item.value)}<span className="ml-1 text-xs font-normal text-muted">{category === "wins" ? item.value === 1 ? "vitória" : "vitórias" : "Croins"}</span></>;
+  return <>{format.format(item.value)}<span className="ml-1 text-xs font-normal text-muted">{category === "wins" ? item.value === 1 ? "vitória" : "vitórias" : category === "losers" ? item.value === 1 ? "derrota" : "derrotas" : "Croins"}</span></>;
 }
 export function RankingCard({ data, category, page, previous, next, retry, period, monthHref, allHref }: { data: Ranking | null; category: Ranking["category"]; page: number; previous: string; next: string; retry: string; period: "month" | "all"; monthHref: string; allHref: string }) {
   const title = rankingTitles[category];

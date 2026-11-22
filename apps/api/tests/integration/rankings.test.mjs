@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createDatabase } from '../../dist/db/client.js';
 import { readRanking } from '../../dist/modules/rankings/service.js';
 
-test('PostgreSQL: rankings agregam empates, bots, saldo e perdas líquidas, com paginação e período', async t => {
+test('PostgreSQL: rankings agregam empates, bots, saldo e derrotas sem depender de Croins, com paginação e período', async t => {
   if (!process.env.TEST_DATABASE_URL) throw Error('Configure TEST_DATABASE_URL com banco exclusivo identificado como test.');
   const { pool } = createDatabase(process.env.TEST_DATABASE_URL);
   t.after(() => pool.end());
@@ -21,7 +21,7 @@ test('PostgreSQL: rankings agregam empates, bots, saldo e perdas líquidas, com 
       await client.query("insert into wallet_accounts values($1,'user',$2)",[ids[i],100-i]);
     }
     const people = ids.slice(0,3).map((userId,seat)=>({userId,seat}));
-    const archive = async (players,status='finished',old=false) => client.query(`insert into game_match_archives values($1,case when $4 then date_trunc('month',now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo' - interval '1 second' else now() end,$2,$3)`,[status,JSON.stringify(people),JSON.stringify({phase:'over',players}),old]);
+    const archive = async (players,status='finished',old=false) => client.query(`insert into game_match_archives values($1,case when $4 then date_trunc('month',now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo' - interval '1 second' else now() end,$2,$3)`,[status,JSON.stringify(people),JSON.stringify(Array.isArray(players)?{phase:'over',players}:players),old]);
     const tied = [{kind:'human',total:200},{kind:'human',total:200},{kind:'human',total:100}];
     await archive(tied);
     await archive([{kind:'bot',total:250},{kind:'human',total:200},{kind:'human',total:100}]);
@@ -32,13 +32,24 @@ test('PostgreSQL: rankings agregam empates, bots, saldo e perdas líquidas, com 
     assert.equal(result.own,null);
     result=await readRanking(client,{category:'wins',period:'all',page:1});
     assert.equal(result.items[0].value,2);
+    // Losing twice outranks a player with fewer losses, regardless of stakes.
+    result=await readRanking(client,{category:'losers',period:'month',page:1},ids[2]);
+    assert.deepEqual(result.items.map(x=>[x.userId,x.value,x.position]),[[ids[2],2,1],[ids[1],1,2]]);
+    assert.equal(result.own.value,2);
+    result=await readRanking(client,{category:'losers',period:'all',page:1});
+    assert.equal(result.items[0].value,3);
+    // Love Letter uses final winner seats, including shared victories.
+    await archive({phase:'over',winners:[0,1],players:people.map(()=>({kind:'human',tokens:4}))});
+    await archive({phase:'over',winners:[2],players:[{kind:'bot',tokens:0},{kind:'human',tokens:0},{kind:'human',tokens:4}]});
+    await archive(tied,'playing');
+    await archive({phase:'playing',players:tied});
     const stake = async (entry,payouts,status='paid') => client.query('insert into game_match_stakes values($1,$2,$3,$4,now())',[entry,JSON.stringify(payouts),JSON.stringify(people),status]);
     await stake(10,[{seat:0,amount:30,house:false}]);
     await stake(5,[{seat:1,amount:15,house:false}]);
     await stake(5,[{seat:2,amount:15,house:true}]);
     await stake(100,[],'pending'); await stake(100,[],'refunded');
     result=await readRanking(client,{category:'losers',period:'month',page:1});
-    assert.deepEqual(result.items.map(x=>[x.userId,x.value]),[[ids[2],20],[ids[1],5]]);
+    assert.deepEqual(result.items.map(x=>[x.userId,x.value]),[[ids[2],3],[ids[1],2]]);
     result=await readRanking(client,{category:'richest',period:'month',page:1},ids[11]);
     assert.equal(result.period,'all'); assert.equal(result.items.length,10); assert.equal(result.hasMore,true);
     assert.equal(result.own.position,12); assert.equal(result.own.value,89);

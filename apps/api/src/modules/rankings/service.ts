@@ -22,13 +22,16 @@ export async function readRanking(pool: Pick<Pool, "query">, query: RankingQuery
     group by person->>'userId'
   ` : `
     select person->>'userId' as user_id,
-      greatest(0, sum(s.entry_amount::numeric - coalesce((
-        select sum((p->>'amount')::numeric) from jsonb_array_elements(s.payouts) p
-        where p->>'seat'=person->>'seat' and p->>'house'='false'
-      ),0))) as value, count(*) as games
-    from game_match_stakes s cross join bounds
-    cross join lateral jsonb_array_elements(s.contributions) person
-    where s.status='paid' and s.settled_at>=bounds.since and s.settled_at<=now()
+      sum(case when player->>'kind'='human' and (
+        case when a.state ? 'winners' then not (a.state->'winners' @> jsonb_build_array((person->>'seat')::int))
+        else (player->>'total')::numeric < (
+          select max((p->>'total')::numeric) from jsonb_array_elements(a.state->'players') p
+        ) end
+      ) then 1 else 0 end)::numeric as value, count(*) as games
+    from game_match_archives a cross join bounds
+    cross join lateral jsonb_array_elements(a.participants) person
+    cross join lateral (select a.state->'players'->((person->>'seat')::int) as player) seat
+    where a.status='finished' and a.state->>'phase'='over' and a.ended_at>=bounds.since and a.ended_at<=now()
     group by person->>'userId'
   `}), ranked as (
     select u.id as "userId",u.username,u.display_name as "displayName",u.avatar_key,
