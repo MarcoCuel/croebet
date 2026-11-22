@@ -9,6 +9,7 @@ import { ThemeProvider, useTheme } from "@/features/theme/theme-provider";
 import type { PageLink, NavigationData } from "@croebet/shared";
 import { PageLinksProvider } from "@/features/pages/page-links";
 import { MenuProvider } from "@/features/menus/menu-provider";
+import { DeploymentUpdate } from "./deployment-update";
 
 type ProvidersProps = { children: ReactNode; initialSession: InitialSession; initialPages: PageLink[] | null; initialNavigation: NavigationData | null };
 
@@ -27,6 +28,7 @@ function AppProviders({ children, initialSession, initialPages, initialNavigatio
       <SessionProvider initialSession={initialSession}>
         <MenuProvider initial={initialNavigation}><PageLinksProvider initial={initialPages}>{children}</PageLinksProvider></MenuProvider>
         <Toaster theme={resolvedTheme} />
+        <DeploymentUpdate />
       </SessionProvider>
     </TooltipProvider>
   );

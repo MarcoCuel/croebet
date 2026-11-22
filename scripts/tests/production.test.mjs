@@ -7,7 +7,7 @@ import { createServer } from 'node:net';
 import { guardMatches } from '../production.mjs';
 import { freePort, running } from '../runtime.mjs';
 
-test('parada/publicação adquire o lock de ciclo de vida antes de verificar partidas', async () => {
+test('parada manual adquire o lock de ciclo de vida antes de verificar partidas', async () => {
   const queries=[];
   const connection={query:async sql=>{queries.push(sql);return {rows:[{count:0}]};}};
   await guardMatches(connection);

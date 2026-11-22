@@ -110,8 +110,9 @@ async function supervise(mode, home, release, foreground) {
   process.once('SIGINT', () => { void stop(); });
   process.once('SIGTERM', () => { void stop(); });
   if (production) {
+    const releaseId = JSON.parse(readFileSync(join(release, 'release.json'), 'utf8')).id;
     start('api', process.execPath, ['dist/main.js'], join(release, 'apps/api'), { ...api, NODE_ENV:'production', API_HOST:'127.0.0.1', API_PORT:String(apiPort) });
-    start('web', process.execPath, ['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port',String(webPort)], join(release,'apps/web'), { ...web, NODE_ENV:'production' });
+    start('web', process.execPath, ['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port',String(webPort)], join(release,'apps/web'), { ...web, NODE_ENV:'production', NEXT_PUBLIC_RELEASE_ID:releaseId });
   } else {
     // Não propagar URLs, segredos ou túneis de produção para o desenvolvimento.
     start('api', 'pnpm', ['--filter','@croebet/api','dev'], release, { ...api, NODE_ENV:'development', API_PORT:'3001', API_HOST:'127.0.0.1', WEB_ORIGIN:'http://localhost:3000' });

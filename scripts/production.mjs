@@ -59,6 +59,16 @@ export async function guardMatches(connection) {
   const rows=(await connection.query("select count(*)::int as count from game_matches where status='playing'")).rows;
   if(rows[0].count)throw new Error(`Há ${rows[0].count} partida(s) em andamento. Publicação/parada recusada; aguarde a conclusão. Nenhuma partida foi encerrada.`);
 }
+export async function validateRelease(connection, release) {
+  const { validateDeploymentMatches } = await import(pathToFileURL(join(release, 'apps/api/dist/modules/matches/deployment.js')));
+  return validateDeploymentMatches(connection);
+}
+export async function activeMatchDigest(connection) {
+  const { rows } = await connection.query(`select m.id,m.game_slug,m.rules_version,m.status,m.version,m.state,m.options,m.owner_id,
+    (select jsonb_agg(jsonb_build_object('user',p.user_id,'controller',p.controller_id,'seat',p.seat,'entry',p.confirmed_entry_amount) order by p.seat) from game_match_players p where p.match_id=m.id) as players
+    from game_matches m where m.status in ('lobby','playing') order by m.id`);
+  return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+}
 export async function facts(connection) {
   const result={};
   for(const table of ['users','wallet_accounts','wallet_operations','wallet_entries','game_matches','game_match_archives','game_match_archive_frames','media_assets','admin_audit','coupons']) {
@@ -91,7 +101,7 @@ async function backup() {
   for(const file of ['api.env','migration.env','postgres.env','web.env','installation.json'])cpSync(join(shared,file),join(dir,file));
   if(existsSync(join(shared,'tunnel-token')))cpSync(join(shared,'tunnel-token'),join(dir,'tunnel-token'));
   const c=await client(urls().migration.DATABASE_MIGRATION_URL);
-  try{jsonWrite(join(dir,'manifest.json'),{createdAt:new Date().toISOString(),release:activeRelease(),facts:await facts(c),databaseSHA256:createHash('sha256').update(readFileSync(join(dir,'database.dump'))).digest('hex')});await verifyImages(c,join(dir,'images'));}finally{await c.end();}
+  try{jsonWrite(join(dir,'manifest.json'),{createdAt:new Date().toISOString(),release:activeRelease(),facts:await facts(c),activeMatchDigest:await activeMatchDigest(c),databaseSHA256:createHash('sha256').update(readFileSync(join(dir,'database.dump'))).digest('hex')});await verifyImages(c,join(dir,'images'));}finally{await c.end();}
   console.log(`Backup completo: ${dir}`);return dir;
 }
 async function snapshot() {
@@ -109,7 +119,7 @@ async function snapshot() {
   console.log(`Preparando build independente: ${id}`);
   await run('pnpm',['install','--frozen-lockfile','--package-import-method=copy'],{cwd:release});
   const web=envFile(join(shared,'web.env'));
-  await run('pnpm',['build'],{cwd:release,env:{...web,NODE_ENV:'production'}});
+  await run('pnpm',['build'],{cwd:release,env:{...web,NODE_ENV:'production',NEXT_PUBLIC_RELEASE_ID:id}});
   return release;
 }
 async function grants(connection) {
@@ -140,7 +150,12 @@ async function rehearsal(release, backupDir) {
     try{await testCopy.query("update application_environment set environment='test' where id=1 and environment='production'");}finally{await testCopy.end();}
     await migrate(release,url.href,'test');
     const staged=await client(url.href,release);
-    try{await identity(staged,'test');const before=JSON.parse(readFileSync(join(backupDir,'manifest.json'),'utf8')).facts;if(JSON.stringify(await facts(staged))!==JSON.stringify(before))throw new Error('Migrations alteraram contagens/saldos protegidos no ensaio. Produção não foi migrada.');}finally{await staged.end();}
+    try{
+      await identity(staged,'test');
+      const before=JSON.parse(readFileSync(join(backupDir,'manifest.json'),'utf8'));
+      if(JSON.stringify(await facts(staged))!==JSON.stringify(before.facts) || await activeMatchDigest(staged)!==before.activeMatchDigest)throw new Error('Migrations alteraram dados protegidos no ensaio. Produção não foi migrada.');
+      await validateRelease(staged,release);
+    }finally{await staged.end();}
     console.log('Migrations validadas em cópia isolada do backup.');
   }finally{
     // Apenas a cópia temporária criada por esta execução é descartada.
@@ -165,11 +180,26 @@ function activate(release) {
 async function publish() {
   const release=await snapshot();
   const c=await client(urls().migration.DATABASE_MIGRATION_URL);
+  let stopped=false, migrating=false, connectionClosed=false;
   try {
-    await identity(c,'production');await guardMatches(c);await stopRuntime();
-    const saved=await backup();await rehearsal(release,saved);await migrate(release);await grants(c);
+    await identity(c,'production');await validateRelease(c,release);
+    // Drain the old API before taking the lifecycle lock: an accepted start or
+    // abandonment may itself need that lock to finish its transaction.
+    await stopRuntime();stopped=true;
+    await c.query('select pg_advisory_lock(47851234)');
+    await validateRelease(c,release);
+    const saved=await backup();await rehearsal(release,saved);
+    migrating=true;await migrate(release);await grants(c);
+    const before=JSON.parse(readFileSync(join(saved,'manifest.json'),'utf8'));
+    if(JSON.stringify(await facts(c))!==JSON.stringify(before.facts) || await activeMatchDigest(c)!==before.activeMatchDigest)throw new Error('Conferência de preservação falhou. Backup preservado; produção permanece parada.');
+    await validateRelease(c,release);
     activate(release);
-  }finally{await c.end();}
+  }catch(error){
+    // Before real migrations, the previous code/schema pair is still valid.
+    await c.end();connectionClosed=true;
+    if(stopped && !migrating && activeRelease())await background(shared,'production',activeRelease());
+    throw error;
+  }finally{if(!connectionClosed)await c.end();}
   await background(shared,'production',release);
 }
 async function setup() {

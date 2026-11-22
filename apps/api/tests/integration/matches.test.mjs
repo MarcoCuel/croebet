@@ -788,11 +788,15 @@ test('PostgreSQL: Love Letter usa comandos comuns, recibos idempotentes e abando
  assert.equal(started.game,'love-letter');assert.ok(started.state.legalActions.length);
  const input={commandId:randomUUID(),expectedVersion:started.version,action:started.state.legalActions[0]};
  const replies=await Promise.all([1,2].map(()=>commandMatch(pool,actors[0],sessions[0],room.code,input)));
- assert.deepEqual(replies,[{ok:true},{ok:true}]);
+ assert.deepEqual(wire(replies[0]),wire(replies[1]));
+ for(const projection of [replies[0].before,replies[0].match.state,...replies[0].frames.map(frame=>frame.state)]){
+  if(projection.phase==='playing')assert.ok(projection.players.every(player=>player.hand===null));
+  assert.deepEqual(projection.privateInfo,[]);assert.deepEqual(projection.legalActions,[]);
+ }
  assert.equal((await pool.query('select count(*)::int total from game_match_commands where match_id=$1 and command_id=$2',[room.id,input.commandId])).rows[0].total,1);
  await assert.rejects(commandMatch(pool,actors[0],sessions[0],room.code,{...input,commandId:randomUUID()}),{code:'VERSION_CONFLICT'});
  const current=await getRoomSync(pool,actors[0],room.code,started.version);
- assert.equal(current.reset,true);assert.deepEqual(current.frames,[]);
+ assert.equal(current.reset,false);assert.deepEqual(current.frames,replies[0].frames);
  const events=(await pool.query('select event from game_match_events where match_id=$1 order by version',[room.id])).rows;
  for(const {event} of events){
   if(event.state.phase==='playing')assert.ok(event.state.players.every(player=>player.hand===null));

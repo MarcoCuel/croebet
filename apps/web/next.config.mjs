@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  deploymentId: process.env.NEXT_PUBLIC_RELEASE_ID,
   allowedDevOrigins: process.env.NODE_ENV === "development"
     ? ["localhost", ...(process.env.DEV_WEB_ORIGINS ?? "").split(",").map(value => value.trim()).filter(Boolean).map(value => {
       const origin = new URL(value);

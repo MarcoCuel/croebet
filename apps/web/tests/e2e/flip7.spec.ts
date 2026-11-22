@@ -294,6 +294,8 @@ test("navegação e aba oculta recuperam snapshot sem repetir ações ou sons",a
   try{
     const url=page.url();
     const leave=async()=>{
+      const sidebar=page.getByRole("button",{name:"Mostrar menu lateral",exact:true});
+      if(await sidebar.isVisible())await sidebar.click();
       const menu=page.getByRole("button",{name:"Abrir menu",exact:true});
       if(await menu.isVisible())await menu.click();
       await page.getByRole("link",{name:"Jogos",exact:true}).first().click();
@@ -456,6 +458,32 @@ test("resposta perdida permite repetir o mesmo comando sem comprar duas vezes",a
     await expect(page.locator('[data-player-hand="0"] [data-hand-card]')).toHaveCount(2);
     const room=[...fixture.states.values()][0].room;if(room.status==="lobby")throw Error("Partida não iniciada");
     expect(room.state.players[0].cards).toHaveLength(2);
+  }finally{await peer.context.close();}
+});
+test("atualização disponível recarrega a mesma mesa sem abandonar, repetir jogadas ou perder cartas",async({page,browser})=>{
+  const peer=await start(page,browser);
+  try{
+    const url=page.url();
+    const saved=structuredClone([...fixture.states.values()][0].room);
+    const commands=fixture.commands.length;
+    const current=await (await page.request.get('/api/deployment')).json();
+    let ready=false,reloaded=false;
+    await page.route("**/api/deployment",route=>route.fulfill({status:ready?200:503,json:ready?{release:reloaded?current.release:"next-deployment"}:{error:"Atualização em andamento."}}));
+    const check=()=>page.evaluate(()=>document.dispatchEvent(new Event("visibilitychange")));
+    const unavailable=page.waitForResponse(response=>response.url().endsWith('/api/deployment') && response.status()===503);
+    await check();await unavailable;
+    await expect(page.getByRole("button",{name:"Atualizar e continuar",exact:true})).toHaveCount(0);
+    ready=true;await check();
+    await expect(page.getByText("Atualização disponível",{exact:true})).toBeVisible();
+    page.once('framenavigated',()=>{reloaded=true;});
+    await Promise.all([page.waitForEvent("load"),page.getByRole("button",{name:"Atualizar e continuar",exact:true}).click()]);
+    await expect(page).toHaveURL(url);
+    await expect(page.getByRole("button",{name:"Comprar",exact:true})).toBeEnabled();
+    expect(fixture.commands).toHaveLength(commands);
+    expect([...fixture.states.values()][0].room).toEqual(saved);
+    await page.getByRole("button",{name:"Parar",exact:true}).click();
+    await expect(peer.page.getByRole("button",{name:"Comprar",exact:true})).toBeEnabled();
+    expect(fixture.commands).toHaveLength(commands+1);
   }finally{await peer.context.close();}
 });
 test("não oferece bots nem jogadores locais e mantém Croins opcionais",async({page})=>{

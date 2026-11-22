@@ -43,6 +43,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     socket.disconnect(true);
   }
   function enqueue(socket: LiveSocket, action: () => Promise<void>) {
+    if (stopping) return;
     socket.data.tail = socket.data.tail.then(async () => {
       if (socket.connected) await action();
     }).catch(error => close(socket, error));
@@ -146,6 +147,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   }
   io.use((socket, next) => {
     void (async () => {
+      if (stopping) throw new Error("Server restarting");
       await ensureListener();
       const cookies = app.parseCookie(socket.request.headers.cookie ?? "");
       const token = cookies[options.sessionName];
@@ -227,6 +229,9 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   app.addHook("preClose", async () => {
     stopping = true; clearInterval(timer);
     const tails = [...io.sockets.sockets.values()].map(s => s.data.tail as Promise<void>);
+    // Transport closure triggers normal client reconnection. Namespace
+    // disconnection is reserved for authorization failures and does not retry.
+    for (const socket of io.sockets.sockets.values()) socket.conn.close();
     await new Promise<void>(resolve => io.close(() => resolve()));
     await Promise.allSettled(tails); await maintenance;
     if (listener) { const client = listener; listener = undefined; await client.query("UNLISTEN *"); client.release(); }
