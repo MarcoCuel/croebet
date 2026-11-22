@@ -11,6 +11,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GameScreen } from "@/features/games/game-screen";
 import { PageShell } from "@/components/layout/page-shell";
+import { getInitialMatches } from "@/features/games/server-matches";
 import { getPublicGames } from "@/features/games/server-games";
 import { ManagementUnavailable } from "@/features/admin/management-shared";
 
@@ -18,14 +19,16 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ partid
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const data = await getPublicGames(slug);
-  if (getGameDefinition(slug)?.replay && (await searchParams).partida && !data?.items[0]) return { title: "Histórico da partida · Croebet", robots: { index: false, follow: false } };
-  return data ? data.items[0] ? await publicMetadata(`/jogos/${slug}`, data.items[0].name, data.items[0].seo) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
+  if ((await searchParams).partida && !data?.items[0]) return { title: "Histórico da partida · Croebet", robots: { index: false, follow: false } };
+  return data ? data.items[0] ? await publicMetadata(`/jogos/${data.items[0].slug}`, data.items[0].name, data.items[0].seo) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
 }
 export default async function Game({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
-  const definition=getGameDefinition(slug);
-  const registered=gameIdSchema.safeParse(slug);
+  const data = await getPublicGames(slug);
+  const moduleId = data?.items[0]?.moduleId ?? slug;
+  const definition=getGameDefinition(moduleId);
+  const registered=gameIdSchema.safeParse(moduleId);
   const loadInitial=registered.success?gameServerLoaders[registered.data]:undefined;
   let developmentOnlyAdmin=false;
   if(query.teste==="1" || definition?.developmentOnly){
@@ -34,11 +37,10 @@ export default async function Game({ params, searchParams }: Props) {
     if(query.teste==="1" && session.user?.role!=="admin")notFound();
     developmentOnlyAdmin=!!definition?.developmentOnly && session.user?.role==="admin";
   }
-  const data = await getPublicGames(slug);
   if(data?.items[0] && (developmentOnlyAdmin || query.teste==="1" || (definition?.developmentOnly && !!query.partida)))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
-  const archivedInitial = loadInitial && query.partida ? await loadInitial(query.partida) : null;
+  const archivedInitial = query.partida ? await (loadInitial ? loadInitial(query.partida) : getInitialMatches(query.partida)) : null;
   if(data?.items[0] && (archivedInitial?.lobby?.development || archivedInitial?.match?.development))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
-  if (archivedInitial?.replay) return <PageShell><h1 className="sr-only">{data?.items[0]?.name ?? "Histórico da partida"}</h1><GameScreen slug={slug} game={data?.items[0] ?? null} initial={archivedInitial} /></PageShell>;
+  if (archivedInitial?.replay) return <PageShell><h1 className="sr-only">{data?.items[0]?.name ?? "Histórico da partida"}</h1><GameScreen slug={archivedInitial.replay.match.game ?? "flip7"} game={data?.items[0] ?? null} initial={archivedInitial} /></PageShell>;
   if (data && data.items.length === 0) notFound();
   if (data && (!loadInitial || definition?.developmentOnly)) {
     const game = data.items[0];

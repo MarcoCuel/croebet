@@ -31,7 +31,7 @@ try {
   if (command === "seed" || command === "reset") {
     const result = await client.query("insert into application_environment (id, environment) values (1, $1) on conflict (id) do update set environment = application_environment.environment returning environment", [config.APP_ENV]);
     if (result.rows[0]?.environment !== config.APP_ENV) throw new Error("O banco já pertence a outro ambiente.");
-    await client.query("insert into games (slug,name) values ('flip7','Flip 7') on conflict (slug) do nothing");
+    await client.query("insert into games (slug,name,module_id) values ('flip7','Flip 7','flip7') on conflict do nothing");
   }
   console.log(`Banco: ${command} concluído.`);
 } catch { console.error("Operação de banco recusada ou indisponível. Confira ambiente, permissões e configuração."); process.exitCode = 1; }

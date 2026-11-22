@@ -50,12 +50,12 @@ export async function readGameHistory(pool: Pool, gameId: string, query: z.infer
     order by a.started_at desc,a.id desc limit $4 offset $5`, [gameId, query.status, query.q, query.limit + 1, query.offset]);
   const visible = rows.rows.slice(0,query.limit);
   const { avatars, names } = await readParticipantProfiles(pool, visible);
-  const averages=development?(await pool.query(`select g.slug as game, a.options,
+  const averages=development?(await pool.query(`select g.module_id as game, a.options,
     jsonb_array_length(a.state->'players') as players,only_bots as "onlyBots",count(*)::int as count,
     avg(extract(epoch from (ended_at-started_at)))::float8 as "durationSeconds",
     case when only_bots then avg(playback_milliseconds/1000.0)::float8 end as "activeDurationSeconds"
     from game_test_archives a join games g on g.id=a.game_id where a.game_id=$1 and a.status='finished' and started_at is not null and ended_at is not null
-    group by g.slug,a.options,jsonb_array_length(state->'players'),only_bots order by a.options::text,players,only_bots`,[gameId])).rows:[];
+    group by g.module_id,a.options,jsonb_array_length(state->'players'),only_bots order by a.options::text,players,only_bots`,[gameId])).rows:[];
   return matchHistoryListSchema.parse({ items: visible.map(row => historyItem(row, avatars, names)), hasMore: rows.rows.length>query.limit, averages });
 }
 export function readMatchReplay(pool: Pool, gameId: string, matchId: string, offset: number, limit: number) {

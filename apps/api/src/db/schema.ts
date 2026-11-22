@@ -146,6 +146,8 @@ export const adminAudit = pgTable("admin_audit", {
 }, table => [index("admin_audit_target").on(table.targetId, table.createdAt)]);
 
 export const games = pgTable("games", {
+  moduleId: text("module_id").notNull().default(sql`gen_random_uuid()::text`).unique(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   fallbackDurationMinutes: integer("fallback_duration_minutes"),
   description: text("description").notNull().default(""),
   seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),

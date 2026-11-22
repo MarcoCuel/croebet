@@ -13,7 +13,7 @@ export async function GameGrid() {
   return <ul className="grid grid-cols-2 gap-3 md:grid-cols-4">
     {data.items.map(game => <li key={game.slug}>
       <Link className="group relative isolate block aspect-square overflow-hidden rounded-panel @container" href={`/jogos/${game.slug}`}>
-        {game.slug !== "flip7" && <Badge variant="secondary" className="absolute top-3 right-3 z-10">Em breve</Badge>}
+        {(game.moduleId ?? game.slug) !== "flip7" && <Badge variant="secondary" className="absolute top-3 right-3 z-10">Em breve</Badge>}
         <GameCover imageUrl={game.imageUrl} name={game.name} />
         {game.imageUrl && <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" aria-hidden="true" />}
         <Heading variant="cover" asChild className={`absolute inset-x-0 bottom-0 p-3.5 sm:p-4 xl:p-6 ${game.imageUrl ? "text-white" : "text-foreground"}`}><span>{game.name}</span></Heading>

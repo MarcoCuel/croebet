@@ -25,11 +25,11 @@ export function TestGame({game}:{game:GameRecord}){
  const {receive,clear}=playback;
  const loadedRoom=playback.room;
  const setRoom=useCallback((next:Room|null)=>{if(next)receive({room:next,frames:[],reset:true});else clear();},[receive,clear]);
- const room=loadedRoom?.code===code && loadedRoom.game===game.slug?loadedRoom:null;
+ const room=loadedRoom?.code===code && loadedRoom.game===(game.moduleId ?? game.slug)?loadedRoom:null;
  const timingQueue=useRef(Promise.resolve());
  const [replaying,setReplaying]=useState(false);
  const [running,setRunning]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const presentation=gamePresentations[gameIdSchema.parse(game.slug)],Table=presentation.Table;
+ const presentation=gamePresentations[gameIdSchema.parse(game.moduleId ?? game.slug)],Table=presentation.Table;
  const admin=permissions.canManageSite;
  useEffect(()=>{if(!code)return;let active=true;void managementRequest(`/matches/${code}`,gameRoomSchema).then(next=>{if(active)setRoom(next);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[code,setRoom]);
  const watchedCode=!replaying && userId && room?.status!=="lobby" && !presentation.managesLive?room?.code:undefined;

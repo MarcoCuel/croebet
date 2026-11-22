@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createDatabase } from '../../dist/db/client.js';
-import { createGame, readGame, saveGame } from '../../dist/modules/games/service.js';
+import { deleteGame, createGame, readGames, readGame, saveGame } from '../../dist/modules/games/service.js';
 import { readAudit } from '../../dist/modules/admin/service.js';
 import { gameCreateSchema } from '@croebet/shared';
 
@@ -15,6 +15,7 @@ test('PostgreSQL: cadastro de jogo preserva catálogo, valida unicidade, permiss
   t.after(async () => {
     try {
       if (!verified) return;
+      await pool.query('delete from game_matches where game_id=any($1::uuid[])', [games]);
       await pool.query('delete from games where id=any($1::uuid[])', [games]);
       await pool.query('delete from sessions where user_id=any($1::uuid[])', [ids]);
       await pool.query('delete from users where id=any($1::uuid[])', [ids]);
@@ -48,6 +49,27 @@ test('PostgreSQL: cadastro de jogo preserva catálogo, valida unicidade, permiss
   await saveGame(pool,admin.id,admin.hash,game.id,{name:game.name,description:game.description,seo:game.seo,imageUrl:game.imageUrl,version:game.version,enabled:false});
   await assert.rejects(readGame(pool,input.slug),{code:'NOT_FOUND'});
   assert.equal((await readGame(pool,game.id,true)).enabled,false);
+  const current = await readGame(pool,game.id,true);
+  const renamed = await saveGame(pool,admin.id,admin.hash,game.id,{...input,slug:input.slug+'-novo',version:current.version});
+  assert.equal(renamed.moduleId,game.moduleId);
+  await assert.rejects(readGame(pool,input.slug),{code:'NOT_FOUND'});
+  await assert.rejects(saveGame(pool,admin.id,admin.hash,game.id,{...input,slug:'flip7',version:renamed.version}),{code:'CONFLICT'});
+  await assert.rejects(deleteGame(pool,user.id,user.hash,game.id,{version:renamed.version}),{code:'NOT_FOUND'});
+  await assert.rejects(deleteGame(pool,admin.id,'revoked',game.id,{version:renamed.version}),{code:'NOT_FOUND'});
+  await assert.rejects(deleteGame(pool,admin.id,admin.hash,game.id,{version:1}),{code:'VERSION_CONFLICT'});
+  const matchId=randomUUID();
+  await pool.query(`insert into game_matches(id,code,game_id,game_slug,created_by,owner_id,capacity,options,rules_version,version,status,creation_request_id,creation_hash,creation_response)
+    values($1,$1::text,$2,'flip7',$3,$3,2,'{}',1,1,'lobby',$1,'test','{}')`,[matchId,game.id,admin.id]);
+  await assert.rejects(deleteGame(pool,admin.id,admin.hash,game.id,{version:renamed.version}),{code:'GAME_IN_USE'});
+  await pool.query("update game_matches set status='playing' where id=$1",[matchId]);
+  await assert.rejects(deleteGame(pool,admin.id,admin.hash,game.id,{version:renamed.version}),{code:'GAME_IN_USE'});
+  await pool.query("update game_matches set status='abandoned' where id=$1",[matchId]);
+  const preserved=(await pool.query('select * from game_matches where id=$1',[matchId])).rows[0];
+  await deleteGame(pool,admin.id,admin.hash,game.id,{version:renamed.version});
+  assert.deepEqual((await pool.query('select * from game_matches where id=$1',[matchId])).rows[0],preserved);
+  assert.equal((await readGames(pool,true)).items.some(item=>item.id===game.id),false);
+  assert.equal((await pool.query('select deleted_at is not null as deleted from games where id=$1',[game.id])).rows[0].deleted,true);
+  assert.equal((await readAudit(pool,game.id)).items[0].action,'game.deleted');
 });
 
 test('PostgreSQL: duração do hero prioriza oficiais, testes e fallback sem duplicar partidas', async t => {

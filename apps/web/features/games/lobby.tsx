@@ -43,14 +43,14 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const searchParams=useSearchParams();
   const {permissions,userId,username,displayName,avatar,openLogin,economy}=useSession();
   const scopeDirectory=(next:LobbyList):LobbyList=>({...next,
-    owned:(next.ownedLobbies ?? (next.owned?[next.owned]:[])).find(l=>l.game===game.slug) ?? null,
-    active:next.active?.game===game.slug?next.active:null,
+    owned:(next.ownedLobbies ?? (next.owned?[next.owned]:[])).find(l=>l.game===(game.moduleId ?? game.slug)) ?? null,
+    active:next.active?.game===(game.moduleId ?? game.slug)?next.active:null,
   });
-  const [room,setRoom]=useState<Lobby|null>(initial.lobby?.game===game.slug?initial.lobby:null);
+  const [room,setRoom]=useState<Lobby|null>(initial.lobby?.game===(game.moduleId ?? game.slug)?initial.lobby:null);
   const [directory,setDirectory]=useState<LobbyList>(()=>scopeDirectory(initial.directory));
   const [matches,setMatches]=useState(initial.items);
-  const definition=getGameDefinition(game.slug)!;
-  const [preferences]=useState(()=>readGamePreferences(game.slug));
+  const definition=getGameDefinition(game.moduleId ?? game.slug)!;
+  const [preferences]=useState(()=>readGamePreferences(game.moduleId ?? game.slug));
   const [capacity,setCapacity]=useState(preferences.count);
   const [bots,setBots]=useState(0);
   const [onlyBots,setOnlyBots]=useState(false);
@@ -119,9 +119,9 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
       visit(null);
     }
   },development?()=>{}:setMatches,()=>setError(""));
-  const lobbies=[...new Map((development?(directory.testLobbies ?? []).filter(l=>l.game===game.slug):[...directory.items,...directory.joined].filter(l=>l.game===game.slug)).map(lobby=>[lobby.id,lobby])).values()];
-  const listedMatches=matches.filter(match=>match.game===game.slug);
-  const listedRooms=development?[...lobbies,...(directory.testMatches ?? []).filter(m=>m.game===game.slug)]:lobbies;
+  const lobbies=[...new Map((development?(directory.testLobbies ?? []).filter(l=>l.game===(game.moduleId ?? game.slug)):[...directory.items,...directory.joined].filter(l=>l.game===(game.moduleId ?? game.slug))).map(lobby=>[lobby.id,lobby])).values()];
+  const listedMatches=matches.filter(match=>match.game===(game.moduleId ?? game.slug));
+  const listedRooms=development?[...lobbies,...(directory.testMatches ?? []).filter(m=>m.game===(game.moduleId ?? game.slug))]:lobbies;
   const creationBlocked=!development && (!!directory.owned || !!directory.active);
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
@@ -143,7 +143,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     const {count:chosenCount,...changed}=choice;
     const nextOptions=gameOptionsSchema.parse(definition.options.parse({...options,...changed}));
     setOptions(nextOptions);
-    try{saveGamePreferences(game.slug,chosenCount ?? capacity,nextOptions);}catch{/* Preferences are optional. */}
+    try{saveGamePreferences(game.moduleId ?? game.slug,chosenCount ?? capacity,nextOptions);}catch{/* Preferences are optional. */}
   }
   async function configure(nextOptions:Lobby["options"],nextCapacity:number,nextEntry=entry,choice:Partial<Lobby["options"] & {count:number}>={}){
     if(!canEdit)return;
@@ -211,7 +211,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
-    const payload={development,bots,onlyBots,game:gameIdSchema.parse(game.slug),capacity,options,entryAmount:development?0:room?.entryAmount ?? entryAmount};
+    const payload={development,bots,onlyBots,game:gameIdSchema.parse(game.moduleId ?? game.slug),capacity,options,entryAmount:development?0:room?.entryAmount ?? entryAmount};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
     try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}

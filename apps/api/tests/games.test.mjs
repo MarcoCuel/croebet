@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { gameCreateSchema, createMatchSchema, gameWriteSchema } from '@croebet/shared';
 import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
-import { createGame, readGames, readGame, saveGame } from '../dist/modules/games/service.js';
+import { deleteGame, createGame, readGames, readGame, saveGame } from '../dist/modules/games/service.js';
 
-const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', slug: 'flip7', name: 'Nome cadastrado', description: 'Descrição cadastrada.', enabled: true, image_url: null, version: 1 };
+const row = { id: '93089d02-0b34-4b78-9d3e-f2679c190b5c', module_id: 'flip7', slug: 'flip7', name: 'Nome cadastrado', description: 'Descrição cadastrada.', enabled: true, image_url: null, version: 1 };
 const input = { name: 'Flip 7', enabled: true, imageUrl: null, version: 1 };
 test('jogos aceitam capa ausente e recusam URLs executáveis e versões inválidas', () => {
   assert.equal(gameWriteSchema.safeParse(input).success, true);
@@ -31,6 +31,7 @@ test('endpoints administrativos de jogos exigem sessão e proteção de escrita'
   assert.equal((await app.inject('/api/v1/games/roleta')).statusCode, 404);
   assert.equal((await app.inject({ url: "/api/v1/admin/games", method: "POST", payload: { ...input, slug: "roleta" } })).statusCode, 403);
   assert.equal((await app.inject({ url: `/api/v1/admin/games/${row.id}`, method: 'PATCH', payload: input })).statusCode, 403);
+  assert.equal((await app.inject({ url: `/api/v1/admin/games/${row.id}`, method: 'DELETE', payload: {version:1} })).statusCode, 403);
 });
 function transaction(version, failAudit = false) {
   const calls = [];
@@ -44,7 +45,7 @@ function transaction(version, failAudit = false) {
       return { rows: [{ ...row, version }] };
     }
     if (sql.startsWith('update games')) { assert.match(sql, /where id=\$4/); assert.equal(params[3], row.id); }
-    if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], description: params[5], fallback_duration_minutes: params[6], version: version + 1 }] };
+    if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], description: params[5], fallback_duration_minutes: params[6], slug: params[7] ?? row.slug, version: version + 1 }] };
     if (failAudit && sql.startsWith('insert into admin_audit')) throw new Error('audit unavailable');
     return { rows: [] };
   }, release: () => calls.push('release') };
@@ -69,7 +70,7 @@ test('consulta administrativa identifica jogo pelo UUID e consulta pública pelo
   for (const admin of [true, false]) {
     const identifier = admin ? row.id : row.slug;
     const pool = { query: async (sql, params) => {
-      assert.ok(sql.includes(`where ${admin ? 'id' : 'slug'}=$1`));
+      assert.ok(sql.includes(admin ? 'where id=$1' : 'where (slug=$1 or module_id=$1)'));
       assert.deepEqual(params, [identifier]);
       return { rows: [row] };
     } };
@@ -127,4 +128,46 @@ test('duração manual aceita minutos inteiros positivos ou ausência; campo cal
   const tx = transaction(1);
   const saved = await saveGame(tx.pool, 'admin', 'hash', row.id, {...input, fallbackDurationMinutes: 25});
   assert.equal(saved.fallbackDurationMinutes, 25);
+});
+
+test('edição normaliza slug sem trocar módulo; exclusão valida versão, salas e auditoria', async () => {
+  const tx = transaction(1);
+  const updated = await saveGame(tx.pool, 'admin', 'hash', row.id, gameWriteSchema.parse({...input,slug:' Novo Endereço '}));
+  assert.equal(updated.slug,'novo-endereco');
+  assert.equal(updated.moduleId,'flip7');
+  await assert.rejects(saveGame(transaction(1).pool,'admin','hash',row.id,{...input,slug:'love-letter'}),{code:'CONFLICT'});
+  const stale = transaction(2);
+  await assert.rejects(deleteGame(stale.pool,'admin','hash',row.id,{version:1}),{code:'VERSION_CONFLICT'});
+  assert.ok(stale.calls.includes('rollback'));
+  for (const active of [false,true]) {
+    const tx=transaction(1);
+    const client=await tx.pool.connect();
+    const query=client.query;
+    client.query=async(sql,params)=>{
+      if(sql.startsWith('select 1 from game_matches')) {tx.calls.push(sql);return {rows:active?[{}]:[]};}
+      if(sql.startsWith('update games set deleted_at')){tx.calls.push(sql);return {rows:[]};}
+      return query(sql,params);
+    };
+    if(active) {
+      await assert.rejects(deleteGame(tx.pool,'admin','hash',row.id,{version:1}),{code:'GAME_IN_USE'});
+      assert.equal(tx.calls.some(sql=>sql.startsWith('update games')),false);
+    } else {
+      assert.deepEqual(await deleteGame(tx.pool,'admin','hash',row.id,{version:1}),{ok:true});
+      assert.ok(tx.calls.includes('commit'));
+      assert.ok(tx.calls.some(sql=>sql.startsWith('insert into admin_audit')));
+      assert.equal(tx.calls.some(sql=>sql.startsWith('delete')),false);
+    }
+  }
+});
+
+test('exclusão reverte alteração quando não pode registrar auditoria', async () => {
+  const tx=transaction(1,true);
+  const client=await tx.pool.connect(), query=client.query;
+  client.query=async(sql,params)=>{
+    if(sql.startsWith('update games set deleted_at')){tx.calls.push(sql);return {rows:[]};}
+    return query(sql,params);
+  };
+  await assert.rejects(deleteGame(tx.pool,'admin','hash',row.id,{version:1}), /audit unavailable/);
+  assert.ok(tx.calls.includes('rollback'));
+  assert.equal(tx.calls.includes('commit'),false);
 });

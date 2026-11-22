@@ -11,7 +11,7 @@ export async function readAccountHistory(pool: Pick<Pool, "query">, userId: stri
       union all
       select 'game:' || a.id, 'game', g.name || ' · ' ||
         case when a.status='finished' then 'Partida concluída' else 'Partida encerrada' end,
-        a.ended_at, null::bigint, a.id, a.code, g.slug
+        a.ended_at, null::bigint, a.id, a.code, g.module_id
       from game_match_archives a join games g on g.id=a.game_id
       where a.status in ('finished','abandoned') and a.ended_at is not null
         and exists (select 1 from jsonb_array_elements(a.participants) p where p->>'userId'=$1::text)

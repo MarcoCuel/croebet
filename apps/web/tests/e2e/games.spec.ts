@@ -87,6 +87,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   }
   if (upcoming && path === `/api/v1/admin/games/${upcoming.id}/matches`) return {status:200,data:{items:[],hasMore:false}};
   if (upcoming && path === `/api/v1/admin/games/${upcoming.id}`) {
+    if(method === "DELETE") { upcoming=null; return {status:200,data:{ok:true}}; }
     if(method === "PATCH") upcoming = {...upcoming,...body,version:upcoming.version+1} as GameRecord;
     return {status:200,data:upcoming};
   }
@@ -99,7 +100,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
     return { status: 200, data: game };
   }
   if (path === "/api/v1/games") return { status: 200, data: { items: [...(game.enabled ? [game] : []), ...(upcoming?.enabled ? [upcoming] : [])] } };
-  if (path === "/api/v1/games/flip7" && game.enabled) return { status: 200, data: game };
+  if ((path === `/api/v1/games/${game.slug}` || path === "/api/v1/games/flip7") && game.enabled) return { status: 200, data: game };
   return { status: 404, data: {} };
 }
 test.beforeAll(async () => {
@@ -976,4 +977,32 @@ test("admin salva a duração padrão do jogo em minutos", async ({page}) => {
  await page.getByRole("button",{name:"Salvar jogo",exact:true}).click();
  await expect(page).toHaveURL(/\/admin\/jogos$/);
  expect(game.fallbackDurationMinutes).toBe(35);
+});
+
+test("altera o slug de jogo existente e preserva o motor e suas configurações", async ({page}) => {
+  game.moduleId="flip7";
+  await page.goto(`/admin/jogos/${id}`);
+  await page.getByLabel("Endereço do jogo",{exact:true}).fill("Sete Cartas");
+  await page.getByRole("button",{name:"Salvar jogo",exact:true}).click();
+  await expect(page).toHaveURL(/\/admin\/jogos$/);
+  expect(game.slug).toBe("sete-cartas");
+  expect(game.moduleId).toBe("flip7");
+  await page.goto("/jogos/sete-cartas");
+  await expect(page.getByRole("heading",{name:"Flip 7",exact:true}).first()).toBeVisible();
+  await expect(page.getByLabel("Informações do jogo")).toContainText("2 / 12");
+});
+
+test("exclui jogo do catálogo com confirmação e permite cancelar", async ({page}) => {
+  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"roleta",name:"Roleta"};
+  await page.goto(`/admin/jogos/${upcoming.id}`);
+  await page.getByRole("button",{name:"Excluir jogo",exact:true}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog).toContainText("histórico de partidas");
+  await dialog.getByRole("button",{name:"Cancelar",exact:true}).click();
+  expect(upcoming).not.toBeNull();
+  await page.getByRole("button",{name:"Excluir jogo",exact:true}).click();
+  await dialog.getByRole("button",{name:"Excluir jogo",exact:true}).click();
+  await expect(page).toHaveURL(/\/admin\/jogos$/);
+  expect(upcoming).toBeNull();
+  await expect(page.getByRole("list",{name:"Jogos",exact:true}).getByRole("listitem")).toHaveCount(1);
 });

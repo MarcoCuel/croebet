@@ -33,7 +33,7 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
             </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <span className="break-words font-semibold">{game.name}</span>
-              {game.slug !== "flip7" && <Badge variant="secondary">Em breve</Badge>}
+              {(game.moduleId ?? game.slug) !== "flip7" && <Badge variant="secondary">Em breve</Badge>}
               <Badge variant={game.enabled ? "default" : "secondary"}>{game.enabled ? "Ativo" : "Inativo"}</Badge>
             </div>
           </Link>
