@@ -269,3 +269,16 @@ test("descarte tem controles locais de movimento, rotação e tamanho sem sobrep
   // Configurations restore transforms; the simulated discard sequence is intentionally not persisted.
   await expect(scene.getByRole("button", { name: "Redimensionar descarte", exact: true })).toHaveCount(0);
 });
+
+
+test("laboratório carrega as mesmas artes das duas edições usadas pela mesa real", async ({ page }) => {
+  const loaded = new Set<string>();
+  page.on("response", response => { if (response.ok() && response.url().includes("/games/love-letter/")) loaded.add(new URL(response.url()).pathname); });
+  await page.goto("/admin/jogos/laboratorio");
+  await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
+  await openSettings(page);
+  await page.getByRole("button", { name: "Love Letter moderno", exact: true }).click();
+  await expect.poll(() => loaded.has("/games/love-letter/card.png") && loaded.has("/games/love-letter/9.png")).toBe(true);
+  await page.getByRole("button", { name: "Love Letter clássico", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Love Letter clássico", exact: true })).toHaveAttribute("aria-pressed", "true");
+});

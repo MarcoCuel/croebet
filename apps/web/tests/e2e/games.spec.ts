@@ -429,28 +429,34 @@ function prepareLoveTable() {
  loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou 4."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:[],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
 }
 
+async function selectLoveCard(page: import("@playwright/test").Page, name: string) {
+ const card = page.getByRole("button", { name, exact: true });
+ await card.focus(); await card.press("Enter");
+}
+
 test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe histórico",async({page},testInfo)=>{
  prepareLoveTable();
  const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const table=page.getByLabel("Mesa do Love Letter");
+ await expect(table.getByTestId("love-table-scene").locator("canvas")).toBeVisible();
  await expect(table.getByRole("status")).toHaveText("Sua vez");
  await expect(page.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
- await expect(table.getByText("Protegido",{exact:false})).toBeVisible();
- await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
+ await expect(table.getByLabel("Descartes da rodada").getByText("Protegido",{exact:false})).toBeVisible();
+ await expect(table.getByLabel("Descartes da rodada").getByText("Eliminado",{exact:false})).toBeVisible();
  await expect(table.getByRole("combobox")).toHaveCount(0);
  await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
- await page.getByRole("button",{name:"Descartar 1 · Guarda",exact:true}).click();
+ await selectLoveCard(page, "Descartar 1 · Guarda");
  await expect(table.getByRole("button",{name:"Escolher jogador Bot 1",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Escolher jogador Bot 2",exact:true}).click();
  await expect(table.getByRole("button",{name:"Adivinhar 8 · Condessa",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Adivinhar 9 · Princesa",exact:true}).click();
  await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
- await page.getByRole("button",{name:"Descartar 4 · Aia",exact:true}).click();
+ await selectLoveCard(page, "Descartar 4 · Aia");
  await expect.poll(()=>commands.length).toBe(2);
  expect(commands[1]).toEqual({type:"play",card:4});
- await expect(page.getByRole("complementary",{name:"Histórico da partida"}).getByText("Aia",{exact:true})).toBeAttached();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"}).getByRole("img",{name:"4 · Aia",exact:true})).toBeAttached();
  await checkTableControls(page, table, testInfo.project.name === "desktop");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});
@@ -464,15 +470,15 @@ test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxim
  state.legalActions=[{type:"keep",cards:[9,1,4]},{type:"keep",cards:[9,4,1]}];
  const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
- await page.getByRole("button",{name:"Manter carta 3: 9 · Princesa",exact:true}).click();
- await page.getByRole("button",{name:"Devolver carta 2: 4 · Aia",exact:true}).click();
+ await selectLoveCard(page, "Manter carta 3: 9 · Princesa");
+ await selectLoveCard(page, "Devolver carta 2: 4 · Aia");
  await expect.poll(()=>commands[0]).toEqual({type:"keep",cards:[9,4,1]});
  state.pending=false;state.players[0].hand=[7,8];state.players[0].handCount=2;
  state.legalActions=[{type:"play",card:8}];
  await page.reload();
  await page.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
  await expect(page.getByRole("button",{name:"Descartar 7 · Rei",exact:true})).toHaveCount(0);
- await page.getByRole("button",{name:"Descartar 8 · Condessa",exact:true}).click();
+ await selectLoveCard(page, "Descartar 8 · Condessa");
  await expect.poll(()=>commands[1]).toEqual({type:"play",card:8});
  state.phase="summary";state.winners=[0];state.legalActions=[{type:"next"}];
  await page.reload();

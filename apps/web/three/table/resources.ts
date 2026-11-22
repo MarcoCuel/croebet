@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CanvasTexture, SRGBColorSpace, LinearFilter, LinearMipmapLinearFilter } from "three";
 import { useThree } from "@react-three/fiber";
 import { createCardGeometry } from "./card-geometry";
+import type { CardArtwork, TableArtwork } from "./artwork";
 export type TablePalette = { brand: string; surface: string; background: string; foreground: string };
 export function useTablePalette() {
   const [palette, setPalette] = useState<TablePalette | null>(null);
@@ -32,10 +33,39 @@ function texture(value: number | null, anisotropy: number) {
   if (value !== null) { ctx.font = "600 34px sans-serif"; ctx.fillText(String(value), 42, 47); ctx.save(); ctx.translate(214, 337); ctx.rotate(Math.PI); ctx.fillText(String(value), 0, 0); ctx.restore(); }
   const result = new CanvasTexture(canvas); result.colorSpace = SRGBColorSpace; result.anisotropy = anisotropy; result.minFilter = LinearMipmapLinearFilter; result.magFilter = LinearFilter; return result;
 }
-export function useCardResources(palette: TablePalette) {
+export function useCardResources(palette: TablePalette, artwork?: TableArtwork) {
+  const invalidate = useThree(state => state.invalidate);
   const anisotropy = useThree(state => Math.min(8, state.gl.capabilities.getMaxAnisotropy()));
   const geometry = useMemo(() => ({ flat: createCardGeometry(), fan: createCardGeometry(0.004), curved: createCardGeometry(0.018) }), []);
-  const maps = useMemo(() => [...Array.from({ length: 10 }, (_, n) => texture(n, anisotropy)), texture(null, anisotropy)], [anisotropy]);
+  const maps = useMemo(() => {
+    const result = [...Array.from({ length: 10 }, (_, n) => texture(n, anisotropy)), texture(null, anisotropy)];
+    result.forEach((map, i) => { map.name = (i === 10 ? artwork?.back : artwork?.faces[i])?.src ?? "procedural"; });
+    return result;
+  }, [anisotropy, artwork]);
+  useEffect(() => {
+    let disposed = false;
+    function load(asset: CardArtwork, index: number) {
+      const image = new Image();
+      image.onload = () => {
+        if (disposed) return;
+        const canvas = maps[index].image as HTMLCanvasElement;
+        const ctx = canvas.getContext("2d")!;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        if (asset.valueOverride !== undefined) {
+          ctx.fillStyle = palette.surface; ctx.beginPath(); ctx.ellipse(94, 106, 66, 78, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = palette.foreground; ctx.font = "600 120px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(asset.valueOverride), 94, 106);
+        }
+        maps[index].needsUpdate = true; invalidate();
+      };
+      image.src = asset.src;
+    }
+    if (artwork) {
+      Object.entries(artwork.faces).forEach(([value, asset]) => { if (asset) load(asset, Number(value)); });
+      load(artwork.back, 10);
+    }
+    return () => { disposed = true; };
+  }, [artwork, maps, palette.surface, palette.foreground, invalidate]);
   useEffect(() => () => maps.forEach(map => map.dispose()), [maps]);
   useEffect(() => () => { Object.values(geometry).forEach(({ face, backFace, edge }) => { face.dispose(); backFace.dispose(); edge.dispose(); }); }, [geometry]);
   return { ...geometry, maps, palette };

@@ -82,11 +82,11 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, 
     onPointerOver={target.interactive ? event => { event.stopPropagation(); setHovered(true); } : undefined}
     onPointerOut={() => { setHovered(false); cancelHold(); }}>
     <mesh geometry={geometry.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
-    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} emissive="#ffffff" emissiveIntensity={hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
-    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} roughness={0.86} metalness={0} /></mesh>
+    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
+    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
     {target.interactive && target.zone === "hand" && <Html center zIndexRange={[12, 0]} style={{ pointerEvents: "none" }}><button
       className="pointer-events-auto sr-only focus:not-sr-only focus:whitespace-nowrap focus:rounded-lg focus:bg-background focus:p-2 focus:text-xs"
-      aria-label={`Descartar ${target.label?.toLowerCase() ?? "carta"}`} onClick={() => onSelect(target.id)}
+      aria-label={target.actionLabel ?? `Descartar ${target.label?.toLowerCase() ?? "carta"}`} onClick={() => onSelect(target.id)}
       onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}
       onContextMenu={event => { event.preventDefault(); onMenu(target.id, { x: event.clientX, y: event.clientY }); }}
       onKeyDown={event => { if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); onMenu(target.id, { x: bounds.left, y: bounds.bottom }); } }}
