@@ -28,6 +28,14 @@ test('Love Letter: Chanceler mantém escolha privada e devolve cartas na ordem e
  const next=applyLove(s,{type:'play',card:6});assert.ok(next.pending);assert.equal(next.players[0].hand.length,3);assert.deepEqual(projectLove(next,1).legalActions,[]);
  const action=legalLove(next)[0],done=applyLove(next,action);assert.equal(done.pending,false);assert.equal(done.players[0].hand[0],action.cards[0]);assert.deepEqual(done.deck.slice(0,2),action.cards.slice(1));
 });
+test('Love Letter: próxima compra acontece somente após o Chanceler resolver o baralho',()=>{
+ const s=createLove(setup(3),'modern');s.turn=0;s.players[0].hand=[6,9];s.players[1].hand=[4];s.deck=[1,2,3,4];
+ const pending=applyLove(s,{type:'play',card:6});
+ assert.equal(pending.turn,0);assert.deepEqual(pending.players[1].hand,[4]);
+ const done=applyLove(pending,{type:'keep',cards:[9,3,4]});
+ assert.equal(done.turn,1);assert.deepEqual(done.players[1].hand,[4,2]);
+ assert.deepEqual(done.deck,[3,4,1]);
+});
 test('Love Letter: empate do Clássico considera descartes, Moderno divide vitória e premia Espiã sobrevivente',()=>{
  for(const mode of ['classic','modern']){const s=createLove(setup(3),mode);s.turn=0;s.deck=[];s.players[0].hand=[4,5];s.players[1].hand=[5];s.players[2].hand=[2];s.players[1].discard=[0];s.players[0].discard=[3];const next=applyLove(s,{type:'play',card:4});assert.equal(next.phase,'summary');assert.deepEqual(next.winners,mode==='classic'?[0]:[0,1]);assert.equal(next.players[1].tokens,mode==='classic'?0:2);}
 });

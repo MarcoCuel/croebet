@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameRoom, GameRoomSync } from "@croebet/shared";
+import { lovePlaybackView } from "./love-letter/playback-view";
 
 /** Public frames are presentation only. Commands always use the confirmed room. */
-export function useGamePlayback() {
+export function useGamePlayback(viewerId?: string) {
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [animating, setAnimating] = useState(false);
   const confirmed = useRef<GameRoom | null>(null);
@@ -51,11 +52,15 @@ export function useGamePlayback() {
       stop(); setRoom(sync.room); setAnimating(false); return;
     }
     const finalRoom = sync.room;
+    const viewer = finalRoom.participants.find(participant => participant.userId === viewerId)?.seat;
     queue.current.push(...sync.frames.filter(frame => frame.version > previous.version).map(frame => ({
-      ...finalRoom, version: frame.version, status: "playing" as const, state: frame.state,
+      ...finalRoom, version: frame.version, status: "playing" as const,
+      state: "privateInfo" in frame.state && "privateInfo" in finalRoom.state
+        ? lovePlaybackView(frame.state, frame.state.round === finalRoom.state.round || previous.status === "lobby" || !("privateInfo" in previous.state) ? finalRoom.state : previous.state, viewer)
+        : frame.state,
     })));
     if (!timer.current && queue.current.length) { setAnimating(true); advance(); }
-  }, [advance, stop]);
+  }, [advance, stop, viewerId]);
   const clear = useCallback(() => { stop(); confirmed.current = null; setRoom(null); setAnimating(false); }, [stop]);
   useEffect(() => {
     const skip = () => {

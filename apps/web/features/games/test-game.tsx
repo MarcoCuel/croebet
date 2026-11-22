@@ -21,7 +21,7 @@ type Room=ReturnType<typeof gameRoomSchema.parse>;
 export function TestGame({game}:{game:GameRecord}){
  const {userId,permissions}=useSession(),query=useSearchParams();
  const code=query.get("partida") ?? "";
- const playback=useGamePlayback();
+ const playback=useGamePlayback(userId ?? undefined);
  const {receive,clear}=playback;
  const loadedRoom=playback.room;
  const setRoom=useCallback((next:Room|null)=>{if(next)receive({room:next,frames:[],reset:true});else clear();},[receive,clear]);

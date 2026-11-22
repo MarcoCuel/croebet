@@ -4,7 +4,7 @@ import type { LaboratoryState, LabCard } from "@/three/table/model";
 type LoveTableState = LaboratoryState & { round: number; discardSlots: Record<string, string>; pending: boolean; logLength: number };
 
 /** Reconcile only the public/private view supplied to this observer, never infer concealed values. */
-export function loveTableState(view: LoveView, viewer: number | undefined, drawn: boolean, previous?: LoveTableState): LoveTableState {
+export function loveTableState(view: LoveView, viewer: number | undefined, previous?: LoveTableState): LoveTableState {
   const newRound = !!previous && previous.round !== view.round;
   const serial = (previous?.cue.serial ?? 0) + 1;
   if (previous?.round !== view.round) previous = undefined;
@@ -39,8 +39,7 @@ export function loveTableState(view: LoveView, viewer: number | undefined, drawn
   }
   const hands = view.players.map((player, seat) => {
     const values = player.hand ?? Array.from({ length: player.handCount }, () => -1);
-    const visible = seat === viewer && !drawn && !view.pending && view.phase === "playing" && view.turn === seat && view.legalActions.length > 0 && values.length > 1 ? values.slice(0, 1) : values;
-    return visible.map((value, index) => {
+    return values.map((value, index) => {
       const source = swapped.get(seat) ?? seat;
       const card = { ...take(value, previous?.hands[source] ?? [], `hand:${view.round}:${seat}:${serial}:${index}`, "draw"), hidden: value < 0 };
       if (source !== seat) motions[card.id] = { serial, kind: "swap", order: 0 };
@@ -48,8 +47,7 @@ export function loveTableState(view: LoveView, viewer: number | undefined, drawn
       return card;
     });
   });
-  const waitingDraw = viewer !== undefined && hands[viewer].length < view.players[viewer].handCount;
-  const deck = Array.from({ length: view.deckCount + (waitingDraw ? 1 : 0) }, (_, i) => ({ id: `deck:${view.round}:${i}`, value: -1 }));
+  const deck = Array.from({ length: view.deckCount }, (_, i) => ({ id: `deck:${view.round}:${i}`, value: -1 }));
   if (previous?.pending && !view.pending && viewer !== undefined) {
     const returned = previous.hands[viewer].filter(card => !used.has(card.id));
     returned.slice(0, deck.length).forEach((card, index) => {

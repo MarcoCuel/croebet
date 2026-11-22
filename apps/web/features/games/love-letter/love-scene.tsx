@@ -8,19 +8,19 @@ import { Button } from "@/components/ui/button";
 import { LoveCard } from "./love-card";
 import { loveArtwork } from "./artwork";
 
-export function LoveScene({ view, viewer, drawn, participants, selected, target, labels, onCard, onDraw, onSeat, canDraw, deckLabel, eligible, guesses, onGuess, children, actions, onAnimating }: {
-  view: LoveView; viewer?: number; drawn: boolean; participants: MatchParticipant[]; selected: number | null; target: number | null;
+export function LoveScene({ view, viewer, participants, selected, target, labels, onCard, onDraw, onSeat, canDraw, deckLabel, eligible, guesses, onGuess, children, actions, onAnimating }: {
+  view: LoveView; viewer?: number; participants: MatchParticipant[]; selected: number | null; target: number | null;
   labels: Record<number, string>; onCard: (index: number) => void; onDraw: () => void; onSeat: (seat: number) => void;
   canDraw: boolean; deckLabel: string; eligible: number[]; guesses: { value: number; label: string }[]; onGuess: (value: number) => void; children?: ReactNode; actions?: ReactNode;
   onAnimating?: (busy: boolean) => void;
 }) {
   const [moving, setMoving] = useState(false);
   const reportMotion = useCallback((busy: boolean) => { setMoving(busy); onAnimating?.(busy); }, [onAnimating]);
-  const [snapshot, setSnapshot] = useState(() => ({ view, drawn, viewer, state: loveTableState(view, viewer, drawn) }));
+  const [snapshot, setSnapshot] = useState(() => ({ view, viewer, state: loveTableState(view, viewer) }));
   let state = snapshot.state;
-  if (snapshot.view !== view || snapshot.drawn !== drawn || snapshot.viewer !== viewer) {
-    state = loveTableState(view, viewer, drawn, snapshot.viewer === viewer ? snapshot.state : undefined);
-    setSnapshot({ view, drawn, viewer, state });
+  if (snapshot.view !== view || snapshot.viewer !== viewer) {
+    state = loveTableState(view, viewer, snapshot.viewer === viewer ? snapshot.state : undefined);
+    setSnapshot({ view, viewer, state });
   }
   const hand = viewer === undefined ? [] : state.hands[viewer];
   const choices = guesses.map(guess => ({ id: `guess:${guess.value}`, value: guess.value, hidden: false, label: guess.label }));

@@ -458,11 +458,10 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await expect(table.getByText("Protegido",{exact:false})).toBeVisible();
  await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
  await expect(table.getByRole("combobox")).toHaveCount(0);
- await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toHaveCount(0);
+ await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeVisible();
  const actions = page.locator("[data-game-actions]");
- await expect(actions.getByRole("button", { name: "Comprar", exact: true })).toHaveAttribute("aria-keyshortcuts", "Enter");
+ await expect(actions.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);
  await expect(actions.getByRole("button", { name: "Parar", exact: false })).toHaveCount(0);
- await page.keyboard.press("Enter");
  await selectLoveCard(page, "Descartar 1 · Guarda");
  await expect(table.getByRole("button",{name:"Escolher jogador Bot 1",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Escolher jogador Bot 2",exact:true}).click();
@@ -495,7 +494,6 @@ test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxim
  state.pending=false;state.players[0].hand=[7,8];state.players[0].handCount=2;
  state.legalActions=[{type:"play",card:8}];
  await page.reload();
- await page.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
  await expect(page.getByRole("button",{name:"Descartar 7 · Rei",exact:true})).toHaveCount(0);
  await selectLoveCard(page, "Descartar 8 · Condessa");
  await expect.poll(()=>commands[1]).toEqual({type:"play",card:8});
@@ -512,18 +510,19 @@ test("Love Letter apresenta bots em sequência e libera apenas a decisão final 
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  await expect(page.getByRole("status").filter({hasText:"Sua vez"})).toBeVisible();
  const initial=structuredClone(loveRoom);
- const publicState={...initial.state,turn:2,legalActions:[],privateInfo:[],players:initial.state.players.map(p=>({...p,hand:null}))};
+ if(!("privateInfo" in initial.state))throw Error("Fixture Love Letter ausente");
+ const publicState={...initial.state,turn:2,legalActions:[],privateInfo:[],players:initial.state.players.map((p,i)=>({...p,hand:null,handCount:i===0?1:p.handCount}))};
  const second={...publicState,turn:3,deckCount:10,log:[...publicState.log,"Bot 2 jogou 4."],players:publicState.players.map((p,i)=>i===2?{...p,discard:[4,4]}:p)};
  loveRoom=gameRoomSchema.parse({...initial,version:5,state:{...initial.state,log:second.log,deckCount:9}});
  sockets.emit("room",{room:loveRoom,reset:false,frames:[{version:3,action:{type:"step"},state:publicState},{version:4,action:{type:"step"},state:second},{version:5,action:{type:"step"},state:{...second,turn:0}}]});
  const table=page.getByLabel("Mesa do Love Letter");
  await expect(table.getByRole("status")).toHaveText("Vez de Bot 2");
+ await expect(table.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
  await expect(table.getByRole("button",{name:"Comprar carta do baralho",exact:true})).toHaveCount(0);
  // A duplicate final snapshot must not cancel the active frame queue.
  sockets.emit("room",{room:loveRoom,reset:false,frames:[]});
  await expect(table.getByRole("status")).toHaveText("Vez de Bot 3");
- await expect(table.getByRole("button",{name:"Comprar carta do baralho",exact:true})).toBeEnabled({timeout:10000});
- await table.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
+ await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeEnabled({timeout:10000});
  await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeVisible();
 });
 
