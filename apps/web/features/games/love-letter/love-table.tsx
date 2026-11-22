@@ -41,7 +41,9 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
     if (busy) return;
     const actions = plays.filter(action => action.card === value);
     if (actions.length === 1 && actions[0].target === undefined) { void play(actions[0]); return; }
-    setCard(card === value ? null : value); setTarget(null);
+    const guardTargets = value === 1 ? [...new Set(actions.flatMap(action => action.target === undefined ? [] : [action.target]))] : [];
+    setCard(card === value ? null : value);
+    setTarget(card !== value && guardTargets.length === 1 ? guardTargets[0] : null);
   }
   function chooseTarget(seat: number) {
     if (busy) return;

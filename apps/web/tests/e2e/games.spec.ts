@@ -480,6 +480,24 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});
 });
 
+test("Guarda com um único alvo válido abre palpites sem confirmar jogador",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture Love Letter ausente");
+ loveRoom.state.legalActions=[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:2,guess:8},{type:"play",card:4}];
+ const commands=gameCommands;
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ const table=page.getByLabel("Mesa do Love Letter");
+ await selectLoveCard(page,"Descartar 1 · Guarda");
+ await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice","true");
+ await expect(table.getByText("Qual carta você acha que ele tem?",{exact:true})).toBeVisible();
+ expect(commands).toEqual([]);
+ await table.getByRole("button",{name:"Cancelar escolha",exact:true}).click();
+ await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice","false");
+ await selectLoveCard(page,"Descartar 1 · Guarda");
+ await selectLoveCard(page,"Adivinhar 9 · Princesa");
+ await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
+});
+
 test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxima rodada",async({page})=>{
  prepareLoveTable();
  if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
