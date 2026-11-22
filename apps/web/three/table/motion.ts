@@ -1,6 +1,6 @@
 import type { CardPose, Vec3 } from "./layout";
 export type CardMotion = { key: string; duration: number; delay?: number; arc: number; shuffle?: boolean; via?: CardPose; hold?: number };
-export type CardTarget = { id: string; value: number; face?: string; idle?: import("./model").CardIdle; glow?: boolean; pose: CardPose; hidden: boolean; zone?: "hand" | "deck" | "discard" | "exposed" | "staging"; label?: string; actionLabel?: string; curved?: boolean | "fan"; thickness?: number; revealBack?: boolean; interactive?: boolean; selected?: boolean; origin?: CardPose; motion: CardMotion };
+export type CardTarget = { id: string; value: number; face?: string; idle?: import("./model").CardIdle; glow?: boolean; pose: CardPose; hidden: boolean; zone?: "hand" | "deck" | "discard" | "exposed" | "staging"; label?: string; actionLabel?: string; curved?: boolean | "fan"; thickness?: number; interactive?: boolean; selected?: boolean; raised?: boolean; origin?: CardPose; motion: CardMotion };
 
 /** Two flights and an optional reading pause share one clock and one identity. */
 export function routeProgress(elapsed: number, duration: number, delay = 0, hold = 0, via = false) {

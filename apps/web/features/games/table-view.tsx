@@ -18,5 +18,5 @@ export function useTableView(game: string) {
   } };
 }
 export function TableViewToggle({ view, onChange, disabled }: { view: "classic" | "3d"; onChange: (view: "classic" | "3d") => void; disabled?: boolean }) {
-  return <div role="group" aria-label="Interface da mesa" className="flex gap-1">{(["classic", "3d"] as const).map(option => <Button key={option} size="sm" variant="ghost" disabled={disabled} aria-pressed={view === option} onClick={() => onChange(option)}>{option === "3d" ? "3D" : "Atual"}</Button>)}</div>;
+  return <div role="group" aria-label="Interface da mesa" className="flex gap-1">{(["classic", "3d"] as const).map(option => <Button key={option} size="sm" variant="ghost" className="disabled:opacity-100" disabled={disabled} aria-pressed={view === option} onClick={() => onChange(option)}>{option === "3d" ? "3D" : "Atual"}</Button>)}</div>;
 }

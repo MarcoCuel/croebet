@@ -28,8 +28,9 @@ export function TestReplay({ game, room, onClose }: { game: GameRecord; room: Ex
   return()=>clearTimeout(timer);
  },[playing,loading,error,initial,index,delay]);
  const Table=gamePresentations[room.game].Table;
- return <div className="grid gap-4"><div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Replay da partida {room.code}</h2><Button variant="secondary" onClick={onClose}>Voltar ao resultado</Button></div>
- <ReplayControls index={index} count={initial?.match.frameCount ?? 0} playing={playing} delay={delay} loading={loading} error={error} seek={value=>{setPlaying(false);setIndex(value);}} toggle={()=>setPlaying(p=>!p)} setDelay={setDelay}/>
- {error?<div role="alert">{error}<Button variant="secondary" onClick={()=>setRetry(r=>r+1)}>Tentar novamente</Button></div>:loading?<p role="status">Carregando jogadas…</p>:frame?<Table game={game} room={{...room,state:frame.state,status:"finished"}} viewerId={null} busy controls={null} exit={null} play={async()=>{}}/>:<p>Nenhuma jogada disponível.</p>}
+ const replayControls=<ReplayControls index={index} count={initial?.match.frameCount ?? 0} playing={playing && index < (initial?.match.frameCount ?? 0)-1} delay={delay} loading={loading} error={error} seek={value=>{setPlaying(false);setIndex(value);}} toggle={()=>setPlaying(p=>!p)} setDelay={setDelay}/>;
+ return <div className="grid min-w-0 gap-4">
+ {(error || loading || !frame) && <Button className="justify-self-end" variant="secondary" size="sm" onClick={onClose}>Voltar ao resultado</Button>}
+ {error?<div role="alert">{error}<Button variant="secondary" onClick={()=>setRetry(r=>r+1)}>Tentar novamente</Button></div>:loading?<p role="status">Carregando jogadas…</p>:frame?<Table game={game} room={{...room,state:frame.state,status:"finished"}} viewerId={null} busy controls={null} exit={<Button variant="secondary" size="sm" onClick={onClose}>Voltar ao resultado</Button>} replayControls={replayControls} play={async()=>{}}/>:<p>Nenhuma jogada disponível.</p>}
  </div>;
 }

@@ -894,7 +894,7 @@ test("admin separa testes e mostra duração média e replay paginado",async({pa
  await expect(page.getByText("Jogada registrada 105.",{exact:true})).toBeVisible();
 });
 
-test("resultado de teste Love Letter mostra tempo ativo e reproduz sem comandos",async({page})=>{
+test("resultado de teste Love Letter mostra tempo ativo e reproduz na barra compartilhada sem comandos",async({page})=>{
  prepareLoveTable();
  if(!loveRoom || loveRoom.status==="lobby" || !("winners" in loveRoom.state))throw Error("Fixture ausente");
  loveRoom=gameRoomSchema.parse({...loveRoom,status:"finished",durationSeconds:125,activeDurationSeconds:90,state:{...loveRoom.state,phase:"over",winners:[0],legalActions:[]}});
@@ -903,8 +903,27 @@ test("resultado de teste Love Letter mostra tempo ativo e reproduz sem comandos"
  await expect(result).toContainText("Em reprodução: 1 min 30 s");
  await result.getByRole("button",{name:"Replay",exact:true}).click();
  await expect(page.getByText("Primeira jogada do teste.",{exact:true})).toBeVisible();
- await page.getByRole("button",{name:"Próxima jogada",exact:true}).click();
+ const table=page.getByLabel("Mesa do Love Letter",{exact:true});
+ const bar=table.locator("[data-game-actions]");
+ const controls=bar.getByLabel("Controles de reprodução",{exact:true});
+ await expect(controls).toBeVisible();
+ await expect(page.getByLabel("Controles de reprodução",{exact:true})).toHaveCount(1);
+ await expect(bar.getByRole("heading")).toHaveCount(0);
+ const panel=bar.locator(":scope > div");
+ expect(await panel.evaluate(el=>el.getBoundingClientRect().width)).toBeLessThanOrEqual(576);
+ const slider=controls.getByLabel("Ir para jogada");
+ await expect(slider).toHaveCSS("appearance","none");
+ await expect(slider).toHaveCSS("border-top-width","0px");
+ await controls.getByLabel("Velocidade da reprodução").selectOption("500");
+ await expect(controls.getByLabel("Velocidade da reprodução")).toHaveValue("500");
+ await controls.getByRole("button",{name:"Próxima jogada",exact:true}).click();
  await expect(page.getByText("Última jogada do teste.",{exact:true})).toBeVisible();
+ await expect(controls.getByRole("button",{name:"Reproduzir",exact:true})).toBeDisabled();
+ await controls.getByRole("button",{name:"Início",exact:true}).click();
+ await expect(page.getByText("Primeira jogada do teste.",{exact:true})).toBeVisible();
+ await controls.getByRole("button",{name:"Reproduzir",exact:true}).click();
+ await expect(page.getByText("Última jogada do teste.",{exact:true})).toBeVisible();
+ await expect(controls.getByRole("button",{name:"Pausar",exact:true})).toHaveCount(0);
  expect(gameCommands).toEqual([]);
  await page.getByRole("button",{name:"Voltar ao resultado"}).click();
  await expect(result).toBeVisible();

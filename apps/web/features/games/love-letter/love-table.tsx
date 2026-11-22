@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { TableViewportHeader } from "@/three/table/table-viewport";
 import { X } from "lucide-react";
 import type { LoveAction, LoveView, MatchParticipant } from "@croebet/shared";
@@ -9,14 +9,14 @@ import { Button } from "@/components/ui/button";
 import { classic, modern, loveRoles } from "./love-card";
 import { LoveScene } from "./love-scene";
 
-type Props = { header?: TableViewportHeader; state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[]; onAnimating?: (busy: boolean) => void };
+type Props = { header?: TableViewportHeader; replayControls?: ReactNode; state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[]; onAnimating?: (busy: boolean) => void };
 type Play = Extract<LoveAction, { type: "play" }>;
 
 export function LoveTable(props: Props) {
   return <LoveDecision {...props} />;
 }
 
-function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating, header }: Props) {
+function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating, header, replayControls }: Props) {
   const [moving, setMoving] = useState(false);
   const [card, setCard] = useState<number | null>(null);
   const [target, setTarget] = useState<number | null>(null);
@@ -79,7 +79,7 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
     if (action && !busy) { setCard(null); setTarget(null); void play(action); }
   };
   const draw = () => { if (state.legalActions.some(a => a.type === "next")) void play({ type: "next" }); };
-  const actionBar = <GameActionBar contained>
+  const actionBar = replayControls ? <GameActionBar contained wide>{replayControls}</GameActionBar> : <GameActionBar contained>
       <h2 role="status" className="text-sm font-medium" aria-live="polite">{moving ? "Movendo cartas" : instruction || status}</h2>
       {canContinue && <Button disabled={busy || moving} onClick={() => void play({ type: "continue" })}>Continuar</Button>}
       {!busy && !moving && state.legalActions.some(a => a.type === "next") && <Button onClick={draw}>Próxima rodada</Button>}

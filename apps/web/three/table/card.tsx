@@ -3,10 +3,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Html, useCursor } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Euler, Quaternion, Vector3, type Group } from "three";
+import { Euler, Quaternion, Vector3, type Group, type MeshStandardMaterial } from "three";
 import type { CardResources } from "./resources";
 import type { CardTarget } from "./motion";
-import { arcPosition, cardMotionUpdate, consumeCardMotion, routeProgress, raisedCardPosition } from "./motion";
+import { arcPosition, cardMotionUpdate, consumeCardMotion, easedProgress, routeProgress, raisedCardPosition } from "./motion";
 
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
 export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown, onMotion, paused = false, timeScale = 1 }: {
@@ -17,6 +17,33 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
 }) {
   const ref = useRef<Group>(null); const invalidate = useThree(state => state.invalidate);
   const idleRef = useRef<Group>(null);
+  const revealRef = useRef<Group>(null);
+  const frontMaterial = useRef<MeshStandardMaterial>(null);
+  const backMaterial = useRef<MeshStandardMaterial>(null);
+  const reveal = useRef({ initialized: false, hidden: target.hidden, zone: target.zone,
+    elapsed: 0, from: 0, to: 0, active: false });
+  const face = resources.maps[target.face ?? target.value] ?? resources.maps.back;
+  useLayoutEffect(() => {
+    const group = revealRef.current; const front = frontMaterial.current; const back = backMaterial.current;
+    if (!group || !front || !back) return;
+    const a = reveal.current;
+    const snap = !a.initialized || reducedMotion;
+    if (snap || a.hidden !== target.hidden) {
+      a.from = group.rotation.y; a.to = target.hidden ? Math.PI : 0;
+      a.elapsed = a.zone !== target.zone ? -(target.motion.delay ?? 0) : 0;
+      a.active = !snap && a.from !== a.to;
+      if (snap) group.rotation.y = a.to;
+    }
+    a.initialized = true; a.hidden = target.hidden; a.zone = target.zone;
+    // The authorized face stays on the far side during revelation. Keep it only
+    // for the closing turn, then replace it with the back when it is out of view.
+    if (!target.hidden || !a.active) {
+      const artwork = target.hidden ? resources.maps.back : face;
+      front.map = artwork;
+      back.map = resources.maps.back;
+    }
+    invalidate();
+  }, [target.hidden, target.zone, target.motion.delay, face, resources.maps.back, reducedMotion, invalidate]);
   const [hovered, setHovered] = useState(false);
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClick = useRef(false);
@@ -26,13 +53,13 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
   useEffect(() => { if (!paused) invalidate(); }, [paused, invalidate]);
   useCursor(hovered && !!target.interactive, target.zone === "hand" ? "pointer" : "grab");
   const animation = useRef({ elapsed: 0, active: false, from: new Vector3(), to: new Vector3(), fromQ: new Quaternion(), toQ: new Quaternion(),
-    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: false,
+    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: 0,
     key: "", destination: "", transfer: false, via: null as null | { position: Vector3; quaternion: Quaternion; scale: number }, hold: 0 });
   const motionCallback = useRef(onMotion);
   useLayoutEffect(() => { motionCallback.current = onMotion; });
   useEffect(() => () => motionCallback.current?.(target.id, animation.current.key, false), [target.id]);
   const mounted = useRef(false);
-  const raised = (target.zone === "hand" && target.interactive && hovered) || target.selected;
+  const raised = Number(!!target.raised) + Number(!!((target.zone === "hand" && target.interactive && hovered) || target.selected));
   const [x, y, z] = target.pose.position; const [rx, ry, rz] = target.pose.rotation;
   const scale = target.pose.scale * (raised ? 1.1 : 1);
   // Depend only on actual destination/motion changes, never the containing snapshot object.
@@ -49,7 +76,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     a.destination = destination;
     const newMotion = a.key !== t.motion.key && consumeCardMotion(motionHistory.current, t.id, t.motion.key);
     const returningChoice = a.key.startsWith("choice:") && !t.motion.key.startsWith("choice:");
-    const emphasisChanged = a.raised !== !!lift;
+    const emphasisChanged = a.raised !== lift;
     if (!mounted.current) {
       const origin = newMotion ? t.origin ?? t.pose : t.pose;
       group.position.fromArray(origin.position); group.quaternion.setFromEuler(new Euler(...origin.rotation, "YXZ")); group.scale.setScalar(origin.scale);
@@ -58,17 +85,17 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     if (update === "continue") {
       // Resize, hover and other layout updates may retarget the destination, but
       // preserve elapsed time, departure delay, origin and arc for this transfer.
-      a.to.fromArray(raisedCardPosition(t.pose, lift ? 0.25 * t.pose.scale : 0));
+      a.to.fromArray(raisedCardPosition(t.pose, lift * 0.25 * t.pose.scale));
       a.toQ.setFromEuler(new Euler(...t.pose.rotation, "YXZ")); a.toScale = size;
-      a.raised = !!lift;
+      a.raised = lift;
       invalidate(); return;
     }
     if (a.active && a.key !== t.motion.key) motionCallback.current?.(t.id, a.key, false);
     a.from.copy(group.position); a.fromQ.copy(group.quaternion); a.fromScale = group.scale.x;
-    a.to.fromArray(raisedCardPosition(t.pose, lift ? 0.25 * t.pose.scale : 0));
+    a.to.fromArray(raisedCardPosition(t.pose, lift * 0.25 * t.pose.scale));
     a.toQ.setFromEuler(new Euler(...t.pose.rotation, "YXZ")); a.toScale = size;
     a.duration = emphasisChanged && !newMotion ? Math.min(t.motion.duration, 0.18) : t.motion.duration;
-    a.raised = !!lift;
+    a.raised = lift;
     a.delay = newMotion ? t.motion.delay ?? 0 : 0;
     a.arc = newMotion ? t.motion.arc : 0; a.shuffle = newMotion && !!t.motion.shuffle;
     a.key = t.motion.key;
@@ -82,6 +109,18 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
   }, [destination, invalidate, motionHistory]);
   useFrame((scene, delta) => {
     const group = ref.current; const a = animation.current; if (!group || paused) return;
+    const turn = reveal.current;
+    if (turn.active && revealRef.current) {
+      turn.elapsed += Math.min(delta, 0.1) * timeScale;
+      const progress = easedProgress(turn.elapsed, Math.min(target.motion.duration, 0.4));
+      revealRef.current.rotation.y = turn.from + (turn.to - turn.from) * progress;
+      turn.active = progress < 1;
+      if (!turn.active && turn.hidden) {
+        if (frontMaterial.current) frontMaterial.current.map = resources.maps.back;
+        if (backMaterial.current) backMaterial.current.map = resources.maps.back;
+      }
+      invalidate();
+    }
     const idle = !target.hidden && !reducedMotion ? target.idle : undefined;
     if (idleRef.current) idleRef.current.rotation.z = idle ? Math.sin(scene.clock.elapsedTime * 2.6 + idle.phase) * idle.angle : 0;
     if (!a.active) { if (idle) invalidate(); return; }
@@ -101,8 +140,6 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     if (!a.active) motionCallback.current?.(target.id, a.key, false);
     if (a.active || idle) invalidate();
   });
-  const front = target.hidden ? resources.maps.back : resources.maps[target.face ?? target.value] ?? resources.maps.back;
-  const back = target.revealBack ? front : resources.maps.back;
   const thickness = target.thickness ?? 0.004;
   const geometry = target.curved === "fan" ? resources.fan : target.curved ? resources.curved : resources.flat;
   return <group ref={ref}
@@ -121,9 +158,11 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     onPointerOver={target.interactive ? event => { event.stopPropagation(); setHovered(true); } : undefined}
     onPointerOut={() => { setHovered(false); cancelHold(); }}>
     <group ref={idleRef}>
+    <group ref={revealRef}>
     <mesh geometry={geometry.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
-    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={target.glow && !target.hidden ? 0.12 : hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
-    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
+    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial ref={frontMaterial} map={resources.maps.back} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={target.glow && !target.hidden ? 0.12 : hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
+    <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial ref={backMaterial} map={resources.maps.back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
+    </group>
     </group>
     {target.zone === "staging" && target.label && <Html position={[0, -0.95, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-48 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.label}</span></Html>}
     {hovered && target.interactive && target.actionLabel && !target.hidden && <Html position={[0, 0.8, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-64 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.actionLabel}</span></Html>}

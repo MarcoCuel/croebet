@@ -30,7 +30,7 @@ import type { TableSeatSummary } from "./seat-badge";
 export type TablePresentation = {
   artwork: TableArtwork; seats: { name: string; avatar?: string; summary?: TableSeatSummary; selected?: boolean; label: string; disabled: boolean }[];
   hiddenSeats: number[]; selectable: string[]; labels: Record<string, string>; deckLabel: string;
-  selectedIds?: string[];
+  selectedIds?: string[]; raisedIds?: string[];
 };
 
 export type LaboratorySceneProps = {
@@ -135,6 +135,7 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
       const choosing = state.choice?.cards.some(card => card.id === target.id);
       const transfer = choosing || cue && ["draw", "deal", "discard", "collect", "swap"].includes(cue.kind);
       return <TableCard key={target.id} onMotion={onMotion} paused={paused} timeScale={timeScale} target={{ ...target, selected: presentation?.selectedIds?.includes(target.id) || target.selected,
+        raised: target.zone === "hand" && presentation?.raisedIds?.includes(target.id),
         interactive: target.zone === "deck" ? moveDeck || canDraw : discardTarget ? moveDiscard : seatAction || (presentation ? presentation.selectable.includes(target.id) : target.interactive),
         actionLabel: seatAction ? `${presentation?.seats[owner].label ?? `Passar vez para Jogador ${owner + 1}`} pelas cartas` : presentation?.labels[target.id],
         origin: !choosing && cue && (cue.kind === "draw" || cue.kind === "deal") ? deckOrigin : undefined,

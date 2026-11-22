@@ -868,11 +868,28 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
       await expect(fullscreen).toBeVisible();
     }
     await page.getByRole("button", { name: "Comprar", exact: true }).click();
+    await checkControlsDuringFlight(page);
     await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
     await expect(exit).toBeEnabled();
     await exit.click();
     await expect(page.getByRole("dialog", { name: "Sair da partida?" })).toBeVisible();
     await page.getByRole("button", { name: "Continuar jogando", exact: true }).click();
+  } finally { await peer.context.close(); }
+});
+
+test("permite abandonar durante a animação da jogada de outra pessoa", async ({ page, browser }) => {
+  const peer = await start(page, browser);
+  try {
+    const code = new URL(page.url()).searchParams.get("partida")!;
+    await page.getByRole("button", { name: "Parar", exact: true }).click();
+    await peer.page.getByRole("button", { name: "Comprar", exact: true }).click();
+    await expect(page.locator("[data-flying-card]")).toBeVisible();
+    await page.getByRole("button", { name: "Abandonar partida", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sair da partida?", exact: true });
+    await expect(page.locator("[data-flying-card]")).toBeVisible();
+    await dialog.getByRole("button", { name: "Abandonar sozinho", exact: true }).click();
+    await expect(page).not.toHaveURL(/partida=/);
+    expect(fixture.states.get(code)!.room.participants.some(person => person.userId === matchUsers[0].id)).toBe(false);
   } finally { await peer.context.close(); }
 });
 
@@ -893,6 +910,26 @@ async function instrumentAudio(page: Page) {
       return original.apply(this, args);
     };
   });
+}
+
+async function checkControlsDuringFlight(page: Page) {
+  const controls = page.getByLabel("Controles da partida", { exact: true });
+  const history = controls.getByRole("button", { name: "Esconder histórico", exact: true });
+  const views = controls.getByRole("group", { name: "Interface da mesa", exact: true }).getByRole("button");
+  await expect(page.locator("[data-flying-card]")).toBeVisible();
+  // Layout changes stay locked during the flight without dimming every move.
+  for (const button of [history, ...await views.all()]) {
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveCSS("opacity", "1");
+  }
+  for (const exit of await controls.getByRole("button", { name: "Abandonar partida", exact: true }).all()) {
+    await expect(exit).toBeEnabled();
+    await expect(exit).toHaveCSS("opacity", "1");
+  }
+  await expect(controls.getByRole("button", { name: /^(Ativar som|Silenciar som)$/ })).toBeEnabled();
+  await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+  await expect(history).toBeEnabled();
+  for (const button of await views.all()) await expect(button).toBeEnabled();
 }
 
 test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor", async ({ page }, testInfo) => {
@@ -916,9 +953,9 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
   await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBeGreaterThanOrEqual(11);
   const effectsBeforeMove = await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects);
   await controls.getByRole("button", { name: "Próxima jogada", exact: true }).click();
-  await expect(page.locator("[data-flying-card]")).toBeVisible();
-  await expect(controls.getByText("Jogada 2 de 3", { exact: true })).toBeVisible();
   await expect(controls.getByRole("button", { name: "Próxima jogada", exact: true })).toBeDisabled();
+  await checkControlsDuringFlight(page);
+  await expect(controls.getByText("Jogada 2 de 3", { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBeGreaterThan(0);
   await expect(page.locator("[data-flying-card]")).toHaveCount(0);
   const cues = await page.evaluate(() => (window as unknown as { cueEvents: { time: number; offset: number; duration: number; fileDuration: number }[] }).cueEvents.slice(-1));

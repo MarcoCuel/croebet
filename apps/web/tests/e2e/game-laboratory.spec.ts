@@ -35,6 +35,47 @@ async function openDeckMenu(page: import("@playwright/test").Page) {
   await count.focus(); await count.press("Shift+F10");
 }
 
+test("revelação gira a carta no lugar, sem repetir o arco de compra", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/admin/jogos/laboratorio");
+  await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
+  await openSettings(page);
+  await page.getByText("Cenários de teste", { exact: true }).click();
+  const card = page.getByRole("button", { name: "Passar vez para Jogador 2 pelas cartas", exact: true }).first();
+  const measure = () => card.evaluate(button => {
+    // The accessible card belongs to the same React tree as its Three group.
+    type Group = { position: { toArray(): number[] }; rotation: { y: number }; children: Group[]; material: { map: unknown } };
+    type Fiber = { return: Fiber | null; memoizedProps: { target?: { face?: string; value: number }; resources: { maps: Record<string, unknown> } }; memoizedState: { memoizedState: { current: Group } } };
+    const key = Object.keys(button).find(key => key.startsWith("__reactFiber$"))!;
+    let fiber = (button as unknown as Record<string, Fiber>)[key];
+    while (fiber && !fiber.memoizedProps?.target) fiber = fiber.return!;
+    const group = fiber.memoizedState.memoizedState.current;
+    const paper = group.children[0].children[0];
+    const target = fiber.memoizedProps.target!;
+    return { position: group.position.toArray(), angle: paper.rotation.y,
+      frontVisible: paper.children[1].material.map === fiber.memoizedProps.resources.maps[target.face ?? target.value] };
+  });
+  await expect.poll(async () => (await measure()).angle).toBeCloseTo(Math.PI, 5);
+  const before = await measure();
+  await page.getByRole("button", { name: "Revelar adversários: não", exact: true }).click();
+  await expect.poll(async () => {
+    const current = await measure();
+    return current.angle > 0.05 && current.angle < Math.PI - 0.05;
+  }, { intervals: [10] }).toBe(true);
+  expect((await measure()).position).toEqual(before.position);
+  await expect.poll(async () => (await measure()).angle).toBe(0);
+  expect((await measure()).frontVisible).toBe(true);
+  expect((await measure()).position).toEqual(before.position);
+  await page.getByRole("button", { name: "Revelar adversários: sim", exact: true }).click();
+  await expect.poll(async () => (await measure()).angle).toBeCloseTo(Math.PI, 5);
+  expect((await measure()).frontVisible).toBe(false);
+  expect((await measure()).position).toEqual(before.position);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "Revelar adversários: não", exact: true }).click();
+  expect((await measure()).angle).toBe(0);
+  expect((await measure()).frontVisible).toBe(true);
+});
+
 test("configuração interna preserva cenários e paginação sem reduzir a largura da mesa", async ({ page }) => {
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene");
@@ -310,7 +351,7 @@ test("laboratório carrega as mesmas artes das duas edições usadas pela mesa r
   await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
   await openSettings(page);
   await page.getByRole("button", { name: "Love Letter moderno", exact: true }).click();
-  await expect.poll(() => loaded.has("/games/love-letter/card.png") && loaded.has("/games/love-letter/9.png")).toBe(true);
+  await expect.poll(() => ["card", "0", "9"].every(card => loaded.has(`/games/love-letter/${card}.png`))).toBe(true);
   await page.getByRole("button", { name: "Love Letter clássico", exact: true }).click();
   await expect(page.getByRole("button", { name: "Love Letter clássico", exact: true })).toHaveAttribute("aria-pressed", "true");
 });

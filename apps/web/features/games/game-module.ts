@@ -7,6 +7,7 @@ export type GameTableProps = {
   game:GameRecord; room:Exclude<GameRoom,{status:"lobby"}>;
   viewerId:string|null; busy:boolean; controls:ReactNode; exit:ReactNode;
   play:(action:GameAction)=>Promise<void>;
+  replayControls?:ReactNode;
   onAnimating?:(busy:boolean)=>void;
 };
 export type GamePresentation = {

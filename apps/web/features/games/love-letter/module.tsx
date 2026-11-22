@@ -9,7 +9,7 @@ import { GameTableLayout } from "../game-table-layout";
 import {LoveCard} from "./love-card";
 import {LoveTable} from "./love-table";
 
-function Table({game,room,controls,exit,viewerId,busy,play,onAnimating}:GameTableProps){
+function Table({game,room,controls,exit,viewerId,busy,play,onAnimating,replayControls}:GameTableProps){
  const state=useMemo(()=>loveViewSchema.parse(room.state),[room.state]);
  const history=[...state.log].reverse().map(message=>{
   const seat=state.players.findIndex(player=>message.startsWith(`${player.name} jogou `) || message===`${player.name} saiu da rodada.`);
@@ -24,7 +24,7 @@ function Table({game,room,controls,exit,viewerId,busy,play,onAnimating}:GameTabl
  return <GameTableLayout fitTable history={history}>
  <div className="min-w-0">
  <CancellationNotice match={room}/>
- <LoveTable header={{ identity: <><span className="text-sm font-medium">{game.name}</span>{gameSettingLabels(getGameDefinition(game.slug)!,room.options).map(label=><Badge key={label} variant="secondary">{label}</Badge>)}{room.development && <Badge>Desenvolvimento</Badge>}</>, controls: <GameControls developmentControls={controls}>{exit}</GameControls> }} state={room.status==="playing"?state:{...state,legalActions:[]}} busy={busy} onAnimating={onAnimating} play={action=>play(loveActionSchema.parse(action))} participants={room.participants} viewerSeat={room.participants.find(p=>p.userId===viewerId)?.seat}/>
+ <LoveTable replayControls={replayControls} header={{ identity: <><span className="text-sm font-medium">{game.name}</span>{gameSettingLabels(getGameDefinition(game.slug)!,room.options).map(label=><Badge key={label} variant="secondary">{label}</Badge>)}{room.development && <Badge>Desenvolvimento</Badge>}</>, controls: <GameControls developmentControls={controls}>{exit}</GameControls> }} state={room.status==="playing"?state:{...state,legalActions:[]}} busy={busy} onAnimating={onAnimating} play={action=>play(loveActionSchema.parse(action))} participants={room.participants} viewerSeat={room.participants.find(p=>p.userId===viewerId)?.seat}/>
  </div>
  </GameTableLayout>;
 }

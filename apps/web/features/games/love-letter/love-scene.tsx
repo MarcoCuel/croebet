@@ -34,6 +34,7 @@ export function LoveScene({ view, viewer, participants, selected, target, labels
       label: eligible.includes(seat) ? `Escolher jogador ${player.name}` : `Jogador ${player.name}`, disabled: moving || !eligible.includes(seat), selected: target === seat })),
     hiddenSeats: view.players.flatMap((player, seat) => player.hand === null ? [seat] : []),
     selectable: moving ? [] : displayed.filter(card => cardLabels[card.id]).map(card => card.id), labels: cardLabels, deckLabel,
+    raisedIds: choices.length ? [] : hand.map(card => card.id),
     selectedIds: choices.length ? [] : hand.filter(card => card.value === selected).map(card => card.id) };
   const choose = (id: string) => {
     const guess = choices.find(card => card.id === id);

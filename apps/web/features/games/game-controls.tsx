@@ -29,7 +29,7 @@ export function GameControls({ audio, children, developmentControls, historyDisa
   const silent = audio && (audio.muted || audio.volume === 0);
   return <div className="ml-auto flex flex-wrap items-center justify-end gap-1" aria-label="Controles da partida">
     {supported && <Button size="icon" variant="ghost" aria-label={fullscreen ? "Sair da tela cheia" : "Tela cheia"} title={fullscreen ? "Sair da tela cheia" : "Tela cheia"} aria-pressed={fullscreen} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize className="size-4" aria-hidden="true" /> : <Maximize className="size-4" aria-hidden="true" />}</Button>}
-    <Button size="icon" variant="ghost" aria-label={history.visible ? "Esconder histórico" : "Mostrar histórico"} title={history.visible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={history.visible} aria-controls={history.id} disabled={historyDisabled} onClick={history.toggle}>
+    <Button size="icon" variant="ghost" className="disabled:opacity-100" aria-label={history.visible ? "Esconder histórico" : "Mostrar histórico"} title={history.visible ? "Esconder histórico" : "Mostrar histórico"} aria-expanded={history.visible} aria-controls={history.id} disabled={historyDisabled} onClick={history.toggle}>
       {history.visible ? <PanelRightClose className="size-4" aria-hidden="true" /> : <PanelRightOpen className="size-4" aria-hidden="true" />}
     </Button>
     {audio && <div className="group/volume flex items-center rounded-full text-foreground transition-colors hover:bg-contrast/6 focus-within:bg-contrast/6 motion-reduce:transition-none" role="group" aria-label="Volume">

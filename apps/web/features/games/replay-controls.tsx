@@ -15,7 +15,7 @@ export function ReplayControls({ index, count, playing, delay, loading, error, p
   const atEnd = index >= count - 1;
   return <div className="@container/replay grid min-w-0 flex-1 gap-2" aria-label="Controles de reprodução">
     <div className="grid grid-cols-2 items-center gap-x-2 gap-y-2 @min-[32rem]/replay:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-      <Select aria-label="Velocidade da reprodução" value={delay} onChange={event => setDelay(Number(event.target.value))} className="col-start-1 row-start-1 min-h-8 w-fit justify-self-start py-1 text-xs"><option value={2000}>0,5×</option><option value={1000}>1×</option><option value={500}>2×</option></Select>
+      <div className="col-start-1 row-start-1 justify-self-start"><Select aria-label="Velocidade da reprodução" value={delay} onChange={event => setDelay(Number(event.target.value))} className="min-h-8 w-fit py-1 text-xs"><option value={2000}>0,5×</option><option value={1000}>1×</option><option value={500}>2×</option></Select></div>
       <div className="col-span-2 row-start-2 flex items-center justify-center gap-1 @min-[32rem]/replay:col-span-1 @min-[32rem]/replay:col-start-2 @min-[32rem]/replay:row-start-1">
         <Button variant="ghost" size="icon-sm" aria-label="Início" disabled={index === 0} onClick={() => seek(0)}><SkipBack className="size-4" aria-hidden="true" /></Button>
         <Button variant="ghost" size="icon-sm" aria-label="Jogada anterior" disabled={index === 0} onClick={() => seek(index - 1)}><ChevronLeft className="size-4" aria-hidden="true" /></Button>
@@ -25,6 +25,6 @@ export function ReplayControls({ index, count, playing, delay, loading, error, p
       </div>
       <span className="col-start-2 row-start-1 justify-self-end whitespace-nowrap text-xs text-muted tabular-nums @min-[32rem]/replay:col-start-3">Jogada {index + 1} de {count}</span>
     </div>
-    <Input type="range" aria-label="Ir para jogada" min={0} max={Math.max(0, count - 1)} value={index} onChange={event => seek(Number(event.target.value))} className="h-4 min-h-4 border-0 bg-transparent p-0 accent-brand" />
+    <Input type="range" aria-label="Ir para jogada" min={0} max={Math.max(0, count - 1)} value={index} onChange={event => seek(Number(event.target.value))} className="h-4 min-h-4 cursor-pointer appearance-none border-0 bg-transparent p-0 accent-brand focus-visible:ring-2 focus-visible:ring-brand/50 [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:border-0 [&::-webkit-slider-runnable-track]:bg-contrast/15 [&::-webkit-slider-thumb]:-mt-1 [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-brand [&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:border-0 [&::-moz-range-track]:bg-contrast/15 [&::-moz-range-progress]:h-1 [&::-moz-range-progress]:rounded-full [&::-moz-range-progress]:bg-brand [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-brand" />
   </div>;
 }

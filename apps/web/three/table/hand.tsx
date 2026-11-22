@@ -15,6 +15,6 @@ export function TableHand({ cards, seat, options, hidden, interactive, focus, se
     if (flipped.includes(card.id)) pose.rotation[1] += Math.PI;
     if (card.sideways) pose.rotation[2] += Math.PI / 2;
     const concealed = card.hidden ?? hidden;
-    return { ...card, pose, hidden: concealed, zone: "hand", label: concealed ? "Carta oculta" : card.label ?? `Carta ${card.value}, posição ${window.start + i + 1}`, curved: options.layout === "fan" ? (options.curve > 0 ? "fan" : false) : true, revealBack: !interactive && !concealed, interactive, selected: selected === card.id };
+    return { ...card, pose, hidden: concealed, zone: "hand", label: concealed ? "Carta oculta" : card.label ?? `Carta ${card.value}, posição ${window.start + i + 1}`, curved: options.layout === "fan" ? (options.curve > 0 ? "fan" : false) : true, interactive, selected: selected === card.id };
   });
 }

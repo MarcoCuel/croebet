@@ -372,11 +372,13 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     finally { locked.current = false; setBusy(false); }
   }, [busy, connected, frames.length, resolvingCardFinished, sceneAnimating]);
   const leave = async () => {
-    if (!serverMatch.current || leavingRef.current || locked.current || sceneAnimating || frames.length || busy) return false;
+    if (!serverMatch.current || leavingRef.current || busy) return false;
     leavingRef.current = true;
     setLeaving(true);
     try {
-      const match = serverMatch.current;
+      // Abandon against the newest confirmed state, even while its frames
+      // are waiting for the current card animation to finish.
+      const match = incoming.current && incoming.current.room.version > serverMatch.current.version ? incoming.current.room : serverMatch.current;
       pendingAbandon.current ??= { commandId: randomUUID(), expectedVersion: match.version };
       await abandonServerMatch(match.code, pendingAbandon.current.commandId, pendingAbandon.current.expectedVersion);
       pendingAbandon.current = null;
@@ -650,7 +652,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             <TableViewToggle view={tableView.view} disabled={!!flight || !!movingCards || sceneAnimating || busy} onChange={next => { stopSounds(); setPresentationBefore(null); setSelectedCards([]); setSwapPreview(null); tableView.setView(next); }} />
             {exitControl}
             {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(gameUrl(gameSlug,{development:initial.match?.development && permissions.canManageSite}))}><LogOut className="size-4" aria-hidden="true"/></Button>}
-            {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || sceneAnimating || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
+            {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
             </GameControls> };
 
   return (
@@ -793,7 +795,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
           <div className="mt-6 flex flex-wrap justify-end gap-2">
             <DialogClose asChild><Button variant="secondary">Continuar jogando</Button></DialogClose>
             {!matchInfo?.development && <Button variant="secondary" disabled={leaving || !!matchInfo?.cancellation} onClick={async()=>{const match=serverMatch.current;if(!match)return;setLeaving(true);try{await proposeCancellation(match);setExitOpen(false);}catch(e){toast.error(e instanceof Error?e.message:"Não foi possível propor o abandono coletivo.");}finally{setLeaving(false);}}}>Propor abandono coletivo</Button>}
-            <Button variant="destructive" loading={leaving} disabled={leaving} onClick={async () => {
+            <Button variant="destructive" loading={leaving} disabled={leaving || busy} onClick={async () => {
               if (exitOpen && await leave()) {
                 setExitOpen(false);
               }
