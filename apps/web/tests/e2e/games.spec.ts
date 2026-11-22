@@ -452,6 +452,7 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const table=page.getByLabel("Mesa do Love Letter");
  await expect(table.getByTestId("love-table-scene").locator("canvas")).toBeVisible();
+ await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-hand-layout", "spread");
  await expect(table.getByTestId("love-table-scene").locator("[data-game-actions]")).toBeVisible();
  const localSeat = table.getByRole("button", { name: "Jogador Ana", exact: true });
  await expect(localSeat.getByText("Ana", { exact: true })).toBeVisible();
@@ -502,6 +503,9 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await expect(round.locator('[data-slot="avatar"]')).toHaveCount(0);
  await expect(round.getByRole("img")).toHaveCount(0);
  await expect(history.getByRole("listitem").first()).toHaveText("BBot 1 jogou 4.");
+ const sceneHeader = page.getByTestId("love-table-scene").locator("[data-table-header]");
+ await expect(sceneHeader).toContainText("Love Letter");
+ await expect(sceneHeader.getByLabel("Controles da partida", {exact:true})).toBeVisible();
  await checkTableControls(page, table, testInfo.project.name === "desktop");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});

@@ -1096,7 +1096,8 @@ for (const type of ["steal", "swap"] as const) {
     state.players[0].cards = [own]; state.players[1].cards = [other, extra];
     state.players.forEach(player => { player.hasDrawn = true; });
     state.pending = { source: 0, card: actionCard, resolving: true }; state.turn = 0;
-    state.deck = deck; state.discard = []; state.queue = []; state.forced = null;
+    const spent = take("number", 10);
+    state.deck = deck; state.discard = [spent]; state.queue = []; state.forced = null;
     const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state: flip7Driver.project(state), hostId: matchUsers[0].id, capacity: 2, options, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
     fixture.states.set(code, { room, privateState: state, frames: [] });
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1104,7 +1105,17 @@ for (const type of ["steal", "swap"] as const) {
     await page.getByRole("button", { name: "3D", exact: true }).click();
     const scene = page.getByTestId("flip-table-scene");
     await expect(scene.locator("canvas")).toBeVisible();
+    const header = scene.locator("[data-table-header]");
+    await expect(header).toContainText("Flip 7");
+    await expect(header.getByLabel("Controles da partida", { exact: true })).toBeVisible();
+    if (testInfo.project.name === "desktop") {
+      const box = await scene.boundingBox();
+      expect(Math.abs(box!.y + box!.height - (page.viewportSize()!.height - 16))).toBeLessThanOrEqual(2);
+    }
     await expect(scene).toHaveAttribute("data-choice", "true");
+    await expect(scene).toHaveAttribute("data-hand-layout", "spread");
+    await expect(scene).toHaveAttribute("data-discard-count", "0");
+    await expect(scene).toHaveAttribute("data-staging-count", "1");
     await expect(scene.locator("[data-game-actions]")).toBeVisible();
     expect(fixture.commands).toHaveLength(0);
     expect(fixture.states.get(code)!.privateState!.players[1].cards.map(card => card.id)).toContain(other.id);
@@ -1121,6 +1132,9 @@ for (const type of ["steal", "swap"] as const) {
     await expect.poll(() => fixture.commands.length).toBe(1);
     expect(fixture.commands[0]).toEqual(expect.objectContaining({ action: { type: "cards", cards: type === "swap" ? [own.id, other.id] : [other.id] } }));
     await expect(scene).toHaveAttribute("data-choice", "false");
+    await expect(scene).toHaveAttribute("data-staging-count", "0");
+    await expect(scene).toHaveAttribute("data-discard-count", "0");
+    expect(fixture.states.get(code)!.privateState!.discard.some(card => card.id === spent.id)).toBe(true);
     await expect.poll(() => fixture.states.get(code)!.privateState!.players[0].cards.some(card => card.id === other.id)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`table-3d-${type}.png`), fullPage: true });
     const address = page.url();

@@ -66,5 +66,5 @@ export function loveTableState(view: LoveView, viewer: number | undefined, previ
     motions[card.id] = { serial, kind: "flip", order: 0 };
   }
   const moved = Object.keys(motions);
-  return { hands, deck, discard: [], exposed, staging, stagingArea: "discard", round: view.round, pending: view.pending, logLength: view.log?.length ?? 0, discardSlots, flipped: [], motions, cue: { serial, kind: "discard", ids: moved } };
+  return { hands, handLayout: "spread", deck, discard: [], exposed, staging, stagingArea: "discard", round: view.round, pending: view.pending, logLength: view.log?.length ?? 0, discardSlots, flipped: [], motions, cue: { serial, kind: "discard", ids: moved } };
 }

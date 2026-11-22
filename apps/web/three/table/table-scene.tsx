@@ -15,7 +15,7 @@ import { TableFloor } from "./floor";
 import { TableSeat } from "./seat";
 import { useCardResources, useTablePalette, type TablePalette } from "./resources";
 import { pileRotation, radians, type CardPose } from "./layout";
-import type { AdaptiveTableLayout } from "./adaptive-layout";
+import { adaptiveHandWindow, type AdaptiveTableLayout } from "./adaptive-layout";
 import { usePileTransform } from "./use-pile-transform";
 import { PileControls } from "./pile-controls";
 import { constrainDeckTransform, constrainDiscardTransform, type PileTransform } from "./pile-transform";
@@ -24,7 +24,8 @@ import type { CardTarget } from "./motion";
 import { distributionDelay } from "./motion";
 import type { TableArtwork } from "./artwork";
 import { presentedHands } from "./model";
-import { exposedTargets } from "./areas";
+import { exposedTargets, stagingTargets } from "./areas";
+import { Button } from "@/components/ui/button";
 import type { TableSeatSummary } from "./seat-badge";
 export type TablePresentation = {
   artwork: TableArtwork; seats: { name: string; avatar?: string; summary?: TableSeatSummary; selected?: boolean; label: string; disabled: boolean }[];
@@ -44,6 +45,7 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
   const resources = useCardResources(palette, presentation?.artwork ?? artwork, settings.numberCardColor);
   const { size, invalidate } = useThree();
   const [visible, setVisible] = useState(true);
+  const [opponentFocus, setOpponentFocus] = useState<Record<number, number>>({});
   const motionHistory = useRef(new Map<string, string>());
   // Visible cards consume cues during layout; record off-page cards after that commit
   // so navigating later cannot play an old transfer that happened outside the window.
@@ -72,10 +74,9 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
   const displayHands = presentedHands(state, settings.viewer);
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: displayHands[seat.seat], seat: place === 0 ? localSeat : seat,
     options: hands[place],
-    hidden: presentation ? presentation.hiddenSeats.includes(seat.seat) : place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
-  for (const [place, seat] of seats.entries()) targets.push(...exposedTargets(state.exposed?.[seat.seat] ?? [], place === 0 ? localSeat : seat, place === 0, hands[place].scale, settings.angle));
-  targets.push(...(state.staging ?? []).map((card, i) => ({ ...card, zone: "staging" as const, hidden: card.hidden ?? false,
-    pose: { position: (state.stagingArea === "discard" ? [discard.x + (i - ((state.staging?.length ?? 1) - 1) / 2) * discard.scale * 0.9, 0.8 + i * 0.01, discard.z] : [1.2 + i * 0.5, 0.7 + i * 0.01, -0.2]) as [number, number, number], rotation: pileRotation(true, settings.angle), scale: state.stagingArea === "discard" ? Math.min(1.25, discard.scale) : 1 } })));
+    hidden: presentation ? presentation.hiddenSeats.includes(seat.seat) : place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : opponentFocus[seat.seat] ?? 0, selected, flipped: state.flipped }));
+  for (const [place, seat] of seats.entries()) targets.push(...exposedTargets(state.exposed?.[seat.seat] ?? [], place === 0 ? localSeat : seat, place === 0, hands[place].scale, settings.angle, state.handLayout === "spread"));
+  targets.push(...stagingTargets(state.staging ?? [], state.stagingArea === "discard" ? discard : { x: 1.2, z: -0.2, scale: 1 }, settings.angle, (fit.right - fit.left) * 0.4));
   targets.push(...TablePile({ cards: state.deck, position: deckPosition, rotation: deckRotation, scale: settings.deckScale, height: settings.pileHeight, faceUp: false,
     moving: state.cue.ids.filter(id => state.motions[id]?.kind === "collect") }).map(target => ({ ...target, zone: "deck" as const, interactive: true })));
   targets.push(...TablePile({ cards: state.discard, position: [discard.x, 0.6, discard.z], height: settings.pileHeight, faceUp: true, rotation: discardRotation, scale: discard.scale, moving: state.cue.ids }).map(target => ({ ...target, zone: "discard" as const, interactive: true })));
@@ -98,7 +99,19 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
     {moveDeck && <PileControls kind="deck" transform={deckTransform} viewport={viewport} begin={deckDrag.begin} onKey={deckDrag.key} />}
     {moveDiscard && state.discard.length > 0 && <PileControls kind="discard" transform={discard} viewport={viewport} begin={discardDrag.begin} onKey={discardDrag.key} />}
     {seats.map((seat, place) => seat.seat !== settings.viewer && <TableSeat key={seat.seat} seat={seat} name={presentation?.seats[seat.seat].name ?? `Jogador ${seat.seat + 1}`} avatar={presentation?.seats[seat.seat].avatar} summary={presentation?.seats[seat.seat].summary} label={presentation?.seats[seat.seat].label} disabled={presentation?.seats[seat.seat].disabled} selected={presentation?.seats[seat.seat].selected}
-      scale={hands[place].scale} onActivate={() => onTurn(seat.seat)} active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6} />)}
+      scale={hands[place].scale} onActivate={() => onTurn(seat.seat)} active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6}>
+      {state.handLayout === "spread" && (() => {
+        const count = displayHands[seat.seat].length;
+        const window = adaptiveHandWindow(count, hands[place], opponentFocus[seat.seat] ?? 0, false);
+        if (count <= window.length) return null;
+        const name = presentation?.seats[seat.seat].name ?? `Jogador ${seat.seat + 1}`;
+        return <div className="mt-1 flex items-center justify-center gap-1 rounded-lg bg-background/95 text-xs tabular-nums" aria-label={`Cartas de ${name}`}>
+          <Button size="icon-sm" variant="ghost" aria-label={`Cartas anteriores de ${name}`} disabled={window.start === 0} onClick={() => setOpponentFocus(current => ({ ...current, [seat.seat]: Math.max(0, window.start - window.length / 2) }))}>←</Button>
+          <span>{window.start + 1}–{window.start + window.length}/{count}</span>
+          <Button size="icon-sm" variant="ghost" aria-label={`Próximas cartas de ${name}`} disabled={window.start + window.length >= count} onClick={() => setOpponentFocus(current => ({ ...current, [seat.seat]: window.start + window.length * 1.5 }))}>→</Button>
+        </div>;
+      })()}
+    </TableSeat>)}
     {targets.map(target => {
       const cue = state.motions[target.id];
       const choosing = state.choice?.cards.some(card => card.id === target.id);
@@ -109,7 +122,7 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
         origin: !choosing && cue && (cue.kind === "draw" || cue.kind === "deal") ? deckOrigin : undefined,
         motion: { key: choosing ? `choice:${state.choice!.cards.map(card => card.id).join(":")}` : cue ? `${cue.serial}:${cue.kind}` : "layout", duration: settings.duration,
           delay: cue?.kind === "deal" ? distributionDelay(cue.order, settings.duration) : 0,
-          via: !choosing && cue?.via === "reveal" ? { position: [1.2, 0.8, -0.2], rotation: pileRotation(true, settings.angle), scale: 1.25 } : undefined,
+          via: !choosing && cue?.via === "reveal" ? { position: [discard.x, 0.8, discard.z], rotation: pileRotation(true, settings.angle), scale: Math.min(1.25, discard.scale) } : undefined,
           hold: choosing ? 0 : cue?.hold,
           arc: transfer ? settings.arc : 0, shuffle: cue?.kind === "shuffle" },
       }} resources={resources} motionHistory={motionHistory} reducedMotion={reducedMotion || !visible || (target.zone === "deck" && deckDrag.dragging) || (target.zone === "discard" && discardDrag.dragging)} onSelect={target.zone === "deck" ? deckDrag.click : target.zone === "discard" ? discardDrag.click : onSelect} onPilePointerDown={target.zone === "deck" && moveDeck ? deckDrag.begin : target.zone === "discard" && moveDiscard ? discardDrag.begin : undefined}

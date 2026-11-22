@@ -7,8 +7,8 @@ import { constrainDeckPosition } from "./deck-placement.ts";
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /** Presentation rules only: no game engine state, renderer or stored manual geometry. */
-export function resolveTableLayout({ players, viewer, counts, exposedCounts = [], width, height, angle, deck, deckRotation = -18, deckScale = 1, localCardScale = 1, opponentCardScale = 1, localHandCurve = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
-  players: number; viewer: number; counts: number[]; exposedCounts?: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; localCardScale?: number; opponentCardScale?: number; localHandCurve?: number; discard?: PileTransform;
+export function resolveTableLayout({ players, viewer, counts, exposedCounts = [], handLayout, choosing = false, cardWidths = [], width, height, angle, deck, deckRotation = -18, deckScale = 1, localCardScale = 1, opponentCardScale = 1, localHandCurve = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
+  players: number; viewer: number; counts: number[]; exposedCounts?: number[]; handLayout?: "spread"; choosing?: boolean; cardWidths?: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; localCardScale?: number; opponentCardScale?: number; localHandCurve?: number; discard?: PileTransform;
 }) {
   const aspect = width / Math.max(1, height);
   const roomy = clamp((aspect - 0.5) / 1.1, 0, 1);
@@ -88,6 +88,21 @@ export function resolveTableLayout({ players, viewer, counts, exposedCounts = []
   const spread = 0.68 + 0.26 * clamp((visible - 7) / 13, 0, 1);
   const step = Math.min(0.72 * local.scale * spread, local.width / Math.max(1, visible - 1));
   local.overlap = clamp(1 - step / (0.72 * local.scale), 0, 0.94);
+  if (handLayout === "spread") hands.forEach((hand, place) => {
+    // Temporary choices retain the original fan and its compact interaction.
+    if (place === 0 && choosing) return;
+    const seat = seats[place], count = counts[seat.seat] ?? 0;
+    const cardWidth = cardWidths[seat.seat] ?? 0.72;
+    const gap = 0.04;
+    const spacing = cardWidth + gap;
+    const available = place === 0 ? screenWidth : hand.width + 0.72 * hand.scale;
+    const minimum = Math.min(hand.scale, (place === 0 ? 0.8 * localCardScale : 0.4 * opponentCardScale));
+    hand.scale = Math.min(hand.scale, available / cardWidth,
+      Math.max(minimum, available / Math.max(cardWidth, count * spacing - gap)));
+    hand.visibleLimit = Math.max(1, Math.floor((available / hand.scale + gap) / spacing));
+    hand.width = Math.max(0, (hand.visibleLimit - 1) * spacing * hand.scale);
+    hand.spacing = spacing; hand.overlap = 0;
+  });
   const localSeat = foregroundSeat(seats[0], fit, hands[0], angle);
   const deckPoint = constrainDeckPosition({ x: deck[0], z: deck[2] }, { fit, angle, width, height, rotation: deckRotation, scale: deckScale });
   const deckPosition: Vec3 = [deckPoint.x, 0.035, deckPoint.z];
@@ -95,7 +110,7 @@ export function resolveTableLayout({ players, viewer, counts, exposedCounts = []
   const obstacles = handObstacles(seats.map((seat, place) => place === 0 ? localSeat : seat), hands, counts, viewport);
   seats.forEach((seat, place) => {
     const cards = Array.from({ length: exposedCounts[seat.seat] ?? 0 }, (_, index) => ({ id: String(index), value: 0 }));
-    obstacles.push(...exposedTargets(cards, place === 0 ? localSeat : seat, place === 0, hands[place].scale, angle).map(target => poseBounds(target.pose, viewport)));
+    obstacles.push(...exposedTargets(cards, place === 0 ? localSeat : seat, place === 0, hands[place].scale, angle, handLayout === "spread").map(target => poseBounds(target.pose, viewport)));
   });
   obstacles.push(pileBounds({ ...deckPoint, rotation: deckRotation, scale: deckScale }, "deck", viewport));
   const deckLabel = projectPoint(deckPoint.x, 0.06, deckPoint.z + 0.95 * deckScale, viewport);

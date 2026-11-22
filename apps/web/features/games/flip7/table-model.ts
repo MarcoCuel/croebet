@@ -7,7 +7,6 @@ export function flipTableState(game: Game, previous?: TableState, held?: { card:
   const serial = (previous?.cue.serial ?? 0) + 1;
   const visual = (card: Card): LabCard => ({ id: `card:${card.id}`, value: card.value, face: cardFace(card), hidden: false });
   const staging = [game.pending, ...game.queue].flatMap(action => action ? [visual(action.card)] : []);
-  const stagingIds = new Set(staging.map(card => card.id));
   const hands = game.players.map((player, seat) => {
     const all = [...player.cards];
     if (held?.target === seat && !all.some(card => card.id === held.card.id)) all.push(held.card);
@@ -23,8 +22,6 @@ export function flipTableState(game: Game, previous?: TableState, held?: { card:
       hidden: player.status === "busted" && held?.card.id !== card.id && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false),
       sideways: game.mode === "vengeance" && player.status === "stayed" && (card.id === firstNumber || card.id === firstModifier) }));
   });
-  const heldId = held ? `card:${held.card.id}` : null;
-  const discard = game.discard.filter(card => !stagingIds.has(`card:${card.id}`) && `card:${card.id}` !== heldId).map(visual);
   const motions: TableState["motions"] = {};
   if (previous) {
     const previousZone = new Map<string, string>();
@@ -37,8 +34,10 @@ export function flipTableState(game: Game, previous?: TableState, held?: { card:
         ...(!from && zone !== "staging" ? { via: "reveal" as const, hold: 0.45 } : {}) };
     };
     hands.forEach((hand, seat) => hand.forEach(card => move(card, `hand:${seat}`)));
-    discard.forEach(card => move(card, "discard")); staging.forEach(card => move(card, "staging"));
+    staging.forEach(card => move(card, "staging"));
   }
-  return { hands, discard, staging, deck: Array.from({ length: game.deckCount }, (_, index) => ({ id: `deck:${game.round}:${index}`, value: -1 })),
+  // The engine retains spent cards for conservation/reshuffling; the table only
+  // presents unresolved actions here, never the accumulated discard pile.
+  return { hands, handLayout: "spread", discard: [], staging, stagingArea: "discard", deck: Array.from({ length: game.deckCount }, (_, index) => ({ id: `deck:${game.round}:${index}`, value: -1 })),
     motions, flipped: [], cue: { serial, kind: "draw", ids: Object.keys(motions) } };
 }

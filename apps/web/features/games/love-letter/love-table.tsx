@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import type { LoveAction, LoveView, MatchParticipant } from "@croebet/shared";
 import { GameActionBar } from "../game-action-bar";
@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { classic, modern, loveRoles } from "./love-card";
 import { LoveScene } from "./love-scene";
 
-type Props = { state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[]; onAnimating?: (busy: boolean) => void };
+type Props = { header?: ReactNode; state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[]; onAnimating?: (busy: boolean) => void };
 type Play = Extract<LoveAction, { type: "play" }>;
 
 export function LoveTable(props: Props) {
   return <LoveDecision {...props} />;
 }
 
-function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating }: Props) {
+function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating, header }: Props) {
   const [moving, setMoving] = useState(false);
   const [card, setCard] = useState<number | null>(null);
   const [target, setTarget] = useState<number | null>(null);
@@ -84,7 +84,7 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
       {!busy && !moving && state.legalActions.some(a => a.type === "next") && <Button onClick={draw}>Próxima rodada</Button>}
     </GameActionBar>;
   return <section aria-label="Mesa do Love Letter" className="relative min-w-0">
-    <LoveScene actions={actionBar} view={state} viewer={viewerSeat} participants={participants} selected={card} target={target} labels={labels} onAnimating={value => { setMoving(value); onAnimating?.(value); }}
+    <LoveScene header={header} actions={actionBar} view={state} viewer={viewerSeat} participants={participants} selected={card} target={target} labels={labels} onAnimating={value => { setMoving(value); onAnimating?.(value); }}
       onCard={index => state.pending ? chooseKeep(index) : chooseCard(hand[index])} onSeat={chooseTarget} eligible={busy ? [] : targets}
       guesses={!busy && target !== null ? guesses.map(value => ({ value, label: `Adivinhar ${value} · ${names[value]}` })) : []} onGuess={submitGuess}
       canDraw={!busy && state.legalActions.some(a => a.type === "next")}

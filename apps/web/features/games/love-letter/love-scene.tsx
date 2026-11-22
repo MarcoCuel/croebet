@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { LoveCard } from "./love-card";
 import { loveArtwork } from "./artwork";
 
-export function LoveScene({ view, viewer, participants, selected, target, labels, onCard, onDraw, onSeat, canDraw, deckLabel, eligible, guesses, onGuess, children, actions, onAnimating }: {
+export function LoveScene({ view, viewer, participants, selected, target, labels, onCard, onDraw, onSeat, canDraw, deckLabel, eligible, guesses, onGuess, children, actions, header, onAnimating }: {
   view: LoveView; viewer?: number; participants: MatchParticipant[]; selected: number | null; target: number | null;
   labels: Record<number, string>; onCard: (index: number) => void; onDraw: () => void; onSeat: (seat: number) => void;
-  canDraw: boolean; deckLabel: string; eligible: number[]; guesses: { value: number; label: string }[]; onGuess: (value: number) => void; children?: ReactNode; actions?: ReactNode;
+  canDraw: boolean; deckLabel: string; eligible: number[]; guesses: { value: number; label: string }[]; onGuess: (value: number) => void; children?: ReactNode; actions?: ReactNode; header?: ReactNode;
   onAnimating?: (busy: boolean) => void;
 }) {
   const [moving, setMoving] = useState(false);
@@ -47,5 +47,5 @@ export function LoveScene({ view, viewer, participants, selected, target, labels
     {view.players.map((player, seat) => <div key={seat} aria-label={`Descartes de ${player.name}`} className="flex flex-wrap items-center gap-1 text-xs"><span>{player.name}</span>{player.discard.map((value, index) => <LoveCard key={index} mode={view.mode} value={value} small compact />)}</div>)}
   </div>;
   return <TableViewport testId="love-table-scene" localPlayer={viewer !== undefined} state={choices.length ? { ...state, choice: { cards: choices } } : state} presentation={presentation} viewer={viewer ?? 0} turn={view.turn}
-    canDraw={canDraw && !moving} onDraw={onDraw} onCard={choose} onSeat={onSeat} status="" actions={actions} onAnimating={reportMotion} fallback={fallback}>{children}</TableViewport>;
+    canDraw={canDraw && !moving} onDraw={onDraw} onCard={choose} onSeat={onSeat} status="" header={header} actions={actions} onAnimating={reportMotion} fallback={fallback}>{children}</TableViewport>;
 }

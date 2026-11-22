@@ -23,9 +23,8 @@ function Table({game,room,controls,exit,viewerId,busy,play,onAnimating}:GameTabl
  });
  return <GameTableLayout history={history}>
  <div className="min-w-0">
- <div className="flex flex-wrap items-center gap-3">{gameSettingLabels(getGameDefinition(game.slug)!,room.options).map(label=><Badge key={label} variant="secondary">{label}</Badge>)}{room.development && <Badge>Desenvolvimento</Badge>}<GameControls developmentControls={controls}>{exit}</GameControls></div>
  <CancellationNotice match={room}/>
- <LoveTable state={room.status==="playing"?state:{...state,legalActions:[]}} busy={busy} onAnimating={onAnimating} play={action=>play(loveActionSchema.parse(action))} participants={room.participants} viewerSeat={room.participants.find(p=>p.userId===viewerId)?.seat}/>
+ <LoveTable header={<div className="flex flex-wrap items-center gap-3"><span className="text-sm font-medium">{game.name}</span>{gameSettingLabels(getGameDefinition(game.slug)!,room.options).map(label=><Badge key={label} variant="secondary">{label}</Badge>)}{room.development && <Badge>Desenvolvimento</Badge>}<GameControls developmentControls={controls}>{exit}</GameControls></div>} state={room.status==="playing"?state:{...state,legalActions:[]}} busy={busy} onAnimating={onAnimating} play={action=>play(loveActionSchema.parse(action))} participants={room.participants} viewerSeat={room.participants.find(p=>p.userId===viewerId)?.seat}/>
  </div>
  </GameTableLayout>;
 }

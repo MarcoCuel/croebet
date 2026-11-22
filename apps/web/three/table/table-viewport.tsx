@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { resolveTableLayout, adaptiveHandWindow } from "./adaptive-layout";
-import { presentedHands, type TableState } from "./model";
+import { presentedHands, type TableState, type LaboratorySettings, type LabCard } from "./model";
 import { useTableVisualSettings } from "./use-visual-settings";
 import type { TablePresentation } from "./table-scene";
 import { TableSceneBoundary } from "./scene-boundary";
@@ -16,11 +16,22 @@ function SettledFallback({ children, settle }: { children: ReactNode; settle: ()
   return children;
 }
 
+function useTableLayout(hands: LabCard[][], state: TableState, viewer: number, viewport: { width: number; height: number }, visual: LaboratorySettings) {
+  const countKey = hands.map(hand => hand.length).join(":");
+  const exposedKey = state.exposed?.map(cards => cards.length).join(":") ?? "";
+  const widthKey = hands.map(hand => hand.some(card => card.sideways) ? 1.05 : 0.72).join(":");
+  const handLayout = state.handLayout, choosing = !!state.choice, players = state.hands.length;
+  return useMemo(() => resolveTableLayout({ players, viewer, counts: countKey.split(":").map(Number), exposedCounts: exposedKey.split(":").map(Number), handLayout, choosing, cardWidths: widthKey.split(":").map(Number), ...viewport,
+    angle: visual.angle, localCardScale: visual.localCardScale, opponentCardScale: visual.opponentCardScale, localHandCurve: visual.localHandCurve,
+    deck: [visual.deckX, 0.035, visual.deckZ], deckRotation: visual.deckRotation, deckScale: visual.deckScale,
+    discard: { x: visual.discardX, z: visual.discardZ, rotation: visual.discardRotation, scale: visual.discardScale } }), [players, handLayout, choosing, viewer, countKey, exposedKey, widthKey, viewport, visual]);
+}
+
 /** Shared by real games: the simulator never handles commands for this viewport. */
-export function TableViewport({ state, presentation, viewer, turn, canDraw, onDraw, onCard, onSeat, status, children, actions, fallback, testId, onAnimating, paused, timeScale, localPlayer = true }: {
+export function TableViewport({ state, presentation, viewer, turn, canDraw, onDraw, onCard, onSeat, status, children, actions, header, fallback, testId, onAnimating, paused, timeScale, localPlayer = true }: {
   state: TableState; presentation: TablePresentation; viewer: number; turn: number; canDraw: boolean;
   onDraw: () => void; onCard: (id: string) => void; onSeat: (seat: number) => void; status: string;
-  children?: ReactNode; actions?: ReactNode; fallback?: ReactNode; testId?: string; onAnimating?: (busy: boolean) => void;
+  children?: ReactNode; actions?: ReactNode; header?: ReactNode; fallback?: ReactNode; testId?: string; onAnimating?: (busy: boolean) => void;
   paused?: boolean; timeScale?: number;
   localPlayer?: boolean;
 }) {
@@ -59,20 +70,16 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
     return () => { observer.disconnect(); globalThis.removeEventListener("resize", measure); query.removeEventListener("change", update); };
   }, []);
   const hands = presentedHands(state, viewer);
-  const countKey = hands.map(hand => hand.length).join(":");
-  const exposedKey = state.exposed?.map(cards => cards.length).join(":") ?? "";
-  const layout = useMemo(() => resolveTableLayout({ players: state.hands.length, viewer, counts: countKey.split(":").map(Number), exposedCounts: exposedKey.split(":").map(Number), ...viewport,
-    angle: visual.angle, localCardScale: visual.localCardScale, opponentCardScale: visual.opponentCardScale, localHandCurve: visual.localHandCurve,
-    deck: [visual.deckX, 0.035, visual.deckZ], deckRotation: visual.deckRotation, deckScale: visual.deckScale,
-    discard: { x: visual.discardX, z: visual.discardZ, rotation: visual.discardRotation, scale: visual.discardScale } }), [state.hands.length, viewer, countKey, exposedKey, viewport, visual]);
+  const layout = useTableLayout(hands, state, viewer, viewport, visual);
   const settings = { ...visual, players: state.hands.length, viewer, turn, reveal: false };
   const count = hands[viewer].length;
   const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const local = presentation.seats[viewer];
-  return <div ref={root} data-testid={testId} data-choice={state.choice ? "true" : "false"} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
+  return <div ref={root} data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
     <TableSceneBoundary fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>}><Scene fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>} state={state} settings={settings} layout={layout} presentation={presentation} selected={null} focus={focus}
       reducedMotion={reduced} paused={paused} timeScale={timeScale} canDraw={canDraw} onDeckChange={onDeckChange} onDiscardChange={onDiscardChange} onDraw={onDraw} onSelect={onCard} onTurn={onSeat} onMenu={() => {}} onMotion={onMotion} /></TableSceneBoundary>
     <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex flex-col items-center gap-2 text-center">
+      {header && <div className="pointer-events-auto w-full text-left" data-table-header>{header}</div>}
       {status && <p role="status" className="rounded-lg bg-background/90 px-3 py-2 text-sm font-medium backdrop-blur-sm">{status}</p>}
       <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2">{children}</div>
     </div>

@@ -21,10 +21,10 @@ const artwork: TableArtwork = { back: { text: "7", color: "#ad158f" }, faces: Ob
     return [cardFace(card), { layout: numeric ? "numeric" : "symbol", text: symbols[type] ?? (type === "bonus" ? `+${value}` : type === "minus" ? `−${value}` : String(value)), caption: type === "number" ? numberNames[value] : cardLabel(card), color: `var(--color-flip-${color})` }];
   }))) };
 
-export default function FlipScene({ game, viewer, participants, eligible, targetSeats, interactive, selected, onCard, onSeat, canDraw, onDraw, status, onAnimating, animate, held, children, actions, paused, timeScale, localPlayer, summaryGame }: {
+export default function FlipScene({ game, viewer, participants, eligible, targetSeats, interactive, selected, onCard, onSeat, canDraw, onDraw, status, onAnimating, animate, held, children, actions, header, paused, timeScale, localPlayer, summaryGame }: {
   game: Game; viewer: number; participants: MatchParticipant[]; eligible: number[]; targetSeats: number[]; interactive: boolean; selected: number[]; onCard: (id: number) => void;
   onSeat: (seat: number) => void; canDraw: boolean; onDraw: () => void; status: string; onAnimating: (busy: boolean) => void;
-  animate: boolean; held: { card: Card; target: number } | null; children?: React.ReactNode; actions?: React.ReactNode;
+  animate: boolean; held: { card: Card; target: number } | null; children?: React.ReactNode; actions?: React.ReactNode; header?: React.ReactNode;
   paused?: boolean; timeScale?: number;
   localPlayer: boolean; summaryGame: Game;
 }) {
@@ -53,5 +53,5 @@ export default function FlipScene({ game, viewer, participants, eligible, target
   </div>;
   return <TableViewport testId="flip-table-scene" localPlayer={localPlayer} state={choosing ? { ...state, choice: { cards: choiceCards.map(card => ({ ...card, label: labels[card.id] })) } } : state}
     presentation={presentation} viewer={viewer} turn={game.bonusChoice ?? game.forced?.target ?? game.pending?.source ?? game.turn}
-    paused={paused} timeScale={timeScale} canDraw={canDraw} onDraw={onDraw} onCard={id => onCard(Number(id.slice(5)))} onSeat={onSeat} status={status} actions={actions} onAnimating={reportAnimating} fallback={fallback}>{children}</TableViewport>;
+    paused={paused} timeScale={timeScale} canDraw={canDraw} onDraw={onDraw} onCard={id => onCard(Number(id.slice(5)))} onSeat={onSeat} status={status} header={header} actions={actions} onAnimating={reportAnimating} fallback={fallback}>{children}</TableViewport>;
 }

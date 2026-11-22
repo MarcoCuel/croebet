@@ -46,7 +46,7 @@ export type LabCard = { id: string; value: number; face?: string; hidden?: boole
 export type MotionKind = "draw" | "discard" | "deal" | "flip" | "swap" | "collect" | "shuffle";
 export type MotionCue = { serial: number; kind: MotionKind; ids: string[] };
 export type TableMove = { serial: number; kind: MotionKind; order: number; via?: "reveal"; hold?: number };
-export type LaboratoryState = { hands: LabCard[][]; deck: LabCard[]; discard: LabCard[]; exposed?: LabCard[][]; staging?: LabCard[]; stagingArea?: "discard";
+export type LaboratoryState = { hands: LabCard[][]; handLayout?: "spread"; deck: LabCard[]; discard: LabCard[]; exposed?: LabCard[][]; staging?: LabCard[]; stagingArea?: "discard";
   choice?: { cards: LabCard[] }; flipped: string[]; cue: MotionCue; motions: Record<string, TableMove> };
 export type TableState = LaboratoryState;
 
