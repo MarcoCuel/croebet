@@ -24,8 +24,9 @@ import { distributionDelay } from "./motion";
 import type { TableArtwork } from "./artwork";
 import { presentedHands } from "./model";
 import { exposedTargets } from "./areas";
+import type { TableSeatSummary } from "./seat-badge";
 export type TablePresentation = {
-  artwork: TableArtwork; seats: { name: string; avatar?: string; detail?: string; selected?: boolean; label: string; disabled: boolean }[];
+  artwork: TableArtwork; seats: { name: string; avatar?: string; summary?: TableSeatSummary; selected?: boolean; label: string; disabled: boolean }[];
   hiddenSeats: number[]; selectable: string[]; labels: Record<string, string>; deckLabel: string;
   selectedIds?: string[];
 };
@@ -94,7 +95,7 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
     </Html>
     {moveDeck && <PileControls kind="deck" transform={deckTransform} viewport={viewport} begin={deckDrag.begin} onKey={deckDrag.key} />}
     {moveDiscard && state.discard.length > 0 && <PileControls kind="discard" transform={discard} viewport={viewport} begin={discardDrag.begin} onKey={discardDrag.key} />}
-    {seats.map((seat, place) => seat.seat !== settings.viewer && <TableSeat key={seat.seat} seat={seat} name={presentation?.seats[seat.seat].name ?? `Jogador ${seat.seat + 1}`} avatar={presentation?.seats[seat.seat].avatar} detail={presentation?.seats[seat.seat].detail} label={presentation?.seats[seat.seat].label} disabled={presentation?.seats[seat.seat].disabled} selected={presentation?.seats[seat.seat].selected} count={state.hands[seat.seat].length}
+    {seats.map((seat, place) => seat.seat !== settings.viewer && <TableSeat key={seat.seat} seat={seat} name={presentation?.seats[seat.seat].name ?? `Jogador ${seat.seat + 1}`} avatar={presentation?.seats[seat.seat].avatar} summary={presentation?.seats[seat.seat].summary} label={presentation?.seats[seat.seat].label} disabled={presentation?.seats[seat.seat].disabled} selected={presentation?.seats[seat.seat].selected}
       scale={hands[place].scale} onActivate={() => onTurn(seat.seat)} active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6} />)}
     {targets.map(target => {
       const cue = state.motions[target.id];

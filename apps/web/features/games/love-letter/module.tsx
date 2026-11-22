@@ -11,7 +11,17 @@ import {LoveTable} from "./love-table";
 
 function Table({game,room,controls,exit,viewerId,busy,play,onAnimating}:GameTableProps){
  const state=useMemo(()=>loveViewSchema.parse(room.state),[room.state]);
- return <GameTableLayout history={<ol className="space-y-3">{state.log.length ? [...state.log].reverse().map((line, index) => <li key={index} className="flex items-start gap-2 border-b border-contrast/6 pb-3 last:border-0">{/ jogou (\d+)/.test(line) && <LoveCard value={Number(line.match(/ jogou (\d+)/)![1])} mode={state.mode} small compact />}<span>{line}</span></li>) : <li>Aguardando a primeira jogada.</li>}</ol>}>
+ const history=[...state.log].reverse().map(message=>{
+  const seat=state.players.findIndex(player=>message.startsWith(`${player.name} jogou `) || message===`${player.name} saiu da rodada.`);
+  const player=state.players[seat];
+  const played=player ? message.slice(player.name.length).match(/^ jogou (\d+)(?: em | \(|\.)/) : null;
+  return {
+   message,
+   player:player ? {name:player.name,avatarUrl:room.participants.find(person=>person.seat===seat)?.avatarUrl} : undefined,
+   card:played ? <LoveCard value={Number(played[1])} mode={state.mode} small compact /> : undefined,
+  };
+ });
+ return <GameTableLayout history={history}>
  <div className="min-w-0">
  <div className="flex flex-wrap items-center gap-3">{gameSettingLabels(getGameDefinition(game.slug)!,room.options).map(label=><Badge key={label} variant="secondary">{label}</Badge>)}{room.development && <Badge>Desenvolvimento</Badge>}<GameControls developmentControls={controls}>{exit}</GameControls></div>
  <CancellationNotice match={room}/>

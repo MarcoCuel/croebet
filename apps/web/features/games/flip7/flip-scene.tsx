@@ -39,7 +39,8 @@ export default function FlipScene({ game, viewer, participants, eligible, target
   const seatTargets = interactive && game.bonusChoice != null ? game.players.map((_, seat) => seat) : game.pending && !game.pending.resolving ? targetSeats : [];
   const presentation: TablePresentation = { artwork, deckLabel: "Comprar carta do baralho", hiddenSeats: [], labels: choosing ? labels : {}, selectable: choosing && interactive ? Object.keys(labels) : [], selectedIds: selected.map(id => `card:${id}`),
     seats: game.players.map((player, seat) => ({ name: player.name, avatar: participants.find(person => person.seat === seat)?.avatarUrl ?? undefined,
-      detail: `${summaryGame.players[seat].total} pts · ${summaryGame.phase === "playing" ? score(summaryGame.players[seat], summaryGame) : 0} na rodada · ${{ playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" }[summaryGame.players[seat].status]}`,
+      summary: { score: summaryGame.players[seat].total, liveScore: summaryGame.players[seat].total + (summaryGame.phase === "playing" ? score(summaryGame.players[seat], summaryGame) : 0),
+        status: { playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" }[summaryGame.players[seat].status] },
       disabled: !seatTargets.includes(seat), label: game.bonusChoice != null ? game.bonusChoice === seat ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}` : `Escolher ${player.name}` })) };
   const fallback = <div className="absolute inset-x-3 top-32 bottom-20 flex flex-wrap content-center justify-center gap-2 overflow-y-auto bg-background/95 p-3">
     <p className="w-full text-center text-sm text-muted">Visualização 3D indisponível. Troque para a interface Atual.</p>

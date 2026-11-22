@@ -77,7 +77,7 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
       <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2">{children}</div>
     </div>
     <div className="absolute bottom-3 left-3 z-20 max-w-[45%]">
-      <TableSeatBadge {...local} count={state.hands[viewer].length} active={turn === viewer} local={localPlayer} compact={viewport.width < 600} onActivate={() => onSeat(viewer)} />
+      <TableSeatBadge {...local} active={turn === viewer} local={localPlayer} compact={viewport.width < 600} onActivate={() => onSeat(viewer)} />
     </div>
     {count > window.length && <div className="absolute right-3 bottom-3 z-20 flex items-center gap-2 rounded-lg bg-background/95 p-1">
       <Button size="sm" variant="ghost" aria-label="Cartas anteriores" disabled={window.start === 0} onClick={() => setFocus(Math.max(0, window.start - window.length / 2))}>←</Button>

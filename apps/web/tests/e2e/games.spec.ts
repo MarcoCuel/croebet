@@ -3,7 +3,7 @@ import { Server as SocketServer } from "socket.io";
 import { gameRoomSchema, lobbySchema, realtimeRequestSchema, seoFieldsSchema, type PersonalMatches } from "@croebet/shared";
 import { createServer, type Server } from "node:http";
 import { expect, test, type Page, type Locator } from "@playwright/test";
-import type { GameRecord } from "@croebet/shared";
+import type { GameRecord, LoveView } from "@croebet/shared";
 
 async function checkTableControls(page: Page, table: Locator, desktop: boolean) {
  const controls = page.getByLabel("Controles da partida", {exact:true});
@@ -438,7 +438,7 @@ test("abrir teste do Love Letter mantém link, recarga e volta para o jogo",asyn
 
 function prepareLoveTable() {
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
- loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou 4."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:[],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
+ loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou 4."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:["Bot 2: 4 (ao jogar Sacerdote)."],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
 }
 
 async function selectLoveCard(page: import("@playwright/test").Page, name: string) {
@@ -453,7 +453,21 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  const table=page.getByLabel("Mesa do Love Letter");
  await expect(table.getByTestId("love-table-scene").locator("canvas")).toBeVisible();
  await expect(table.getByTestId("love-table-scene").locator("[data-game-actions]")).toBeVisible();
- await expect(table.getByRole("status")).toHaveText("Sua vez");
+ const localSeat = table.getByRole("button", { name: "Jogador Ana", exact: true });
+ await expect(localSeat.getByText("Ana", { exact: true })).toBeVisible();
+ await expect(localSeat.getByText("Você", { exact: true })).toHaveCount(0);
+ await expect(localSeat.getByText(/cartas/)).toHaveCount(0);
+ await expect(localSeat.getByLabel("1 de 3 fichas para vencer", { exact: true })).toBeVisible();
+ await expect(localSeat.getByText("1/3", { exact: true })).toBeVisible();
+ await expect(localSeat.locator(".rounded-full.bg-brand")).toHaveCount(1);
+ await expect(localSeat.locator("span.size-3")).toHaveCount(3);
+ await expect(localSeat.locator('[data-slot="avatar"]')).toHaveCSS("width", testInfo.project.name === "mobile" ? "40px" : "48px");
+ await expect(localSeat).toHaveCSS("border-width", "0px");
+
+ await expect(table.getByRole("status")).toHaveText("Escolha uma carta para descartar");
+ await expect(table.getByText("Toque na carta que deseja descartar.",{exact:true})).toHaveCount(0);
+ await expect(table.getByLabel("Informações privadas")).toHaveCount(0);
+ await expect(table.getByText("Bot 2: 4 (ao jogar Sacerdote).",{exact:true})).toHaveCount(0);
  await expect(page.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
  await expect(table.getByText("Protegido",{exact:false})).toBeVisible();
  await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
@@ -474,10 +488,40 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await selectLoveCard(page, "Descartar 4 · Aia");
  await expect.poll(()=>commands.length).toBe(2);
  expect(commands[1]).toEqual({type:"play",card:4});
- await expect(page.getByRole("complementary",{name:"Histórico da partida"}).getByRole("img",{name:"4 · Aia",exact:true})).toBeAttached();
+ const history=page.getByRole("complementary",{name:"Histórico da partida"});
+ const played=history.getByRole("listitem").filter({hasText:"Bot 1 jogou 4."});
+ const thumbnail=played.getByRole("img",{name:"4 · Aia",exact:true});
+ await expect(thumbnail).toBeAttached();
+ await expect(played.locator('[data-slot="avatar"]')).toHaveText("B");
+ const row=await played.evaluate(element=>{
+  const [avatar,message,card]=Array.from(element.children).map(child=>child.getBoundingClientRect());
+  return {avatarWidth:avatar.width,cardWidth:card.width,cardHeight:card.height,ordered:avatar.right<=message.left && message.right<=card.left};
+ });
+ expect(row).toEqual({avatarWidth:28,cardWidth:36,cardHeight:56,ordered:true});
+ const round=history.getByRole("listitem").filter({hasText:"Rodada 1 iniciada."});
+ await expect(round.locator('[data-slot="avatar"]')).toHaveCount(0);
+ await expect(round.getByRole("img")).toHaveCount(0);
+ await expect(history.getByRole("listitem").first()).toHaveText("BBot 1 jogou 4.");
  await checkTableControls(page, table, testInfo.project.name === "desktop");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});
+});
+
+test("fichas exibem a meta da partida e os espaços restantes", async ({ page }) => {
+ prepareLoveTable();
+ const state = loveRoom!.state as LoveView;
+ loveRoom = gameRoomSchema.parse({ ...loveRoom!, bots: 3, capacity: 4, state: { ...state, players: state.players.slice(0, 4).map((player, seat) => ({ ...player, tokens: seat === 0 ? 3 : 0 })) } });
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ const localSeat = page.getByTestId("love-table-scene").getByRole("button", { name: "Jogador Ana", exact: true });
+ await expect(localSeat.getByLabel("3 de 4 fichas para vencer", { exact: true })).toBeVisible();
+ await expect(localSeat.getByText("3/4", { exact: true })).toBeVisible();
+ await expect(localSeat.locator(".rounded-full.bg-brand")).toHaveCount(3);
+ await expect(localSeat.locator("span.size-3")).toHaveCount(4);
+ const progress = localSeat.getByLabel("3 de 4 fichas para vencer", { exact: true });
+ await expect(progress).toHaveCSS("flex-wrap", "nowrap");
+ const bounds = await progress.locator(":scope > span").evaluateAll(items => items.map(item => { const rect = item.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom }; }));
+ expect(Math.max(...bounds.map(rect => rect.top))).toBeLessThan(Math.min(...bounds.map(rect => rect.bottom)));
+
 });
 
 test("Guarda com um único alvo válido abre palpites sem confirmar jogador",async({page})=>{

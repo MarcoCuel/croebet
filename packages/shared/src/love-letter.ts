@@ -13,3 +13,8 @@ export const loveViewSchema=z.object({mode:z.enum(["classic","modern"]),round:z.
 });
 export type LoveView=z.infer<typeof loveViewSchema>;
 export type LoveAction=z.infer<typeof loveActionSchema>;
+
+/** Fichas para vencer conforme a edição e o número de participantes da partida. */
+export function loveTokenGoal(mode: LoveView["mode"], players: number): number {
+ return players === 2 ? (mode === "classic" ? 7 : 6) : players === 3 ? 5 : players === 4 ? 4 : 3;
+}

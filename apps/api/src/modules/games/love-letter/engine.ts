@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
-import { loveActionSchema, loveViewSchema, loveInspectionSchema, type LoveAction } from "@croebet/shared";
+import { loveTokenGoal, loveActionSchema, loveViewSchema, loveInspectionSchema, type LoveAction } from "@croebet/shared";
 const playerSchema=z.object({name:z.string(),kind:z.enum(["human","normal"]),hand:z.array(z.number().int().min(0).max(9)),discard:z.array(z.number().int()),protected:z.boolean(),out:z.boolean(),tokens:z.number().int(),notes:z.array(z.string())});
 const stateSchema=z.object({mode:z.enum(["classic","modern"]),players:z.array(playerSchema).min(2).max(6),deck:z.array(z.number().int()),aside:z.number().int().nullable(),removed:z.array(z.number().int()),round:z.number().int(),turn:z.number().int(),phase:z.enum(["playing","summary","over"]),winners:z.array(z.number().int()),pending:z.boolean(),inspection:loveInspectionSchema.nullable().default(null),log:z.array(z.string())});
 export type LoveState=z.infer<typeof stateSchema>;
@@ -42,7 +42,7 @@ function finishTurn(s:LoveState){
   if(s.mode==="classic" && wins.length>1){const sum=(i:number)=>s.players[i].discard.reduce((a,b)=>a+b,0);const best=Math.max(...wins.map(sum));wins=wins.filter(i=>sum(i)===best);}
   for(const i of wins)s.players[i].tokens++;
   if(s.mode==="modern"){const spies=alive.filter(i=>s.players[i].discard.includes(0));if(spies.length===1)s.players[spies[0]].tokens++;}
-  const goal=s.players.length===2?(s.mode==="classic"?7:6):s.players.length===3?5:s.players.length===4?4:3;
+  const goal=loveTokenGoal(s.mode,s.players.length);
   s.winners=wins;s.phase=s.players.some(p=>p.tokens>=goal)?"over":"summary";
   s.log.push(`Rodada vencida por ${wins.map(i=>s.players[i].name).join(", ")}.`);
   if(s.phase==="over")s.winners=s.players.flatMap((p,i)=>p.tokens>=goal?[i]:[]);

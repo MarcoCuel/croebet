@@ -18,7 +18,7 @@ import { useCallback, useMemo, useId, useEffect, useLayoutEffect, useRef, useSta
 import gsap from "gsap";
 import { usePathname, useRouter } from "next/navigation";
 import { matchReplaySchema } from "@croebet/shared";
-import type { GameRecord, MatchFrame, MatchCommand, RoomSync, MatchParticipant } from "@croebet/shared";
+import type { GameRecord, MatchFrame, MatchCommand, RoomSync } from "@croebet/shared";
 import type { InitialMatches } from "./server-matches";
 import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
@@ -139,16 +139,6 @@ export function PlayingCard({ card, flipped = false, compact = false, fluid = fa
   );
 }
 
-function GameLog({ game, participants }: { game: Game; participants: MatchParticipant[] }) {
-  return <ol className="space-y-3">{game.log.map((entry, i) => {
-    const player = entry.player !== undefined ? game.players[entry.player] : null;
-    return <li key={i} className="flex items-center gap-2 border-b border-contrast/6 pb-3 last:border-0">
-      {player && <Avatar className="size-7" aria-hidden="true"><AvatarImage src={participants.find(person=>person.seat===entry.player)?.avatarUrl ?? undefined} /><AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>}
-      <span className="min-w-0 flex-1 break-words">{entry.message}</span>
-      {entry.card && <PlayingCard card={entry.card} compact />}
-    </li>;
-  })}</ol>;
-}
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
@@ -655,7 +645,14 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       {tableView.view === "classic" && actionBar}
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
-      <GameTableLayout history={<GameLog game={visibleGame} participants={tableParticipants} />}>
+      <GameTableLayout history={visibleGame.log.map(entry => ({
+        message: entry.message,
+        player: entry.player === undefined ? undefined : {
+          name: visibleGame.players[entry.player].name,
+          avatarUrl: tableParticipants.find(person => person.seat === entry.player)?.avatarUrl,
+        },
+        card: entry.card ? <PlayingCard card={entry.card} compact /> : undefined,
+      }))}>
         <div className={cn("min-w-0", tableView.view === "3d" ? "pb-4" : replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>

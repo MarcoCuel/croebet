@@ -25,7 +25,7 @@ test("configuração interna preserva cenários e paginação sem reduzir a larg
   const scene = page.getByTestId("laboratory-scene");
   await expect(scene.locator("canvas")).toBeVisible();
   const badge = page.getByTestId("local-seat");
-  await expect(badge.getByText("Você", { exact: true })).toBeVisible();
+  await expect(badge.getByText("Jogador 1", { exact: true })).toBeVisible();
   const sceneBox = (await scene.boundingBox())!, badgeBox = (await badge.boundingBox())!;
   expect(badgeBox.x - sceneBox.x).toBeLessThan(24);
   expect(sceneBox.y + sceneBox.height - badgeBox.y - badgeBox.height).toBeLessThan(24);

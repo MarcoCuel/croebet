@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useState, type ReactNode } from "react";
-import type { LoveView, MatchParticipant } from "@croebet/shared";
+import { loveTokenGoal, type LoveView, type MatchParticipant } from "@croebet/shared";
 import type { TablePresentation } from "@/three/table/table-scene";
 import { TableViewport } from "@/three/table/table-viewport";
 import { loveTableState } from "./table-model";
@@ -28,7 +28,7 @@ export function LoveScene({ view, viewer, participants, selected, target, labels
   const cardLabels = choices.length ? Object.fromEntries(guesses.map(guess => [`guess:${guess.value}`, guess.label])) : Object.fromEntries(hand.map((card, index) => [card.id, labels[index]]));
   const presentation: TablePresentation = { artwork: loveArtwork[view.mode],
     seats: view.players.map((player, seat) => ({ name: player.name, avatar: participants.find(p => p.seat === seat)?.avatarUrl ?? undefined,
-      detail: `${player.tokens} ${player.tokens === 1 ? "ficha" : "fichas"}${player.out ? " · Eliminado" : player.protected ? " · Protegido" : ""}`,
+      summary: { tokens: player.tokens, tokenGoal: loveTokenGoal(view.mode, view.players.length), status: player.out ? "Eliminado" : player.protected ? "Protegido" : undefined },
       label: eligible.includes(seat) ? `Escolher jogador ${player.name}` : `Jogador ${player.name}`, disabled: moving || !eligible.includes(seat), selected: target === seat })),
     hiddenSeats: view.players.flatMap((player, seat) => player.hand === null ? [seat] : []),
     selectable: moving ? [] : displayed.filter(card => cardLabels[card.id]).map(card => card.id), labels: cardLabels, deckLabel,
