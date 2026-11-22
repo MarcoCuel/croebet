@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { PileTransform } from "./pile-transform";
 import { defaultSettings, parseSettings } from "./model";
 export const tableSettingsKey = "croebet:table-laboratory:v1";
 export const tableSettingsEvent = "croebet:table-visual-settings";
@@ -21,5 +22,7 @@ export function useTableVisualSettings() {
     read(); window.addEventListener("storage", read); window.addEventListener(tableSettingsEvent, read);
     return () => { window.removeEventListener("storage", read); window.removeEventListener(tableSettingsEvent, read); };
   }, []);
-  return settings;
+  const onDeckChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation })), []);
+  const onDiscardChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, discardX: point.x, discardZ: point.z, discardRotation: point.rotation, discardScale: point.scale })), []);
+  return { settings, onDeckChange, onDiscardChange };
 }

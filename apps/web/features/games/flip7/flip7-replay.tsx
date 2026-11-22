@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { matchReplaySchema, type Match } from "@croebet/shared";
+import { matchReplaySchema } from "@croebet/shared";
+import type { ResultMetadata } from "../game-result";
 import { ReplayControls } from "../replay-controls";
 import { Button } from "@/components/ui/button";
 
 type Replay = ReturnType<typeof matchReplaySchema.parse>;
-export type ResultMetadata = Pick<Match, "participants" | "entryAmount" | "potTotal" | "payouts" | "durationSeconds">;
+export type { ResultMetadata } from "../game-result";
 
 export function useFlip7Replay(initial: Replay, startPlaying = false) {
   const [epoch, setEpoch] = useState(0);

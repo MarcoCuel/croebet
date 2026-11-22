@@ -1,5 +1,6 @@
 import type {ReactNode,ComponentType} from "react";
 import type {GameAction,GameRecord,GameRoom} from "@croebet/shared";
+import type {GameResultSummary} from "./game-result";
 import type {InitialMatches} from "./server-matches";
 
 export type GameTableProps = {
@@ -9,6 +10,7 @@ export type GameTableProps = {
 };
 export type GamePresentation = {
   managesLive:boolean;
+  result:(room:Exclude<GameRoom,{status:"lobby"}>)=>GameResultSummary;
   Table:ComponentType<GameTableProps>;
   Entry?:ComponentType<{game:GameRecord|null;initial:InitialMatches}>;
 };

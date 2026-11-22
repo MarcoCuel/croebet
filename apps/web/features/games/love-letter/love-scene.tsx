@@ -17,7 +17,7 @@ export function LoveScene({ view, viewer, drawn, participants, selected, target,
   labels: Record<number, string>; onCard: (index: number) => void; onDraw: () => void; onSeat: (seat: number) => void;
   canDraw: boolean; deckLabel: string; eligible: number[];
 }) {
-  const visual = useTableVisualSettings();
+  const { settings: visual, onDeckChange, onDiscardChange } = useTableVisualSettings();
   const root = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 960, height: 640 });
   const [reduced, setReduced] = useState(false);
@@ -54,6 +54,6 @@ export function LoveScene({ view, viewer, drawn, participants, selected, target,
   return <div ref={root} data-testid="love-table-scene" className="relative h-[min(65dvh,42rem)] min-h-[28rem] overflow-hidden rounded-panel" data-lenis-prevent>
     <span className="sr-only">{view.players.flatMap((player, seat) => player.hand === null ? Array.from({ length: player.handCount }, (_, index) => <span key={`${seat}:${index}`} aria-label="Carta oculta">Carta oculta de {player.name}</span>) : [])}</span>
     <TableSceneBoundary fallback={fallback}><Scene fallback={fallback} settings={settings} layout={layout} state={state} presentation={presentation} selected={hand.find(c => c.value === selected)?.id ?? null} focus={0} reducedMotion={reduced} canDraw={canDraw}
-      onDeckChange={() => {}} onDiscardChange={() => {}} onDraw={onDraw} onSelect={id => { const index = hand.findIndex(card => card.id === id); if (index >= 0) onCard(index); }} onMenu={() => {}} onTurn={onSeat} /></TableSceneBoundary>
+      onDeckChange={onDeckChange} onDiscardChange={onDiscardChange} onDraw={onDraw} onSelect={id => { const index = hand.findIndex(card => card.id === id); if (index >= 0) onCard(index); }} onMenu={() => {}} onTurn={onSeat} /></TableSceneBoundary>
   </div>;
 }

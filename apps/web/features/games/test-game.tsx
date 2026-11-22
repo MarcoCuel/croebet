@@ -14,6 +14,7 @@ import {useRoomLive} from "./use-room-live";
 import {gamePresentations} from "./registry";
 import {useGamePlayback} from "./use-game-playback";
 import {sendGameCommand,abandonGame} from "./match-api";
+import {MatchResult} from "./match-result";
 
 type Room=ReturnType<typeof gameRoomSchema.parse>;
 export function TestGame({game}:{game:GameRecord}){
@@ -44,6 +45,7 @@ export function TestGame({game}:{game:GameRecord}){
  {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={setRoom} onTestStarted={openTest}/>}
  {room?.status==="abandoned" && <p role="status">Teste encerrado.</p>}
  {room && room.status!=="lobby" && <Table game={game} room={room} viewerId={userId} busy={busy || playback.animating || (!presentation.managesLive && !connected)} controls={controls} exit={exit} play={play}/>}
+ {room && room.status!=="lobby" && !presentation.managesLive && <MatchResult key={room.code} room={room} result={presentation.result(room)}/>}
  {error && <p role="alert" className="text-sm text-danger">{error}</p>}
  </div>;
 }

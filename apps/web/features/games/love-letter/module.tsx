@@ -19,4 +19,7 @@ function Table({game,room,controls,exit,viewerId,busy,play}:GameTableProps){
  </div>
  </GameTableLayout>;
 }
-export const presentation:GamePresentation={managesLive:false,Table};
+export const presentation:GamePresentation={managesLive:false,Table,result:room=>{
+ const state=loveViewSchema.parse(room.state);
+ return {round:state.round,scoreLabel:"fichas",players:state.players.map((player,seat)=>({seat,name:player.name,score:player.tokens,winner:state.winners.includes(seat)}))};
+}};

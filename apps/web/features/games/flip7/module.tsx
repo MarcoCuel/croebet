@@ -2,6 +2,7 @@
 import type {ComponentProps} from "react";
 import {matchSchema,matchReplaySchema} from "@croebet/shared";
 import type {GamePresentation,GameTableProps} from "../game-module";
+import {flip7Result} from "./result-summary";
 import {Flip7Loader} from "./flip7-loader";
 
 function Table({game,room,controls,exit}:GameTableProps){
@@ -10,4 +11,4 @@ function Table({game,room,controls,exit}:GameTableProps){
 function Entry({game,initial}:ComponentProps<NonNullable<GamePresentation["Entry"]>>){
  return <Flip7Loader game={game} initial={{...initial,match:initial.match?matchSchema.parse(initial.match):null,replay:initial.replay?matchReplaySchema.parse(initial.replay):undefined}}/>;
 }
-export const presentation:GamePresentation={managesLive:true,Table,Entry};
+export const presentation:GamePresentation={managesLive:true,Table,Entry,result:room=>flip7Result(matchSchema.parse(room).state)};

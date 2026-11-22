@@ -508,6 +508,48 @@ test("Love Letter apresenta bots em sequência e libera apenas a decisão final 
  await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeVisible();
 });
 
+test("Love Letter abre resultado após as jogadas, permite reabrir e voltar ao lobby dev",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture ausente");
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321&teste=1");
+ await expect(page.getByLabel("Mesa do Love Letter")).toBeVisible();
+ const initial=structuredClone(loveRoom);
+ const finalState={...initial.state,phase:"over",round:5,winners:[0,1],legalActions:[],players:initial.state.players.map((player,seat)=>({...player,tokens:seat<2?3:0}))};
+ loveRoom=gameRoomSchema.parse({...initial,status:"finished",version:4,durationSeconds:125,state:finalState});
+ sockets.emit("room",{room:loveRoom,reset:false,frames:[{version:3,action:{type:"step"},state:{...initial.state,turn:2,legalActions:[]}},{version:4,action:{type:"step"},state:finalState}]});
+ const result=page.getByRole("dialog",{name:"Resultado da partida"});
+ await expect(page.getByLabel("Mesa do Love Letter").getByRole("status")).toHaveText("Vez de Bot 2");
+ await expect(result).toHaveCount(0);
+ await expect(result).toBeVisible({timeout:10000});
+ await expect(result.getByText("Ana e Bot 1",{exact:true})).toBeVisible();
+ await expect(result.getByText("2 min 05 s",{exact:true})).toBeVisible();
+ await expect(result.getByRole("list",{name:"Classificação final"}).getByRole("listitem")).toHaveCount(6);
+ await expect(result.getByText("3 fichas",{exact:true})).toHaveCount(2);
+ await result.getByRole("button",{name:"Fechar",exact:true}).click();
+ sockets.emit("room",{room:loveRoom,frames:[],reset:true});
+ await expect(result).toHaveCount(0);
+ await page.getByRole("button",{name:"Ver resultado",exact:true}).click();
+ await expect(result).toBeVisible();
+ await page.reload();
+ await expect(result).toBeVisible();
+ await result.getByRole("button",{name:"Jogar novamente",exact:true}).click();
+ await expect(page).toHaveURL("/jogos/love-letter?teste=1");
+ await expect(result).toHaveCount(0);
+});
+
+test("Love Letter não abre resultado em resumo de rodada ou partida abandonada",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture ausente");
+ loveRoom.state.phase="summary";loveRoom.state.winners=[0];
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ await expect(page.getByLabel("Mesa do Love Letter").getByRole("status")).toContainText("Rodada encerrada");
+ await expect(page.getByRole("dialog",{name:"Resultado da partida"})).toHaveCount(0);
+ loveRoom=gameRoomSchema.parse({...loveRoom,version:3,status:"abandoned"});
+ sockets.emit("room",{room:loveRoom,frames:[],reset:true});
+ await expect(page.getByText("Teste encerrado.",{exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Ver resultado",exact:true})).toHaveCount(0);
+});
+
 test("catálogo Love Letter reutiliza cartas, miniaturas e versos das duas edições",async({page})=>{
  await page.goto("/admin/jogos/laboratorio/love-letter");
  await expect(page.getByRole("heading",{name:"Cartas do Love Letter",exact:true})).toBeVisible();
@@ -635,4 +677,29 @@ test("aviso de expiração permite manter lobby aberto fora da página do jogo",
  personalMatches={items:personalMatches.items.map(item=>({...item,lobbyExpiresAt:new Date(Date.now()+90000).toISOString()}))};
  sockets.emit("personal-matches",personalMatches);await expect(keep).toBeVisible();
  personalMatches={items:[]};sockets.emit("personal-matches",personalMatches);await expect(keep).toHaveCount(0);
+});
+
+test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", async ({ page }) => {
+ prepareLoveTable();
+ if (!loveRoom || loveRoom.status === "lobby" || !("legalActions" in loveRoom.state)) throw new Error("Fixture Love Letter ausente");
+ loveRoom.state.turn = 1; loveRoom.state.legalActions = [];
+ const commands = gameCommands;
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ const scene = page.getByTestId("love-table-scene");
+ await expect(scene.locator("canvas")).toBeVisible();
+ for (const name of ["Rotacionar deck", "Rotacionar descarte", "Redimensionar descarte"]) {
+  const control = scene.getByRole("button", { name, exact: true });
+  await expect(control).toBeEnabled();
+  const description = scene.locator(`[id="${await control.getAttribute("aria-describedby")}"]`);
+  const before = await description.textContent();
+  await control.focus(); await control.press(name === "Redimensionar descarte" ? "ArrowLeft" : "ArrowRight");
+  await expect(description).not.toHaveText(before!);
+ }
+ const deck = scene.getByRole("button", { name: "Baralho", exact: true });
+ await expect(deck).toHaveAttribute("aria-disabled", "true");
+ const before = (await deck.boundingBox())!;
+ const rotate = scene.getByRole("button", { name: "Rotacionar deck", exact: true });
+ await rotate.focus(); await rotate.press("Alt+ArrowRight");
+ await expect.poll(async () => (await deck.boundingBox())!.x).not.toBe(before.x);
+ expect(commands).toEqual([]);
 });
