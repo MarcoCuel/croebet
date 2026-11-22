@@ -133,6 +133,6 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
       onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}
       onContextMenu={event => { event.preventDefault(); onMenu(target.id, { x: event.clientX, y: event.clientY }); }}
       onKeyDown={event => { if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); onMenu(target.id, { x: bounds.left, y: bounds.bottom }); } }}
-    >Descartar carta</button></Html>}
+    >{target.actionLabel ?? "Descartar carta"}</button></Html>}
   </group>;
 }

@@ -1,12 +1,27 @@
 import { expect, test } from "@playwright/test";
+import { defaultTableVisualSettings, tableVisualPresetSchema, type TableVisualPreset } from "@croebet/shared";
 import { startPublicApi } from "../public-api-fixture";
 
 let role: "admin" | "user" | null = "admin";
+let preset: TableVisualPreset = { version: 0, settings: { ...defaultTableVisualSettings } };
 let closeApi: (() => Promise<void>) | undefined;
-test.beforeAll(async () => { closeApi = await startPublicApi(() => role ? { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role } : null); });
+test.beforeAll(async () => { closeApi = await startPublicApi(() => role ? { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role } : null, async (request, response) => {
+  const path = new URL(request.url!, "http://fixture").pathname;
+  if (path === "/api/v1/auth/csrf") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ token: "test-csrf" })); return true; }
+  if (path !== "/api/v1/table-visual-settings" && path !== "/api/v1/admin/table-visual-settings") return false;
+  response.setHeader("Content-Type", "application/json");
+  if (request.method === "PATCH") {
+    let body = ""; for await (const chunk of request) body += chunk;
+    const input = tableVisualPresetSchema.parse(JSON.parse(body));
+    if (input.version !== preset.version) { response.statusCode = 409; response.end(JSON.stringify({ error: { message: "As configurações foram alteradas. Restaure antes de salvar." } })); return true; }
+    preset = { ...input, version: input.version + 1 };
+  }
+  response.end(JSON.stringify(preset)); return true;
+}); });
 test.afterAll(async () => { await closeApi?.(); });
 test.beforeEach(async ({context}) => {
   role = "admin";
+  preset = { version: 0, settings: { ...defaultTableVisualSettings } };
   await context.addCookies([{name:"croebet-session",value:"laboratory-fixture",url:"http://127.0.0.1:3100"}]);
 });
 
@@ -282,8 +297,9 @@ test("descarte tem controles locais de movimento, rotação e tamanho sem sobrep
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
   await resize.focus(); await resize.press("ArrowRight");
   await openSettings(page); await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
-  // Configurations restore transforms; the simulated discard sequence is intentionally not persisted.
-  await expect(scene.getByRole("button", { name: "Redimensionar descarte", exact: true })).toHaveCount(0);
+  // The empty discard remains visible and editable after restoring the configuration.
+  await expect(scene.getByRole("button", { name: "Mover descarte", exact: true })).toBeVisible();
+  await expect(scene.getByRole("button", { name: "Redimensionar descarte", exact: true })).toHaveAccessibleDescription("Tamanho atual: 105%.");
 });
 
 
@@ -428,4 +444,70 @@ test("cenários mistos expõem cartas junto ao dono e usam a mão como escolha t
   await expect(scene).toHaveAttribute("data-choice", "false");
   await expect(scene).toHaveAttribute("data-exposed-count", "12");
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+});
+
+
+test("descarte vazio pode ser movido e ajustado antes de receber cartas", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  const move = scene.getByRole("button", { name: "Mover descarte", exact: true });
+  await expect(move).toBeVisible();
+  const before = (await move.boundingBox())!;
+  await move.focus(); await move.press("ArrowRight");
+  await expect.poll(async () => (await move.boundingBox())!.x).toBeGreaterThan(before.x + 2);
+  const start = (await move.boundingBox())!;
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down(); await page.mouse.move(start.x + start.width / 2 + 20, start.y + start.height / 2, { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => (await move.boundingBox())!.x).toBeGreaterThan(start.x + 5);
+  const rotate = scene.getByRole("button", { name: "Rotacionar descarte", exact: true });
+  await rotate.focus(); await rotate.press("ArrowRight");
+  await expect(rotate).toHaveAccessibleDescription("Rotação atual: 5 graus.");
+  const resize = scene.getByRole("button", { name: "Redimensionar descarte", exact: true });
+  await resize.focus(); await resize.press("ArrowRight");
+  await expect(resize).toHaveAccessibleDescription("Tamanho atual: 105%.");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+});
+
+test("cartas dos adversários também selecionam o jogador sem descartar suas cartas", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  const cards = scene.getByRole("button", { name: "Passar vez para Jogador 2 pelas cartas", exact: true });
+  // Selecting a hidden card selects its owner, preserving hidden information.
+  await expect.poll(() => cards.count()).toBeGreaterThan(0);
+  await cards.last().focus(); await cards.last().press("Enter");
+  await expect(scene.getByRole("button", { name: "Passar vez para Jogador 2", exact: true })).toContainText("Vez deste jogador");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+});
+
+
+test("padrão global persiste em outro navegador e reiniciar só publica ao salvar", async ({ page, browser }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByText("Cartas", { exact: true }).click();
+  const scale = panel.getByRole("slider", { name: /^Suas cartas/ });
+  await scale.focus(); await scale.press("End");
+  await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
+  await expect(page.getByText("Configuração salva para todos os jogos 3D.", { exact: true })).toBeVisible();
+  expect(preset.settings.localCardScale).toBe(1.5);
+  expect("players" in preset.settings).toBe(false);
+  const other = await browser.newContext();
+  try {
+    await other.addCookies([{ name: "croebet-session", value: "another-browser", url: "http://127.0.0.1:3100" }]);
+    const second = await other.newPage();
+    await second.goto("http://127.0.0.1:3100/admin/jogos/laboratorio");
+    await openSettings(second);
+    const settings = second.getByRole("complementary", { name: "Configuração da mesa" });
+    await settings.getByText("Cartas", { exact: true }).click();
+    await expect(settings.getByRole("slider", { name: /^Suas cartas/ })).toHaveValue("1.5");
+    await settings.getByRole("button", { name: "Reiniciar", exact: true }).click();
+    expect(preset.settings.localCardScale).toBe(1.5);
+    await settings.getByRole("button", { name: "Salvar configuração", exact: true }).click();
+    await expect(second.getByText("Configuração salva para todos os jogos 3D.", { exact: true })).toBeVisible();
+    expect(preset.settings.localCardScale).toBe(1);
+    await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
+    await expect(scale).toHaveValue("1");
+  } finally { await other.close(); }
 });

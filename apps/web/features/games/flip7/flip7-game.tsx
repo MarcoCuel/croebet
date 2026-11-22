@@ -659,7 +659,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       {tableView.view === "classic" && actionBar}
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
-      <GameTableLayout history={visibleGame.log.map(entry => ({
+      <GameTableLayout fitTable={tableView.view === "3d"} history={visibleGame.log.map(entry => ({
         message: entry.message,
         player: entry.player === undefined ? undefined : {
           name: visibleGame.players[entry.player].name,

@@ -160,3 +160,15 @@ test('ações temporárias ficam separadas em linhas, sem formar uma pilha', () 
     }
   }
 });
+
+
+test('cartas temporárias acompanham posição, tamanho e rotação do descarte sem alterar posse', () => {
+  const cards = [{ id: 'a', value: 1 }, { id: 'b', value: -1, hidden: true }];
+  const before = structuredClone(cards);
+  const targets = stagingTargets(cards, { x: 2, z: 1, scale: 1.2, rotation: 90 }, 36, 4);
+  assert.ok(targets.every(target => target.pose.position[0] === 2));
+  assert.ok(targets[0].pose.position[1] < targets[1].pose.position[1]);
+  assert.ok(targets.every(target => target.pose.position[2] === 1 && target.pose.scale === 1.2 && target.pose.rotation[2] === Math.PI / 2));
+  assert.equal(targets[1].hidden, true);
+  assert.deepEqual(cards, before);
+});

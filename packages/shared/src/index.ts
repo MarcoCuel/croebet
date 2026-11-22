@@ -154,3 +154,5 @@ export * from "./love-letter.js";
 export * from "./game-registry.js";
 
 export * from "./chat.js";
+
+export * from "./table-visual-settings.js";

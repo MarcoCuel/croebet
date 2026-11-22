@@ -520,6 +520,12 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await assertActionsAboveScene();
  await expect(table.getByRole("button",{name:"Escolher jogador Bot 1",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Escolher jogador Bot 2",exact:true}).click();
+ await expect(scene).toHaveAttribute("data-choice", "true");
+ await actions.getByRole("button", { name: "Cancelar escolha", exact: true }).click();
+ await selectLoveCard(page, "Descartar 1 · Guarda");
+ await expect(scene.getByRole("button", { name: "Escolher jogador Bot 1 pelas cartas", exact: true })).toHaveCount(0);
+ const targetCard = scene.getByRole("button", { name: "Escolher jogador Bot 2 pelas cartas", exact: true }).last();
+ await targetCard.focus(); await targetCard.press("Enter");
  await expect(table.getByRole("button",{name:"Adivinhar 8 · Condessa",exact:true})).toHaveCount(0);
  await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice", "true");
  await expect(actions.getByRole("status")).toHaveText("Qual carta você acha que ele tem?");
@@ -601,6 +607,12 @@ for(const kind of ["priest","baron"] as const)test(`${kind}: revelação permane
  await expect(scene).toHaveAttribute("data-staging-count",kind==="priest"?"1":"2");
  await expect(table.getByRole("button",{name:"Continuar",exact:true})).toBeEnabled();
  await expect(scene.getByLabel("Bot 2 · 9",{exact:true})).toBeAttached();
+ const discardMove = scene.getByRole("button", { name: "Mover descarte", exact: true });
+ await expect(discardMove).toBeVisible();
+ const before = (await discardMove.boundingBox())!;
+ await discardMove.focus(); await discardMove.press("ArrowRight");
+ await expect.poll(async () => (await discardMove.boundingBox())!.x).toBeGreaterThan(before.x);
+ expect(commands).toEqual([]);
  await page.waitForTimeout(1800); // Longer than the normal playback frame: reading has no automatic timeout.
  expect(commands).toEqual([]);
  await page.reload();
@@ -852,7 +864,7 @@ test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", asyn
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const scene = page.getByTestId("love-table-scene");
  await expect(scene.locator("canvas")).toBeVisible();
- for (const name of ["Rotacionar deck", "Redimensionar deck"]) {
+ for (const name of ["Rotacionar deck", "Redimensionar deck", "Rotacionar descarte", "Redimensionar descarte"]) {
   const control = scene.getByRole("button", { name, exact: true });
   await expect(control).toBeEnabled();
   const description = scene.locator(`[id="${await control.getAttribute("aria-describedby")}"]`);

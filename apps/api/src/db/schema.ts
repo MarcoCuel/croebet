@@ -1,5 +1,8 @@
 import { pgTable, bigint, bigserial, integer, boolean, jsonb, text, check, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+export const tableVisualSettings = pgTable("table_visual_settings", {
+  id: integer("id").primaryKey(), data: jsonb("data").notNull(), version: integer("version").notNull().default(1),
+}, table => [check("table_visual_singleton", sql`${table.id} = 1`), check("table_visual_version_positive", sql`${table.version} > 0`)]);
 export const seoSettings = pgTable("seo_settings", {
   id: integer("id").primaryKey(), data: jsonb("data").notNull(), version: integer("version").notNull().default(1),
 }, table => [check("seo_singleton", sql`${table.id} = 1`), check("seo_version_positive", sql`${table.version} > 0`)]);

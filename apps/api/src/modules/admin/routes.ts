@@ -1,3 +1,5 @@
+import { tableVisualPresetSchema } from "@croebet/shared";
+import { readTableVisualSettings, saveTableVisualSettings } from "./table-visual-settings.ts";
 import { achievementWriteSchema } from "@croebet/shared";
 import { readAchievementDefinitions, readAchievementDefinition, saveAchievement, readOwnAchievements } from "../achievements/service.ts";
 import { mediaQuerySchema, mediaMaxBytes, mediaContentTypes } from "@croebet/shared";
@@ -77,6 +79,12 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       catch { return reply.code(503).header("Cache-Control", "no-store").send(); }
     });
   }
+  app.get("/api/v1/table-visual-settings", async (_request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    return readTableVisualSettings(pool);
+  });
+  app.patch("/api/v1/admin/table-visual-settings", (request, reply) => run(request, reply, true, async (actor, hash) =>
+    saveTableVisualSettings(pool, actor.id, hash, tableVisualPresetSchema.parse(request.body))));
   app.get("/api/v1/seo", async () => { const settings = await readSeo(pool); return { ...settings, index: process.env.APP_ENV === "production" && settings.index }; });
   app.get("/api/v1/seo/paths", async () => {
     const settings = await readSeo(pool);

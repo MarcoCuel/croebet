@@ -96,7 +96,21 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
         }} onContextMenu={event => { event.preventDefault(); deckDrag.cancelClick(); onMenu({ kind: "deck" }, { x: event.clientX, y: event.clientY }); }}>{state.deck.length}</button>
     </Html>
     {moveDeck && <PileControls kind="deck" transform={deckTransform} viewport={viewport} begin={deckDrag.begin} onKey={deckDrag.key} />}
-    {moveDiscard && state.discard.length > 0 && <PileControls kind="discard" transform={discard} viewport={viewport} begin={discardDrag.begin} onKey={discardDrag.key} />}
+    <group position={[discard.x, 0.6, discard.z]} rotation={discardRotation} scale={discard.scale}>
+      <mesh geometry={resources.flat.face} scale={[1.1, 1.08, 1]}
+        onPointerDown={moveDiscard ? event => { event.stopPropagation(); discardDrag.begin(event.nativeEvent); } : undefined}>
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <lineSegments scale={[1.1, 1.08, 1]}>
+        <edgesGeometry args={[resources.flat.face]} />
+        <lineBasicMaterial color={palette.foreground} transparent opacity={0.22} depthWrite={false} />
+      </lineSegments>
+      <Html position={[0, -0.65, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: moveDiscard ? "auto" : "none" }}>
+        <button className="select-none bg-transparent px-1 py-1 text-xs text-muted enabled:cursor-grab" aria-label="Mover descarte" disabled={!moveDiscard}
+          onPointerDown={event => discardDrag.begin(event, "move", false)} onKeyDown={event => discardDrag.key(event, "move")}>Descarte</button>
+      </Html>
+    </group>
+    {moveDiscard && <PileControls kind="discard" transform={discard} viewport={viewport} begin={discardDrag.begin} onKey={discardDrag.key} />}
     {seats.map((seat, place) => seat.seat !== settings.viewer && <TableSeat key={seat.seat} seat={seat} name={presentation?.seats[seat.seat].name ?? `Jogador ${seat.seat + 1}`} avatar={presentation?.seats[seat.seat].avatar} summary={presentation?.seats[seat.seat].summary} label={presentation?.seats[seat.seat].label} disabled={presentation?.seats[seat.seat].disabled} selected={presentation?.seats[seat.seat].selected}
       scale={hands[place].scale} onActivate={() => onTurn(seat.seat)} active={settings.turn === seat.seat} local={settings.viewer === seat.seat} compact={size.width < 600 || settings.players > 6}>
       {state.handLayout === "spread" && (() => {
@@ -113,19 +127,24 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
     </TableSeat>)}
     {targets.map(target => {
       const cue = state.motions[target.id];
+      // Card choices take priority; otherwise a hand is another way to select its owner.
+      const owner = target.zone === "hand" ? displayHands.findIndex(cards => cards.some(card => card.id === target.id)) : -1;
+      const seatAction = owner >= 0 && (!presentation ? owner !== settings.viewer : !presentation.seats[owner].disabled)
+        && !presentation?.selectable.includes(target.id);
+      const discardTarget = target.zone === "discard" || target.zone === "staging" && state.stagingArea === "discard";
       const choosing = state.choice?.cards.some(card => card.id === target.id);
       const transfer = choosing || cue && ["draw", "deal", "discard", "collect", "swap"].includes(cue.kind);
       return <TableCard key={target.id} onMotion={onMotion} paused={paused} timeScale={timeScale} target={{ ...target, selected: presentation?.selectedIds?.includes(target.id) || target.selected,
-        interactive: target.zone === "deck" ? moveDeck || canDraw : target.zone === "discard" ? moveDiscard : presentation ? presentation.selectable.includes(target.id) : target.interactive,
-        actionLabel: presentation?.labels[target.id],
+        interactive: target.zone === "deck" ? moveDeck || canDraw : discardTarget ? moveDiscard : seatAction || (presentation ? presentation.selectable.includes(target.id) : target.interactive),
+        actionLabel: seatAction ? `${presentation?.seats[owner].label ?? `Passar vez para Jogador ${owner + 1}`} pelas cartas` : presentation?.labels[target.id],
         origin: !choosing && cue && (cue.kind === "draw" || cue.kind === "deal") ? deckOrigin : undefined,
         motion: { key: choosing ? `choice:${state.choice!.cards.map(card => card.id).join(":")}` : cue ? `${cue.serial}:${cue.kind}` : "layout", duration: settings.duration,
           delay: cue?.kind === "deal" ? distributionDelay(cue.order, settings.duration) : 0,
           via: !choosing && cue?.via === "reveal" ? { position: [discard.x, 0.8, discard.z], rotation: pileRotation(true, settings.angle), scale: Math.min(1.25, discard.scale) } : undefined,
           hold: choosing ? 0 : cue?.hold,
           arc: transfer ? settings.arc : 0, shuffle: cue?.kind === "shuffle" },
-      }} resources={resources} motionHistory={motionHistory} reducedMotion={reducedMotion || !visible || (target.zone === "deck" && deckDrag.dragging) || (target.zone === "discard" && discardDrag.dragging)} onSelect={target.zone === "deck" ? deckDrag.click : target.zone === "discard" ? discardDrag.click : onSelect} onPilePointerDown={target.zone === "deck" && moveDeck ? deckDrag.begin : target.zone === "discard" && moveDiscard ? discardDrag.begin : undefined}
-        onMenu={(id, point) => { if (target.zone === "deck") deckDrag.cancelClick(); if (target.zone !== "discard") onMenu(target.zone === "deck" ? { kind: "deck" } : { kind: "card", id }, point); }} />;
+      }} resources={resources} motionHistory={motionHistory} reducedMotion={reducedMotion || !visible || (target.zone === "deck" && deckDrag.dragging) || (discardTarget && discardDrag.dragging)} onSelect={target.zone === "deck" ? deckDrag.click : discardTarget ? discardDrag.click : seatAction ? () => onTurn(owner) : onSelect} onPilePointerDown={target.zone === "deck" && moveDeck ? deckDrag.begin : discardTarget && moveDiscard ? discardDrag.begin : undefined}
+        onMenu={(id, point) => { if (target.zone === "deck") deckDrag.cancelClick(); if (!discardTarget && !seatAction) onMenu(target.zone === "deck" ? { kind: "deck" } : { kind: "card", id }, point); }} />;
     })}
   </>;
 }

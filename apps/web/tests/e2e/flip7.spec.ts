@@ -1116,6 +1116,12 @@ for (const type of ["steal", "swap"] as const) {
     await expect(scene).toHaveAttribute("data-hand-layout", "spread");
     await expect(scene).toHaveAttribute("data-discard-count", "0");
     await expect(scene).toHaveAttribute("data-staging-count", "1");
+    const discardMove = scene.getByRole("button", { name: "Mover descarte", exact: true });
+    await expect(discardMove).toBeVisible();
+    const before = (await discardMove.boundingBox())!;
+    await discardMove.focus(); await discardMove.press("ArrowRight");
+    await expect.poll(async () => (await discardMove.boundingBox())!.x).toBeGreaterThan(before.x);
+    await expect(scene.getByRole("button", { name: "Rotacionar descarte", exact: true })).toBeEnabled();
     await expect(scene.locator("[data-game-actions]")).toBeVisible();
     expect(fixture.commands).toHaveLength(0);
     expect(fixture.states.get(code)!.privateState!.players[1].cards.map(card => card.id)).toContain(other.id);

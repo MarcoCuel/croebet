@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { RotateCcw, Save, Settings2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
   DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
-import { tableSettingsKey, tableSettingsEvent } from "@/three/table/use-visual-settings";
+import { tableVisualSettingsSchema } from "@croebet/shared";
+import { tableSettingsKey, readTableVisualPreset, saveTableVisualPreset, notifyTableVisualPreset } from "@/three/table/visual-settings-api";
 import { loveArtwork } from "../love-letter/artwork";
 import { TableSceneBoundary } from "@/three/table/scene-boundary";
 import { TableSeatBadge } from "@/three/table/seat-badge";
@@ -46,6 +48,17 @@ export function GameLaboratory() {
   const sceneRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 960, height: 640 });
   const [message, setMessage] = useState("");
+  const [version, setVersion] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let disposed = false;
+    void readTableVisualPreset().then(preset => {
+      if (disposed) return;
+      setVersion(preset.version);
+      setSettings(current => ({ ...current, ...preset.settings }));
+    }).catch(() => { if (!disposed) setMessage("Não foi possível carregar o padrão global. Tente restaurar a configuração."); });
+    return () => { disposed = true; };
+  }, []);
   const [reducedMotion, setReducedMotion] = useState(false);
   useEffect(() => {
     const query = matchMedia("(prefers-reduced-motion: reduce)");
@@ -88,19 +101,37 @@ export function GameLaboratory() {
     dispatch({ type: "discard", seat: settings.viewer, id }); setMenu(null);
     setFocus(Math.min(focus, Math.max(0, count - 2))); setMessage("Carta descartada.");
   };
-  const save = () => {
+  const save = async () => {
+    if (busy || version === null) return;
+    setBusy(true);
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ ...settings, deckX: layout.deckPosition[0], deckZ: layout.deckPosition[2], discardX: layout.discardTransform.x, discardZ: layout.discardTransform.z, discardRotation: layout.discardTransform.rotation, discardScale: layout.discardTransform.scale, counts: state.hands.map(hand => hand.length) }));
-      globalThis.window.dispatchEvent(new Event(tableSettingsEvent));
-      setMessage("Configuração salva neste navegador.");
-    } catch { setMessage("Não foi possível salvar a configuração neste navegador."); }
+      const snapshot = { ...settings, deckX: layout.deckPosition[0], deckZ: layout.deckPosition[2], discardX: layout.discardTransform.x, discardZ: layout.discardTransform.z, discardRotation: layout.discardTransform.rotation, discardScale: layout.discardTransform.scale, counts: state.hands.map(hand => hand.length) };
+      const saved = await saveTableVisualPreset({ version, settings: tableVisualSettingsSchema.parse(snapshot) });
+      setVersion(saved.version);
+      try { localStorage.setItem(storageKey, JSON.stringify(snapshot)); } catch { /* Test scenario persistence is optional. */ }
+      notifyTableVisualPreset();
+      setMessage("Configuração salva para todos os jogos 3D.");
+      toast.success("Configuração salva para todos os jogos 3D.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível salvar a configuração.";
+      setMessage(message); toast.error(message);
+    }
+    finally { setBusy(false); }
   };
-  const restore = () => {
+  const restore = async () => {
+    if (busy) return;
+    setBusy(true);
     try {
-      const stored = localStorage.getItem(storageKey); const parsed = parseSettings(stored ? JSON.parse(stored) : null);
-      if (!parsed) { setMessage("Nenhuma configuração válida salva."); return; }
-      reset(parsed); setMessage("Configuração restaurada.");
-    } catch { setMessage("Não foi possível restaurar a configuração."); }
+      const preset = await readTableVisualPreset();
+      let scenario = defaultSettings;
+      try {
+        const stored = localStorage.getItem(storageKey);
+        scenario = parseSettings(stored ? JSON.parse(stored) : null) ?? defaultSettings;
+      } catch { /* Global presentation does not depend on browser storage. */ }
+      reset({ ...scenario, ...preset.settings }); setVersion(preset.version);
+      setMessage("Configuração global restaurada."); toast.success("Configuração global restaurada.");
+    } catch { setMessage("Não foi possível restaurar a configuração global."); toast.error("Não foi possível restaurar a configuração global."); }
+    finally { setBusy(false); }
   };
   const controls = (fields: [keyof LaboratorySettings, string, number, number, number?][]) => fields.map(([key, label, min, max, step]) =>
     <NumberControl key={key} label={label} value={settings[key] as number} min={min} max={max} step={step} onChange={value => update(key, value)} />);
@@ -157,7 +188,7 @@ export function GameLaboratory() {
           <div className="flex flex-wrap gap-2">{[1, 7, 20, 50].map(amount => <Button key={amount} size="sm" variant="secondary" onClick={() => reset({ ...settings, counts: Array.from({ length: 12 }, () => amount) })}>{amount} cartas</Button>)}</div>
           <Button variant="secondary" aria-pressed={settings.reveal} onClick={() => update("reveal", !settings.reveal)}>Revelar adversários: {settings.reveal ? "sim" : "não"}</Button>
         </div></details>
-        <div className="grid gap-2 border-t border-contrast/6 pt-4"><Button variant="secondary" onClick={save}><Save className="size-4" />Salvar configuração</Button><Button variant="ghost" onClick={restore}>Restaurar configuração</Button><Button variant="ghost" onClick={() => reset(defaultSettings)}><RotateCcw className="size-4" />Reiniciar</Button><Button asChild variant="ghost"><Link href="/admin/jogos/laboratorio/love-letter">Cartas do Love Letter</Link></Button></div>
+        <div className="grid gap-2 border-t border-contrast/6 pt-4"><Button variant="secondary" disabled={busy || version === null} onClick={save}><Save className="size-4" />Salvar configuração</Button><Button variant="ghost" disabled={busy} onClick={restore}>Restaurar configuração</Button><Button variant="ghost" disabled={busy} onClick={() => { reset(defaultSettings); setMessage("Prévia reiniciada. Salve para aplicar o padrão inicial a todos os jogos 3D."); toast.info("Prévia reiniciada. Salve para aplicar a todos os jogos 3D."); }}><RotateCcw className="size-4" />Reiniciar</Button><Button asChild variant="ghost"><Link href="/admin/jogos/laboratorio/love-letter">Cartas do Love Letter</Link></Button></div>
       </aside>}
       {count > window.length && <div className="absolute inset-x-3 bottom-10 flex items-center justify-center gap-2"><Button size="sm" variant="secondary" disabled={window.start === 0} onClick={() => setFocus(Math.max(0, window.start - window.length / 2))}>Anteriores</Button><span className="rounded-lg bg-background/90 px-2 py-1 text-xs text-muted" data-testid="hand-window">{window.start + 1}–{window.start + window.length} de {count}</span><Button size="sm" variant="secondary" disabled={window.start + window.length >= count} onClick={() => setFocus(window.start + window.length * 1.5)}>Próximas</Button></div>}
       <p role="status" className="sr-only">{message}</p>

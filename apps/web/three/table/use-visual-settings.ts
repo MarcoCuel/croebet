@@ -1,26 +1,33 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import type { PileTransform } from "./pile-transform";
-import { defaultSettings, parseSettings } from "./model";
-export const tableSettingsKey = "croebet:table-laboratory:v1";
-export const tableSettingsEvent = "croebet:table-visual-settings";
-/** Only visual preferences are shared: game seats, turn, hands and visibility are authoritative. */
+import { defaultSettings } from "./model";
+import { readTableVisualPreset, tableSettingsEvent } from "./visual-settings-api";
+export { tableSettingsKey, tableSettingsEvent } from "./visual-settings-api";
+/** Only presentation is global. Active games retain their authoritative state. */
 export function useTableVisualSettings() {
   const [settings, setSettings] = useState(defaultSettings);
   useEffect(() => {
-    const read = () => {
+    let disposed = false, request = 0, version = -1;
+    const read = async () => {
+      const current = ++request;
       try {
-        const raw = localStorage.getItem(tableSettingsKey);
-        const parsed = parseSettings(raw ? JSON.parse(raw) : null);
-        if (parsed) {
-          const { players: _players, counts: _counts, viewer: _viewer, turn: _turn, reveal: _reveal, dealCount: _dealCount, ...visual } = parsed;
-          void [_players, _counts, _viewer, _turn, _reveal, _dealCount];
-          setSettings({ ...defaultSettings, ...visual });
-        }
-      } catch { /* Keep the shared defaults when browser storage is unavailable. */ }
+        const preset = await readTableVisualPreset();
+        if (disposed || current !== request || preset.version === version) return;
+        version = preset.version;
+        setSettings({ ...defaultSettings, ...preset.settings });
+      } catch { /* Keep the last confirmed preset during temporary connection failures. */ }
     };
-    read(); window.addEventListener("storage", read); window.addEventListener(tableSettingsEvent, read);
-    return () => { window.removeEventListener("storage", read); window.removeEventListener(tableSettingsEvent, read); };
+    const refresh = () => { if (document.visibilityState === "visible") void read(); };
+    void read();
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener("storage", refresh); window.addEventListener(tableSettingsEvent, refresh);
+    window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", refresh);
+    return () => {
+      disposed = true; window.clearInterval(interval);
+      window.removeEventListener("storage", refresh); window.removeEventListener(tableSettingsEvent, refresh);
+      window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
   const onDeckChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation, deckScale: point.scale })), []);
   const onDiscardChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, discardX: point.x, discardZ: point.z, discardRotation: point.rotation, discardScale: point.scale })), []);
