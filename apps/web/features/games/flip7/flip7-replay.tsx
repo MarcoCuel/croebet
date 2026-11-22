@@ -55,7 +55,8 @@ export function useFlip7Replay(initial: Replay, startPlaying = false) {
   function restart() { setEpoch(value => value + 1); setActive(true); setIndex(0); setError(""); setAnimationPaused(false); setPlaying(true); }
   const participants = initial.match.players.flatMap(player => player.userId ? [{ userId: player.userId, username: player.name, displayName: player.name, avatarUrl: player.avatarUrl, seat: player.seat }] : []);
   const metadata: ResultMetadata = { participants, entryAmount: initial.match.entryAmount, potTotal: initial.match.potTotal, payouts: initial.match.payouts,
-    durationSeconds: initial.match.endedAt ? Math.max(0, Math.floor((Date.parse(initial.match.endedAt) - Date.parse(initial.match.startedAt)) / 1000)) : null };
+    activeDurationSeconds: initial.match.activeDurationSeconds,
+    durationSeconds: initial.match.durationSeconds ?? (!initial.match.development && initial.match.endedAt ? Math.max(0, Math.floor((Date.parse(initial.match.endedAt) - Date.parse(initial.match.startedAt)) / 1000)) : null) };
   const displayedState = active ? (frame ?? lastFrame)?.state : initial.finalState ?? initial.frames.at(-1)?.state;
   return { state: displayedState, frame, epoch, onPresented, animationPaused, presenting, active, loading, error, index, playing: playing && (!atEnd || presenting), delay, atEnd, count: initial.match.frameCount, metadata, seek, step: () => seek(index + 1, true), restart,
     toggle: () => { setPlaying(value => !value); setAnimationPaused(playing); }, setDelay, retry: () => { setError(""); setAttempt(value => value + 1); } };

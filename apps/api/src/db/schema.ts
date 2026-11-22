@@ -176,12 +176,15 @@ export const gameMatches = pgTable("game_matches", {
   capacity: integer("capacity").notNull(), options: jsonb("options").notNull(),
   ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   rulesVersion: integer("rules_version").notNull(), version: integer("version").notNull(), status: text("status").notNull(), state: jsonb("state"),
+  startedAt: timestamp("started_at", { withTimezone: true }), endedAt: timestamp("ended_at", { withTimezone: true }),
+  playbackSince: timestamp("playback_since", { withTimezone: true }), playbackUntil: timestamp("playback_until", { withTimezone: true }),
+  playbackMilliseconds: bigint("playback_milliseconds", { mode: "number" }).notNull().default(0),
   lobbyExpiresAt: timestamp("lobby_expires_at", { withTimezone: true }).notNull().default(sql`now() + interval '32 minutes'`),
   lobbyOfflineSince: timestamp("lobby_offline_since", { withTimezone: true }),
   lobbyClosedReason: text("lobby_closed_reason"),
   creationRequestId: uuid("creation_request_id").notNull(), creationHash: text("creation_hash").notNull(), creationResponse: jsonb("creation_response").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [check("test_economy",sql`NOT ${table.development} OR ${table.entryAmount}=0`),check("test_bots",sql`${table.bots} BETWEEN 0 AND 12 AND (${table.development} OR (${table.bots}=0 AND NOT ${table.onlyBots}))`),check("match_entry_range", sql`${table.entryAmount} between 0 and 9007199254740991`), uniqueIndex("match_creation_request").on(table.createdBy, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), check("match_status", sql`${table.status} in ('lobby','playing','finished','abandoned')`), check("match_capacity", sql`${table.capacity} between 2 and 12`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
+}, table => [check("match_playback_nonnegative",sql`${table.playbackMilliseconds} >= 0`),check("test_economy",sql`NOT ${table.development} OR ${table.entryAmount}=0`),check("test_bots",sql`${table.bots} BETWEEN 0 AND 12 AND (${table.development} OR (${table.bots}=0 AND NOT ${table.onlyBots}))`),check("match_entry_range", sql`${table.entryAmount} between 0 and 9007199254740991`), uniqueIndex("match_creation_request").on(table.createdBy, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), check("match_status", sql`${table.status} in ('lobby','playing','finished','abandoned')`), check("match_capacity", sql`${table.capacity} between 2 and 12`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
 export const gameMatchPlayers = pgTable("game_match_players", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }),
   confirmedEntryAmount: bigint("confirmed_entry_amount", { mode: "bigint" }),
@@ -226,6 +229,19 @@ export const gameMatchArchiveFrames = pgTable("game_match_archive_frames", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatchArchives.id),
   version: integer("version").notNull(), event: jsonb("event").notNull(),
 }, table => [uniqueIndex("archive_frame_version").on(table.matchId, table.version)]);
+
+// Test records remain separate from official statistics and survive account deletion.
+export const gameTestArchives = pgTable("game_test_archives", {
+  id: uuid("id").primaryKey(), gameId: uuid("game_id").notNull().references(() => games.id), code: text("code").notNull().unique(),
+  ownerId: uuid("owner_id").notNull(), rulesVersion: integer("rules_version").notNull(), status: text("status").notNull(), options: jsonb("options").notNull(),
+  participants: jsonb("participants").notNull(), state: jsonb("state").notNull(), onlyBots: boolean("only_bots").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(), startedAt: timestamp("started_at", { withTimezone: true }), endedAt: timestamp("ended_at", { withTimezone: true }),
+  playbackMilliseconds: bigint("playback_milliseconds", { mode: "number" }).notNull().default(0),
+}, table => [index("test_archive_game_started").on(table.gameId, table.recordedAt, table.id)]);
+export const gameTestArchiveFrames = pgTable("game_test_archive_frames", {
+  id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameTestArchives.id),
+  version: integer("version").notNull(), event: jsonb("event").notNull(),
+}, table => [uniqueIndex("game_test_archive_frames_match_id_version_key").on(table.matchId, table.version)]);
 
 export const mediaAssets = pgTable("media_assets", {
   id: uuid("id").primaryKey(), name: text("name").notNull(),

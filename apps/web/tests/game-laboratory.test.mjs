@@ -408,3 +408,26 @@ test('descarte permanece central e separado de mãos, identificações e deck ao
   assert.deepEqual(parseSettings(settings), settings);
   assert.equal(parseSettings({ ...settings, discardScale: 2 }), null);
 });
+
+
+test('arco aproveita largura e altura em telas largas sem distorcer cartas nem reagir à compra', () => {
+  for (const players of [3, 4, 6, 8, 12]) for (const angle of [25, 36, 65]) {
+    const request = { players, viewer: 0, counts: Array(players).fill(7), height: 550, angle, deck: [-1.5, 0.035, -0.6] };
+    let previousX = 0;
+    for (const width of [1800, 2560, 3440]) {
+      const layout = resolveTableLayout({ ...request, width });
+      const outerX = Math.max(...layout.seats.map(seat => Math.abs(seat.position[0])));
+      assert.ok(outerX > previousX, 'assentos devem continuar abrindo quando a largura aumenta');
+      assert.ok(outerX / layout.fit.right > 0.6, 'laterais não devem se concentrar no centro');
+      assert.ok(layout.bounds.every(([x]) => Math.abs(x) < layout.fit.right), 'preservar margens das mãos e identificações');
+      assert.equal(layout.hands[0].scale, 1.5 - Math.min(0.12, Math.max(0, players - 4) * 0.015));
+      const bought = resolveTableLayout({ ...request, width, counts: request.counts.map(count => count + 1) });
+      assert.deepEqual(bought.fit, layout.fit);
+      assert.deepEqual(bought.seats, layout.seats);
+      previousX = outerX;
+    }
+    const tall = resolveTableLayout({ ...request, width: 2560, height: 900 });
+    const short = resolveTableLayout({ ...request, width: 2560 });
+    assert.ok(Math.max(...short.seats.map(seat => Math.abs(seat.position[0]))) > Math.max(...tall.seats.map(seat => Math.abs(seat.position[0]))), 'altura também deve influenciar a disposição');
+  }
+});

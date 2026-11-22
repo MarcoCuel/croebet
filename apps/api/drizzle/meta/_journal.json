@@ -246,6 +246,13 @@
       "when": 1795243631728,
       "tag": "0034_achievement_emblems",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795305600000,
+      "tag": "0035_match_test_analysis",
+      "breakpoints": true
     }
   ]
 }

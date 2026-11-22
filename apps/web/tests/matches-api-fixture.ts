@@ -31,7 +31,7 @@ export function matchesFixture() {
     const active=[...states.values()].map(s=>s.room).find(room=>room.status==="playing" && room.participants.some(p=>p.userId===actor && room.state.players[p.seat].kind==="human")) ?? null;
     const testRooms=[...states.values()].map(s=>s.room).filter(r=>r.development && (r.hostId===actor || r.participants.some(p=>p.userId===actor)));
     const testLobbies=testRooms.filter(r=>r.status==="lobby");
-    const testMatches=testRooms.filter(r=>r.status==="playing").map(r=>{if(r.status==="lobby")throw Error("Partida não iniciada");const {state,durationSeconds,...summary}=r;void durationSeconds;return matchSummarySchema.parse({...summary,round:state.round,controllerIds:[]});});
+    const testMatches=testRooms.filter(r=>r.status==="playing").map(r=>{if(r.status==="lobby")throw Error("Partida não iniciada");const {state,durationSeconds,activeDurationSeconds,...summary}=r;void durationSeconds;void activeDurationSeconds;return matchSummarySchema.parse({...summary,round:state.round,controllerIds:[]});});
     return {items:items.filter(r=>!r.development),joined:joined.filter(r=>!r.development),owned:owned?.development?null:owned,active:active?.development?null:active,testLobbies,testMatches};
   };
   function replace(saved:{room:Room;privateState?:Game;frames:MatchFrame[]},seat:number){
@@ -41,12 +41,12 @@ export function matchesFixture() {
     const result=humans.length?execute(flip7Driver,state,version):{state,version,frames:[],status:"abandoned" as const};
     const frames:MatchFrame[]=[{action:{type:"replace",seat},state:flip7Driver.project(state),version},...result.frames];
     saved.privateState=result.state;saved.frames.push(...frames);
-    saved.room={...saved.room,durationSeconds:result.status==="finished"?754:null,status:result.status,version:result.version,state:flip7Driver.project(result.state),hostId:humans.some(p=>p.userId===saved.room.hostId)?saved.room.hostId:humans[0]?.userId ?? saved.room.hostId};
+    saved.room={...saved.room,activeDurationSeconds:null,durationSeconds:result.status==="finished"?754:null,status:result.status,version:result.version,state:flip7Driver.project(result.state),hostId:humans.some(p=>p.userId===saved.room.hostId)?saved.room.hostId:humans[0]?.userId ?? saved.room.hostId};
     return {match:saved.room,before,frames};
   }
   const matchSummaries=()=>[...states.values()].flatMap(({room})=>{
     if(room.status!=="playing")return [];
-    const {state,durationSeconds,...summary}=room;void durationSeconds;
+    const {state,durationSeconds,activeDurationSeconds,...summary}=room;void durationSeconds;void activeDurationSeconds;
     return [{...summary,round:state.round,controllerIds:room.participants.filter(p=>state.players[p.seat]?.kind==="human").map(p=>p.userId)}];
   });
   function notify(){for(const stream of streams){
@@ -167,7 +167,7 @@ export function matchesFixture() {
       saved.privateState=result.state;saved.frames.push({action:{type:"start"},state:result.before,version},...result.frames);
       const {pendingInvitations: _pending,onlineUserIds: _online,confirmedUserIds: _confirmed,...base}=saved.room as Extract<Room,{status:"lobby"}>;
       void _pending;void _online;void _confirmed;
-      saved.room={...base,durationSeconds:null,potTotal:base.entryAmount*base.participants.length,settlement:base.entryAmount?"pending":null,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
+      saved.room={...base,activeDurationSeconds:null,durationSeconds:null,potTotal:base.entryAmount*base.participants.length,settlement:base.entryAmount?"pending":null,status:result.status,version:result.version,state:flip7Driver.project(result.state)};
       const actors=new Set(saved.room.participants.map(person=>person.userId));
       for(const [otherCode,other] of states)if(otherCode!==code && other.room.status==="lobby"){
         const people=other.room.participants.filter(person=>!actors.has(person.userId));

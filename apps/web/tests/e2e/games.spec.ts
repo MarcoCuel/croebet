@@ -43,6 +43,7 @@ let failure = false;
 let sessionRole: "admin" | "user" = "admin";
 let api: Server;
 let sockets: SocketServer;
+let developmentHistory=false;
 let loveRoom: ReturnType<typeof gameRoomSchema.parse> | null = null;
 let personalMatches: PersonalMatches = {items:[]};
 let gameCommands:unknown[]=[];
@@ -52,11 +53,21 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   const url=new URL(path,"http://fixture");
   path=url.pathname;
   if(loveRoom && path===`/api/v1/matches/${loveRoom.code}`)return {status:200,data:loveRoom};
-  if(path===`/api/v1/admin/games/${id}/matches`) return {status:200,data:{items:url.searchParams.get("q")==="ninguém"?[]:[historyMatch],hasMore:false}};
+  if(path===`/api/v1/admin/games/${id}/matches`) {
+    const development=url.searchParams.get("source")==="development";
+    developmentHistory=development;
+    return {status:200,data:{items:url.searchParams.get("q")==="ninguém"?[]:[{...historyMatch,development,durationSeconds:3600,activeDurationSeconds:development?120:null}],hasMore:false,averages:development?[{game:"flip7",options:historyMatch.options,players:2,onlyBots:true,count:3,durationSeconds:3600,activeDurationSeconds:120}]:[]}};
+  }
+  if(loveRoom && loveRoom.status!=="lobby" && path===`/api/v1/me/matches/${loveRoom.code}`) {
+    const state=loveRoom.state;
+    if(!("tokens" in state.players[0]))throw Error("Fixture de outro jogo");
+    const publicState={...state,legalActions:[],privateInfo:[],players:state.players.map(p=>({...p,hand:null}))};
+    return {status:200,data:{match:{...historyMatch,code:loveRoom.code,game:"love-letter",gameId:loveRoom.id,development:true,options:loveRoom.options,durationSeconds:125,activeDurationSeconds:90,frameCount:2,players:state.players.map((p,seat)=>({seat,userId:null,name:p.name,score:"tokens" in p?p.tokens:0,winner:seat===0,bot:true}))},finalState:publicState,frames:[{version:1,action:{type:"start"},state:{...publicState,phase:"playing",log:["Primeira jogada do teste."]}},{version:2,action:{type:"step"},state:{...publicState,phase:"over",log:["Última jogada do teste."]}}],offset:0,hasMore:false}};
+  }
   if(path==="/api/v1/me/history")return {status:200,data:{items:[{id:`game:${matchId}`,matchId,matchCode:historyMatch.code,gameSlug:"flip7",kind:"game",description:"Flip 7 · Partida concluída",createdAt:historyMatch.endedAt,amount:null}],hasMore:false}};
   if(path===`/api/v1/me/matches/${historyMatch.code}` || path===`/api/v1/admin/games/${id}/matches/${matchId}`) {
     const offset=Number(url.searchParams.get("offset")??0),limit=Number(url.searchParams.get("limit")??100);
-    return {status:200,data:{match:historyMatch,finalState:historyFinalState,frames:replayFrames.slice(offset,offset+limit),offset,hasMore:offset+limit<105}};
+    return {status:200,data:{match:{...historyMatch,development:developmentHistory,activeDurationSeconds:developmentHistory?120:null},finalState:historyFinalState,frames:replayFrames.slice(offset,offset+limit),offset,hasMore:offset+limit<105}};
   }
   if (path === "/api/v1/me") return { status: 200, data: { user: { id, username: "Admin", displayName: "Admin", role: sessionRole } } };
   if (path === "/api/v1/economy") return { status: 200, data: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1, 5, 10, 50], defaultBet: 5 } };
@@ -128,6 +139,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await new Promise<void>(resolve => sockets.close(() => resolve())); });
 test.beforeEach(async ({ page, context }) => {
+  developmentHistory=false;
   loveRoom = null;createRequest=undefined;roomWatches=[];gameCommands=[];personalMatches={items:[]};
   game = { id, seo: seoFieldsSchema.parse({}), slug: "flip7", name: "Flip 7", description: "", enabled: true, imageUrl: null, version: 1 }; failure = false; upcoming = null; sessionRole = "admin";
   await context.addCookies([{ name: "croebet-session", value: "games-test", url: "http://127.0.0.1:3100" }]);
@@ -702,4 +714,33 @@ test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", asyn
  await rotate.focus(); await rotate.press("Alt+ArrowRight");
  await expect.poll(async () => (await deck.boundingBox())!.x).not.toBe(before.x);
  expect(commands).toEqual([]);
+});
+
+
+test("admin separa testes e mostra duração média e replay paginado",async({page})=>{
+ await page.goto(`/admin/jogos/${id}`);
+ await page.getByRole("combobox",{name:"Origem das partidas"}).selectOption("development");
+ const averages=page.getByLabel("Médias dos testes");
+ await expect(averages).toContainText("3 partidas");
+ await expect(averages).toContainText("Em reprodução: 2 min 00 s");
+ await page.getByRole("list",{name:"Partidas do jogo"}).getByRole("link").click();
+ await expect(page.getByText("Jogada registrada 1.",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Final",exact:true}).click();
+ await expect(page.getByText("Jogada registrada 105.",{exact:true})).toBeVisible();
+});
+
+test("resultado de teste Love Letter mostra tempo ativo e reproduz sem comandos",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("winners" in loveRoom.state))throw Error("Fixture ausente");
+ loveRoom=gameRoomSchema.parse({...loveRoom,status:"finished",durationSeconds:125,activeDurationSeconds:90,state:{...loveRoom.state,phase:"over",winners:[0],legalActions:[]}});
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321&teste=1");
+ const result=page.getByRole("dialog",{name:"Resultado da partida"});
+ await expect(result).toContainText("Em reprodução: 1 min 30 s");
+ await result.getByRole("button",{name:"Replay",exact:true}).click();
+ await expect(page.getByText("Primeira jogada do teste.",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Próxima jogada",exact:true}).click();
+ await expect(page.getByText("Última jogada do teste.",{exact:true})).toBeVisible();
+ expect(gameCommands).toEqual([]);
+ await page.getByRole("button",{name:"Voltar ao resultado"}).click();
+ await expect(result).toBeVisible();
 });

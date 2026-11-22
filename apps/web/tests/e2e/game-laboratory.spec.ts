@@ -282,3 +282,28 @@ test("laboratório carrega as mesmas artes das duas edições usadas pela mesa r
   await page.getByRole("button", { name: "Love Letter clássico", exact: true }).click();
   await expect(page.getByRole("button", { name: "Love Letter clássico", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
+
+
+test("arco acompanha resize de telas largas preservando a altura e a mão local", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1800, height: 800 });
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
+  const right = scene.getByRole("button", { name: "Passar vez para Jogador 2", exact: true });
+  const left = scene.getByRole("button", { name: "Passar vez para Jogador 4", exact: true });
+  const measure = async () => {
+    const box = (await scene.boundingBox())!;
+    const r = (await right.boundingBox())!, l = (await left.boundingBox())!;
+    return { span: r.x - l.x, fraction: (r.x - l.x) / box.width, height: box.height };
+  };
+  await expect.poll(async () => (await measure()).fraction).toBeGreaterThan(0.6);
+  const before = await measure();
+  await page.setViewportSize({ width: 3440, height: 800 });
+  await expect.poll(async () => (await measure()).span).toBeGreaterThan(before.span * 1.6);
+  expect((await measure()).fraction).toBeGreaterThan(0.7);
+  expect((await measure()).height).toBeCloseTo(before.height, 0);
+  await expect(page.getByTestId("local-seat")).toBeVisible();
+  await page.setViewportSize({ width: 1800, height: 800 });
+  await expect.poll(async () => Math.abs((await measure()).span - before.span)).toBeLessThan(2);
+});

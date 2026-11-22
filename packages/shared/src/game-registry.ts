@@ -30,7 +30,7 @@ export const gameDefinitions = {
   },
   "love-letter": {
     options:loveOptionsSchema,action:loveActionSchema,view:loveViewSchema,
-    defaults:{mode:"classic",brutal:false},developmentOnly:true,croins:false,replay:false,kickDuringPlay:false,tableTurnSound:false,
+    defaults:{mode:"classic",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,tableTurnSound:false,
     minPlayers:2,maxPlayers:(options:unknown)=>loveOptionsSchema.parse(options).mode==="classic"?4:6,
     settings:[{key:"mode",label:"Modo",ariaLabel:"Modo do Love Letter",type:"select",choices:[{value:"classic",label:"Clássico"},{value:"modern",label:"Moderno"}]}],
   },

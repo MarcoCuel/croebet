@@ -893,3 +893,50 @@ test("PostgreSQL: lobby de desenvolvimento só expira após trinta minutos offli
  await pool.query("delete from match_presence where match_id=$1",[room.id]);
  await maintainLobbies(pool);assert.equal((await getMatch(pool,actors[0],room.code)).status,"playing");
 });
+
+for (const game of ['flip7','love-letter']) test(`PostgreSQL: ${game} arquiva testes, mede reprodução sem pausas e preserva replay`,async t=>{
+ const {pool,actors,sessions}=await environment(t);
+ const {stepTest,trackTestPlayback}=await import('../../dist/modules/matches/service.js');
+ const {readOwnMatchReplay,readMatchReplay,readGameHistory}=await import('../../dist/modules/admin/match-history.js');
+ const {matchHistoryQuerySchema}=await import('@croebet/shared');
+ await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ const lobby=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game,capacity:2,options:{mode:'classic',brutal:false},development:true,bots:2,onlyBots:true});
+ let room=await lobbyAction(pool,actors[0],sessions[0],lobby.code,'start',{commandId:randomUUID(),expectedVersion:lobby.version});
+ await assert.rejects(trackTestPlayback(pool,actors[1],sessions[1],room.code,true),{code:'ADMIN_ONLY'});
+ await assert.rejects(readOwnMatchReplay(pool,actors[1],room.code,0,100),{code:'NOT_FOUND'});
+ await trackTestPlayback(pool,actors[0],sessions[0],room.code,true);
+ // Expired lease: 10 seconds of playback, then 50 seconds away from the tab.
+ await pool.query("update game_matches set playback_since=statement_timestamp()-interval '60 seconds',playback_until=statement_timestamp()-interval '50 seconds',started_at=statement_timestamp()-interval '120 seconds' where id=$1",[room.id]);
+ await pool.query('update game_test_archives a set started_at=m.started_at from game_matches m where a.id=m.id and m.id=$1',[room.id]);
+ await trackTestPlayback(pool,actors[0],sessions[0],room.code,false);
+ const paused=Number((await pool.query('select playback_milliseconds from game_matches where id=$1',[room.id])).rows[0].playback_milliseconds);
+ assert.ok(paused>=9999 && paused<=10001);
+ await trackTestPlayback(pool,actors[0],sessions[0],room.code,false);
+ assert.equal(Number((await pool.query('select playback_milliseconds from game_matches where id=$1',[room.id])).rows[0].playback_milliseconds),paused);
+ let duplicate;
+ for(let steps=0;room.status==='playing' && steps<3000;steps++){
+  const input={commandId:randomUUID(),expectedVersion:room.version};
+  await stepTest(pool,actors[0],sessions[0],room.code,input);
+  if(!duplicate){await stepTest(pool,actors[0],sessions[0],room.code,input);duplicate=input;}
+  room=await getMatch(pool,actors[0],room.code);
+ }
+ assert.equal(room.status,'finished');assert.ok(room.durationSeconds>=120);assert.equal(room.activeDurationSeconds,10);
+ const first=await readOwnMatchReplay(pool,actors[0],room.code,0,100);
+ const gameId=(await pool.query('select game_id from game_matches where id=$1',[room.id])).rows[0].game_id;
+ assert.equal(first.match.development,true);assert.equal(first.match.activeDurationSeconds,10);
+ assert.ok(first.match.frameCount>1);assert.equal(first.frames[0].action.type,'start');
+ assert.equal(first.match.durationSeconds,room.durationSeconds);
+ const all=[];
+ for(let offset=0;offset<first.match.frameCount;offset+=100){const page=await readOwnMatchReplay(pool,actors[0],room.code,offset,100);all.push(...page.frames);}
+ assert.equal(all.length,first.match.frameCount);assert.deepEqual(all.at(-1).state,first.finalState);
+ if(game==='love-letter')for(const frame of all){assert.deepEqual(frame.state.privateInfo,[]);assert.deepEqual(frame.state.legalActions,[]);if(frame.state.phase==='playing')assert.ok(frame.state.players.every(p=>p.hand===null));}
+ assert.equal((await pool.query('select 1 from game_match_archives where id=$1',[room.id])).rowCount,0);
+ assert.equal((await pool.query('select 1 from game_match_stakes where match_id=$1',[room.id])).rowCount,0);
+ const history=await readGameHistory(pool,gameId,matchHistoryQuerySchema.parse({source:'development',q:room.code}));
+ assert.equal(history.items[0].id,room.id);assert.ok(history.averages.some(group=>group.onlyBots && group.players===2 && group.count>=1));
+ const official=await readGameHistory(pool,gameId,matchHistoryQuerySchema.parse({q:room.code}));assert.equal(official.items.length,0);
+ await pool.query('delete from game_matches where id=$1',[room.id]);
+ await pool.query('delete from sessions where user_id=$1',[actors[0]]);
+ await pool.query('delete from users where id=$1',[actors[0]]);
+ assert.equal((await readMatchReplay(pool,gameId,room.id,0,100)).match.frameCount,first.match.frameCount);
+});

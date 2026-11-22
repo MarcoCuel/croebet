@@ -48,8 +48,14 @@ async function reservations(client: Client, id: string) {
 async function roomView(client: Client, row: Row, members: MatchParticipant[], seat:number|null=null): Promise<GameRoom> {
   const room=gameRoomSchema.parse({...view(row,members,seat),...(Number(row.entry_amount)>0?await readMatchEconomy(client,row.id):{})});
   if (room.status === "finished") {
-    const timing = await client.query<{ seconds: string | null }>("select floor(greatest(0,extract(epoch from (ended_at-started_at))))::text as seconds from game_match_archives where id=$1 and ended_at is not null", [row.id]);
-    if ("durationSeconds" in room) room.durationSeconds = timing.rows[0]?.seconds == null ? null : Number(timing.rows[0].seconds);
+    const timing = await client.query<{ seconds: string | null; active: string | null }>(`select
+      floor(greatest(0,extract(epoch from (coalesce(a.ended_at,m.ended_at)-coalesce(a.started_at,m.started_at)))))::text as seconds,
+      case when development and only_bots and m.started_at is not null then floor(playback_milliseconds/1000.0)::text end as active
+      from game_matches m left join game_match_archives a on a.id=m.id where m.id=$1 and m.ended_at is not null and m.started_at is not null`, [row.id]);
+    if ("durationSeconds" in room) {
+      room.durationSeconds = timing.rows[0]?.seconds == null ? null : Number(timing.rows[0].seconds);
+      room.activeDurationSeconds = timing.rows[0]?.active == null ? null : Number(timing.rows[0].active);
+    }
   }
   if(room.status!=="lobby")return {...room,cancellation:row.status==="playing"?await readCancellation(client,row.id):null};
   room.confirmedUserIds=Number(row.entry_amount)>0?(await client.query<{user_id:string}>("select user_id from game_match_players where match_id=$1 and (confirmed_entry_amount=$2 or user_id=$3) order by seat",[row.id,row.entry_amount,row.owner_id])).rows.map(p=>p.user_id):[];
@@ -555,3 +561,19 @@ export async function collectiveCancellation(pool:Pool,actor:string,sessionHash:
 // Compatibility aliases for clients already open during deployment.
 export const commandLove = (pool:Pool,actor:string,session:string,code:string,input:GameCommand)=>commandMatch(pool,actor,session,code,input).then(()=>({ok:true as const}));
 export const abandonLove = (pool:Pool,actor:string,session:string,code:string,input:{commandId:string;expectedVersion:number})=>commandMatch(pool,actor,session,code,input,true).then(()=>({ok:true as const}));
+
+/** A short server lease prevents a closed tab from accumulating playback time forever. */
+export async function trackTestPlayback(pool:Pool,actor:string,sessionHash:string,code:string,running:boolean) {
+ return transaction(pool,actor,sessionHash,async client=>{
+  await requireAdmin(client,actor);
+  const found=await client.query<Row>("select * from game_matches where code=$1 for update",[code]);
+  const row=found.rows[0];
+  if(!row || !row.development || !row.only_bots || row.owner_id!==actor)throw new MatchError("NOT_FOUND",404,"Teste não encontrado.");
+  if(row.status!=="playing")return {ok:true as const};
+  await client.query(`update game_matches set
+    playback_milliseconds=playback_milliseconds+case when playback_since is null then 0 else greatest(0,floor(extract(epoch from (least(clock_timestamp(),playback_until)-playback_since))*1000))::bigint end,
+    playback_since=case when $2 then clock_timestamp() end,
+    playback_until=case when $2 then clock_timestamp()+interval '15 seconds' end where id=$1`,[row.id,running]);
+  return {ok:true as const};
+ });
+}

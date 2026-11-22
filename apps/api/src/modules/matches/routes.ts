@@ -4,7 +4,7 @@ import { z } from "zod";
 import { cancellationVoteSchema, gameCommandSchema, confirmEntrySchema, invitePlayerSchema, lobbyPlayersQuerySchema, createMatchSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
 import { matchLive } from "./live.ts";
 import { tokenHash } from "../auth/security.ts";
-import { abandonLove, collectiveCancellation, endTest, stepTest, commandLove, declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
+import { trackTestPlayback, abandonLove, collectiveCancellation, endTest, stepTest, commandLove, declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
 
 type Options = { pool: Pool; sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; origins?: readonly string[]; current: (token: string | undefined) => Promise<{ id: string } | null>; csrfName: string; csrfSecret: string; environment: string; limit: (key: string, maximum: number) => Promise<boolean> };
 export async function matchRoutes(app: FastifyInstance, options: Options) {
@@ -35,6 +35,7 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/cancel-vote",(req,reply)=>run(req,reply,(id,hash)=>collectiveCancellation(pool,id,hash,matchCodeSchema.parse(req.params.code),cancellationVoteSchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/love-abandon",(req,reply)=>run(req,reply,(id,hash)=>abandonLove(pool,id,hash,matchCodeSchema.parse(req.params.code),matchAbandonSchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/end-test",(req,reply)=>run(req,reply,(id,hash)=>endTest(pool,id,hash,matchCodeSchema.parse(req.params.code),matchAbandonSchema.parse(req.body))));
+  app.post<{Params:{code:string}}>("/api/v1/matches/:code/test-playback",(req,reply)=>run(req,reply,(id,hash)=>trackTestPlayback(pool,id,hash,matchCodeSchema.parse(req.params.code),z.object({running:z.boolean()}).strict().parse(req.body).running)));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/test-step",(req,reply)=>run(req,reply,(id,hash)=>stepTest(pool,id,hash,matchCodeSchema.parse(req.params.code),matchAbandonSchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/love-command",(req,reply)=>run(req,reply,(id,hash)=>commandLove(pool,id,hash,matchCodeSchema.parse(req.params.code),gameCommandSchema.parse(req.body))));
   app.post("/api/v1/matches/presence",(req,reply)=>run(req,reply,(id,hash)=>refreshPresence(pool,id,hash)));

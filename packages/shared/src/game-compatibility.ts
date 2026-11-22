@@ -5,7 +5,7 @@ import {flip7ViewSchema,flip7ActionSchema,flip7EventActionSchema} from "./flip7.
 import {loveViewSchema} from "./love-letter.js";
 const integer=z.number().int().safe();
 export const matchCommandSchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), action: flip7ActionSchema }).strict();
-export const matchSchema = z.object({ ...matchRoomFields, durationSeconds: integer.min(0).nullable().default(null), status: z.enum(["playing", "finished", "abandoned"]), state: flip7ViewSchema }).strict();
+export const matchSchema = z.object({ ...matchRoomFields, activeDurationSeconds: z.number().int().min(0).nullable().default(null), durationSeconds: integer.min(0).nullable().default(null), status: z.enum(["playing", "finished", "abandoned"]), state: flip7ViewSchema }).strict();
 export const loveMatchSchema=z.object({...matchRoomFields,game:z.literal("love-letter"),status:z.enum(["playing","finished","abandoned"]),state:loveViewSchema}).strict();
 export const roomSchema = z.discriminatedUnion("status", [lobbySchema, matchSchema]);
 export const matchFrameSchema = z.object({ action: flip7EventActionSchema, state: flip7ViewSchema, version: integer.positive() }).strict();

@@ -781,7 +781,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       </GameTableLayout>
       <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
-          <Flip7Result game={displayGame} match={replay?.metadata ?? matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />
+          <Flip7Result game={displayGame} match={replay?.metadata ?? matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null || (matchInfo?.development && matchInfo.hostId === userId && permissions.canManageSite) ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />
         </DialogContent>
       </Dialog>
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>

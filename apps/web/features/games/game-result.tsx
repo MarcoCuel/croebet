@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { DialogClose, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CroinIcon } from "@/components/shared/croin-icon";
 import { cn } from "@/lib/utils";
-export type ResultMetadata = Pick<Exclude<GameRoom, { status: "lobby" }>, "participants" | "entryAmount" | "potTotal" | "payouts" | "durationSeconds">;
+export type ResultMetadata = Pick<Exclude<GameRoom, { status: "lobby" }>, "participants" | "entryAmount" | "potTotal" | "payouts" | "durationSeconds"> & { activeDurationSeconds?: number | null };
 export type GameResultSummary = {
   round: number;
   scoreLabel: string;
   players: { seat: number; name: string; score: number; winner: boolean }[];
 };
 
-function resultDuration(seconds: number | null | undefined) {
+export function resultDuration(seconds: number | null | undefined) {
   if (seconds == null) return "Indisponível";
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -44,6 +44,7 @@ export function GameResult({ result, match, leaving, onPlayAgain, onReplay, repl
       <div className="grid content-start justify-items-center gap-1 px-2 text-center"><dt className="flex items-center gap-1.5 text-xs text-muted">Rodadas</dt><dd className="text-sm font-semibold tabular-nums">{result.round}</dd></div>
       {!!match?.entryAmount && <div className="grid content-start justify-items-center gap-1 px-2 text-center"><dt className="text-xs text-muted">Prêmio (Pote)</dt><dd className="flex items-center gap-1.5 text-sm font-semibold tabular-nums"><CroinIcon className="size-4 text-[0.625rem]" />{match.potTotal.toLocaleString("pt-BR")}</dd></div>}
     </dl>
+    {match?.activeDurationSeconds != null && <p className="mt-2 text-center text-xs text-muted">Em reprodução: {resultDuration(match.activeDurationSeconds)} · pausas descontadas</p>}
     <h2 className="mt-5 mb-3 text-sm font-semibold">Placar final</h2>
     <ol aria-label="Classificação final" className="grid gap-1.5">
       {standings.map(player => {

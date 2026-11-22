@@ -93,3 +93,12 @@ test("interna prioriza nome de exibição, depois username, sem alterar arquivo 
  assert.deepEqual(saved,before);
  assert.equal(historyItem(saved).players[0].name,"Nome original");
 });
+
+test("testes antigos sem datas confiáveis não inventam duração; tempo ativo fica separado",()=>{
+ const saved={...row(),development:true,started_at:new Date('2026-01-01T00:00:00Z'),ended_at:new Date('2026-01-01T01:00:00Z')};
+ assert.equal(historyItem({...saved,duration_seconds:null}).durationSeconds,null);
+ const timed=historyItem({...saved,duration_seconds:3600,active_seconds:120});
+ assert.equal(timed.durationSeconds,3600);assert.equal(timed.activeDurationSeconds,120);
+ assert.equal(timed.development,true);
+ assert.equal(historyItem({...saved,development:false}).durationSeconds,3600);
+});
