@@ -697,6 +697,32 @@ test("campo de aposta reutilizável soma, subtrai e seleciona valores sugeridos"
   await expect(input).toHaveCount(0);
 });
 
+for (const value of [7, 9]) test(`par 6 e ${value} começa somente após a entrega`, async ({ page }) => {
+  const code = "ABCDEF123456";
+  const privateState = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
+  const state = flip7Driver.project(privateState);
+  const deck = createDeck("classic");
+  const take = (value: number) => deck.splice(deck.findIndex(card => card.type === "number" && card.value === value), 1)[0];
+  state.players[0].cards = [take(6)];
+  state.players[1].cards = [take(6)];
+  state.players.forEach(player => { player.hasDrawn = true; });
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state, hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  privateState.players = structuredClone(state.players);
+  const next = take(value);
+  privateState.deck = [...deck, next];
+  fixture.states.set(code, { room, privateState, frames: [] });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const six = page.locator(`[data-hand-card="${state.players[0].cards[0].id}"]`);
+  await expect(six).toBeVisible();
+
+  await page.getByRole("button", { name: "Comprar", exact: true }).click();
+  await expect(page.locator("[data-flying-card]")).toBeVisible();
+  expect(await six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+  await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+  await expect.poll(() => six.evaluate(element => element.getAnimations({ subtree: true }).map(animation => (animation as CSSAnimation).animationName))).toEqual([value === 7 ? "flip-six-seven" : "flip-six-nine"]);
+});
+
 test("six seven oscila em sentidos opostos apenas com o par e respeita movimento reduzido", async ({ page }, testInfo) => {
   const code = "ABCDEF123456";
   const privateState = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });

@@ -735,13 +735,14 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                   ? "grid-cols-[minmax(0,var(--hand-first))_repeat(var(--hand-remaining),minmax(0,1fr))]"
                   : "grid-cols-[repeat(var(--hand-columns),minmax(0,1fr))]");
               const flipped = visiblePlayer.status === "busted" && !movingCards?.some(m => m.target === i) && (!flight || flight.target !== i || landed);
+              const arrivedCards = player.cards.filter(card => !(flight?.card.id === card.id && !landed) && !movingCards?.some(move => move.card.id === card.id));
               const sixSeven = !flipped
-                && player.cards.some(card => card.type === "number" && card.value === 6)
-                && player.cards.some(card => card.type === "number" && card.value === 7);
+                && arrivedCards.some(card => card.type === "number" && card.value === 6)
+                && arrivedCards.some(card => card.type === "number" && card.value === 7);
               const sixIndex = numeric.findIndex(card => card.value === 6);
               const sixNine = !flipped && sixIndex !== -1 && numeric[sixIndex + 1]?.value === 9
-                && player.cards.some(card => card.id === numeric[sixIndex].id)
-                && player.cards.some(card => card.id === numeric[sixIndex + 1].id);
+                && arrivedCards.some(card => card.id === numeric[sixIndex].id)
+                && arrivedCards.some(card => card.id === numeric[sixIndex + 1].id);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id} data-resolving-action={resolvingCard?.card.id === card.id || undefined}
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
                 <div className={cn(

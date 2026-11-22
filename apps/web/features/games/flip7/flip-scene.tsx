@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { MatchParticipant } from "@croebet/shared";
 import { usePresentationClock } from "@/three/table/use-presentation-clock";
 import { TableViewport, type TableViewportHeader } from "@/three/table/table-viewport";
@@ -28,13 +28,28 @@ export default function FlipScene({ game, viewer, participants, eligible, target
   paused?: boolean; timeScale?: number;
   localPlayer: boolean; summaryGame: Game;
 }) {
-  const [snapshot, setSnapshot] = useState(() => ({ game, held, state: flipTableState(game, undefined, held), duration: 0 }));
+  const [snapshot, setSnapshot] = useState(() => ({ game, held, state: flipTableState(game, undefined, held), duration: 0, previousState: undefined as ReturnType<typeof flipTableState> | undefined }));
+  const [settledSerial, setSettledSerial] = useState(0);
   let state = snapshot.state;
   if (snapshot.game !== game || snapshot.held !== held) {
     state = flipTableState(game, animate && snapshot.game.round === game.round ? snapshot.state : undefined, held);
-    setSnapshot({ game, held, state, duration: animate ? scenePresentationDuration(snapshot.game, game) : 0 });
+    setSnapshot({ game, held, state, previousState: snapshot.state, duration: animate ? scenePresentationDuration(snapshot.game, game) : 0 });
   }
   const reportAnimating = usePresentationClock(state.cue.serial, snapshot.duration, onAnimating, paused, timeScale);
+  const serial = state.cue.serial;
+  const reportMotion = useCallback((busy: boolean) => {
+    if (!busy) setSettledSerial(serial);
+    reportAnimating(busy);
+  }, [serial, reportAnimating]);
+  // Preserve existing pairs, but activate new pairs only after their delivery.
+  const presentedState = useMemo(() => {
+    if (settledSerial === state.cue.serial || !Object.keys(state.motions).length) return state;
+    return { ...state, hands: state.hands.map((hand, seat) => {
+      const previousHand = snapshot.previousState?.hands[seat] ?? [];
+      const formingPair = hand.some(card => card.idle && !previousHand.some(previous => previous.id === card.id && previous.idle));
+      return formingPair ? hand.map(card => ({ ...card, idle: undefined })) : hand;
+    }) };
+  }, [state, settledSerial, snapshot.previousState]);
   const allCards = game.players.flatMap(player => player.cards.map(card => ({ card, owner: player.name })));
   const labels = Object.fromEntries(allCards.filter(({ card }) => eligible.includes(card.id)).map(({ card, owner }) => [`card:${card.id}`, `Selecionar ${cardLabel(card)} de ${owner}`]));
   const choiceCards = state.hands.flat().filter(card => eligible.includes(Number(card.id.slice(5))) || selected.includes(Number(card.id.slice(5))));
@@ -51,7 +66,7 @@ export default function FlipScene({ game, viewer, participants, eligible, target
     {allCards.filter(({ card }) => eligible.includes(card.id) && choosing).map(({ card, owner }) => <Button key={card.id} variant="secondary" onClick={() => onCard(card.id)} aria-label={`Selecionar ${cardLabel(card)} de ${owner}`}>{cardLabel(card)} · {owner}</Button>)}
     {seatTargets.map(seat => <Button key={seat} onClick={() => onSeat(seat)}>{game.players[seat].name}</Button>)}
   </div>;
-  return <TableViewport testId="flip-table-scene" localPlayer={localPlayer} state={choosing ? { ...state, choice: { cards: choiceCards.map(card => ({ ...card, label: labels[card.id] })) } } : state}
+  return <TableViewport testId="flip-table-scene" localPlayer={localPlayer} state={choosing ? { ...presentedState, choice: { cards: choiceCards.map(card => ({ ...card, label: labels[card.id] })) } } : presentedState}
     presentation={presentation} viewer={viewer} turn={game.bonusChoice ?? game.forced?.target ?? game.pending?.source ?? game.turn}
-    paused={paused} timeScale={timeScale} canDraw={canDraw} onDraw={onDraw} onCard={id => onCard(Number(id.slice(5)))} onSeat={onSeat} status={status} header={header} actions={actions} onAnimating={reportAnimating} fallback={fallback}>{children}</TableViewport>;
+    paused={paused} timeScale={timeScale} canDraw={canDraw} onDraw={onDraw} onCard={id => onCard(Number(id.slice(5)))} onSeat={onSeat} status={status} header={header} actions={actions} onAnimating={reportMotion} fallback={fallback}>{children}</TableViewport>;
 }
