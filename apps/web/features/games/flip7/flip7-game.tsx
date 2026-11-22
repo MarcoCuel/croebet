@@ -33,7 +33,7 @@ import { useSession } from "@/features/auth/session-context";
 import { canStay, cardLabel, isNumber, modeLabel, score, targets } from "./presentation";
 import type { Action, Card, Game, GameOptions } from "./presentation";
 import { cardChoices } from "./vengeance";
-import { forcedActionPresentation } from "./action-presentation";
+import { drawTiming, forcedActionPresentation } from "./action-presentation";
 import { gameWithPlayerNames } from "./player-name";
 import { LobbyScreen } from "../lobby";
 import { useMatchLive } from "./live";
@@ -424,10 +424,10 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     timelines.add(timeline);
     // Preserve the previous hand until the card leaves the reveal area.
     // All destination bounds are measured before applying these visual offsets.
-    const extractionDuration = reduced ? 0 : 0.24;
-    const revealDuration = reduced ? 0 : 0.16;
+    const extractionDuration = reduced ? 0 : drawTiming.extraction;
+    const revealDuration = reduced ? 0 : drawTiming.reveal;
     const revealAt = extractionDuration + revealDuration;
-    const departure = reduced || flight.origin ? 0 : revealAt + (flight.initial ? 0.02 : 0.65);
+    const departure = reduced || flight.origin ? 0 : revealAt + (flight.initial ? drawTiming.initialReading : drawTiming.reading);
     const layoutDuration = reduced ? 0 : flight.origin ? 0.28 : 0.2;
     if (!flight.parked && flight.hand && hand) {
       const height = hand.getBoundingClientRect().height;
@@ -448,7 +448,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       timeline.to(ghost, { x: origin.left - bounds.left + origin.width + 8, y: origin.top - bounds.top, duration: extractionDuration, ease: "power2.inOut" }, 0)
         .set(ghost, { zIndex: 30 }, extractionDuration)
         .to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, scale: 1, duration: revealDuration, ease: "power2.out" }, extractionDuration)
-        .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : 0.2, ease: "power2.inOut" }, departure);
+        .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : drawTiming.delivery, ease: "power2.inOut" }, departure);
     }
     timeline.call(() => playSound("slide"), [], 0);
     timeline.call(() => setLanded(true));

@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import type { MatchParticipant } from "@croebet/shared";
+import { usePresentationClock } from "@/three/table/use-presentation-clock";
 import { TableViewport } from "@/three/table/table-viewport";
 import { numberNames, type TableArtwork } from "@/three/table/artwork";
 import type { TablePresentation } from "@/three/table/table-scene";
 import { Button } from "@/components/ui/button";
 import type { Card, Game } from "./types";
 import { cardFace, flipTableState } from "./table-model";
+import { scenePresentationDuration } from "./action-presentation";
 import { numberColors } from "./card-colors";
 import { cardLabel, score } from "./rules";
 
@@ -26,12 +28,13 @@ export default function FlipScene({ game, viewer, participants, eligible, target
   paused?: boolean; timeScale?: number;
   localPlayer: boolean; summaryGame: Game;
 }) {
-  const [snapshot, setSnapshot] = useState(() => ({ game, held, state: flipTableState(game, undefined, held) }));
+  const [snapshot, setSnapshot] = useState(() => ({ game, held, state: flipTableState(game, undefined, held), duration: 0 }));
   let state = snapshot.state;
   if (snapshot.game !== game || snapshot.held !== held) {
     state = flipTableState(game, animate && snapshot.game.round === game.round ? snapshot.state : undefined, held);
-    setSnapshot({ game, held, state });
+    setSnapshot({ game, held, state, duration: animate ? scenePresentationDuration(snapshot.game, game) : 0 });
   }
+  const reportAnimating = usePresentationClock(state.cue.serial, snapshot.duration, onAnimating, paused, timeScale);
   const allCards = game.players.flatMap(player => player.cards.map(card => ({ card, owner: player.name })));
   const labels = Object.fromEntries(allCards.filter(({ card }) => eligible.includes(card.id)).map(({ card, owner }) => [`card:${card.id}`, `Selecionar ${cardLabel(card)} de ${owner}`]));
   const choiceCards = state.hands.flat().filter(card => eligible.includes(Number(card.id.slice(5))) || selected.includes(Number(card.id.slice(5))));
@@ -50,5 +53,5 @@ export default function FlipScene({ game, viewer, participants, eligible, target
   </div>;
   return <TableViewport testId="flip-table-scene" localPlayer={localPlayer} state={choosing ? { ...state, choice: { cards: choiceCards.map(card => ({ ...card, label: labels[card.id] })) } } : state}
     presentation={presentation} viewer={viewer} turn={game.bonusChoice ?? game.forced?.target ?? game.pending?.source ?? game.turn}
-    paused={paused} timeScale={timeScale} canDraw={canDraw} onDraw={onDraw} onCard={id => onCard(Number(id.slice(5)))} onSeat={onSeat} status={status} actions={actions} onAnimating={onAnimating} fallback={fallback}>{children}</TableViewport>;
+    paused={paused} timeScale={timeScale} canDraw={canDraw} onDraw={onDraw} onCard={id => onCard(Number(id.slice(5)))} onSeat={onSeat} status={status} actions={actions} onAnimating={reportAnimating} fallback={fallback}>{children}</TableViewport>;
 }

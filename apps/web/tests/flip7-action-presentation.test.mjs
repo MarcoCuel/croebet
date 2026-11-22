@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createGame, transition } from "../../api/src/modules/games/flip7/engine.ts";
-import { forcedActionPresentation } from "../features/games/flip7/action-presentation.ts";
+import { drawTiming, forcedActionPresentation, scenePresentationDuration } from "../features/games/flip7/action-presentation.ts";
 import { validateState } from "../../api/src/modules/games/flip7/state.ts";
 
 function scenario(type, draws) {
@@ -52,4 +52,17 @@ test("estouro encerra a ação e ações compradas na sequência não substituem
 test("partidas sem compra forçada e o modo Clássico não ganham cartas visuais extras", () => {
   assert.equal(forcedActionPresentation(null), null);
   assert.equal(forcedActionPresentation(createGame([{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }], 42)), null);
+});
+
+
+test("3D mantém a cadência da compra inicial, revelação normal e ações sem movimento", () => {
+  const before = createGame([{ name: "Marco", kind: "human" }, { name: "Pessoa", kind: "human" }], 42);
+  const first = transition(before, { type: "draw" });
+  assert.equal(scenePresentationDuration(before, first), drawTiming.extraction + drawTiming.reveal + (drawTiming.initialReading + drawTiming.delivery));
+  const drawn = { ...before, players: before.players.map(player => ({ ...player, hasDrawn: true })) };
+  assert.equal(scenePresentationDuration(drawn, first), drawTiming.extraction + drawTiming.reveal + (drawTiming.reading + drawTiming.delivery));
+  assert.ok(scenePresentationDuration(first, { ...first, turn: 1 }) > 0, "passar o turno também exige tempo de leitura");
+  const special = { id: 999, type: "freeze", value: 0 };
+  const pending = { ...first, lastDraw: special, pending: { source: 0, card: special } };
+  assert.equal(scenePresentationDuration(before, pending), drawTiming.extraction + drawTiming.reveal + drawTiming.initialReading);
 });

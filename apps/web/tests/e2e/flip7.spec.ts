@@ -1132,3 +1132,31 @@ for (const type of ["steal", "swap"] as const) {
     expect(fixture.commands).toHaveLength(1);
   });
 }
+
+test("mesa 3D aguarda a revelação e entrega antes de liberar outra ação", async ({ page }) => {
+  const code = "ABCDEF404040";
+  const options = { mode: "classic" as const, brutal: false };
+  const state = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, options);
+  const deck = createDeck("classic");
+  const take = (value: number) => deck.splice(deck.findIndex(card => card.type === "number" && card.value === value), 1)[0];
+  state.players[0].cards = [take(2)]; state.players[1].cards = [take(3)];
+  state.players.forEach(player => { player.hasDrawn = true; });
+  const next = take(4);
+  state.deck = [...deck, next]; state.turn = 0;
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state: flip7Driver.project(state), hostId: matchUsers[0].id, capacity: 2, options, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  fixture.states.set(code, { room, privateState: state, frames: [] });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const toggle = page.getByRole("button", { name: "3D", exact: true });
+  await toggle.click();
+  const scene = page.getByTestId("flip-table-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
+  const draw = scene.getByRole("button", { name: "Comprar", exact: false });
+  await expect(draw.last()).toBeEnabled();
+  await draw.last().click();
+  await expect.poll(() => fixture.commands.length).toBe(1);
+  await expect(toggle).toBeDisabled();
+  await page.waitForTimeout(350);
+  await expect(toggle).toBeDisabled();
+  await expect(toggle).toBeEnabled();
+});
