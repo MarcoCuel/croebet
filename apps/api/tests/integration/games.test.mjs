@@ -49,3 +49,47 @@ test('PostgreSQL: cadastro de jogo preserva catálogo, valida unicidade, permiss
   await assert.rejects(readGame(pool,input.slug),{code:'NOT_FOUND'});
   assert.equal((await readGame(pool,game.id,true)).enabled,false);
 });
+
+test('PostgreSQL: duração do hero prioriza oficiais, testes e fallback sem duplicar partidas', async t => {
+  if (!process.env.TEST_DATABASE_URL) throw Error('Configure TEST_DATABASE_URL com banco exclusivo de test.');
+  const { pool } = createDatabase(process.env.TEST_DATABASE_URL);
+  t.after(() => pool.end());
+  assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const gameId = randomUUID();
+    const slug = 'duration-' + gameId;
+    await client.query("insert into games(id,slug,name,fallback_duration_minutes) values($1,$2,'Duração',25)", [gameId,slug]);
+    const duration = async () => (await readGame(client,slug)).averageDurationSeconds;
+    assert.equal(await duration(),1500);
+    await client.query('update games set fallback_duration_minutes=null where id=$1',[gameId]);
+    assert.equal(await duration(),null);
+    await client.query('update games set fallback_duration_minutes=25 where id=$1',[gameId]);
+    async function archive(table, seconds, status='finished', onlyBots=false, playback=0) {
+      const id=randomUUID();
+      const columns=table==='game_test_archives'?',owner_id,only_bots,recorded_at,playback_milliseconds':'';
+      const extra=table==='game_test_archives'?', $1, $5, now(), $6':'';
+      await client.query(`insert into ${table}(id,game_id,code,rules_version,status,options,participants,state,started_at,ended_at${columns})
+        values($1,$2,$1::text,1,$3,'{}','[]','{}',now()-($4 * interval '1 second'),now()${extra})`,
+        table==='game_test_archives'?[id,gameId,status,seconds,onlyBots,playback]:[id,gameId,status,seconds]);
+    }
+    await archive('game_test_archives',600,'abandoned');
+    assert.equal(await duration(),1500);
+    await archive('game_test_archives',0);
+    assert.equal(await duration(),1500);
+    await archive('game_test_archives',600);
+    assert.equal(await duration(),600);
+    await archive('game_test_archives',1,'finished',true,1200000);
+    assert.equal(await duration(),900);
+    await archive('game_match_archives',1200);
+    assert.equal(await duration(),1200);
+    await archive('game_match_archives',2400);
+    assert.equal(await duration(),1800);
+    await archive('game_match_archives',6000,'abandoned');
+    assert.equal(await duration(),1800);
+  } finally {
+    await client.query('rollback');
+    client.release();
+  }
+});

@@ -954,3 +954,26 @@ test("resultado de teste Love Letter mostra tempo ativo e reproduz na barra comp
  await page.getByRole("button",{name:"Voltar ao resultado"}).click();
  await expect(result).toBeVisible();
 });
+
+test("hero do Love Letter mostra jogadores e duração acima do título", async ({page}) => {
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter",averageDurationSeconds:1260};
+ await page.goto("/jogos/love-letter?teste=1");
+ const hero=page.getByLabel("Apresentação do jogo");
+ await expect(hero.getByText("2–6 jogadores",{exact:true})).toBeVisible();
+ await expect(hero.getByText("~21 min por partida",{exact:true})).toBeVisible();
+ const tags=await hero.getByLabel("Informações do jogo").boundingBox();
+ const title=await hero.getByRole("heading",{name:"Love Letter",exact:true}).boundingBox();
+ expect(tags!.y+tags!.height).toBeLessThanOrEqual(title!.y);
+ upcoming={...upcoming,averageDurationSeconds:null};
+ await page.reload();
+ await expect(hero.getByText("2–6 jogadores",{exact:true})).toBeVisible();
+ await expect(hero.getByText(/min por partida/)).toHaveCount(0);
+});
+
+test("admin salva a duração padrão do jogo em minutos", async ({page}) => {
+ await page.goto(`/admin/jogos/${id}`);
+ await page.getByLabel("Duração padrão (minutos)").fill("35");
+ await page.getByRole("button",{name:"Salvar jogo",exact:true}).click();
+ await expect(page).toHaveURL(/\/admin\/jogos$/);
+ expect(game.fallbackDurationMinutes).toBe(35);
+});

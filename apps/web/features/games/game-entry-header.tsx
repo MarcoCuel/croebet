@@ -19,8 +19,8 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="grid gap-3">
           {(definition || durationMinutes !== null) && <div className="flex flex-wrap gap-2" aria-label="Informações do jogo">
-            {definition && <Badge variant="secondary" className="gap-1.5"><UsersRound className="size-4" aria-hidden="true" />{definition.minPlayers}–{maxGamePlayers(definition, definition.defaults)} jogadores</Badge>}
-            {durationMinutes !== null && <Badge variant="secondary" className="gap-1.5"><Clock3 className="size-4" aria-hidden="true" />~{durationMinutes} min por partida</Badge>}
+            {definition && <Badge variant="secondary" className="gap-3"><UsersRound className="size-4" aria-hidden="true" />{definition.minPlayers} / {maxGamePlayers(definition, definition.defaults)}</Badge>}
+            {durationMinutes !== null && <Badge variant="secondary" className="gap-3"><Clock3 className="size-4" aria-hidden="true" />{durationMinutes} min.</Badge>}
           </div>}
           <div className="flex flex-wrap items-center gap-3"><Heading variant="display">{game.name}</Heading>{development && <Badge>Desenvolvimento</Badge>}</div>
         </div>

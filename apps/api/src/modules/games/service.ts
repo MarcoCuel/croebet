@@ -8,7 +8,8 @@ import { adminTransaction, audit, ManagementError } from "../admin/service.ts";
 const selection = `select games.*, coalesce(
   (select avg(extract(epoch from (a.ended_at-a.started_at)))::float8
    from game_match_archives a where a.game_id=games.id and a.status='finished' and a.ended_at>a.started_at),
-  (select avg(extract(epoch from (a.ended_at-a.started_at)))::float8
+  (select avg(case when a.only_bots then nullif(a.playback_milliseconds,0)/1000.0
+                   else extract(epoch from (a.ended_at-a.started_at)) end)::float8
    from game_test_archives a where a.game_id=games.id and a.status='finished' and a.ended_at>a.started_at),
   games.fallback_duration_minutes * 60
 ) as average_duration_seconds from games`;

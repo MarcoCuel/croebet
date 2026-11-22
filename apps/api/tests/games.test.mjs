@@ -44,7 +44,7 @@ function transaction(version, failAudit = false) {
       return { rows: [{ ...row, version }] };
     }
     if (sql.startsWith('update games')) { assert.match(sql, /where id=\$4/); assert.equal(params[3], row.id); }
-    if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], description: params[5], version: version + 1 }] };
+    if (sql.startsWith('update games')) return { rows: [{ ...row, name: params[0], enabled: params[1], image_url: params[2], description: params[5], fallback_duration_minutes: params[6], version: version + 1 }] };
     if (failAudit && sql.startsWith('insert into admin_audit')) throw new Error('audit unavailable');
     return { rows: [] };
   }, release: () => calls.push('release') };
@@ -96,7 +96,7 @@ test('criação persiste catálogo e auditoria na mesma transação, com rollbac
       const client = await tx.pool.connect();
       const query = client.query;
       client.query = async (sql, params) => {
-        if (sql.startsWith('insert into games')) return { rows: [{...row,slug:params[0],name:params[1],description:params[2],enabled:params[3],image_url:params[4],seo:JSON.parse(params[5])}] };
+        if (sql.startsWith('insert into games')) return { rows: [{...row,slug:params[0],name:params[1],description:params[2],enabled:params[3],image_url:params[4],seo:JSON.parse(params[5]),fallback_duration_minutes:params[6]}] };
         return query(sql, params);
       };
       return client;
@@ -114,4 +114,17 @@ test('criação persiste catálogo e auditoria na mesma transação, com rollbac
       assert.ok(tx.calls.some(sql=>sql.startsWith('insert into admin_audit')));
     }
   }
+});
+
+test('duração manual aceita minutos inteiros positivos ou ausência; campo calculado não pode ser escrito', async () => {
+  for (const fallbackDurationMinutes of [null, undefined, 1, 35, 10080]) {
+    assert.equal(gameWriteSchema.safeParse({...input, fallbackDurationMinutes}).success, true);
+  }
+  for (const fallbackDurationMinutes of [0, -1, 1.5, 10081, '30']) {
+    assert.equal(gameWriteSchema.safeParse({...input, fallbackDurationMinutes}).success, false);
+  }
+  assert.equal(gameWriteSchema.safeParse({...input, averageDurationSeconds: 60}).success, false);
+  const tx = transaction(1);
+  const saved = await saveGame(tx.pool, 'admin', 'hash', row.id, {...input, fallbackDurationMinutes: 25});
+  assert.equal(saved.fallbackDurationMinutes, 25);
 });

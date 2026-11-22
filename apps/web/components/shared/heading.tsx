@@ -9,7 +9,7 @@ const headingVariants = cva("font-bold", {
       display: "text-display leading-tight tracking-display text-balance",
       section: "text-section leading-tight tracking-tight",
       banner: "text-banner leading-banner tracking-banner",
-      cover: "text-cover leading-banner tracking-banner text-shadow-cover",
+      cover: "text-cover leading-banner tracking-banner text-shadow-cover max-w-[70%]",
     },
   },
   defaultVariants: { variant: "section" },
