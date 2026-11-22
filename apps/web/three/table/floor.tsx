@@ -11,7 +11,7 @@ export function TableFloor({ fit, angle, palette }: { fit: AdaptiveTableLayout["
   const centerZ = fit.target[2] + (height - fit.target[1]) / Math.tan(pitch);
   const radiusX = (fit.right - fit.left) * 0.55;
   const radiusZ = (fit.top - fit.bottom) * 0.55 / Math.sin(pitch);
-  const color = useMemo(() => new Color(palette.background).lerp(new Color(palette.foreground), 0.06), [palette.background, palette.foreground]);
+  const color = useMemo(() => new Color(palette.background).lerp(new Color(palette.foreground), 0.12), [palette.background, palette.foreground]);
   const shade: MeshStandardMaterial["onBeforeCompile"] = useMemo(() => shader => {
     shader.uniforms.floorRadius = { value: [radiusX, radiusZ] };
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec2 vFloorPosition;")
