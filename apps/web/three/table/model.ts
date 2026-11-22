@@ -1,5 +1,5 @@
 export type LaboratorySettings = {
-  players: number; counts: number[]; viewer: number; localCardScale: number; opponentCardScale: number; localHandCurve: number;
+  numberCardColor: string; players: number; counts: number[]; viewer: number; localCardScale: number; opponentCardScale: number; localHandCurve: number;
   deckX: number; deckZ: number; deckRotation: number; deckScale: number;
   discardX: number; discardZ: number; discardRotation: number; discardScale: number;
   angle: number; light: number; ambient: number; pileHeight: number;
@@ -7,7 +7,7 @@ export type LaboratorySettings = {
   duration: number; arc: number; dealCount: number; turn: number; shadows: boolean; reveal: boolean;
 };
 export const defaultSettings: LaboratorySettings = {
-  players: 4, counts: Array.from({ length: 12 }, () => 7), viewer: 0, localCardScale: 1, opponentCardScale: 1, localHandCurve: 1,
+  numberCardColor: "#ad158f", players: 4, counts: Array.from({ length: 12 }, () => 7), viewer: 0, localCardScale: 1, opponentCardScale: 1, localHandCurve: 1,
   deckX: -1.5, deckZ: -0.6, deckRotation: -18, deckScale: 1, discardX: 0, discardZ: 0.15, discardRotation: 0, discardScale: 1,
   angle: 36, light: 1.1, ambient: 1.35, pointLight: 3, pointHeight: 2.5, exposure: 1, shadowSoftness: 6, shadowOpacity: 0.35, pileHeight: 0.004,
   duration: 0.65, arc: 0.8, dealCount: 1, turn: 0, shadows: true, reveal: false,
@@ -35,6 +35,7 @@ export function parseSettings(value: unknown): LaboratorySettings | null {
     const n = v[key];
     if (typeof n !== "number" || !Number.isFinite(n) || n < range[0] || n > range[1] || (range.length === 3 && !Number.isInteger(n))) return null;
   }
+  if (typeof v.numberCardColor !== "string" || !/^#[0-9a-f]{6}$/i.test(v.numberCardColor)) return null;
   if ((v.viewer as number) >= (v.players as number) || (v.turn as number) >= (v.players as number)
     || !Array.isArray(v.counts) || v.counts.length !== 12 || !v.counts.every(n => Number.isInteger(n) && n >= 0 && n <= 1000)
     || typeof v.shadows !== "boolean" || typeof v.reveal !== "boolean") return null;
@@ -45,13 +46,13 @@ export type LabCard = { id: string; value: number; face?: string; hidden?: boole
 export type MotionKind = "draw" | "discard" | "deal" | "flip" | "swap" | "collect" | "shuffle";
 export type MotionCue = { serial: number; kind: MotionKind; ids: string[] };
 export type TableMove = { serial: number; kind: MotionKind; order: number; via?: "reveal"; hold?: number };
-export type LaboratoryState = { hands: LabCard[][]; deck: LabCard[]; discard: LabCard[]; exposed?: LabCard[][]; staging?: LabCard[];
+export type LaboratoryState = { hands: LabCard[][]; deck: LabCard[]; discard: LabCard[]; exposed?: LabCard[][]; staging?: LabCard[]; stagingArea?: "discard";
   choice?: { cards: LabCard[] }; flipped: string[]; cue: MotionCue; motions: Record<string, TableMove> };
 export type TableState = LaboratoryState;
 
 /** A choice is a temporary presentation; ownership in the confirmed state stays untouched. */
 export function presentedHands(state: TableState, viewer: number): LabCard[][] {
-  if (!state.choice) return state.hands;
-  const ids = new Set(state.choice.cards.map(card => card.id));
-  return state.hands.map((hand, seat) => seat === viewer ? state.choice!.cards : hand.filter(card => !ids.has(card.id)));
+  if (!state.choice && !state.staging?.length) return state.hands;
+  const ids = new Set([...(state.choice?.cards ?? []), ...(state.staging ?? [])].map(card => card.id));
+  return state.hands.map((hand, seat) => seat === viewer && state.choice ? state.choice.cards : hand.filter(card => !ids.has(card.id)));
 }

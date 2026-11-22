@@ -20,7 +20,7 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
   const [card, setCard] = useState<number | null>(null);
   const [target, setTarget] = useState<number | null>(null);
   const [chosen, setChosen] = useState<number[]>([]);
-  const decisionKey = `${state.round}:${state.turn}:${state.pending}:${state.log.length}`;
+  const decisionKey = `${state.round}:${state.turn}:${state.pending}:${!!state.inspection}:${state.log.length}`;
   const [decision, setDecision] = useState(decisionKey);
   if (decision !== decisionKey) {
     setDecision(decisionKey); setCard(null); setTarget(null); setChosen([]);
@@ -34,8 +34,15 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
   const selected = plays.filter(action => action.card === card);
   const targets = [...new Set(selected.flatMap(action => action.target === undefined ? [] : [action.target]))];
   const guesses = [...new Set(selected.filter(action => action.target === target).flatMap(action => action.guess === undefined ? [] : [action.guess]))];
-  const status = state.phase === "over" ? `Vitória: ${state.winners.map(i => state.players[i].name).join(", ")}` : state.phase === "summary" ? `Rodada encerrada · ${state.winners.map(i => state.players[i].name).join(", ")}` : viewerSeat === state.turn ? "Sua vez" : `Vez de ${state.players[state.turn].name}`;
-  const instruction = busy ? "Aguarde a jogada…" : state.pending && myTurn ? chosen.length ? "Toque nas cartas restantes na ordem de devolução ao fundo." : "Escolha a carta que deseja manter." : card === null ? myTurn ? "Toque na carta que deseja descartar." : "" : target === null && targets.length ? "Toque no jogador que receberá a carta." : guesses.length ? "Qual carta você acha que ele tem?" : "";
+  const inspection = state.inspection;
+  const canContinue = state.legalActions.some(action => action.type === "continue");
+  const inspecting = inspection?.cards.some(card => card.value !== null);
+  const comparison = inspection?.kind === "baron" && inspection.cards.every(card => card.value !== null)
+    ? inspection.cards[0].value === inspection.cards[1].value ? "Empate: ninguém será eliminado."
+      : `${state.players[inspection.cards[0].value! < inspection.cards[1].value! ? inspection.actor : inspection.target].name} tem a menor carta.`
+    : "";
+  const status = inspection ? inspection.kind === "priest" ? "Revelação do Padre" : "Comparação do Barão" : state.phase === "over" ? `Vitória: ${state.winners.map(i => state.players[i].name).join(", ")}` : state.phase === "summary" ? `Rodada encerrada · ${state.winners.map(i => state.players[i].name).join(", ")}` : viewerSeat === state.turn ? "Sua vez" : `Vez de ${state.players[state.turn].name}`;
+  const instruction = busy ? "Aguarde a jogada…" : inspection ? inspecting ? `${inspection.cards.map(card => state.players[card.seat].name).join(" · ")}${comparison ? ` · ${comparison}` : ""}${canContinue ? " · Observe pelo tempo que quiser e clique em Continuar." : " · Aguarde a confirmação."}` : `${state.players[inspection.controller].name} está observando as cartas.` : state.pending && myTurn ? chosen.length ? "Toque nas cartas restantes na ordem de devolução ao fundo." : "Escolha a carta que deseja manter." : card === null ? myTurn ? "Toque na carta que deseja descartar." : "" : target === null && targets.length ? "Toque no jogador que receberá a carta." : guesses.length ? "Qual carta você acha que ele tem?" : "";
 
   function chooseCard(value: number) {
     if (busy) return;
@@ -73,6 +80,7 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
   const draw = () => { if (state.legalActions.some(a => a.type === "next")) void play({ type: "next" }); };
   const actionBar = <GameActionBar contained>
       <h2 role="status" className="text-sm font-medium" aria-live="polite">{moving ? "Movendo cartas" : status}</h2>
+      {canContinue && <Button disabled={busy || moving} onClick={() => void play({ type: "continue" })}>Continuar</Button>}
       {!busy && !moving && state.legalActions.some(a => a.type === "next") && <Button onClick={draw}>Próxima rodada</Button>}
     </GameActionBar>;
   return <section aria-label="Mesa do Love Letter" className="relative min-w-0">

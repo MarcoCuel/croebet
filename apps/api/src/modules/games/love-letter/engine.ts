@@ -1,8 +1,8 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
-import { loveActionSchema, loveViewSchema, type LoveAction } from "@croebet/shared";
+import { loveActionSchema, loveViewSchema, loveInspectionSchema, type LoveAction } from "@croebet/shared";
 const playerSchema=z.object({name:z.string(),kind:z.enum(["human","normal"]),hand:z.array(z.number().int().min(0).max(9)),discard:z.array(z.number().int()),protected:z.boolean(),out:z.boolean(),tokens:z.number().int(),notes:z.array(z.string())});
-const stateSchema=z.object({mode:z.enum(["classic","modern"]),players:z.array(playerSchema).min(2).max(6),deck:z.array(z.number().int()),aside:z.number().int().nullable(),removed:z.array(z.number().int()),round:z.number().int(),turn:z.number().int(),phase:z.enum(["playing","summary","over"]),winners:z.array(z.number().int()),pending:z.boolean(),log:z.array(z.string())});
+const stateSchema=z.object({mode:z.enum(["classic","modern"]),players:z.array(playerSchema).min(2).max(6),deck:z.array(z.number().int()),aside:z.number().int().nullable(),removed:z.array(z.number().int()),round:z.number().int(),turn:z.number().int(),phase:z.enum(["playing","summary","over"]),winners:z.array(z.number().int()),pending:z.boolean(),inspection:loveInspectionSchema.nullable().default(null),log:z.array(z.string())});
 export type LoveState=z.infer<typeof stateSchema>;
 export const parseLove=(value:unknown)=>stateSchema.parse(value);
 const value=(s:LoveState,role:"king"|"countess"|"princess")=>({king:s.mode==="classic"?6:7,countess:s.mode==="classic"?7:8,princess:s.mode==="classic"?8:9})[role];
@@ -10,17 +10,19 @@ export function startRound(s:LoveState){
  const counts=s.mode==="classic"?[0,5,2,2,2,2,1,1,1]:[2,6,2,2,2,2,2,1,1,1];
  s.deck=counts.flatMap((n,v)=>Array(n).fill(v) as number[]);
  for(let i=s.deck.length-1;i>0;i--){const j=randomInt(i+1);[s.deck[i],s.deck[j]]=[s.deck[j],s.deck[i]];}
- s.aside=s.deck.pop()!;s.removed=s.players.length===2?s.deck.splice(-3):[];s.pending=false;s.phase="playing";
+ s.aside=s.deck.pop()!;s.removed=s.players.length===2?s.deck.splice(-3):[];s.pending=false;s.inspection=null;s.phase="playing";
  for(const p of s.players){p.hand=[s.deck.pop()!];p.discard=[];p.out=false;p.protected=false;p.notes=[];}
  s.players[s.turn].hand.push(s.deck.pop()!);s.log.push(`Rodada ${s.round}.`);
  return s;
 }
 export function createLove(setup:{name:string;kind:"human"|"normal"}[],mode:"classic"|"modern"){
  if(setup.length<2 || setup.length>(mode==="classic"?4:6))throw Error("ILLEGAL_ACTION");
- return startRound({mode,players:setup.map(p=>({...p,hand:[],discard:[],out:false,protected:false,tokens:0,notes:[]})),deck:[],aside:0,removed:[],round:1,turn:randomInt(setup.length),phase:"playing",winners:[],pending:false,log:[]});
+ return startRound({mode,players:setup.map(p=>({...p,hand:[],discard:[],out:false,protected:false,tokens:0,notes:[]})),deck:[],aside:0,removed:[],round:1,turn:randomInt(setup.length),phase:"playing",winners:[],pending:false,inspection:null,log:[]});
 }
 function targets(s:LoveState,card:number){return s.players.flatMap((p,i)=>!p.out && !p.protected && (card===5 || i!==s.turn)?[i]:[]);}
+export const loveDecisionSeat=(s:LoveState)=>s.inspection?.controller ?? s.turn;
 export function legalLove(s:LoveState):LoveAction[]{
+ if(s.inspection)return [{type:"continue"}];
  if(s.phase==="over")return [];
  if(s.phase==="summary")return [{type:"next"}];
  const p=s.players[s.turn];
@@ -53,6 +55,14 @@ export function applyLove(initial:LoveState,input:LoveAction){
  const action=loveActionSchema.parse(input);
  if(!legalLove(initial).some(a=>JSON.stringify(a)===JSON.stringify(action)))throw Error("ILLEGAL_ACTION");
  const s=structuredClone(initial),p=s.players[s.turn];
+ if(action.type==="continue"){
+  const inspection=s.inspection!;
+  if(inspection.kind==="baron"){
+   const a=s.players[inspection.actor].hand[0],b=s.players[inspection.target].hand[0];
+   if(a<b)eliminate(s,inspection.actor);else if(b<a)eliminate(s,inspection.target);
+  }
+  s.inspection=null;finishTurn(s);return s;
+ }
  if(action.type==="next"){s.turn=s.winners[randomInt(s.winners.length)];s.round++;return startRound(s);}
  if(action.type==="keep"){p.hand=[action.cards[0]];s.deck.unshift(...action.cards.slice(1));s.pending=false;finishTurn(s);return s;}
  const card=action.card;p.hand.splice(p.hand.indexOf(card),1);p.discard.push(card);s.log.push(`${p.name} jogou ${card}${action.target===undefined?"":` em ${s.players[action.target].name}`}${action.guess===undefined?"":` (palpite: ${action.guess})`}.`);
@@ -60,8 +70,14 @@ export function applyLove(initial:LoveState,input:LoveAction){
  if(card===value(s,"princess"))eliminate(s,s.turn);
  else if(card===4)p.protected=true;
  else if(card===1 && t && t.hand[0]===action.guess)eliminate(s,action.target!);
- else if(card===2 && t)p.notes.push(`${t.name}: ${t.hand[0]} (ao jogar Sacerdote).`);
- else if(card===3 && t){p.notes.push(`${t.name}: ${t.hand[0]} (comparação).`);t.notes.push(`${p.name}: ${p.hand[0]} (comparação).`);if(p.hand[0]<t.hand[0])eliminate(s,s.turn);else if(t.hand[0]<p.hand[0])eliminate(s,action.target!);}
+ else if((card===2 || card===3) && t){
+  if(card===2)p.notes.push(`${t.name}: ${t.hand[0]} (ao jogar Sacerdote).`);
+  else {p.notes.push(`${t.name}: ${t.hand[0]} (comparação).`);t.notes.push(`${p.name}: ${p.hand[0]} (comparação).`);}
+  s.inspection={kind:card===2?"priest":"baron",actor:s.turn,target:action.target!,
+   controller:p.kind==="human" || card===2 || t.kind!=="human"?s.turn:action.target!,
+   cards:(card===2?[action.target!]:[s.turn,action.target!]).map(seat=>({seat,value:s.players[seat].hand[0]}))};
+  return s;
+ }
  else if(card===5 && t){const discarded=t.hand.pop()!;t.discard.push(discarded);if(discarded===value(s,"princess"))eliminate(s,action.target!);else {const drawn=s.deck.pop();t.hand=[drawn??s.aside!];if(drawn===undefined)s.aside=null;}}
  else if(card===value(s,"king") && t){[p.hand,t.hand]=[t.hand,p.hand];}
  else if(s.mode==="modern" && card===6 && s.deck.length){p.hand.push(...s.deck.splice(-Math.min(2,s.deck.length)));s.pending=true;return s;}
@@ -69,8 +85,9 @@ export function applyLove(initial:LoveState,input:LoveAction){
 }
 export function projectLove(s:LoveState,seat:number|null){
  return loveViewSchema.parse({mode:s.mode,round:s.round,turn:s.turn,phase:s.phase,deckCount:s.deck.length,removed:s.removed,winners:s.winners,log:s.log,pending:s.pending,
- players:s.players.map((p,i)=>({name:p.name,kind:p.kind,discard:p.discard,protected:p.protected,out:p.out,tokens:p.tokens,hand:seat===i || s.phase!=="playing"?p.hand:null,handCount:p.hand.length})),privateInfo:seat===null?[]:s.players[seat].notes,legalActions:seat===s.turn?legalLove(s):[]});
+ players:s.players.map((p,i)=>({name:p.name,kind:p.kind,discard:p.discard,protected:p.protected,out:p.out,tokens:p.tokens,hand:seat===i || s.phase!=="playing"?p.hand:null,handCount:p.hand.length})),inspection:s.inspection?{...s.inspection,cards:s.inspection.cards.map(card=>({...card,value:seat===s.inspection!.actor || (s.inspection!.kind==="baron" && seat===s.inspection!.target)?card.value:null}))}:null,
+ privateInfo:seat===null?[]:s.players[seat].notes,legalActions:seat===loveDecisionSeat(s)?legalLove(s):[]});
 }
 /** Bot receives the same projection as a human; no deck or opponent hand access. */
-export function botLove(s:LoveState){const view=projectLove(s,s.turn);return view.legalActions[randomInt(view.legalActions.length)];}
-export function automateLove(initial:LoveState){let s=initial;for(let i=0;i<1000;i++){if(s.phase==="over" || (s.phase==="playing" && s.players[s.turn].kind==="human"))return s;s=applyLove(s,s.phase==="summary"?{type:"next"}:botLove(s));}throw Error("AUTOMATION_LIMIT");}
+export function botLove(s:LoveState){const view=projectLove(s,loveDecisionSeat(s));return view.legalActions[randomInt(view.legalActions.length)];}
+export function automateLove(initial:LoveState){let s=initial;for(let i=0;i<1000;i++){if(s.phase==="over" || (s.phase==="playing" && s.players[loveDecisionSeat(s)].kind==="human"))return s;s=applyLove(s,s.phase==="summary"?{type:"next"}:botLove(s));}throw Error("AUTOMATION_LIMIT");}

@@ -129,6 +129,7 @@ export function GameLaboratory() {
         <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, turn: Math.min(current.turn, players - 1) })); setFocus(0); setMenu(null); }} />
         <p className="text-xs text-muted">Layout automático conforme cartas, jogadores e espaço disponível.</p>
         <details><summary className="cursor-pointer text-sm font-semibold">Cartas</summary><div className="mt-4 grid gap-4">
+          <Field>Cor das cartas numéricas<Input type="color" value={settings.numberCardColor} onChange={event => update("numberCardColor", event.currentTarget.value)} /></Field>
           <RangeControl label="Suas cartas" value={settings.localCardScale} min={0.5} max={1.5} step={0.05} suffix="×" onChange={value => update("localCardScale", value)} />
           <RangeControl label="Cartas dos oponentes" value={settings.opponentCardScale} min={0.5} max={1.5} step={0.05} suffix="×" onChange={value => update("opponentCardScale", value)} />
           <RangeControl label="Curvatura da sua mão" value={settings.localHandCurve} min={0} max={2} step={0.05} suffix="×" onChange={value => update("localHandCurve", value)} />

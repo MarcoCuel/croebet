@@ -1,6 +1,6 @@
 import { loveOptionsSchema, loveActionSchema, loveViewSchema, type GameView, type GameEngineAction } from "@croebet/shared";
 import type { MatchDriver } from "../../matches/driver.ts";
-import { createLove, parseLove, projectLove, applyLove, botLove } from "./engine.ts";
+import { createLove, parseLove, projectLove, applyLove, botLove, loveDecisionSeat } from "./engine.ts";
 
 export const loveDriver:MatchDriver<GameView,GameEngineAction> = {
   rulesVersion:1,
@@ -11,12 +11,12 @@ export const loveDriver:MatchDriver<GameView,GameEngineAction> = {
   apply:(state,action)=>applyLove(parseLove(state),loveActionSchema.parse(action)),
   automatic:state=>{
     const s=parseLove(state);
-    return s.phase==="over"?null:s.phase==="summary"?{type:"next"}:s.players[s.turn].kind==="human"?null:botLove(s);
+    return s.phase==="over"?null:s.phase==="summary"?{type:"next"}:s.players[loveDecisionSeat(s)].kind==="human"?null:botLove(s);
   },
   finished:state=>parseLove(state).phase==="over",
   decision:state=>{
     const s=parseLove(state);
-    return s.phase==="playing" && s.players[s.turn].kind==="human"?{seat:s.turn,key:`${s.round}:${s.turn}`}:null;
+    return s.phase==="playing" && s.players[loveDecisionSeat(s)].kind==="human"?{seat:loveDecisionSeat(s),key:`${s.round}:${s.turn}${s.inspection?":inspection":""}`}:null;
   },
   human:(state,seat)=>parseLove(state).players[seat]?.kind==="human",
   replace:(state,seat)=>{

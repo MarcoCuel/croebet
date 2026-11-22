@@ -940,3 +940,38 @@ for (const game of ['flip7','love-letter']) test(`PostgreSQL: ${game} arquiva te
  await pool.query('delete from users where id=$1',[actors[0]]);
  assert.equal((await readMatchReplay(pool,gameId,room.id,0,100)).match.frameCount,first.match.frameCount);
 });
+
+test('PostgreSQL: inspeção do Padre persiste, reconecta, protege valores e confirma uma única vez',async t=>{
+ const {pool,actors,sessions}=await environment(t);
+ await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:'love-letter',capacity:2,options:{mode:'modern',brutal:false},development:true,bots:0,onlyBots:false,entryAmount:0});
+ const {inviteLobbyPlayer}=await import('../../dist/modules/matches/service.js');
+ await inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[1]);
+ await lobbyAction(pool,actors[1],sessions[1],room.code,'join',{commandId:randomUUID()});
+ for(const actor of actors.slice(0,2))await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),room.id,actor]);
+ const ready=await getMatch(pool,actors[0],room.code);
+ await lobbyAction(pool,actors[0],sessions[0],room.code,'start',{commandId:randomUUID(),expectedVersion:ready.version});
+ const {createLove}=await import('../../dist/modules/games/love-letter/engine.js');
+ const state=createLove([{name:'A',kind:'human'},{name:'B',kind:'human'}],'modern');
+ state.turn=0;state.players[0].hand=[2,9];state.players[1].hand=[4];state.deck=[4,4,4];
+ await pool.query('update game_matches set state=$2 where id=$1',[room.id,JSON.stringify(state)]);
+ const initial=await getMatch(pool,actors[0],room.code);
+ const played=await commandMatch(pool,actors[0],sessions[0],room.code,{commandId:randomUUID(),expectedVersion:initial.version,action:{type:'play',card:2,target:1}});
+ const owner=await getRoomSync(pool,actors[0],room.code,0),target=await getRoomSync(pool,actors[1],room.code,0);
+ assert.equal(owner.room.state.inspection.cards[0].value,4);
+ assert.equal(target.room.state.inspection.cards[0].value,null);
+ assert.deepEqual(owner.room.state.legalActions,[{type:'continue'}]);
+ assert.deepEqual(target.room.state.legalActions,[]);
+ assert.deepEqual(owner.room.state.players[0].hand,[9]);
+ const saved=(await pool.query('select state from game_matches where id=$1',[room.id])).rows[0].state;
+ assert.equal(saved.inspection.cards[0].value,4);assert.deepEqual(saved.deck,[4,4,4]);
+ for(const frame of played.frames)assert.ok(frame.state.inspection.cards.every(c=>c.value===null));
+ const input={commandId:randomUUID(),expectedVersion:owner.room.version,action:{type:'continue'}};
+ await assert.rejects(commandMatch(pool,actors[1],sessions[1],room.code,input),{code:'NOT_YOUR_TURN'});
+ const [a,b]=await Promise.all([1,2].map(()=>commandMatch(pool,actors[0],sessions[0],room.code,input)));
+ assert.deepEqual(wire(a),wire(b));
+ const done=await getMatch(pool,actors[1],room.code);
+ assert.equal(done.state.inspection,null);assert.equal(done.state.turn,1);assert.deepEqual(done.state.players[1].hand,[4,4]);
+ const events=(await pool.query('select event from game_match_events where match_id=$1',[room.id])).rows;
+ for(const {event} of events)if(event.state.inspection)assert.ok(event.state.inspection.cards.every(c=>c.value===null));
+});

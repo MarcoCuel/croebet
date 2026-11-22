@@ -125,6 +125,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={target.glow && !target.hidden ? 0.12 : hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
     <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
     </group>
+    {target.zone === "staging" && target.label && <Html position={[0, -0.95, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-48 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.label}</span></Html>}
     {hovered && target.interactive && target.actionLabel && !target.hidden && <Html position={[0, 0.8, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-64 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.actionLabel}</span></Html>}
     {target.interactive && target.zone === "hand" && <Html center zIndexRange={[12, 0]} style={{ pointerEvents: "none" }}><button
       className="pointer-events-auto sr-only focus:not-sr-only focus:whitespace-nowrap focus:rounded-lg focus:bg-background focus:p-2 focus:text-xs"

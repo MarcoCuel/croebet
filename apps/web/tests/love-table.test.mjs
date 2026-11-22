@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loveTableState } from '../features/games/love-letter/table-model.ts';
 import { loveArtwork } from '../features/games/love-letter/artwork.ts';
+import { presentedHands } from '../three/table/model.ts';
 import { lovePlaybackView } from '../features/games/love-letter/playback-view.ts';
 import { access } from 'node:fs/promises';
 
@@ -111,4 +112,25 @@ test('Chanceler devolve as cartas excedentes ao baralho sem perder sua identidad
     assert.ok(next.deck.some(returned => returned.id === card.id && returned.value === -1));
     assert.equal(next.motions[card.id].kind, 'collect');
   }
+});
+
+for (const kind of ['priest','baron']) test(`${kind}: revelação temporária retira cartas da mão sem mudar posse e devolve os versos`, () => {
+ const v = view();v.players[0].hand=[4];v.players[0].handCount=1;
+ const initial=loveTableState(v,0);
+ v.inspection={kind,actor:0,target:1,controller:0,cards:kind==='priest'?[{seat:1,value:9}]:[{seat:0,value:4},{seat:1,value:9}]};
+ const showing=loveTableState(v,0,initial);
+ assert.equal(showing.staging.at(-1).id,initial.hands[1][0].id);
+ assert.equal(showing.staging.at(-1).value,9);
+ assert.deepEqual(presentedHands(showing,0)[1],[]);
+ assert.equal(showing.hands[1][0].value,-1);
+ assert.equal(showing.discard.length,0);
+ const again=loveTableState(v,0,showing);
+ assert.equal(again.staging.at(-1).id,showing.staging.at(-1).id);
+ const publicView={...v,inspection:{...v.inspection,cards:v.inspection.cards.map(c=>({...c,value:null}))}};
+ assert.ok(loveTableState(publicView,undefined).staging.every(c=>c.hidden && c.value===-1));
+ v.inspection=null;const returned=loveTableState(v,0,showing);
+ assert.equal(returned.staging.length,0);
+ assert.equal(returned.hands[1][0].id,initial.hands[1][0].id);
+ assert.equal(returned.hands[1][0].hidden,true);
+ assert.equal(returned.hands[1][0].value,-1);
 });

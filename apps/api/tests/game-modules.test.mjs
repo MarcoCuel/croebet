@@ -87,3 +87,21 @@ test('escolha privada do Chanceler nunca entra nos eventos públicos',()=>{
  assert.equal(view.players[state.turn].hand,null);
  assert.deepEqual(view.legalActions,[]);
 });
+
+test('inspeção privada usa autorização, recuperação e recibos comuns sem revelar valores nos eventos',async()=>{
+ const f=fixture('love-letter'),s=f.row.state;
+ s.turn=0;s.players[0].hand=[2,9];s.players[1].hand=[4];s.deck=[4,4,4];s.phase='playing';s.pending=false;s.inspection=null;
+ const played=await commandMatch(f.pool,f.ids[0],'session',f.row.code,{commandId:randomUUID(),expectedVersion:f.row.version,action:{type:'play',card:2,target:1}});
+ assert.equal(f.row.state.inspection.kind,'priest');assert.deepEqual(f.row.state.deck,[4,4,4]);
+ assert.ok(played.frames.every(frame=>frame.state.inspection.cards.every(c=>c.value===null)));
+ const owner=await getRoomSync(f.pool,f.ids[0],f.row.code),target=await getRoomSync(f.pool,f.ids[1],f.row.code);
+ assert.equal(owner.room.state.inspection.cards[0].value,4);
+ assert.equal(target.room.state.inspection.cards[0].value,null);
+ const input={commandId:randomUUID(),expectedVersion:f.row.version,action:{type:'continue'}};
+ await assert.rejects(commandMatch(f.pool,f.ids[1],'session',f.row.code,input),{code:'NOT_YOUR_TURN'});
+ const done=await commandMatch(f.pool,f.ids[0],'session',f.row.code,input),count=f.events.length;
+ assert.deepEqual(await commandMatch(f.pool,f.ids[0],'session',f.row.code,input),done);
+ assert.equal(f.events.length,count);assert.equal(f.row.state.inspection,null);
+ assert.equal(f.row.state.turn,1);assert.deepEqual(f.row.state.players[1].hand,[4,4]);
+ for(const event of f.events)if(event.state.inspection)assert.ok(event.state.inspection.cards.every(c=>c.value===null));
+});

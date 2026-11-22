@@ -55,6 +55,16 @@ export function loveTableState(view: LoveView, viewer: number | undefined, previ
       motions[card.id] = { serial, kind: "collect", order: index };
     });
   }
+  const staging = (view.inspection?.cards ?? []).flatMap(revealed => {
+    const card = hands[revealed.seat]?.[0];
+    if (!card) return [];
+    if (!previous?.staging?.some(old => old.id === card.id)) motions[card.id] = { serial, kind: "flip", order: 0 };
+    return [{ ...card, value: revealed.value ?? -1, hidden: revealed.value === null,
+      label: `${view.players[revealed.seat].name} · ${revealed.value === null ? "Carta oculta" : revealed.value}` }];
+  });
+  for (const card of previous?.staging ?? []) if (!staging.some(next => next.id === card.id) && hands.some(hand => hand.some(next => next.id === card.id))) {
+    motions[card.id] = { serial, kind: "flip", order: 0 };
+  }
   const moved = Object.keys(motions);
-  return { hands, deck, discard: [], exposed, round: view.round, pending: view.pending, logLength: view.log?.length ?? 0, discardSlots, flipped: [], motions, cue: { serial, kind: "discard", ids: moved } };
+  return { hands, deck, discard: [], exposed, staging, stagingArea: "discard", round: view.round, pending: view.pending, logLength: view.log?.length ?? 0, discardSlots, flipped: [], motions, cue: { serial, kind: "discard", ids: moved } };
 }

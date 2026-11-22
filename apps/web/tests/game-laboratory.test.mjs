@@ -101,6 +101,10 @@ test('câmera ortográfica enquadra retrato/paisagem e preserva tamanho independ
 
 test('preferências migram presets anteriores e recusam valores corrompidos', () => {
   assert.deepEqual(parseSettings(defaultSettings), defaultSettings);
+  const legacy = { ...defaultSettings }; delete legacy.numberCardColor;
+  assert.equal(parseSettings(legacy).numberCardColor, '#ad158f');
+  assert.equal(parseSettings({ ...defaultSettings, numberCardColor: '#239bd0' }).numberCardColor, '#239bd0');
+  for (const numberCardColor of ['red', '#fff', null, 123]) assert.equal(parseSettings({ ...defaultSettings, numberCardColor }), null);
   assert.deepEqual(parseSettings({ ...defaultSettings, tilt: 45, overlap: 0.9, scale: 0.5, curve: 3, opponentCurve: 1.6, layout: 'line' }), defaultSettings);
   for (const value of [null, {}, { ...defaultSettings, viewer: 8 }, { ...defaultSettings, angle: NaN },
     { ...defaultSettings, counts: Array(12).fill(1001) }, { ...defaultSettings, players: 4.5 },

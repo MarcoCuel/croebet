@@ -69,7 +69,7 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
   const count = hands[viewer].length;
   const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const local = presentation.seats[viewer];
-  return <div ref={root} data-testid={testId} data-choice={state.choice ? "true" : "false"} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
+  return <div ref={root} data-testid={testId} data-choice={state.choice ? "true" : "false"} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
     <TableSceneBoundary fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>}><Scene fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>} state={state} settings={settings} layout={layout} presentation={presentation} selected={null} focus={focus}
       reducedMotion={reduced} paused={paused} timeScale={timeScale} canDraw={canDraw} onDeckChange={onDeckChange} onDiscardChange={onDiscardChange} onDraw={onDraw} onSelect={onCard} onTurn={onSeat} onMenu={() => {}} onMotion={onMotion} /></TableSceneBoundary>
     <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex flex-col items-center gap-2 text-center">
@@ -84,7 +84,8 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
       <span className="text-xs tabular-nums">{window.start + 1}–{window.start + window.length} / {count}</span>
       <Button size="sm" variant="ghost" aria-label="Próximas cartas" disabled={window.start + window.length >= count} onClick={() => setFocus(window.start + window.length * 1.5)}>→</Button>
     </div>}
-    <span className="sr-only">{state.hands.flatMap((hand, seat) => hand.filter(card => card.hidden ?? presentation.hiddenSeats.includes(seat)).map(card => <span key={card.id} aria-label="Carta oculta">Carta oculta de {presentation.seats[seat].name}</span>))}</span>
+    <span className="sr-only">{hands.flatMap((hand, seat) => hand.filter(card => card.hidden ?? presentation.hiddenSeats.includes(seat)).map(card => <span key={card.id} aria-label="Carta oculta">Carta oculta de {presentation.seats[seat].name}</span>))}</span>
+    <span className="sr-only">{state.staging?.map(card => <span key={card.id} aria-label={card.label}>{card.label}</span>)}</span>
     {actions}
   </div>;
 }

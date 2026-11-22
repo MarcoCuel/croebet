@@ -39,7 +39,7 @@ export type LaboratorySceneProps = {
 function SceneContents({ palette, pileManipulation, artwork, presentation, settings, layout, state, selected, focus, reducedMotion, canDraw, onDeckChange, onDiscardChange, onDraw, onSelect, onMenu, onTurn, onMotion, paused, timeScale }: LaboratorySceneProps & { palette: TablePalette }) {
   const moveDeck = canManipulatePile(pileManipulation, "deck");
   const moveDiscard = canManipulatePile(pileManipulation, "discard");
-  const resources = useCardResources(palette, presentation?.artwork ?? artwork);
+  const resources = useCardResources(palette, presentation?.artwork ?? artwork, settings.numberCardColor);
   const { size, invalidate } = useThree();
   const [visible, setVisible] = useState(true);
   const motionHistory = useRef(new Map<string, string>());
@@ -73,7 +73,7 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
     hidden: presentation ? presentation.hiddenSeats.includes(seat.seat) : place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
   for (const [place, seat] of seats.entries()) targets.push(...exposedTargets(state.exposed?.[seat.seat] ?? [], place === 0 ? localSeat : seat, place === 0, hands[place].scale, settings.angle));
   targets.push(...(state.staging ?? []).map((card, i) => ({ ...card, zone: "staging" as const, hidden: card.hidden ?? false,
-    pose: { position: [1.2 + i * 0.5, 0.7 + i * 0.01, -0.2] as [number, number, number], rotation: pileRotation(true, settings.angle), scale: 1 } })));
+    pose: { position: (state.stagingArea === "discard" ? [discard.x + (i - ((state.staging?.length ?? 1) - 1) / 2) * discard.scale * 0.9, 0.8 + i * 0.01, discard.z] : [1.2 + i * 0.5, 0.7 + i * 0.01, -0.2]) as [number, number, number], rotation: pileRotation(true, settings.angle), scale: state.stagingArea === "discard" ? Math.min(1.25, discard.scale) : 1 } })));
   targets.push(...TablePile({ cards: state.deck, position: deckPosition, rotation: deckRotation, scale: settings.deckScale, height: settings.pileHeight, faceUp: false,
     moving: state.cue.ids.filter(id => state.motions[id]?.kind === "collect") }).map(target => ({ ...target, zone: "deck" as const, interactive: true })));
   targets.push(...TablePile({ cards: state.discard, position: [discard.x, 0.6, discard.z], height: settings.pileHeight, faceUp: true, rotation: discardRotation, scale: discard.scale, moving: state.cue.ids }).map(target => ({ ...target, zone: "discard" as const, interactive: true })));

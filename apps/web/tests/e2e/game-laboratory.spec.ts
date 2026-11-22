@@ -54,6 +54,22 @@ test("configuração interna preserva cenários e paginação sem reduzir a larg
   await expect(page.getByRole("button", { name: "Anteriores", exact: true })).toBeEnabled();
 });
 
+test("cor única das cartas numéricas é salva e restaurada no preset", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/admin/jogos/laboratorio");
+  await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByText("Cartas", { exact: true }).click();
+  const color = panel.getByLabel("Cor das cartas numéricas", { exact: true });
+  await expect(color).toHaveValue("#ad158f");
+  await color.fill("#239bd0");
+  await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
+  await color.fill("#f15b66");
+  await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
+  await expect(color).toHaveValue("#239bd0");
+});
+
 test("visitantes e contas comuns não acessam o laboratório", async ({ page }) => {
   for (const next of ["user", null] as const) {
     role = next;

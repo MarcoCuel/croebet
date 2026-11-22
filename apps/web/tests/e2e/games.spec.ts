@@ -498,6 +498,45 @@ test("Guarda com um único alvo válido abre palpites sem confirmar jogador",asy
  await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
 });
 
+for(const kind of ["priest","baron"] as const)test(`${kind}: revelação permanece até Continuar e sobrevive à recarga`,async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture Love Letter ausente");
+ const state=loveRoom.state;
+ state.players[0].hand=[4];state.players[0].handCount=1;
+ state.inspection={kind,actor:0,target:2,controller:0,cards:kind==="priest"?[{seat:2,value:9}]:[{seat:0,value:4},{seat:2,value:9}]};
+ state.legalActions=[{type:"continue"}];
+ const commands=gameCommands;
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ const table=page.getByLabel("Mesa do Love Letter"),scene=table.getByTestId("love-table-scene");
+ await expect(scene).toHaveAttribute("data-staging-count",kind==="priest"?"1":"2");
+ await expect(table.getByRole("button",{name:"Continuar",exact:true})).toBeEnabled();
+ await expect(scene.getByLabel("Bot 2 · 9",{exact:true})).toBeAttached();
+ await page.waitForTimeout(1800); // Longer than the normal playback frame: reading has no automatic timeout.
+ expect(commands).toEqual([]);
+ await page.reload();
+ await expect(scene).toHaveAttribute("data-staging-count",kind==="priest"?"1":"2");
+ await table.getByRole("button",{name:"Continuar",exact:true}).click();
+ await expect.poll(()=>commands).toEqual([{type:"continue"}]);
+ state.inspection=null;state.turn=1;state.legalActions=[];
+ loveRoom.version++;
+ sockets.emit("room",{room:loveRoom,frames:[],reset:true});
+ await expect(scene).toHaveAttribute("data-staging-count","0");
+ await expect(table.getByRole("button",{name:"Continuar",exact:true})).toHaveCount(0);
+});
+
+test("revelação privada mostra somente versos e espera para os demais jogadores",async({page})=>{
+ prepareLoveTable();
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture Love Letter ausente");
+ loveRoom.state.turn=2;loveRoom.state.legalActions=[];
+ loveRoom.state.inspection={kind:"priest",actor:2,target:3,controller:2,cards:[{seat:3,value:null}]};
+ await page.goto("/jogos/love-letter?partida=ABCDEF654321");
+ const scene=page.getByTestId("love-table-scene");
+ await expect(scene).toHaveAttribute("data-staging-count","1");
+ await expect(scene.getByLabel("Bot 3 · Carta oculta",{exact:true})).toBeAttached();
+ await expect(page.getByRole("button",{name:"Continuar",exact:true})).toHaveCount(0);
+ await expect(page.getByText("Bot 2 está observando as cartas.",{exact:true})).toBeVisible();
+});
+
 test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxima rodada",async({page})=>{
  prepareLoveTable();
  if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw new Error("Fixture Love Letter ausente");

@@ -2,18 +2,21 @@
 import { useState } from "react";
 import type { MatchParticipant } from "@croebet/shared";
 import { TableViewport } from "@/three/table/table-viewport";
-import type { TableArtwork } from "@/three/table/artwork";
+import { numberNames, type TableArtwork } from "@/three/table/artwork";
 import type { TablePresentation } from "@/three/table/table-scene";
 import { Button } from "@/components/ui/button";
 import type { Card, Game } from "./types";
 import { cardFace, flipTableState } from "./table-model";
+import { numberColors } from "./card-colors";
 import { cardLabel, score } from "./rules";
 
 const symbols: Record<string, string> = { chance: "♡", freeze: "❄", three: "+3", one: "+1", four: "+4", steal: "↙", swap: "⇄", remove: "↑", double: "×2", halve: "÷2" };
 const artwork: TableArtwork = { back: { text: "7", color: "#ad158f" }, faces: Object.fromEntries(
   ["number", "bonus", "double", "chance", "freeze", "three", "zero", "unlucky7", "lucky13", "minus", "halve", "one", "four", "steal", "swap", "remove"].flatMap(type => (type === "number" ? Array.from({ length: 14 }, (_, i) => i) : type === "bonus" || type === "minus" ? [2, 4, 6, 8, 10] : [type === "unlucky7" ? 7 : type === "lucky13" ? 13 : type === "halve" ? 2 : 0]).map(value => {
     const card = { id: 0, type, value } as Card;
-    return [cardFace(card), { text: symbols[type] ?? (type === "bonus" ? `+${value}` : type === "minus" ? `−${value}` : String(value)), caption: cardLabel(card), color: "#ad158f" }];
+    const numeric = ["number", "zero", "unlucky7", "lucky13"].includes(type);
+    const color = type === "unlucky7" ? "silver" : numeric ? numberColors[value] : type === "freeze" || type === "one" ? "cyan" : type === "four" ? "yellow" : type === "three" || type === "steal" ? "amber" : type === "minus" || type === "halve" ? "red" : type === "swap" ? "lime" : type === "remove" ? "purple" : "orange";
+    return [cardFace(card), { layout: numeric ? "numeric" : "symbol", text: symbols[type] ?? (type === "bonus" ? `+${value}` : type === "minus" ? `−${value}` : String(value)), caption: type === "number" ? numberNames[value] : cardLabel(card), color: `var(--color-flip-${color})` }];
   }))) };
 
 export default function FlipScene({ game, viewer, participants, eligible, targetSeats, interactive, selected, onCard, onSeat, canDraw, onDraw, status, onAnimating, animate, held, children, actions, paused, timeScale, localPlayer, summaryGame }: {

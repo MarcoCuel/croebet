@@ -2,6 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createLove,applyLove,projectLove,legalLove,automateLove,botLove} from '../dist/modules/games/love-letter/engine.js';
 import {createMatchSchema} from '@croebet/shared';
+import {loveDriver} from '../dist/modules/games/love-letter/driver.js';
+import {execute} from '../dist/modules/matches/execution.js';
 import {flip7Driver} from '../dist/modules/games/flip7/driver.js';
 const setup=n=>Array.from({length:n},(_,i)=>({name:`P${i}`,kind:'human'}));
 for(const [mode,total,max] of [['classic',16,4],['modern',21,6]]){
@@ -48,4 +50,47 @@ test('contrato diferencia teste e mantém compatibilidade das criações normais
  assert.equal(createMatchSchema.parse({...input,game:'love-letter',options:{mode:'modern',brutal:false},development:true}).development,true);
  assert.throws(()=>createLove(setup(5),'classic'));assert.throws(()=>createLove(setup(7),'modern'));
  assert.ok(botLove(createLove(setup(2),'modern')));
+});
+
+test('Padre aguarda confirmação, preserva snapshot privado e não avança compras',()=>{
+ const s=createLove(setup(3),'modern');s.turn=0;s.players[0].hand=[2,9];s.players[1].hand=[4];s.deck=[1,2,3];
+ const result=execute(loveDriver,s,1,{type:'play',card:2,target:1}),paused=result.state;
+ assert.equal(paused.turn,0);assert.equal(paused.inspection.kind,'priest');assert.deepEqual(paused.deck,s.deck);
+ assert.deepEqual(legalLove(paused),[{type:'continue'}]);assert.equal(loveDriver.automatic(paused),null);
+ assert.deepEqual(loveDriver.decision(paused),{seat:0,key:'1:0:inspection'});
+ assert.equal(projectLove(paused,0).inspection.cards[0].value,4);
+ for(const seat of [null,1,2]){
+  const view=projectLove(paused,seat);assert.ok(view.inspection.cards.every(c=>c.value===null));assert.deepEqual(view.legalActions,[]);
+ }
+ assert.ok(result.frames.every(f=>f.state.inspection.cards.every(c=>c.value===null)));
+ assert.throws(()=>applyLove(paused,{type:'play',card:9}),/ILLEGAL_ACTION/);
+ const restored=loveDriver.parse(JSON.parse(JSON.stringify(paused)));
+ assert.equal(restored.inspection.cards[0].value,4);
+ const done=applyLove(restored,{type:'continue'});
+ assert.equal(done.inspection,null);assert.equal(done.turn,1);assert.deepEqual(done.players[1].hand,[4,3]);
+ assert.throws(()=>applyLove(done,{type:'continue'}),/ILLEGAL_ACTION/);
+ const replaced=loveDriver.replace(paused,0);
+ assert.deepEqual(loveDriver.automatic(replaced),{type:'continue'});
+});
+for(const [own,other,loser] of [[8,4,1],[4,8,0],[4,4,null]])test(`Barão compara ${own} com ${other} e só resolve ao continuar`,()=>{
+ const s=createLove(setup(3),'modern');s.turn=0;s.players[0].hand=[3,own];s.players[1].hand=[other];s.deck=[1,2,3];
+ const paused=applyLove(s,{type:'play',card:3,target:1});
+ assert.ok(paused.players.every(p=>!p.out));assert.equal(paused.turn,0);
+ for(const seat of [0,1])assert.deepEqual(projectLove(paused,seat).inspection.cards.map(c=>c.value),[own,other]);
+ for(const seat of [null,2])assert.ok(projectLove(paused,seat).inspection.cards.every(c=>c.value===null));
+ assert.deepEqual(projectLove(paused,1).legalActions,[]);
+ const done=applyLove(paused,{type:'continue'});
+ assert.equal(done.inspection,null);
+ assert.deepEqual(done.players.flatMap((p,i)=>p.out?[i]:[]),loser===null?[]:[loser]);
+});
+test('Barão de bot permite ao alvo humano observar e confirmar; bots sozinhos continuam automaticamente',()=>{
+ const s=createLove(setup(3).map(p=>({...p,kind:'normal'})),'modern');s.turn=0;s.players[0].hand=[3,8];s.players[1].hand=[4];s.players[1].kind='human';
+ const paused=applyLove(s,{type:'play',card:3,target:1});
+ assert.equal(loveDriver.decision(paused).seat,1);assert.equal(loveDriver.automatic(paused),null);
+ assert.deepEqual(projectLove(paused,1).legalActions,[{type:'continue'}]);assert.deepEqual(projectLove(paused,0).legalActions,[]);
+ const bots=loveDriver.replace(paused,1);assert.deepEqual(loveDriver.automatic(bots),{type:'continue'});
+});
+test('snapshots anteriores continuam válidos sem inspeção',()=>{
+ const s=createLove(setup(2),'classic');delete s.inspection;
+ assert.equal(loveDriver.parse(s).inspection,null);
 });
