@@ -40,7 +40,18 @@ export function parseSettings(value: unknown): LaboratorySettings | null {
     || typeof v.shadows !== "boolean" || typeof v.reveal !== "boolean") return null;
   return Object.fromEntries(Object.keys(defaultSettings).map(key => [key, v[key]])) as LaboratorySettings;
 }
-export type LabCard = { id: string; value: number };
+export type CardIdle = { angle: number; phase: number; offset?: number };
+export type LabCard = { id: string; value: number; face?: string; hidden?: boolean; label?: string; sideways?: boolean; idle?: CardIdle; glow?: boolean };
 export type MotionKind = "draw" | "discard" | "deal" | "flip" | "swap" | "collect" | "shuffle";
 export type MotionCue = { serial: number; kind: MotionKind; ids: string[] };
-export type LaboratoryState = { hands: LabCard[][]; deck: LabCard[]; discard: LabCard[]; flipped: string[]; cue: MotionCue; motions: Record<string, { serial: number; kind: MotionKind; order: number }> };
+export type TableMove = { serial: number; kind: MotionKind; order: number; via?: "reveal"; hold?: number };
+export type LaboratoryState = { hands: LabCard[][]; deck: LabCard[]; discard: LabCard[]; exposed?: LabCard[][]; staging?: LabCard[];
+  choice?: { cards: LabCard[] }; flipped: string[]; cue: MotionCue; motions: Record<string, TableMove> };
+export type TableState = LaboratoryState;
+
+/** A choice is a temporary presentation; ownership in the confirmed state stays untouched. */
+export function presentedHands(state: TableState, viewer: number): LabCard[][] {
+  if (!state.choice) return state.hands;
+  const ids = new Set(state.choice.cards.map(card => card.id));
+  return state.hands.map((hand, seat) => seat === viewer ? state.choice!.cards : hand.filter(card => !ids.has(card.id)));
+}

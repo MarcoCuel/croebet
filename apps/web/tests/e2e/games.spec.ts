@@ -338,7 +338,7 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   await result.getByRole("button",{name:"Replay",exact:true}).click();
   await expect(result).not.toBeVisible();
   await expect(page.getByRole("region",{name:"Mesa de Flip7",exact:true})).toBeVisible();
-  const controls=page.locator("[data-flip7-controls]");
+  const controls=page.locator("[data-game-actions]");
   await expect(controls.getByLabel("Controles de reprodução")).toBeVisible();
   await controls.getByRole("button",{name:"Pausar",exact:true}).click();
   await checkTableControls(page, page.getByRole("region",{name:"Mesa de Flip7",exact:true}).getByLabel("Controles da partida", {exact:true}).locator("../.."), testInfo.project.name === "desktop");
@@ -452,18 +452,25 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const table=page.getByLabel("Mesa do Love Letter");
  await expect(table.getByTestId("love-table-scene").locator("canvas")).toBeVisible();
+ await expect(table.getByTestId("love-table-scene").locator("[data-game-actions]")).toBeVisible();
  await expect(table.getByRole("status")).toHaveText("Sua vez");
  await expect(page.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
- await expect(table.getByLabel("Descartes da rodada").getByText("Protegido",{exact:false})).toBeVisible();
- await expect(table.getByLabel("Descartes da rodada").getByText("Eliminado",{exact:false})).toBeVisible();
+ await expect(table.getByText("Protegido",{exact:false})).toBeVisible();
+ await expect(table.getByText("Eliminado",{exact:false})).toBeVisible();
  await expect(table.getByRole("combobox")).toHaveCount(0);
  await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toHaveCount(0);
- await table.getByRole("button",{name:"Comprar carta do baralho",exact:true}).click();
+ const actions = page.locator("[data-game-actions]");
+ await expect(actions.getByRole("button", { name: "Comprar", exact: true })).toHaveAttribute("aria-keyshortcuts", "Enter");
+ await expect(actions.getByRole("button", { name: "Parar", exact: false })).toHaveCount(0);
+ await page.keyboard.press("Enter");
  await selectLoveCard(page, "Descartar 1 · Guarda");
  await expect(table.getByRole("button",{name:"Escolher jogador Bot 1",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Escolher jogador Bot 2",exact:true}).click();
  await expect(table.getByRole("button",{name:"Adivinhar 8 · Condessa",exact:true})).toHaveCount(0);
- await table.getByRole("button",{name:"Adivinhar 9 · Princesa",exact:true}).click();
+ await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice", "true");
+ await selectLoveCard(page, "Adivinhar 9 · Princesa");
+ await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice", "false");
+ await expect(table.getByLabel("Descartes da rodada")).toHaveCount(0);
  await expect.poll(()=>commands).toEqual([{type:"play",card:1,target:2,guess:9}]);
  await selectLoveCard(page, "Descartar 4 · Aia");
  await expect.poll(()=>commands.length).toBe(2);
@@ -699,7 +706,7 @@ test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", asyn
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const scene = page.getByTestId("love-table-scene");
  await expect(scene.locator("canvas")).toBeVisible();
- for (const name of ["Rotacionar deck", "Redimensionar deck", "Rotacionar descarte", "Redimensionar descarte"]) {
+ for (const name of ["Rotacionar deck", "Redimensionar deck"]) {
   const control = scene.getByRole("button", { name, exact: true });
   await expect(control).toBeEnabled();
   const description = scene.locator(`[id="${await control.getAttribute("aria-describedby")}"]`);

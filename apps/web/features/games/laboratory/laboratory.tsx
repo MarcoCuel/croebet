@@ -15,7 +15,7 @@ import { TableSceneBoundary } from "@/three/table/scene-boundary";
 import { TableSeatBadge } from "@/three/table/seat-badge";
 import { resolveTableLayout, adaptiveHandWindow } from "@/three/table/adaptive-layout";
 import type { TableMenuTarget } from "@/three/table/interaction";
-import { initialState, laboratoryReducer, defaultSettings, parseSettings, type LaboratorySettings } from "./model";
+import { presentedHands, initialState, laboratoryReducer, defaultSettings, parseSettings, type LaboratorySettings } from "./model";
 
 const Scene = dynamic(() => import("@/three/table/laboratory-scene"), {
   ssr: false, loading: () => <p role="status" className="p-6 text-sm text-muted">Carregando mesa 3D…</p>,
@@ -62,17 +62,19 @@ export function GameLaboratory() {
     observer.observe(scene);
     return () => observer.disconnect();
   }, []);
-  const countKey = state.hands.slice(0, settings.players).map(hand => hand.length).join(":");
+  const displayHands = presentedHands(state, settings.viewer);
+  const countKey = displayHands.slice(0, settings.players).map(hand => hand.length).join(":");
+  const exposedKey = state.exposed?.map(hand => hand.length).join(":") ?? "";
   const counts = useMemo(() => countKey.split(":").map(Number), [countKey]);
-  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts,
+  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts, exposedCounts: exposedKey.split(":").map(Number),
     width: viewport.width, height: viewport.height, angle: settings.angle, localCardScale: settings.localCardScale, opponentCardScale: settings.opponentCardScale, localHandCurve: settings.localHandCurve, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation, deckScale: settings.deckScale, discard: { x: settings.discardX, z: settings.discardZ, rotation: settings.discardRotation, scale: settings.discardScale } }),
-    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.localCardScale, settings.opponentCardScale, settings.localHandCurve, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
+    [settings.players, settings.viewer, counts, exposedKey, viewport.width, viewport.height, settings.angle, settings.localCardScale, settings.opponentCardScale, settings.localHandCurve, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
     const normalized = { ...next, viewer: 0 };
     setSettings(normalized); dispatch({ type: "reset", settings: normalized }); setMenu(null); setFocus(0); setMessage("");
   };
-  const count = state.hands[settings.viewer].length;
+  const count = displayHands[settings.viewer].length;
   const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const canDraw = state.deck.length > 0 && count < 1000;
   const canCollect = state.discard.length > 0 || state.hands.slice(0, settings.players).some(hand => hand.length > 0);
@@ -82,6 +84,7 @@ export function GameLaboratory() {
     setMessage("Carta comprada.");
   };
   const discard = (id: string) => {
+    if (state.choice) { dispatch({ type: "choose", active: false }); setMessage("Carta escolhida. Mãos restauradas."); return; }
     if (!state.hands[settings.viewer].some(card => card.id === id)) return;
     dispatch({ type: "discard", seat: settings.viewer, id }); setMenu(null);
     setFocus(Math.min(focus, Math.max(0, count - 2))); setMessage("Carta descartada.");
@@ -114,7 +117,7 @@ export function GameLaboratory() {
   const menuCard = menu?.target.kind === "card" ? menu.target.id : null;
   return <div className="grid min-w-0 gap-4">
     <h1 className="sr-only">Laboratório de jogos</h1>
-    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label={`Mesa 3D de teste · Deck: ${state.deck.length} · Descarte: ${state.discard.length}`}>
+    <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" data-choice={!!state.choice} data-exposed-count={state.exposed?.slice(0, settings.players).reduce((total, hand) => total + hand.length, 0) ?? 0} aria-label={`Mesa 3D de teste · Deck: ${state.deck.length} · Descarte: ${state.discard.length}`}>
       <TableSceneBoundary><Scene settings={settings} layout={layout} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
         artwork={artworkMode === "neutral" ? undefined : loveArtwork[artworkMode]} canDraw={canDraw} onDeckChange={point => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation, deckScale: point.scale }))}
         onDiscardChange={point => setSettings(current => ({ ...current, discardX: point.x, discardZ: point.z, discardRotation: point.rotation, discardScale: point.scale }))} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></TableSceneBoundary>
@@ -148,6 +151,9 @@ export function GameLaboratory() {
         </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Animações</summary><div className="mt-4 grid gap-4">{controls([["duration", "Duração do movimento", 0.15, 2, 0.05], ["arc", "Altura da trajetória", 0, 2, 0.1], ["dealCount", "Cartas por distribuição", 1, 10], ["pileHeight", "Altura por carta na pilha", 0.004, 0.008, 0.001]])}</div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Cenários de teste</summary><div className="mt-4 grid gap-3">
+          <Button variant="secondary" onClick={() => dispatch({ type: "scenario", mixed: true, settings })}>Mãos ocultas e cartas expostas</Button>
+          <Button variant="secondary" onClick={() => dispatch({ type: "scenario", mixed: false, settings })}>Todas as cartas abertas</Button>
+          <Button variant="secondary" onClick={() => dispatch({ type: "choose", active: !state.choice, players: settings.players })}>{state.choice ? "Encerrar escolha" : "Escolher cartas de outras mãos"}</Button>
           <div className="flex flex-wrap gap-2">{[1, 7, 20, 50].map(amount => <Button key={amount} size="sm" variant="secondary" onClick={() => reset({ ...settings, counts: Array.from({ length: 12 }, () => amount) })}>{amount} cartas</Button>)}</div>
           <Button variant="secondary" aria-pressed={settings.reveal} onClick={() => update("reveal", !settings.reveal)}>Revelar adversários: {settings.reveal ? "sim" : "não"}</Button>
         </div></details>
@@ -160,10 +166,12 @@ export function GameLaboratory() {
         <DropdownMenuContent align="start" sideOffset={0} onCloseAutoFocus={event => { event.preventDefault(); sceneRef.current?.focus(); }}>
           {menuCard ? <>
             <DropdownMenuItem onSelect={() => discard(menuCard)}>Descartar carta</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => { dispatch({ type: "expose", seat: settings.viewer, id: menuCard }); setMenu(null); setMessage("Carta exposta junto ao jogador."); }}>Expor junto ao jogador</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => { dispatch({ type: "flip", seat: settings.viewer, id: menuCard }); setMessage("Carta virada."); }}>Virar carta</DropdownMenuItem>
             <DropdownMenuSub><DropdownMenuSubTrigger>Trocar com</DropdownMenuSubTrigger><DropdownMenuSubContent>{Array.from({ length: settings.players }, (_, seat) => seat !== settings.viewer && <DropdownMenuItem key={seat} disabled={state.hands[seat].length >= 1000} onSelect={() => { dispatch({ type: "swap", seat: settings.viewer, target: seat, id: menuCard }); setMessage("Cartas trocadas."); }}>Jogador {seat + 1}</DropdownMenuItem>)}</DropdownMenuSubContent></DropdownMenuSub>
           </> : <>
             <DropdownMenuItem disabled={!canDraw} onSelect={draw}>Comprar carta</DropdownMenuItem>
+            <DropdownMenuItem disabled={!canDraw} onSelect={() => { dispatch({ type: "draw", seat: settings.viewer, reveal: true }); setFocus(count); setMessage("Carta revelada antes da entrega."); }}>Comprar com revelação no centro</DropdownMenuItem>
             <DropdownMenuItem disabled={state.deck.length < 2} onSelect={shuffle}>Embaralhar deck</DropdownMenuItem>
             <DropdownMenuItem disabled={!state.deck.length || state.hands.slice(0, settings.players).every(hand => hand.length >= 1000)} onSelect={() => { dispatch({ type: "deal", players: settings.players, count: settings.dealCount, startSeat: settings.turn }); setMessage("Cartas distribuídas."); }}>Distribuir cartas</DropdownMenuItem>
             <DropdownMenuItem disabled={!canCollect} onSelect={() => { dispatch({ type: "collect", players: settings.players }); setFocus(0); setMessage("Cartas recolhidas."); }}>Recolher cartas</DropdownMenuItem>

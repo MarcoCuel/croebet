@@ -666,7 +666,7 @@ test("entrada e reduções aceitam automaticamente, aumentos exigem confirmaçã
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
     const pot = page.getByText("Pote: 20 Croins",{exact:true});
     await expect(pot).toBeVisible();
-    await expect(page.locator("[data-flip7-controls]").getByText(/Pote:/)).toHaveCount(0);
+    await expect(page.locator("[data-game-actions]").getByText(/Pote:/)).toHaveCount(0);
     await expect(pot.locator("..").getByText("Clássico", { exact: true })).toBeVisible();
   }finally{await peer.context.close();}
 });
@@ -1081,6 +1081,54 @@ for (const input of ["deck", "Enter", "Escape"] as const) {
     await expect(pile).toBeDisabled();
     await page.keyboard.press("Enter");
     await page.keyboard.press("Escape");
+    expect(fixture.commands).toHaveLength(1);
+  });
+}
+
+for (const type of ["steal", "swap"] as const) {
+  test(`mesa 3D usa a própria mão para escolher cartas: ${type}`, async ({ page }, testInfo) => {
+    const code = "ABCDEF303030";
+    const options = { mode: "vengeance" as const, brutal: false };
+    const state = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, options);
+    const deck = createDeck("vengeance");
+    const take = (type: typeof deck[number]["type"], value?: number) => deck.splice(deck.findIndex(card => card.type === type && (value === undefined || card.value === value)), 1)[0];
+    const own = take("number", 2), other = take("number", 3), extra = take("number", 4), actionCard = take(type);
+    state.players[0].cards = [own]; state.players[1].cards = [other, extra];
+    state.players.forEach(player => { player.hasDrawn = true; });
+    state.pending = { source: 0, card: actionCard, resolving: true }; state.turn = 0;
+    state.deck = deck; state.discard = []; state.queue = []; state.forced = null;
+    const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state: flip7Driver.project(state), hostId: matchUsers[0].id, capacity: 2, options, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+    fixture.states.set(code, { room, privateState: state, frames: [] });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(`/jogos/flip7?partida=${code}`);
+    await page.getByRole("button", { name: "3D", exact: true }).click();
+    const scene = page.getByTestId("flip-table-scene");
+    await expect(scene.locator("canvas")).toBeVisible();
+    await expect(scene).toHaveAttribute("data-choice", "true");
+    await expect(scene.locator("[data-game-actions]")).toBeVisible();
+    expect(fixture.commands).toHaveLength(0);
+    expect(fixture.states.get(code)!.privateState!.players[1].cards.map(card => card.id)).toContain(other.id);
+    if (type === "swap") {
+      const first = scene.getByRole("button", { name: `Selecionar 2 de ${matchUsers[0].displayName}`, exact: true });
+      await first.focus(); await first.press("Enter");
+    }
+    const candidate = scene.getByRole("button", { name: `Selecionar 3 de ${matchUsers[1].displayName}`, exact: true });
+    await candidate.focus(); await candidate.press("Enter");
+    if (type === "swap") {
+      expect(fixture.commands).toHaveLength(0);
+      await scene.getByRole("button", { name: "Confirmar", exact: true }).click();
+    }
+    await expect.poll(() => fixture.commands.length).toBe(1);
+    expect(fixture.commands[0]).toEqual(expect.objectContaining({ action: { type: "cards", cards: type === "swap" ? [own.id, other.id] : [other.id] } }));
+    await expect(scene).toHaveAttribute("data-choice", "false");
+    await expect.poll(() => fixture.states.get(code)!.privateState!.players[0].cards.some(card => card.id === other.id)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`table-3d-${type}.png`), fullPage: true });
+    const address = page.url();
+    await page.getByRole("button", { name: "Atual", exact: true }).click();
+    await expect(scene).toHaveCount(0); expect(page.url()).toBe(address);
+    await page.getByRole("button", { name: "3D", exact: true }).click();
+    await page.reload();
+    await expect(page.getByTestId("flip-table-scene").locator("canvas")).toBeVisible();
     expect(fixture.commands).toHaveLength(1);
   });
 }

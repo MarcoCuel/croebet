@@ -1,16 +1,19 @@
 "use client";
+import dynamic from "next/dynamic";
+import { TableViewToggle, useTableView } from "../table-view";
 import { rememberStart } from "./api";
 import { flip7OptionsSchema, roomSyncSchema } from "@croebet/shared";
 import { gameUrl } from "../game-url";
 import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
+import { GameActionBar, GameDrawActions, GameActionShortcuts } from "../game-action-bar";
 import { GameTableLayout } from "../game-table-layout";
 import { GameControls } from "../game-controls";
 import { useGameAudio } from "../use-game-audio";
 import { randomUUID } from "@/lib/uuid";
 
-import { useCallback, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useMemo, useId, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import gsap from "gsap";
 import { usePathname, useRouter } from "next/navigation";
 import { matchReplaySchema } from "@croebet/shared";
@@ -36,26 +39,6 @@ import { useMatchLive } from "./live";
 import { KickPlayer } from "../kick-player";
 import { GOAL } from "./presentation";
 
-function Flip7Shortcuts({ enabled, canStop, send }: { enabled: boolean; canStop: boolean; send: (action: Action) => Promise<void> }) {
-  useEffect(() => {
-    if (!enabled) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || document.visibilityState === "hidden") return;
-      if (event.key !== "Enter" && event.key !== "Escape") return;
-      const target = event.target;
-      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
-      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
-      // Enter keeps the native action of a focused control. Escape first exits fullscreen.
-      if (event.key === "Enter" && target instanceof Element && target.closest('button, a, [role="button"], [role="slider"], summary')) return;
-      if (event.key === "Escape" && (!canStop || document.fullscreenElement)) return;
-      event.preventDefault();
-      void send({ type: event.key === "Enter" ? "draw" : "stay" });
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [enabled, canStop, send]);
-  return null;
-}
 
 function Rules({ options }: { options: GameOptions }) {
   return <Dialog><DialogTrigger asChild><Button variant="secondary" className="w-full" aria-label="Regras"><BookOpen className="size-4" aria-hidden="true" />Regras</Button></DialogTrigger>
@@ -197,8 +180,12 @@ function Flip7Playback({ initial, startPlaying = false }: { initial: InitialMatc
   return <Flip7Table initial={initial} replay={{ epoch: playback.epoch, index: playback.index, frame: playback.frame, paused: playback.animationPaused, delay: playback.delay, onPresented: playback.onPresented, state: playback.state, active: playback.active, finished: initial.replay!.match.status === "finished", metadata: playback.metadata, restart: playback.restart, loading: playback.loading, controls: <Flip7ReplayControls playback={playback} /> }} />;
 }
 
+const FlipScene = dynamic(() => import("./flip-scene"), { ssr: false, loading: () => <p role="status">Carregando mesa 3D…</p> });
+
 function Flip7Table({ initial, replay, testControls, exitControl, onRequestReplay, replayPending = false }: { exitControl?:ReactNode;testControls?:ReactNode; initial: InitialMatches; onRequestReplay?: () => Promise<void>; replayPending?: boolean; replay?: { epoch: number; index: number; frame?: MatchFrame; paused: boolean; delay: number; onPresented: (index: number) => void; state?: Game; active: boolean; finished: boolean; metadata: ResultMetadata; controls: ReactNode; restart: () => void; loading: boolean } }) {
   const router = useRouter();
+  const tableView = useTableView("flip7");
+  const [sceneAnimating, setSceneAnimating] = useState(false);
   const audio = useGameAudio();
   const { play: playSound, stop: stopSounds } = audio;
   const pathname = usePathname();
@@ -267,10 +254,10 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
   useEffect(() => {
-    if (replay || game?.phase !== "over" || resolvingCard || flight || movingCards) return;
+    if (replay || game?.phase !== "over" || resolvingCard || flight || movingCards || sceneAnimating) return;
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
     return () => window.clearTimeout(timeout);
-  }, [game?.phase, resolvingCard, flight, movingCards, replay]);
+  }, [game?.phase, resolvingCard, flight, movingCards, replay, sceneAnimating]);
   const replayActive = replay?.active;
   const replayPot = replay?.metadata.potTotal;
   const present = useCallback((action: Action, next: Game) => {
@@ -279,6 +266,13 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     if (current.players.every(player => !player.cards.length) && next.players.some(player => player.cards.length) && current.round === 1 && initial.match?.entryAmount) playSound("entry");
     setSelectedCards([]);
     setPresentationBefore(current);
+    if (tableView.view === "3d") {
+      setSceneAnimating(true);
+      const held = forcedActionPresentation(next);
+      if (held) setResolvingCard(held);
+      if (action.type === "draw" || action.type === "step" || action.type === "cards" || action.type === "target") playSound("slide");
+      gameRef.current = next; setGame(next); return;
+    }
     const captureHand = (target: number) => {
       const hand = boardRef.current?.querySelector<HTMLElement>(`[data-player-hand="${target}"]`);
       if (!hand) return undefined;
@@ -319,7 +313,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     setSwapPreview(null);
     gameRef.current = next;
     setGame(next);
-  }, [swapPreview, playSound, initial.match?.entryAmount]);
+  }, [swapPreview, playSound, initial.match?.entryAmount, tableView.view]);
   const replayReset = replay?.epoch;
   const replayFrame = replay?.frame;
   const replayFrameIndex = replay?.index;
@@ -364,16 +358,16 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     return () => window.clearTimeout(timer);
   }, [replayActive, replayReset, replayLoading, replayFrame, replayFrameIndex, present, stopSounds]);
   useEffect(() => {
-    if (!replayActive || replayLoading || replayFrameIndex == null || replayIndex.current !== replayFrameIndex || replayEpoch.current !== replayReset || flight || movingCards || resolvingCardFinished) return;
+    if (!replayActive || replayLoading || replayFrameIndex == null || replayIndex.current !== replayFrameIndex || replayEpoch.current !== replayReset || flight || movingCards || resolvingCardFinished || sceneAnimating) return;
     if (liveGame?.phase === "over" && !replayPrizePlayed.current) {
       replayPrizePlayed.current = true;
       if (replayPot) playSound("prize");
     }
     onReplayPresented?.(replayFrameIndex);
-  }, [replayActive, replayReset, replayLoading, replayFrameIndex, liveGame, flight, movingCards, resolvingCardFinished, onReplayPresented, replayPot, playSound]);
+  }, [replayActive, replayReset, replayLoading, replayFrameIndex, liveGame, flight, movingCards, resolvingCardFinished, onReplayPresented, replayPot, playSound, sceneAnimating]);
   const send = useCallback(async (action: Action) => {
     const match = serverMatch.current;
-    if (!match || !connected || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || frames.length || resolvingCardFinished) return;
+    if (!match || !connected || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || sceneAnimating || frames.length || resolvingCardFinished) return;
     if (action.type === "step" || action.type === "next" || action.type === "start" || action.type === "replace") return;
     if (pendingCommand.current && JSON.stringify(pendingCommand.current.action) !== JSON.stringify(action)) {
       toast.error("Confirme a ação pendente ou recarregue a partida."); return;
@@ -386,9 +380,9 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       // Confirmed frames arrive through the same Socket.IO event for everyone.
     } catch (error) { setCommandError(error instanceof Error ? error.message : "Não foi possível enviar a jogada."); }
     finally { locked.current = false; setBusy(false); }
-  }, [busy, connected, frames.length, resolvingCardFinished]);
+  }, [busy, connected, frames.length, resolvingCardFinished, sceneAnimating]);
   const leave = async () => {
-    if (!serverMatch.current || leavingRef.current || locked.current || frames.length || busy) return false;
+    if (!serverMatch.current || leavingRef.current || locked.current || sceneAnimating || frames.length || busy) return false;
     leavingRef.current = true;
     setLeaving(true);
     try {
@@ -515,7 +509,11 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   }, [movingCards, playSound, stopSounds]);
 
   useLayoutEffect(() => {
-    if (!resolvingCard || !resolvingCardFinished || flight || movingCards) return;
+    if (!resolvingCard || !resolvingCardFinished || flight || movingCards || sceneAnimating) return;
+    if (tableView.view === "3d") {
+      const timer = window.setTimeout(() => setResolvingCard(null), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 500);
+      return () => window.clearTimeout(timer);
+    }
     const element = boardRef.current?.querySelector<HTMLElement>(`[data-hand-card="${resolvingCard.card.id}"]`);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     locked.current = true;
@@ -529,7 +527,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     timeline.to({}, { duration: reduced ? 0 : 0.5 });
     if (element) timeline.call(() => playSound("discard")).to(element, { y: reduced ? 0 : -128, x: reduced ? 0 : 96, rotation: reduced ? 0 : 18, opacity: 0, scale: reduced ? 1 : 0.8, duration: reduced ? 0 : 0.35, ease: "power2.in" });
     return () => { if (timeline.progress() < 1) stopSounds(); timeline.kill(); timelines.delete(timeline); locked.current = false; };
-  }, [resolvingCard, resolvingCardFinished, flight, movingCards, playSound, stopSounds]);
+  }, [resolvingCard, resolvingCardFinished, flight, movingCards, playSound, stopSounds, sceneAnimating, tableView.view]);
 
   useLayoutEffect(() => {
     if (replay?.paused) stopSounds();
@@ -540,18 +538,18 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   }, [replay, flight, movingCards, resolvingCardFinished, stopSounds]);
 
   useEffect(() => {
-    if (!game || resolvingCardFinished || flight || movingCards || exitOpen || leaving || busy || !frames.length) return;
+    if (!game || sceneAnimating || resolvingCardFinished || flight || movingCards || exitOpen || leaving || busy || !frames.length) return;
     const frame = frames[0];
     const timer = setTimeout(() => {
       setFrames(previous => previous.slice(1));
       present(frame.action, frame.state);
     }, game.phase === "summary" ? 1600 : 0);
     return () => clearTimeout(timer);
-  }, [game, resolvingCardFinished, flight, movingCards, exitOpen, leaving, busy, frames, present]);
+  }, [game, resolvingCardFinished, flight, movingCards, exitOpen, leaving, busy, frames, present, sceneAnimating]);
 
   useEffect(()=>{
     const sync=incoming.current;
-    if(!sync || busy || frames.length || flight || movingCards || resolvingCardFinished || locked.current)return;
+    if(!sync || busy || sceneAnimating || frames.length || flight || movingCards || resolvingCardFinished || locked.current)return;
     incoming.current=null;
     if(sync.room.version<=receivedVersion.current)return;
     if(sync.room.status==="lobby")return;
@@ -564,21 +562,21 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       // Recover directly to the confirmed snapshot instead of replaying a long
       // animation backlog after a slow connection or a suspended browser tab.
       receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
-      setMatchInfo(sync.room);gameRef.current=sync.room.state;setGame(sync.room.state);
+      setMatchInfo(sync.room);gameRef.current=sync.room.state;setGame(sync.room.state);setPresentationBefore(null);
       setResolvingCard(forcedActionPresentation(sync.room.state));
       setFrames([]);pendingCommand.current=null;setCommandError("");return;
     }
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
     setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
-  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet,gameSlug]);
+  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet,gameSlug,sceneAnimating]);
 
   const notifiedTurn = useRef<string | null>(null);
   const turnSeat = game ? game.bonusChoice ?? game.pending?.source ?? game.turn : -1;
   const turnOwner = matchInfo?.participants.find(person => person.seat === turnSeat)?.userId;
   const ownsTurn = !replay && game?.phase === "playing" && turnOwner === userId && userId != null && game.players[turnSeat]?.kind === "human";
   const turnKey = ownsTurn ? `${game.round}:${turnSeat}` : null;
-  const turnReady = ownsTurn && connected && !busy && !frames.length && !commandError && !flight && !movingCards && !resolvingCardFinished &&
+  const turnReady = ownsTurn && connected && !sceneAnimating && !busy && !frames.length && !commandError && !flight && !movingCards && !resolvingCardFinished &&
     (game.bonusChoice != null || !!game.pending || (!game.forced && game.players[game.turn].hasDrawn && !(game.mode === "vengeance" && game.players[game.turn].cards.some(card => card.type === "zero"))));
   useEffect(() => {
     if (!ownsTurn) { notifiedTurn.current = null; return; }
@@ -589,9 +587,9 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     playSound("notification");
   }, [ownsTurn, turnReady, turnKey, playSound]);
 
-  if (!game) return null;
-  const tableParticipants = replay?.metadata.participants ?? matchInfo?.participants ?? initial.match?.participants ?? [];
-  const displayGame = gameWithPlayerNames(game, tableParticipants);
+  const tableParticipants = useMemo(() => replay?.metadata.participants ?? matchInfo?.participants ?? initial.match?.participants ?? [], [replay?.metadata.participants, matchInfo?.participants, initial.match?.participants]);
+  const displayGame = useMemo(() => game ? gameWithPlayerNames(game, tableParticipants) : null, [game, tableParticipants]);
+  if (!game || !displayGame) return null;
   const visibleGame = gameWithPlayerNames(((flight && !landed) || movingCards) ? presentationBefore ?? game : game, tableParticipants);
   const current = displayGame.players[game.turn];
   const actor = displayGame.players[game.bonusChoice ?? game.pending?.source ?? game.turn];
@@ -600,7 +598,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const playerSeats = displayGame.players.map((_, index) => (index + (spectator ? 0 : ownSeat ?? 0)) % displayGame.players.length);
   const human = !replay && connected && ownSeat===(game.bonusChoice ?? game.pending?.source ?? game.turn) && actor.kind === "human" && !busy && !frames.length && !commandError;
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
-  const playable = !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
+  const playable = !sceneAnimating && !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
   const validTargets = targets(game);
   const maxScore = Math.max(...displayGame.players.map(player => player.total));
   const winners = displayGame.players.filter(player => player.total === maxScore);
@@ -637,44 +635,48 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const waitingActions = [game.pending, ...game.queue].filter(action => action !== null);
   const activeSeat = visibleGame.bonusChoice ?? visibleGame.forced?.target ?? visibleGame.pending?.source ?? visibleGame.turn;
 
-  return (
-    <Surface ref={boardRef} className="relative isolate @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
-      <Flip7Shortcuts enabled={playable && !exitOpen && !leaving} canStop={canStay(current, game)} send={send} />
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4" data-flip7-controls>
-        <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4", replay?.active ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-8rem)]")}>
+  const actionBar = <GameActionBar wide={replay?.active} contained={tableView.view === "3d"}>
           {replay ? <>{replay.active ? replay.controls : <h2 className="text-sm font-medium">{replay.finished ? status : "Partida encerrada"}</h2>}{!replay.finished && !replay.active && <Button onClick={replay.restart}>Replay</Button>}{game.phase === "over" && !replay.loading && <Button ref={resultTriggerRef} size="sm" variant="secondary" onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}</> : <>
-          <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${displayGame.players[flight.target].name} está recebendo uma carta` : movingCards ? "Movendo cartas" : status}</h2>
-          {playable && <div className="flex gap-2">
-            <Button className="min-w-24" aria-keyshortcuts="Enter" title="Comprar carta (Enter)" onClick={() => send({ type: "draw" })}>Comprar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Enter</span></Button>
-            <Button className="min-w-24" variant="secondary" aria-keyshortcuts="Escape" title="Parar (Escape)" disabled={!canStay(current, game)} onClick={() => send({ type: "stay" })}>Parar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Esc</span></Button>
-          </div>}
+          <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${displayGame.players[flight.target].name} está recebendo uma carta` : (movingCards || sceneAnimating) ? "Movendo cartas" : status}</h2>
+          {playable && <GameDrawActions onDraw={() => { void send({ type: "draw" }); }} onStop={() => { void send({ type: "stay" }); }} canStop={canStay(current, game)} />}
           {selectingCards && <div className="flex gap-2">
-            <Button disabled={!validSelection} onClick={() => send({ type: "cards", cards: selectedCards })}>Confirmar</Button>
+            <Button disabled={!validSelection || sceneAnimating} onClick={() => send({ type: "cards", cards: selectedCards })}>Confirmar</Button>
             <Button variant="secondary" onClick={() => swapPreview ? animateSwapPreview(swapPreview, true) : setSelectedCards([])}>Cancelar</Button>
           </div>}
           {!resolvingCardFinished && !flight && !movingCards && game.bonusChoice != null && human && <Button onClick={() => send({ type: "bonus", target: null })}>Ganhar 15 pontos</Button>}
           {game.phase === "over" && !flight && !movingCards && <Button ref={resultTriggerRef} onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}
           </>}
 
-        </div>
-      </div>
+      </GameActionBar>;
+
+  return (
+    <Surface ref={boardRef} className="relative isolate @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
+      <GameActionShortcuts onDraw={playable && !exitOpen && !leaving ? () => { void send({ type: "draw" }); } : undefined} onStop={playable && !exitOpen && !leaving && canStay(current, game) ? () => { void send({ type: "stay" }); } : undefined} />
+      {tableView.view === "classic" && actionBar}
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
       <GameTableLayout history={<GameLog game={visibleGame} participants={tableParticipants} />}>
-        <div className={cn("min-w-0", replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
+        <div className={cn("min-w-0", tableView.view === "3d" ? "pb-4" : replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {!!matchInfo?.entryAmount && <span className="text-sm text-muted">Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</span>}
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push(gameUrl(gameSlug))}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}
-            <GameControls historyDisabled={!!flight || !!movingCards} audio={audio} developmentControls={testControls}>
+            <GameControls historyDisabled={!!flight || !!movingCards || sceneAnimating} audio={audio} developmentControls={testControls}>
+            <TableViewToggle view={tableView.view} disabled={!!flight || !!movingCards || sceneAnimating || busy} onChange={next => { stopSounds(); setPresentationBefore(null); setSelectedCards([]); setSwapPreview(null); tableView.setView(next); }} />
             {exitControl}
             {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(gameUrl(gameSlug,{development:initial.match?.development && permissions.canManageSite}))}><LogOut className="size-4" aria-hidden="true"/></Button>}
-            {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
+            {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={!!flight || !!movingCards || sceneAnimating || leaving || busy || frames.length > 0} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
             </GameControls>
           </div>
           {!replay && matchInfo && <CancellationNotice match={matchInfo}/>}
+          {tableView.view === "3d" ? <FlipScene actions={actionBar} key={replay?.epoch ?? "live"} game={displayGame} summaryGame={sceneAnimating ? presentationBefore ?? game : game} localPlayer={!spectator} participants={tableParticipants} viewer={ownSeat ?? 0}
+            interactive={!sceneAnimating && human} eligible={!resolvingCardFinished && !replay && ownSeat === game.pending?.source && actor.kind === "human" ? [...new Set(eligibleCards)] : []} targetSeats={!resolvingCardFinished && human ? validTargets : []} selected={selectedCards}
+            onCard={id => { if (game.pending?.card.type === "swap") setSelectedCards(ids => ids.includes(id) ? [] : ids.length >= 2 ? [id] : [...ids, id]); else void send({ type: "cards", cards: [id] }); }}
+            onSeat={seat => { if (game.bonusChoice != null && human) void send({ type: "bonus", target: game.bonusChoice === seat ? null : seat }); else if (human && validTargets.includes(seat)) void send({ type: "target", target: seat }); }}
+            canDraw={playable && !exitOpen && !leaving} onDraw={() => void send({ type: "draw" })} status="" onAnimating={setSceneAnimating} animate={!!presentationBefore} held={resolvingCard} paused={replay?.paused} timeScale={replay ? 1000 / replay.delay : 1}>
+          </FlipScene> : <>
           <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
               <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deckCount} cartas no baralho`}>
@@ -777,9 +779,10 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
               </section>;
             })}
           </div>
+          </>}
         </div>
       </GameTableLayout>
-      <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
+      <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !sceneAnimating && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
         <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
           <Flip7Result game={displayGame} match={replay?.metadata ?? matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null || (matchInfo?.development && matchInfo.hostId === userId && permissions.canManageSite) ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />
         </DialogContent>

@@ -1,6 +1,6 @@
 import { handPlacements, handWindow, worldHandPose, type HandOptions, type SeatPlacement } from "./layout";
 import type { CardTarget } from "./motion";
-export type VisualCard = { id: string; value: number };
+export type VisualCard = import("./model").LabCard;
 /** Produces world-space targets; the shared card layer owns rendering and identity across zones. */
 export function TableHand({ cards, seat, options, hidden, interactive, focus, selected, flipped }: {
   cards: VisualCard[]; seat: SeatPlacement; options: HandOptions; hidden: boolean; interactive: boolean;
@@ -11,7 +11,10 @@ export function TableHand({ cards, seat, options, hidden, interactive, focus, se
   const placements = handPlacements(visible.length, options);
   return visible.map((card, i) => {
     const pose = worldHandPose(placements[i], seat);
+    pose.position[0] += (card.idle?.offset ?? 0) * pose.scale;
     if (flipped.includes(card.id)) pose.rotation[1] += Math.PI;
-    return { ...card, pose, hidden, zone: "hand", label: `Carta ${card.value}, posição ${window.start + i + 1}`, curved: options.layout === "fan" ? (options.curve > 0 ? "fan" : false) : true, revealBack: !interactive && !hidden, interactive, selected: selected === card.id };
+    if (card.sideways) pose.rotation[2] += Math.PI / 2;
+    const concealed = card.hidden ?? hidden;
+    return { ...card, pose, hidden: concealed, zone: "hand", label: concealed ? "Carta oculta" : card.label ?? `Carta ${card.value}, posição ${window.start + i + 1}`, curved: options.layout === "fan" ? (options.curve > 0 ? "fan" : false) : true, revealBack: !interactive && !concealed, interactive, selected: selected === card.id };
   });
 }

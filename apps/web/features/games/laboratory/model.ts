@@ -11,16 +11,26 @@ export function initialState(settings: LaboratorySettings): LaboratoryState {
 export type LabAction =
   | { type: "reset"; settings: LaboratorySettings }
   | { type: "count"; seat: number; count: number }
-  | { type: "draw"; seat: number }
+  | { type: "draw"; seat: number; reveal?: boolean }
   | { type: "deal"; players: number; count: number; startSeat?: number }
   | { type: "discard"; seat: number; id: string }
+  | { type: "expose"; seat: number; id: string }
+  | { type: "choose"; active: boolean; players?: number }
+  | { type: "scenario"; mixed: boolean; settings: LaboratorySettings }
   | { type: "flip"; seat: number; id: string }
   | { type: "swap"; seat: number; target: number; id: string }
   | { type: "collect"; players: number }
   | { type: "shuffle"; order: number[] };
 export function laboratoryReducer(state: LaboratoryState, action: LabAction): LaboratoryState {
   if (action.type === "reset") return initialState(action.settings);
+  if (action.type === "choose") return { ...state, choice: action.active ? { cards: state.hands.slice(0, action.players ?? state.hands.length).flat() } : undefined };
+  if (action.type === "scenario") {
+    const next = initialState(action.settings);
+    return { ...next, hands: next.hands.map((hand, seat) => hand.map(card => ({ ...card, hidden: action.mixed && seat !== action.settings.viewer }))),
+      exposed: action.mixed ? next.hands.map((_, seat) => Array.from({ length: 3 }, (_, index) => ({ id: `exposed:${seat}:${index}`, value: index + 1, hidden: false }))) : [] };
+  }
   const hands = state.hands.map(hand => [...hand]); const deck = [...state.deck]; const discard = [...state.discard];
+  const exposed = state.hands.map((_, seat) => [...(state.exposed?.[seat] ?? [])]);
   let flipped = state.flipped; const moved: string[] = [];
   if (action.type === "count") {
     const hand = hands[action.seat];
@@ -28,7 +38,7 @@ export function laboratoryReducer(state: LaboratoryState, action: LabAction): La
   } else if (action.type === "draw" || action.type === "deal") {
     const seats = action.type === "draw" ? [action.seat] : Array.from({ length: action.players * action.count }, (_, i) => ((action.startSeat ?? 0) + i) % action.players);
     for (const seat of seats) { if (hands[seat].length >= 1000) continue; const card = deck.pop(); if (!card) break; hands[seat].push(card); moved.push(card.id); }
-  } else if (action.type === "discard" || action.type === "flip" || action.type === "swap") {
+  } else if (action.type === "discard" || action.type === "expose" || action.type === "flip" || action.type === "swap") {
     const index = hands[action.seat].findIndex(card => card.id === action.id);
     if (index < 0) return state;
     moved.push(action.id);
@@ -37,17 +47,19 @@ export function laboratoryReducer(state: LaboratoryState, action: LabAction): La
       if (action.type === "swap" && (action.target === action.seat || hands[action.target].length >= 1000)) return state;
       const [card] = hands[action.seat].splice(index, 1);
       if (action.type === "discard") discard.push(card);
+      else if (action.type === "expose") exposed[action.seat].push({ ...card, hidden: false });
       else { const other = hands[action.target].pop(); hands[action.target].push(card); if (other) { hands[action.seat].splice(index, 0, other); moved.push(other.id); } }
     }
   } else if (action.type === "collect") {
     for (let seat = 0; seat < action.players; seat++) { moved.push(...hands[seat].map(card => card.id)); deck.push(...hands[seat]); hands[seat] = []; }
     moved.push(...discard.map(card => card.id)); deck.push(...discard); discard.length = 0; flipped = [];
+    for (const cards of exposed) { moved.push(...cards.map(card => card.id)); deck.push(...cards); cards.length = 0; }
   } else {
     if (action.order.length !== deck.length || new Set(action.order).size !== deck.length || action.order.some(i => !Number.isInteger(i) || i < 0 || i >= deck.length)) return state;
     deck.splice(0, deck.length, ...action.order.map(i => state.deck[i])); moved.push(...deck.map(card => card.id));
   }
-  const cue: MotionCue = { serial: state.cue.serial + 1, kind: action.type === "count" ? "deal" : action.type, ids: moved };
+  const cue: MotionCue = { serial: state.cue.serial + 1, kind: action.type === "count" ? "deal" : action.type === "expose" ? "discard" : action.type, ids: moved };
   const motions = { ...state.motions };
-  moved.forEach((id, order) => { motions[id] = { serial: cue.serial, kind: cue.kind, order }; });
-  return { hands, deck, discard, flipped, cue, motions };
+  moved.forEach((id, order) => { motions[id] = { serial: cue.serial, kind: cue.kind, order, ...(action.type === "draw" && action.reveal ? { via: "reveal" as const, hold: 0.45 } : {}) }; });
+  return { hands, deck, discard, exposed, flipped, cue, motions };
 }

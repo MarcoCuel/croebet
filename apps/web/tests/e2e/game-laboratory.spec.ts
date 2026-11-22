@@ -394,3 +394,22 @@ test("distribuição segue a vez ativa e anima a mão local na sua posição da 
   const frame = (await scene.boundingBox())!;
   await expect.poll(async () => (await fourth.boundingBox())!.y, { timeout: 5000 }).toBeGreaterThan(frame.y + frame.height * 0.6);
 });
+
+test("cenários mistos expõem cartas junto ao dono e usam a mão como escolha temporária", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByText("Cenários de teste", { exact: true }).click();
+  await panel.getByRole("button", { name: "Mãos ocultas e cartas expostas", exact: true }).click();
+  await expect(scene).toHaveAttribute("data-exposed-count", "12");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+  await panel.getByRole("button", { name: "Escolher cartas de outras mãos", exact: true }).click();
+  await expect(scene).toHaveAttribute("data-choice", "true");
+  await panel.getByRole("button", { name: "Encerrar escolha", exact: true }).click();
+  await expect(scene).toHaveAttribute("data-choice", "false");
+  await expect(scene).toHaveAttribute("data-exposed-count", "12");
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 104 · Descarte: 0");
+});

@@ -51,6 +51,8 @@ O admin consulta as partidas dentro de cada jogo, incluindo participantes, pontu
 
 ## Apresentação
 
+- A partida oferece interface Atual / 3D, com preferência salva neste navegador. Ambas usam a mesma conexão, comandos, partida e resultado; alternar aplica o estado confirmado sem repetir animações antigas. A interface atual mantém sua apresentação existente. A mesa 3D usa os componentes do [laboratório compartilhado](frontend-architecture.md#laboratório-de-jogos), com cartas abertas por participante, ações pendentes no centro e descarte definitivo separado. Compras podem passar pela revelação central antes da entrega. Roubar, Trocar e Descartar apresentam as candidatas temporariamente na mão do observador, removendo-as visualmente da origem; isso não muda posse até o comando ser confirmado. A troca requer selecionar as duas cartas e confirmar; cancelar limpa a seleção sem enviar comando. A fila e os resultados aguardam os movimentos. Replay 3D respeita pausa, velocidade e restauração ao navegar.
+
 - Lobby, salas e mesa exibem o nome de exibição da conta, com nome de usuário como fallback. A apresentação associa participantes pela vaga, sem alterar estados ou históricos persistidos; replays também priorizam o nome atual da conta, preservando a identidade arquivada como fallback para contas excluídas.
 - O host é identificado pela coroa de `public/host.svg` sobre o avatar na sala e nos cards da listagem de lobbies, proporcional ao tamanho do avatar.
 

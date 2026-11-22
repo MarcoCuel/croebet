@@ -1,0 +1,37 @@
+"use client";
+
+import { useEffect, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+export function GameActionBar({ children, wide = false, contained = false }: { children: ReactNode; wide?: boolean; contained?: boolean }) {
+  return <div className={cn("pointer-events-none inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4", contained ? "absolute" : "fixed")} data-game-actions>
+    <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4", wide ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-2rem)]", contained && "max-w-full")}>{children}</div>
+  </div>;
+}
+
+export function GameDrawActions({ onDraw, onStop, canStop = true }: { onDraw: () => void; onStop?: () => void; canStop?: boolean }) {
+  return <div className="flex gap-2">
+    <Button className="min-w-24" aria-keyshortcuts="Enter" title="Comprar carta (Enter)" onClick={onDraw}>Comprar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Enter</span></Button>
+    {onStop && <Button className="min-w-24" variant="secondary" aria-keyshortcuts="Escape" title="Parar (Escape)" disabled={!canStop} onClick={onStop}>Parar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Esc</span></Button>}
+  </div>;
+}
+
+export function GameActionShortcuts({ onDraw, onStop }: { onDraw?: () => void; onStop?: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || document.visibilityState === "hidden") return;
+      const action = event.key === "Enter" ? onDraw : event.key === "Escape" && !document.fullscreenElement ? onStop : undefined;
+      if (!action) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;
+      if (event.key === "Enter" && target instanceof Element && target.closest('button, a, [role="button"], [role="slider"], summary')) return;
+      event.preventDefault();
+      action();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onDraw, onStop]);
+  return null;
+}

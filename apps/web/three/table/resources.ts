@@ -21,7 +21,7 @@ export function useTablePalette() {
   }, []);
   return palette;
 }
-function texture(value: number | null, anisotropy: number) {
+function texture(value: number | null, anisotropy: number, asset?: CardArtwork) {
   const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 768;
   const ctx = canvas.getContext("2d")!; ctx.scale(2, 2);
   ctx.fillStyle = value === null ? "#343638" : "#f2f1ed"; ctx.fillRect(0, 0, 256, 384);
@@ -29,8 +29,11 @@ function texture(value: number | null, anisotropy: number) {
   ctx.beginPath(); ctx.roundRect(14, 14, 228, 356, 18); ctx.stroke();
   ctx.fillStyle = value === null ? "#b9bab8" : "#282a2b";
   ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "500 136px sans-serif";
-  ctx.fillText(value === null ? "·" : String(value), 128, 192);
-  if (value !== null) { ctx.font = "600 34px sans-serif"; ctx.fillText(String(value), 42, 47); ctx.save(); ctx.translate(214, 337); ctx.rotate(Math.PI); ctx.fillText(String(value), 0, 0); ctx.restore(); }
+  ctx.fillStyle = asset?.color ?? ctx.fillStyle;
+  ctx.font = `500 ${asset?.text && asset.text.length > 2 ? 76 : 136}px sans-serif`;
+  ctx.fillText(asset?.text ?? (value === null ? "·" : String(value)), 128, 192);
+  if (asset?.caption) { ctx.font = "500 20px sans-serif"; ctx.fillText(asset.caption, 128, 300, 220); }
+  if (value !== null) { ctx.font = "600 34px sans-serif"; ctx.fillText(asset?.text ?? String(value), 42, 47); ctx.save(); ctx.translate(214, 337); ctx.rotate(Math.PI); ctx.fillText(asset?.text ?? String(value), 0, 0); ctx.restore(); }
   const result = new CanvasTexture(canvas); result.colorSpace = SRGBColorSpace; result.anisotropy = anisotropy; result.minFilter = LinearMipmapLinearFilter; result.magFilter = LinearFilter; return result;
 }
 export function useCardResources(palette: TablePalette, artwork?: TableArtwork) {
@@ -38,13 +41,16 @@ export function useCardResources(palette: TablePalette, artwork?: TableArtwork) 
   const anisotropy = useThree(state => Math.min(8, state.gl.capabilities.getMaxAnisotropy()));
   const geometry = useMemo(() => ({ flat: createCardGeometry(), fan: createCardGeometry(0.004), curved: createCardGeometry(0.018) }), []);
   const maps = useMemo(() => {
-    const result = [...Array.from({ length: 10 }, (_, n) => texture(n, anisotropy)), texture(null, anisotropy)];
-    result.forEach((map, i) => { map.name = (i === 10 ? artwork?.back : artwork?.faces[i])?.src ?? "procedural"; });
+    const keys = new Set([...Array.from({ length: 14 }, (_, i) => String(i)), ...Object.keys(artwork?.faces ?? {})]);
+    const result: Record<string, CanvasTexture> = { back: texture(null, anisotropy, artwork?.back) };
+    for (const key of keys) result[key] = texture(Number.isFinite(Number(key)) ? Number(key) : 0, anisotropy, artwork?.faces[key]);
+    for (const [key, map] of Object.entries(result)) map.name = (key === "back" ? artwork?.back : artwork?.faces[key])?.src ?? "procedural";
     return result;
   }, [anisotropy, artwork]);
   useEffect(() => {
     let disposed = false;
-    function load(asset: CardArtwork, index: number) {
+    function load(asset: CardArtwork, index: string) {
+      if (!asset.src) return;
       const image = new Image();
       image.onload = () => {
         if (disposed) return;
@@ -61,12 +67,12 @@ export function useCardResources(palette: TablePalette, artwork?: TableArtwork) 
       image.src = asset.src;
     }
     if (artwork) {
-      Object.entries(artwork.faces).forEach(([value, asset]) => { if (asset) load(asset, Number(value)); });
-      load(artwork.back, 10);
+      Object.entries(artwork.faces).forEach(([value, asset]) => { if (asset) load(asset, value); });
+      load(artwork.back, "back");
     }
     return () => { disposed = true; };
   }, [artwork, maps, palette.surface, palette.foreground, invalidate]);
-  useEffect(() => () => maps.forEach(map => map.dispose()), [maps]);
+  useEffect(() => () => Object.values(maps).forEach(map => map.dispose()), [maps]);
   useEffect(() => () => { Object.values(geometry).forEach(({ face, backFace, edge }) => { face.dispose(); backFace.dispose(); edge.dispose(); }); }, [geometry]);
   return { ...geometry, maps, palette };
 }

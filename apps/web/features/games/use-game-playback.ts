@@ -10,12 +10,18 @@ export function useGamePlayback() {
   const confirmed = useRef<GameRoom | null>(null);
   const queue = useRef<GameRoom[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presentationBusy = useRef(false);
+  const waiting = useRef(false);
+  const resume = useRef<() => void>(() => {});
   const stop = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     queue.current = [];
+    waiting.current = false;
   }, []);
   const advance = useCallback(function nextFrame() {
+    if (presentationBusy.current && !document.hidden) { waiting.current = true; return; }
+    waiting.current = false;
     const next = queue.current.shift();
     if (!next || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) {
       stop(); setRoom(confirmed.current); setAnimating(false); return;
@@ -24,6 +30,14 @@ export function useGamePlayback() {
     const summary = next.status !== "lobby" && next.state.phase === "summary";
     timer.current = setTimeout(nextFrame, summary ? 2400 : 1400);
   }, [stop]);
+  useEffect(() => { resume.current = advance; }, [advance]);
+  const setPresentationBusy = useCallback((busy: boolean) => {
+    presentationBusy.current = busy;
+    if (!busy && waiting.current) {
+      waiting.current = false;
+      timer.current = setTimeout(() => resume.current(), 0);
+    }
+  }, []);
   const receive = useCallback((sync: GameRoomSync) => {
     const previous = confirmed.current;
     if (previous?.code === sync.room.code && previous.version > sync.room.version) return;
@@ -50,5 +64,5 @@ export function useGamePlayback() {
     document.addEventListener("visibilitychange", skip);
     return () => { stop(); document.removeEventListener("visibilitychange", skip); };
   }, [stop]);
-  return { room, receive, confirmed, animating, clear };
+  return { room, receive, confirmed, animating, clear, setPresentationBusy };
 }

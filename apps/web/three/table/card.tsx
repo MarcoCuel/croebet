@@ -6,24 +6,31 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Euler, Quaternion, Vector3, type Group } from "three";
 import type { CardResources } from "./resources";
 import type { CardTarget } from "./motion";
-import { arcPosition, cardMotionUpdate, consumeCardMotion, easedProgress, raisedCardPosition } from "./motion";
+import { arcPosition, cardMotionUpdate, consumeCardMotion, routeProgress, raisedCardPosition } from "./motion";
 
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
-export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown }: {
+export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown, onMotion, paused = false, timeScale = 1 }: {
   motionHistory: RefObject<Map<string, string>>;
   target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void; onPilePointerDown?: (event: PointerEvent) => void;
+  onMotion?: (id: string, key: string, active: boolean) => void;
+  paused?: boolean; timeScale?: number;
 }) {
   const ref = useRef<Group>(null); const invalidate = useThree(state => state.invalidate);
+  const idleRef = useRef<Group>(null);
   const [hovered, setHovered] = useState(false);
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClick = useRef(false);
   const touchStart = useRef({ x: 0, y: 0 });
   const cancelHold = () => { if (hold.current) clearTimeout(hold.current); hold.current = null; };
   useEffect(() => () => { if (hold.current) clearTimeout(hold.current); }, []);
+  useEffect(() => { if (!paused) invalidate(); }, [paused, invalidate]);
   useCursor(hovered && !!target.interactive, target.zone === "hand" ? "pointer" : "grab");
   const animation = useRef({ elapsed: 0, active: false, from: new Vector3(), to: new Vector3(), fromQ: new Quaternion(), toQ: new Quaternion(),
     fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: false,
-    key: "", destination: "", transfer: false });
+    key: "", destination: "", transfer: false, via: null as null | { position: Vector3; quaternion: Quaternion; scale: number }, hold: 0 });
+  const motionCallback = useRef(onMotion);
+  useLayoutEffect(() => { motionCallback.current = onMotion; });
+  useEffect(() => () => motionCallback.current?.(target.id, animation.current.key, false), [target.id]);
   const mounted = useRef(false);
   const raised = (target.zone === "hand" && target.interactive && hovered) || target.selected;
   const [x, y, z] = target.pose.position; const [rx, ry, rz] = target.pose.rotation;
@@ -41,6 +48,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     if (update === "ignore") return;
     a.destination = destination;
     const newMotion = a.key !== t.motion.key && consumeCardMotion(motionHistory.current, t.id, t.motion.key);
+    const returningChoice = a.key.startsWith("choice:") && !t.motion.key.startsWith("choice:");
     const emphasisChanged = a.raised !== !!lift;
     if (!mounted.current) {
       const origin = newMotion ? t.origin ?? t.pose : t.pose;
@@ -55,6 +63,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
       a.raised = !!lift;
       invalidate(); return;
     }
+    if (a.active && a.key !== t.motion.key) motionCallback.current?.(t.id, a.key, false);
     a.from.copy(group.position); a.fromQ.copy(group.quaternion); a.fromScale = group.scale.x;
     a.to.fromArray(raisedCardPosition(t.pose, lift ? 0.25 * t.pose.scale : 0));
     a.toQ.setFromEuler(new Euler(...t.pose.rotation, "YXZ")); a.toScale = size;
@@ -63,24 +72,37 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     a.delay = newMotion ? t.motion.delay ?? 0 : 0;
     a.arc = newMotion ? t.motion.arc : 0; a.shuffle = newMotion && !!t.motion.shuffle;
     a.key = t.motion.key;
-    a.transfer = newMotion && (!!t.origin || a.arc > 0 || a.delay > 0 || a.shuffle);
+    a.via = newMotion && t.motion.via ? { position: new Vector3(...t.motion.via.position), quaternion: new Quaternion().setFromEuler(new Euler(...t.motion.via.rotation, "YXZ")), scale: t.motion.via.scale } : null;
+    a.hold = newMotion ? t.motion.hold ?? 0 : 0;
+    a.transfer = returningChoice || newMotion && (!!t.origin || a.arc > 0 || a.delay > 0 || a.shuffle);
     a.elapsed = 0; a.active = !reduce;
+    motionCallback.current?.(t.id, a.key, (newMotion || returningChoice) && !reduce);
     if (reduce) { group.position.copy(a.to); group.quaternion.copy(a.toQ); group.scale.setScalar(size); }
     invalidate();
   }, [destination, invalidate, motionHistory]);
-  useFrame((_, delta) => {
-    const group = ref.current; const a = animation.current; if (!group || !a.active) return;
-    a.elapsed += Math.min(delta, 0.1);
-    const t = easedProgress(a.elapsed, a.duration, a.delay);
-    const position = arcPosition(a.from.toArray(), a.to.toArray(), t, a.arc);
-    group.position.fromArray(position); group.quaternion.slerpQuaternions(a.fromQ, a.toQ, t);
-    group.scale.setScalar(a.fromScale + (a.toScale - a.fromScale) * t);
+  useFrame((scene, delta) => {
+    const group = ref.current; const a = animation.current; if (!group || paused) return;
+    const idle = !target.hidden && !reducedMotion ? target.idle : undefined;
+    if (idleRef.current) idleRef.current.rotation.z = idle ? Math.sin(scene.clock.elapsedTime * 2.6 + idle.phase) * idle.angle : 0;
+    if (!a.active) { if (idle) invalidate(); return; }
+    a.elapsed += Math.min(delta, 0.1) * timeScale;
+    const route = routeProgress(a.elapsed, a.duration, a.delay, a.hold, !!a.via);
+    const t = route.progress;
+    const from = route.leg === 1 && a.via ? a.via.position : a.from;
+    const to = route.leg === 0 && a.via ? a.via.position : a.to;
+    const fromQ = route.leg === 1 && a.via ? a.via.quaternion : a.fromQ;
+    const toQ = route.leg === 0 && a.via ? a.via.quaternion : a.toQ;
+    const fromScale = route.leg === 1 && a.via ? a.via.scale : a.fromScale;
+    const toScale = route.leg === 0 && a.via ? a.via.scale : a.toScale;
+    group.position.fromArray(arcPosition(from.toArray(), to.toArray(), t, a.arc)); group.quaternion.slerpQuaternions(fromQ, toQ, t);
+    group.scale.setScalar(fromScale + (toScale - fromScale) * t);
     if (a.shuffle) { group.position.x += Math.sin(t * Math.PI * 4) * Math.sin(t * Math.PI) * 0.4; group.rotateZ(Math.sin(t * Math.PI * 2) * 0.12); }
-    a.active = t < 1;
-    if (a.active) invalidate();
+    a.active = !route.done;
+    if (!a.active) motionCallback.current?.(target.id, a.key, false);
+    if (a.active || idle) invalidate();
   });
-  const front = target.hidden ? resources.maps[10] : resources.maps[target.value];
-  const back = target.revealBack ? front : resources.maps[10];
+  const front = target.hidden ? resources.maps.back : resources.maps[target.face ?? target.value] ?? resources.maps.back;
+  const back = target.revealBack ? front : resources.maps.back;
   const thickness = target.thickness ?? 0.004;
   const geometry = target.curved === "fan" ? resources.fan : target.curved ? resources.curved : resources.flat;
   return <group ref={ref}
@@ -98,9 +120,12 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     onPointerCancel={cancelHold}
     onPointerOver={target.interactive ? event => { event.stopPropagation(); setHovered(true); } : undefined}
     onPointerOut={() => { setHovered(false); cancelHold(); }}>
+    <group ref={idleRef}>
     <mesh geometry={geometry.edge} position={[0, 0, -(thickness - 0.004) / 2]} scale={[1, 1, thickness / 0.004]} castShadow receiveShadow><meshStandardMaterial color="#d5d4cf" roughness={0.9} /></mesh>
-    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
+    <mesh geometry={geometry.face} position={[0, 0, 0.0022]} castShadow receiveShadow><meshStandardMaterial map={front} alphaTest={0.1} emissive="#ffffff" emissiveIntensity={target.glow && !target.hidden ? 0.12 : hovered && target.zone === "deck" ? 0.08 : 0} roughness={0.82} metalness={0} /></mesh>
     <mesh geometry={geometry.backFace} position={[0, 0, -thickness + 0.0018]} rotation={[0, Math.PI, 0]} castShadow receiveShadow><meshStandardMaterial map={back} alphaTest={0.1} roughness={0.86} metalness={0} /></mesh>
+    </group>
+    {hovered && target.interactive && target.actionLabel && !target.hidden && <Html position={[0, 0.8, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-64 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.actionLabel}</span></Html>}
     {target.interactive && target.zone === "hand" && <Html center zIndexRange={[12, 0]} style={{ pointerEvents: "none" }}><button
       className="pointer-events-auto sr-only focus:not-sr-only focus:whitespace-nowrap focus:rounded-lg focus:bg-background focus:p-2 focus:text-xs"
       aria-label={target.actionLabel ?? `Descartar ${target.label?.toLowerCase() ?? "carta"}`} onClick={() => onSelect(target.id)}
