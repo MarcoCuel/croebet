@@ -12,8 +12,8 @@ export function GameActionBar({ children, wide = false, contained = false }: { c
 
 export function GameDrawActions({ onDraw, onStop, canStop = true }: { onDraw: () => void; onStop?: () => void; canStop?: boolean }) {
   return <div className="flex gap-2">
-    <Button className="min-w-24" aria-keyshortcuts="Enter" title="Comprar carta (Enter)" onClick={onDraw}>Comprar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Enter</span></Button>
-    {onStop && <Button className="min-w-24" variant="secondary" aria-keyshortcuts="Escape" title="Parar (Escape)" disabled={!canStop} onClick={onStop}>Parar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Esc</span></Button>}
+    <Button size="sm" className="min-w-24" aria-keyshortcuts="Enter" title="Comprar carta (Enter)" onClick={onDraw}>Comprar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Enter</span></Button>
+    {onStop && <Button size="sm" className="min-w-24" variant="secondary" aria-keyshortcuts="Escape" title="Parar (Escape)" disabled={!canStop} onClick={onStop}>Parar<span aria-hidden="true" className="hidden text-xs opacity-70 sm:inline">Esc</span></Button>}
   </div>;
 }
 
