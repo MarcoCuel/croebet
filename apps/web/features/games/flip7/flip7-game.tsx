@@ -768,7 +768,13 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                 visiblePlayer.status !== "playing" && "opacity-50",
               )}>
                 <div className="mb-3 flex items-center justify-between gap-2 text-sm">
-                  <h3 className="min-w-0 truncate font-medium">{player.name}</h3>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Avatar className="size-6" aria-hidden="true">
+                      <AvatarImage src={tableParticipants.find(person => person.seat === i)?.avatarUrl ?? undefined} />
+                      <AvatarFallback>{Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback>
+                    </Avatar>
+                    <h3 className="min-w-0 truncate font-medium">{player.name}</h3>
+                  </div>
                   {visiblePlayer.status !== "playing" && <span className="text-xs text-muted">{playerStatus[visiblePlayer.status]}</span>}
                   <span className="shrink-0 text-sm font-semibold text-foreground tabular-nums" title="Pontos nesta rodada">{score(visiblePlayer, visibleGame)} pts</span>
                 </div>
