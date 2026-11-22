@@ -384,5 +384,13 @@ test("distribuição segue a vez ativa e anima a mão local na sua posição da 
   await page.getByRole("menuitem", { name: "Distribuir cartas", exact: true }).click();
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 100 · Descarte: 0");
   // The local player receives the fourth card when the deal begins at seat 1.
-  await expect(scene.getByRole("button", { name: "Descartar carta 0, posição 8", exact: true })).toBeAttached();
+  const fourth = scene.getByRole("button", { name: "Descartar carta 0, posição 8", exact: true });
+  await expect(fourth).toBeAttached();
+  await page.waitForTimeout(50);
+  const waiting = (await fourth.boundingBox())!;
+  await page.waitForTimeout(100); // Early departures overlap, but the fourth card still waits for its short stagger.
+  const stillWaiting = (await fourth.boundingBox())!;
+  expect(Math.abs(stillWaiting.y - waiting.y)).toBeLessThan(2);
+  const frame = (await scene.boundingBox())!;
+  await expect.poll(async () => (await fourth.boundingBox())!.y, { timeout: 5000 }).toBeGreaterThan(frame.y + frame.height * 0.6);
 });

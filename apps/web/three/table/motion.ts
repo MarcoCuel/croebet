@@ -15,7 +15,11 @@ export function raisedCardPosition(pose: CardPose, distance: number): Vec3 {
     pose.position[2] + distance * Math.cos(ry) * Math.sin(rx)];
 }
 export function distributionDelay(order: number, duration: number) {
-  return Math.max(0, order) * duration * 0.3;
+  return Math.max(0, order) * duration * 0.2;
+}
+export function cardMotionUpdate(previous: { destination: string; key: string; active: boolean; transfer: boolean }, next: { destination: string; key: string; reducedMotion: boolean }) {
+  if (previous.destination === next.destination) return "ignore";
+  return previous.active && previous.transfer && previous.key === next.key && !next.reducedMotion ? "continue" : "start";
 }
 export function easedProgress(elapsed: number, duration: number, delay = 0) {
   const t = Math.max(0, Math.min(1, (elapsed - delay) / Math.max(0.001, duration)));

@@ -6,7 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Euler, Quaternion, Vector3, type Group } from "three";
 import type { CardResources } from "./resources";
 import type { CardTarget } from "./motion";
-import { arcPosition, consumeCardMotion, easedProgress, raisedCardPosition } from "./motion";
+import { arcPosition, cardMotionUpdate, consumeCardMotion, easedProgress, raisedCardPosition } from "./motion";
 
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
 export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown }: {
@@ -22,7 +22,8 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
   useEffect(() => () => { if (hold.current) clearTimeout(hold.current); }, []);
   useCursor(hovered && !!target.interactive, target.zone === "hand" ? "pointer" : "grab");
   const animation = useRef({ elapsed: 0, active: false, from: new Vector3(), to: new Vector3(), fromQ: new Quaternion(), toQ: new Quaternion(),
-    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: false });
+    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: false,
+    key: "", destination: "", transfer: false });
   const mounted = useRef(false);
   const raised = (target.zone === "hand" && target.interactive && hovered) || target.selected;
   const [x, y, z] = target.pose.position; const [rx, ry, rz] = target.pose.rotation;
@@ -35,12 +36,24 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     const group = ref.current; if (!group) return;
     const { target: t, raised: lift, scale: size, reducedMotion: reduce } = latest.current;
     const a = animation.current;
-    const newMotion = consumeCardMotion(motionHistory.current, t.id, t.motion.key);
+    // Effect replay must not restart the same transfer without its original stagger.
+    const update = cardMotionUpdate(a, { destination, key: t.motion.key, reducedMotion: reduce });
+    if (update === "ignore") return;
+    a.destination = destination;
+    const newMotion = a.key !== t.motion.key && consumeCardMotion(motionHistory.current, t.id, t.motion.key);
     const emphasisChanged = a.raised !== !!lift;
     if (!mounted.current) {
       const origin = newMotion ? t.origin ?? t.pose : t.pose;
       group.position.fromArray(origin.position); group.quaternion.setFromEuler(new Euler(...origin.rotation, "YXZ")); group.scale.setScalar(origin.scale);
       mounted.current = true;
+    }
+    if (update === "continue") {
+      // Resize, hover and other layout updates may retarget the destination, but
+      // preserve elapsed time, departure delay, origin and arc for this transfer.
+      a.to.fromArray(raisedCardPosition(t.pose, lift ? 0.25 * t.pose.scale : 0));
+      a.toQ.setFromEuler(new Euler(...t.pose.rotation, "YXZ")); a.toScale = size;
+      a.raised = !!lift;
+      invalidate(); return;
     }
     a.from.copy(group.position); a.fromQ.copy(group.quaternion); a.fromScale = group.scale.x;
     a.to.fromArray(raisedCardPosition(t.pose, lift ? 0.25 * t.pose.scale : 0));
@@ -49,6 +62,8 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     a.raised = !!lift;
     a.delay = newMotion ? t.motion.delay ?? 0 : 0;
     a.arc = newMotion ? t.motion.arc : 0; a.shuffle = newMotion && !!t.motion.shuffle;
+    a.key = t.motion.key;
+    a.transfer = newMotion && (!!t.origin || a.arc > 0 || a.delay > 0 || a.shuffle);
     a.elapsed = 0; a.active = !reduce;
     if (reduce) { group.position.copy(a.to); group.quaternion.copy(a.toQ); group.scale.setScalar(size); }
     invalidate();

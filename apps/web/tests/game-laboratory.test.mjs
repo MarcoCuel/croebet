@@ -7,7 +7,7 @@ import { constrainDeckTransform, constrainDiscardTransform, pileBounds, poseBoun
 import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
-import { arcPosition, consumeCardMotion, distributionDelay, easedProgress, raisedCardPosition } from '../three/table/motion.ts';
+import { arcPosition, cardMotionUpdate, consumeCardMotion, distributionDelay, easedProgress, raisedCardPosition } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
 const options = { layout: 'fan', width: 5.5, curve: 1.2, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0 };
 
@@ -571,4 +571,26 @@ test('distribuir começa por quem está na vez e percorre os assentos a cada vol
   assert.equal(distributionDelay(0, 0.65), 0);
   assert.ok(distributionDelay(30, 0.65) > distributionDelay(29, 0.65), 'o fim da distribuição não deve sair todo junto');
   assert.equal(distributionDelay(3, 1), distributionDelay(3, 0.5) * 2);
+});
+
+
+test('distribuição preserva saídas em ordem com intervalo curto e voos sobrepostos em todas as voltas', () => {
+  for (const duration of [0.15, 0.65, 2]) for (let order = 0; order < 103; order++) {
+    const departure = distributionDelay(order, duration);
+    const nextDeparture = distributionDelay(order + 1, duration);
+    assert.ok(nextDeparture > departure && nextDeparture < departure + duration);
+    const previousProgress = easedProgress(nextDeparture, duration, departure);
+    assert.ok(previousProgress > 0 && previousProgress < 1);
+    assert.equal(easedProgress(nextDeparture, duration, nextDeparture), 0);
+  }
+});
+
+test('repetir o efeito ou mudar o layout não remove o atraso de uma transferência ativa', () => {
+  const running = { destination: 'hand:original', key: '1:deal', active: true, transfer: true };
+  assert.equal(cardMotionUpdate(running, { destination: 'hand:original', key: '1:deal', reducedMotion: false }), 'ignore');
+  assert.equal(cardMotionUpdate(running, { destination: 'hand:hover', key: '1:deal', reducedMotion: false }), 'continue');
+  assert.equal(cardMotionUpdate(running, { destination: 'hand:resize', key: '1:deal', reducedMotion: false }), 'continue');
+  assert.equal(cardMotionUpdate(running, { destination: 'discard', key: '2:discard', reducedMotion: false }), 'start');
+  assert.equal(cardMotionUpdate(running, { destination: 'hand:reduce', key: '1:deal', reducedMotion: true }), 'start');
+  assert.equal(cardMotionUpdate({ ...running, active: false }, { destination: 'hand:hover', key: '1:deal', reducedMotion: false }), 'start');
 });
