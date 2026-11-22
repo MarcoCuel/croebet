@@ -58,6 +58,7 @@
   );
   --animate-flip-holographic: flip-holographic 6s ease-in-out infinite;
   --animate-flip-six-seven: flip-six-seven 2.4s ease-in-out infinite;
+  --animate-flip-six-nine: flip-six-nine 2.4s ease-in-out infinite;
   --animate-dialog-in: dialog-in 200ms ease-out both;
   --animate-dialog-overlay-in: dialog-overlay-in 200ms ease-out both;
   --animate-drawer-in: drawer-in 250ms ease-out both;
@@ -85,6 +86,11 @@
   @keyframes flip-six-seven {
     0%, 100% { transform: translateY(-0.25rem); }
     50% { transform: translateY(0.25rem); }
+  }
+
+  @keyframes flip-six-nine {
+    0%, 100% { transform: rotate(-4deg); }
+    50% { transform: rotate(4deg); }
   }
 
   --inset-shadow-flip-card: inset 0 0 0 0.125rem rgb(255 255 255 / 10%);

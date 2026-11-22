@@ -720,6 +720,55 @@ test("six seven oscila em sentidos opostos apenas com o par e respeita movimento
   expect(await six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
 });
 
+test("six nine gira continuamente enquanto adjacente e para ao comprar um número entre o par", async ({ page }) => {
+  const code = "ABCDEF123456";
+  const privateState = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
+  const deck = createDeck("classic");
+  const take = (value: number) => deck.splice(deck.findIndex(card => card.type === "number" && card.value === value), 1)[0];
+  privateState.players[0].cards = [take(6), take(9)];
+  privateState.players[1].cards = [take(5)];
+  privateState.players[1].status = "stayed";
+  privateState.players.forEach(player => { player.hasDrawn = true; });
+  const eight = take(8), ten = take(10);
+  privateState.deck = [...deck, eight, ten];
+  const state = flip7Driver.project(privateState);
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state, hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  fixture.states.set(code, { room, privateState, frames: [] });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const six = page.locator(`[data-hand-card="${state.players[0].cards[0].id}"]`);
+  const nine = page.locator(`[data-hand-card="${state.players[0].cards[1].id}"]`);
+  await expect.poll(() => six.evaluate(element => element.getAnimations({ subtree: true }).map(animation => (animation as CSSAnimation).animationName))).toEqual(["flip-six-nine"]);
+  for (const card of [six, nine]) {
+    expect(await card.evaluate(element => element.getAnimations({ subtree: true })[0].effect!.getTiming().iterations)).toBe(Infinity);
+  }
+  const rotation = await page.locator('[data-player-hand="0"] [data-hand-card]').evaluateAll(elements => elements.map(element => {
+    const animation = element.getAnimations({ subtree: true })[0];
+    animation.pause(); animation.currentTime = 0;
+    return new DOMMatrix(getComputedStyle((animation.effect as KeyframeEffect).target as HTMLElement).transform).b;
+  }));
+  expect(rotation[0]).toBeLessThan(0);
+  expect(rotation[1]).toBeGreaterThan(0);
+  const original = await six.evaluateHandle(element => {
+    const animation = element.getAnimations({ subtree: true })[0];
+    animation.play(); return animation;
+  });
+  await page.getByRole("button", { name: "Comprar", exact: true }).click();
+  await expect(page.locator(`[data-hand-card="${ten.id}"]`)).toBeVisible();
+  await expect(page.locator("[data-flying-card]")).toHaveCount(0);
+  expect(await six.evaluate((element, animation) => element.getAnimations({ subtree: true }).includes(animation), original)).toBe(true);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(() => six.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("button", { name: "Comprar", exact: true }).click();
+  await expect(page.locator(`[data-hand-card="${eight.id}"]`)).toBeVisible();
+  for (const card of [six, nine]) {
+    await expect.poll(() => card.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+    expect(await card.locator(":scope > div").evaluate(element => getComputedStyle(element).translate)).toBe("none");
+  }
+  await original.dispose();
+});
+
 test("resultado apresenta vencedor, duração, rodadas, prêmio e placar com avatares", async ({ page }) => {
   const code="ABCDEF123456";
   const state=flip7Driver.project(createGame(matchUsers.map(user=>({name:user.username,kind:"human" as const})),42,{mode:"classic",brutal:false}));

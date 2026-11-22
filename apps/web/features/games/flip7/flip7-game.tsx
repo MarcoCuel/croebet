@@ -735,9 +735,18 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
               const sixSeven = !flipped
                 && player.cards.some(card => card.type === "number" && card.value === 6)
                 && player.cards.some(card => card.type === "number" && card.value === 7);
+              const sixIndex = numeric.findIndex(card => card.value === 6);
+              const sixNine = !flipped && sixIndex !== -1 && numeric[sixIndex + 1]?.value === 9
+                && player.cards.some(card => card.id === numeric[sixIndex].id)
+                && player.cards.some(card => card.id === numeric[sixIndex + 1].id);
               const renderCard = (card: Card) => <div key={card.id} data-flight-card={card.id} data-hand-card={card.id} data-resolving-action={resolvingCard?.card.id === card.id || undefined}
                 className={cn("relative min-w-0", ((flight?.card.id === card.id && !landed) || movingCards?.some(m => m.card.id === card.id)) && "invisible")}>
-                <div className={cn(sixSeven && card.type === "number" && (card.value === 6 || card.value === 7) && "motion-safe:animate-flip-six-seven")} style={{ animationDelay: card.type === "number" && card.value === 7 ? "-1.2s" : undefined }}>
+                <div className={cn(
+                  sixSeven && card.type === "number" && (card.value === 6 || card.value === 7) && "motion-safe:animate-flip-six-seven",
+                  sixNine && card.type === "number" && (card.value === 6 || card.value === 9) && "motion-safe:animate-flip-six-nine",
+                  sixNine && card.type === "number" && card.value === 6 && "translate-x-[calc(10%+0.25rem)]",
+                  sixNine && card.type === "number" && card.value === 9 && "-translate-x-[calc(10%+0.25rem)]",
+                )} style={{ animationDelay: card.type === "number" && (card.value === 7 || (sixNine && card.value === 9)) ? "-1.2s" : undefined }}>
                 <PlayingCard card={card} flipped={flipped && card.id !== resolvingCard?.card.id && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={sideways && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
                 </div>
                 {!resolvingCardFinished && !flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-brand hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
