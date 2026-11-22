@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Eye, Plus, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getGameDefinition, gameIdSchema, gameOptionsSchema, visibleSettings, settingValue, gameSettingBadges, commandResultSchema } from "@croebet/shared";
+import { getGameDefinition, gameIdSchema, gameOptionsSchema, visibleSettings, settingValue, gameSettingBadges, commandResultSchema, maxGamePlayers, gameOptionsForPlayers } from "@croebet/shared";
 import type { GameRecord, CreateMatch, Lobby, LobbyList, GameRoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { CroinIcon } from "@/components/shared/croin-icon";
@@ -248,7 +248,10 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     </Card>}
     {((userId && (!development || permissions.canManageSite)) || room) && <Card className="min-w-0 space-y-4" aria-label="Jogadores e vagas">
       {editableSettings?<fieldset disabled={!canEdit}>
-        <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>void configure(settings,Number(e.target.value),entry,{count:Number(e.target.value)})}>{Array.from({length:definition.maxPlayers(settings)-definition.minPlayers+1},(_,i)=>i+definition.minPlayers).map(n=><option key={n} value={n} disabled={n<occupied}>{n}</option>)}</Select></Field>
+        <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>{
+          const count=Number(e.target.value),next=gameOptionsForPlayers(definition,settings,count);
+          void configure(next,count,entry,{...next,count});
+        }}>{Array.from({length:maxGamePlayers(definition,settings)-definition.minPlayers+1},(_,i)=>i+definition.minPlayers).map(n=><option key={n} value={n}>{n}</option>)}</Select></Field>
       </fieldset>:<div className="flex min-h-11 items-center justify-between gap-4 text-sm font-semibold"><span>Número de jogadores</span><span>{limit}</span></div>}
       {entry>0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-contrast/6 p-3 text-sm mb-8"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
@@ -294,7 +297,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
         {userId && room && !creationBlocked && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
       </div>
     </Card>}
-    <section className={cn("min-w-0 space-y-4",!showSettings && (userId || room?"xl:col-span-2":"xl:col-span-3"))} aria-label="Lobbies abertos">
+    <section className={cn("min-w-0 space-y-4",development && "rounded-panel bg-surface p-4",!showSettings && (userId || room?"xl:col-span-2":"xl:col-span-3"))} aria-label="Lobbies abertos">
       <>
         {development && <p className="text-sm font-medium">Partidas de teste</p>}
         {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
@@ -305,7 +308,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
           const joined=(development && lobby.hostId===userId) || lobby.participants.some(p=>p.userId===userId);
           const reserved=lobby.status==="lobby" && lobby.pendingInvitations.some(p=>p.userId===userId);
           const canCancel=development && permissions.canManageSite && lobby.hostId===userId;
-          return <li key={lobby.code}><Card className="relative isolate h-full space-y-4">
+          return <li key={lobby.code}><Card className={cn("relative isolate h-full space-y-4",development && "bg-transparent p-0")}>
             <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>{active && <Badge variant="secondary">Em andamento</Badge>}{gameSettingBadges(definition,lobby.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
             <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
               const person=people[i];

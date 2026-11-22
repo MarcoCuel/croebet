@@ -335,13 +335,28 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       if(row.owner_id!==actor) throw new MatchError("HOST_ONLY",403,"Somente o host pode alterar a sala.");
       const settings=updateLobbySchema.parse(input);
       if(row.version!==settings.expectedVersion) throw new MatchError("VERSION_CONFLICT",409,"A sala mudou. Confira os participantes e tente novamente.");
-      if(settings.capacity<people.length+(await reservations(client,row.id)).length) throw new MatchError("CAPACITY_TOO_SMALL",409,"O limite não pode ser menor que a quantidade de participantes.");
       if(Number(row.entry_amount)!==settings.entryAmount)await client.query("update game_match_players set confirmed_entry_amount=$2 where match_id=$1",[row.id,settings.entryAmount>0 && settings.entryAmount<Number(row.entry_amount)?settings.entryAmount:null]);
       if(row.development && settings.entryAmount)throw new MatchError("TEST_ECONOMY",400,"Partidas de teste não movimentam Croins.");
       definition.options.parse(settings.options);
       if(settings.capacity>definition.maxPlayers(settings.options))throw new MatchError("INVALID_INPUT",400,"Quantidade inválida para este modo.");
       if(settings.entryAmount && !definition.croins)throw new MatchError("ECONOMY_UNAVAILABLE",400,"Este jogo não aceita Croins.");
-      if(settings.capacity<people.length+row.bots+(await reservations(client,row.id)).length)throw new MatchError("CAPACITY_TOO_SMALL",409,"Não há vagas suficientes.");
+      const invited=await reservations(client,row.id);
+      // Match the lobby's order (people, invitations, bots), always retaining
+      // the host even if ownership changed after the original host left.
+      const retained=[...people.filter(person=>person.userId===row.owner_id),...people.filter(person=>person.userId!==row.owner_id)].slice(0,settings.capacity);
+      const removed=people.filter(person=>!retained.some(kept=>kept.userId===person.userId)).map(person=>person.userId);
+      const retainedInvitations=invited.slice(0,settings.capacity-retained.length);
+      const removedInvitations=invited.slice(retainedInvitations.length).map(person=>person.userId);
+      if(removed.length)await client.query("delete from game_match_players where match_id=$1 and user_id=any($2::uuid[])",[row.id,removed]);
+      if(removed.length || removedInvitations.length)await client.query("delete from game_match_invitations where match_id=$1 and recipient_id=any($2::uuid[])",[row.id,[...removed,...removedInvitations]]);
+      if(settings.capacity<row.capacity && people.length){
+        const keptIds=people.filter(person=>!removed.includes(person.userId)).map(person=>person.userId);
+        // Move out of the occupied range before compacting to avoid unique-seat
+        // collisions when earlier departures left gaps in the lobby.
+        await client.query("update game_match_players set seat=seat+$2 where match_id=$1",[row.id,Math.max(...people.map(person=>person.seat))+1]);
+        await client.query("update game_match_players p set seat=kept.position-1 from unnest($2::uuid[]) with ordinality as kept(user_id,position) where p.match_id=$1 and p.user_id=kept.user_id",[row.id,keptIds]);
+      }
+      row.bots=Math.min(row.bots,settings.capacity-retained.length-retainedInvitations.length);
       row.entry_amount=String(settings.entryAmount);
       row.capacity=settings.capacity; row.options=settings.options; row.version++;
     } else {
@@ -369,7 +384,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       row.state=result.state; row.version=result.version; row.status=result.status;
       await recordFrames(client,row.id,[{action:{type:"start"},state:result.before,version:result.frames[0]?.version ? result.frames[0].version-1 : row.version},...result.frames.map(frame=>({...frame,action:driver.eventAction(frame.action)}))]);
     }
-    await client.query("update game_matches set owner_id=$2,version=$3,status=$4,state=$5,capacity=$6,options=$7,entry_amount=$8,updated_at=clock_timestamp() where id=$1",[row.id,row.owner_id,row.version,row.status,row.state===null?null:JSON.stringify(row.state),row.capacity,JSON.stringify(row.options),row.entry_amount]);
+    await client.query("update game_matches set owner_id=$2,version=$3,status=$4,state=$5,capacity=$6,options=$7,entry_amount=$8,bots=$9,updated_at=clock_timestamp() where id=$1",[row.id,row.owner_id,row.version,row.status,row.state===null?null:JSON.stringify(row.state),row.capacity,JSON.stringify(row.options),row.entry_amount,row.bots]);
     if(!row.development && row.state!==null)await settleMatch(client,row.id,row.code,row.status,driver.outcome(row.state));
     const currentPeople=(await participants(client,[row.id])).get(row.id) ?? [];
     const response=row.status==="abandoned" ? {code:row.code,status:"closed"} : await roomView(client,row,currentPeople);

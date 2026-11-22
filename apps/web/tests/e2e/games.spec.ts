@@ -382,6 +382,32 @@ test("Love Letter no modo dev reutiliza configurações, vagas e listagem de sal
  await expect(page.getByLabel("Configuração e regras")).toBeVisible();
 });
 
+test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({page})=>{
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
+ await page.goto("/jogos/love-letter?teste=1");
+ const count=page.getByLabel("Número de jogadores"),mode=page.getByLabel("Modo do Love Letter");
+ const bots=page.getByLabel("Configuração e regras").getByLabel("Bots",{exact:true});
+ await expect(mode).toHaveValue("classic");
+ await expect(count.locator("option")).toHaveText(["2","3","4","5","6"]);
+ await count.selectOption("6");
+ await expect(mode).toHaveValue("modern");
+ await bots.selectOption("5");
+ await mode.selectOption("classic");
+ await expect(count).toHaveValue("4");await expect(bots).toHaveValue("3");
+ await count.selectOption("2");
+ await expect(count).toHaveValue("2");await expect(bots).toHaveValue("1");
+ await expect(page.getByLabel("Vagas da sala").getByRole("listitem")).toHaveCount(2);
+ await expect(mode).toHaveValue("classic");
+ await count.selectOption("5");await expect(mode).toHaveValue("modern");
+ await page.reload();
+ await expect(count).toHaveValue("5");await expect(mode).toHaveValue("modern");
+ // Fixed-limit games use the same capacity control and trim bots as well.
+ await page.goto("/jogos/flip7?teste=1");
+ await count.selectOption("6");await bots.selectOption("5");
+ await count.selectOption("2");await expect(bots).toHaveValue("1");
+ await expect(page.getByLabel("Modo do Flip7")).toHaveValue("classic");
+});
+
 test("modo dev permite criar outra partida do mesmo jogo com teste em andamento",async({page})=>{
  prepareLoveTable();
  await page.goto("/jogos/love-letter?teste=1");

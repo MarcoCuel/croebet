@@ -146,6 +146,7 @@ export const adminAudit = pgTable("admin_audit", {
 }, table => [index("admin_audit_target").on(table.targetId, table.createdAt)]);
 
 export const games = pgTable("games", {
+  fallbackDurationMinutes: integer("fallback_duration_minutes"),
   description: text("description").notNull().default(""),
   seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
   id: uuid("id").primaryKey().defaultRandom(),
@@ -154,7 +155,7 @@ export const games = pgTable("games", {
   enabled: boolean("enabled").notNull().default(true),
   imageUrl: text("image_url"),
   version: integer("version").notNull().default(1),
-}, table => [check("game_version_positive", sql`${table.version} > 0`), check("game_slug_valid", sql`length(${table.slug}) between 1 and 100 and ${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`)]);
+}, table => [check("game_fallback_duration_range", sql`${table.fallbackDurationMinutes} between 1 and 10080`), check("game_version_positive", sql`${table.version} > 0`), check("game_slug_valid", sql`length(${table.slug}) between 1 and 100 and ${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`)]);
 
 // Catálogo administrativo; palpites e liquidações serão integrados antes da abertura pública.
 export const markets = pgTable("markets", {

@@ -1,0 +1,2 @@
+ALTER TABLE "games" ADD COLUMN "fallback_duration_minutes" integer;--> statement-breakpoint
+ALTER TABLE "games" ADD CONSTRAINT "game_fallback_duration_range" CHECK ("games"."fallback_duration_minutes" between 1 and 10080);

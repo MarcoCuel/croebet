@@ -31,7 +31,7 @@ export function AdminGameEditor({ game }: { game?: GameRecord }) {
         event.preventDefault();
         if (pending) return;
         const form = new FormData(event.currentTarget);
-        const fields = { seo, name: form.get("name"), description: form.get("description"), enabled: form.get("enabled") === "on", imageUrl: imageUrl || null };
+        const fields = { fallbackDurationMinutes: form.get("fallbackDurationMinutes") ? Number(form.get("fallbackDurationMinutes")) : null, seo, name: form.get("name"), description: form.get("description"), enabled: form.get("enabled") === "on", imageUrl: imageUrl || null };
         const parsed = game ? gameWriteSchema.safeParse({ ...fields, version: game.version }) : gameCreateSchema.safeParse({ ...fields, slug: customSlug ?? normalizeSlug(String(form.get("name") ?? "")) });
         if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
         setPending(true);
@@ -54,6 +54,7 @@ export function AdminGameEditor({ game }: { game?: GameRecord }) {
       <Card className="grid min-w-0 gap-4" inert={pending}>
         <Field className="flex items-center justify-between">Jogo ativo<Switch form="game-editor" name="enabled" defaultChecked={game?.enabled ?? true} /></Field>
         {game ? <EditableRow label="Slug" value={game.slug} /> : <Field>Endereço do jogo<SlugInput form="game-editor" name="slug" value={customSlug ?? autoSlug} onValueChange={setCustomSlug} required={customSlug !== null} maxLength={100} placeholder="meu-jogo" /></Field>}
+        <Field>Duração padrão (minutos)<Input form="game-editor" name="fallbackDurationMinutes" type="number" min={1} max={10080} step={1} defaultValue={game?.fallbackDurationMinutes ?? ""} placeholder="Sem estimativa" /><span className="text-xs text-muted">Usada quando não há partidas concluídas com duração registrada, oficiais ou de teste.</span></Field>
         <div className="grid gap-1.5"><p className="text-sm font-semibold">Imagem de capa</p><ImagePicker value={imageUrl} onChange={setImageUrl} label="Imagem de capa" disabled={pending} /></div>
       </Card>
       <SeoEditor variant="card" form="game-editor" value={seo} onChange={setSeo} disabled={pending} />

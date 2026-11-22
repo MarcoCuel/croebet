@@ -12,10 +12,11 @@ export const gameWriteSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(2000).default(""),
   enabled: z.boolean(),
+  fallbackDurationMinutes: z.number().int().min(1).max(10080).nullable().optional(),
   imageUrl: gameImageSchema,
   version: z.number().int().positive(),
 }).strict();
 export const gameCreateSchema = gameWriteSchema.omit({ version: true }).extend({ slug: z.string().transform(normalizeSlug).pipe(gameSlugSchema) }).strict();
-export const gameSchema = gameWriteSchema.extend({ id: z.uuid(), slug: gameSlugSchema }).strict();
+export const gameSchema = gameWriteSchema.extend({ id: z.uuid(), slug: gameSlugSchema, averageDurationSeconds: z.number().nonnegative().nullable().optional() }).strict();
 export const gamesSchema = z.object({ items: z.array(gameSchema) }).strict();
 export type GameRecord = z.infer<typeof gameSchema>;

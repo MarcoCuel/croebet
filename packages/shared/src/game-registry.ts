@@ -54,6 +54,35 @@ export function settingValue(options:unknown,key:string):unknown {
 export function visibleSettings(definition:GameDefinition,options:unknown) {
   return definition.settings.filter(field=>!field.visibleWhen || settingValue(options,field.visibleWhen.key)===field.visibleWhen.value);
 }
+// Keep the current configuration first; alternatives come from the game's
+// declared selectors, including their dependent resets and validation.
+function playerConfigurations(definition:GameDefinition,options:unknown):GameOptions[] {
+  const configurations=[gameOptionsSchema.parse(definition.options.parse(options))];
+  const seen=new Set(configurations.map(value=>JSON.stringify(value)));
+  for(let index=0;index<configurations.length;index++){
+    const current=configurations[index];
+    for(const field of visibleSettings(definition,current)){
+      if(field.type!=="select")continue;
+      for(const choice of field.choices ?? []){
+        if(settingValue(current,field.key)===choice.value)continue;
+        const parsed=definition.options.safeParse({...current,...field.reset,[field.key]:choice.value});
+        if(!parsed.success)continue;
+        const next=gameOptionsSchema.parse(parsed.data),key=JSON.stringify(next);
+        if(!seen.has(key)){seen.add(key);configurations.push(next);}
+      }
+    }
+  }
+  return configurations;
+}
+export function maxGamePlayers(definition:GameDefinition,options:unknown):number {
+  return Math.max(...playerConfigurations(definition,options).map(value=>definition.maxPlayers(value)));
+}
+export function gameOptionsForPlayers(definition:GameDefinition,options:unknown,count:number):GameOptions {
+  if(!Number.isInteger(count) || count<definition.minPlayers)throw Error("Quantidade inválida de jogadores.");
+  const compatible=playerConfigurations(definition,options).find(value=>count<=definition.maxPlayers(value));
+  if(!compatible)throw Error("Quantidade inválida de jogadores.");
+  return compatible;
+}
 export function gameSettingBadges(definition:GameDefinition,options:unknown):{label:string;variant:"default"|"secondary"}[] {
   return visibleSettings(definition,options).flatMap(field=>{
     const value=settingValue(options,field.key);

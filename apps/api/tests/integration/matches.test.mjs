@@ -188,7 +188,6 @@ test("PostgreSQL: só o host edita lobby aberto, preservando ocupação, versão
  const input={commandId:randomUUID(),expectedVersion:joined.version,capacity:4,options:{mode:"classic",brutal:false}};
  await assert.rejects(lobbyAction(pool,actors[1],sessions[1],room.code,"update",input),{code:"HOST_ONLY"});
  await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,expectedVersion:1}),{code:"VERSION_CONFLICT"});
- await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,capacity:2}),{code:"CAPACITY_TOO_SMALL"});
  const updated=await lobbyAction(pool,actors[0],sessions[0],room.code,"update",input);
  assert.equal(updated.capacity,4);assert.deepEqual(updated.options,input.options);assert.equal(updated.version,joined.version+1);
  assert.deepEqual(updated.participants,joined.participants);
@@ -198,6 +197,51 @@ test("PostgreSQL: só o host edita lobby aberto, preservando ocupação, versão
  const started=await lobby(room.code,0,"start",{expectedVersion:updated.version});
  assert.equal(started.state.mode,"classic");assert.equal(started.state.brutal,false);
  await assert.rejects(lobbyAction(pool,actors[0],sessions[0],room.code,"update",{...input,commandId:randomUUID(),expectedVersion:started.version}),{code:"LOBBY_CLOSED"});
+});
+test("PostgreSQL: reduzir capacidade remove os últimos participantes, preserva host e recibo",async t=>{
+ const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(6);
+ await lobby(room.code,1,"join");await lobby(room.code,2,"join");
+ const full=await lobby(room.code,3,"join");
+ const input={commandId:randomUUID(),expectedVersion:full.version,capacity:2,options:full.options,entryAmount:0};
+ const reduced=await lobbyAction(pool,actors[0],sessions[0],room.code,"update",input);
+ assert.equal(reduced.capacity,2);
+ assert.deepEqual(reduced.participants.map(p=>p.userId),actors.slice(0,2));
+ assert.deepEqual(reduced.participants.map(p=>p.seat),[0,1]);
+ assert.deepEqual(await lobbyAction(pool,actors[0],sessions[0],room.code,"update",input),reduced);
+ assert.equal((await listPersonalMatches(pool,actors[3])).items.some(item=>item.code===room.code),false);
+ const grown=await lobby(room.code,0,"update",{expectedVersion:reduced.version,capacity:3,options:reduced.options,entryAmount:0});
+ const rejoined=await lobby(room.code,3,"join");
+ assert.equal(grown.capacity,3);assert.deepEqual(rejoined.participants.map(p=>p.seat),[0,1,2]);
+ // Ownership may belong to a later seat: it must survive a reduction too.
+ await pool.query("update game_matches set owner_id=$2 where id=$1",[room.id,actors[3]]);
+ const retained=await lobby(room.code,3,"update",{expectedVersion:rejoined.version,capacity:2,options:rejoined.options,entryAmount:0});
+ assert.equal(retained.hostId,actors[3]);
+ assert.deepEqual(retained.participants.map(p=>p.userId),[actors[0],actors[3]]);
+ assert.deepEqual(retained.participants.map(p=>p.seat),[0,1]);
+});
+
+test("PostgreSQL: modo e capacidade reduzem bots e convites em ambos os jogos",async t=>{
+ const {pool,actors,sessions,lobby}=await environment(t);
+ const {inviteLobbyPlayer}=await import('../../dist/modules/matches/service.js');
+ await pool.query("update users set role='admin' where id=$1",[actors[0]]);
+ for(const game of ["flip7","love-letter"]){
+  const room=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game,capacity:6,options:{mode:game==="love-letter"?"modern":"classic",brutal:false},development:true,bots:2,entryAmount:0});
+  await inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[1]);
+  await lobby(room.code,1,"join");
+  await inviteLobbyPlayer(pool,actors[0],sessions[0],room.code,actors[2]);
+  const before=await getMatch(pool,actors[0],room.code);
+  const reduced=await lobby(room.code,0,"update",{expectedVersion:before.version,capacity:4,options:{mode:"classic",brutal:false},entryAmount:0});
+  assert.equal(reduced.bots,1);assert.equal(reduced.pendingInvitations.length,1);
+  assert.equal(reduced.capacity,4);assert.equal(reduced.options.mode,"classic");
+  const smaller=await lobby(room.code,0,"update",{expectedVersion:reduced.version,capacity:2,options:reduced.options,entryAmount:0});
+  assert.equal(smaller.bots,0);assert.equal(smaller.pendingInvitations.length,0);
+  assert.deepEqual(smaller.participants.map(p=>p.userId),actors.slice(0,2));
+  const persisted=await getMatch(pool,actors[0],room.code);
+  assert.equal(persisted.bots,0);assert.equal(persisted.capacity,2);
+ }
+ const bots=await createMatch(pool,actors[0],sessions[0],{requestId:randomUUID(),game:"love-letter",capacity:6,options:{mode:"modern",brutal:false},development:true,bots:6,onlyBots:true,entryAmount:0});
+ const reduced=await lobby(bots.code,0,"update",{expectedVersion:bots.version,capacity:2,options:{mode:"classic",brutal:false},entryAmount:0});
+ assert.equal(reduced.bots,2);assert.equal(reduced.participants.length,0);assert.equal(reduced.onlyBots,true);
 });
 test("PostgreSQL: rollback, sessão revogada e abandono individual",async t=>{
  const {pool,actors,sessions,create,lobby}=await environment(t),room=await create();
