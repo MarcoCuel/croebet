@@ -11,6 +11,7 @@ import { TablePile } from "./pile";
 import { TableCard } from "./card";
 import { TableCamera } from "./camera";
 import { TableLighting } from "./lighting";
+import { TableFloor } from "./floor";
 import { TableSeat } from "./seat";
 import { useCardResources, useTablePalette, type TablePalette } from "./resources";
 import { pileRotation, radians, type CardPose } from "./layout";
@@ -80,6 +81,7 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
   targets.push(...TablePile({ cards: state.discard, position: [discard.x, 0.6, discard.z], height: settings.pileHeight, faceUp: true, rotation: discardRotation, scale: discard.scale, moving: state.cue.ids }).map(target => ({ ...target, zone: "discard" as const, interactive: true })));
   return <>
     <TableCamera angle={settings.angle} bounds={bounds} />
+    <TableFloor fit={fit} angle={settings.angle} palette={palette} />
     <TableLighting ambient={settings.ambient} intensity={settings.light} pointIntensity={settings.pointLight}
       pointHeight={settings.pointHeight} deckX={deckX} deckZ={deckZ} deckHeight={deckHeight} shadows={settings.shadows} softness={settings.shadowSoftness} opacity={settings.shadowOpacity} />
     <mesh scale={[settings.deckScale, 1, settings.deckScale]} position={[deckX, 0.01, deckZ]} rotation={[0, radians(settings.deckRotation), 0]} onPointerDown={event => { event.stopPropagation(); if (moveDeck) deckDrag.begin(event.nativeEvent); }} onClick={event => { event.stopPropagation(); deckDrag.click(); }}
