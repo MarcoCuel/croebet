@@ -121,7 +121,7 @@ for (const kind of ['priest','baron']) test(`${kind}: revelação temporária re
  const showing=loveTableState(v,0,initial);
  assert.equal(showing.staging.at(-1).id,initial.hands[1][0].id);
  assert.equal(showing.staging.at(-1).value,9);
- assert.deepEqual(presentedHands(showing,0)[1],[]);
+ assert.deepEqual(presentedHands(showing,0)[1], showing.exposed[1]);
  assert.equal(showing.hands[1][0].value,-1);
  assert.equal(showing.discard.length,0);
  const again=loveTableState(v,0,showing);
@@ -133,4 +133,23 @@ for (const kind of ['priest','baron']) test(`${kind}: revelação temporária re
  assert.equal(returned.hands[1][0].id,initial.hands[1][0].id);
  assert.equal(returned.hands[1][0].hidden,true);
  assert.equal(returned.hands[1][0].value,-1);
+});
+
+
+test('cartas públicas usam a própria mão sem ocultar descartes ou alterar a posse', () => {
+  const initial = loveTableState(view(), 0);
+  const hands = presentedHands(initial, 0);
+  assert.deepEqual(hands[1].map(card => [card.value, card.hidden]), [[4, false], [-1, true]]);
+  const nextView = view();
+  nextView.players[0].hand = [4]; nextView.players[0].handCount = 1;
+  nextView.players[0].discard = [1];
+  const next = loveTableState(nextView, 0, initial);
+  const displayed = presentedHands(next, 0);
+  assert.deepEqual(displayed[0].map(card => card.value), [1, 4]);
+  assert.equal(displayed[0][0].id, initial.hands[0][0].id);
+  assert.deepEqual(next.hands[0].map(card => card.value), [4]);
+  assert.equal(new Set(displayed.flat().map(card => card.id)).size, displayed.flat().length);
+  const guessing = presentedHands({ ...next, choice: { cards: [{ id: 'guess:2', value: 2 }] } }, 0);
+  assert.deepEqual(guessing[0].map(card => card.id), ['guess:2']);
+  assert.deepEqual(guessing[1], displayed[1]);
 });

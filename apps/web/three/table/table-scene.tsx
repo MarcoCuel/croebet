@@ -24,7 +24,7 @@ import type { CardTarget } from "./motion";
 import { distributionDelay } from "./motion";
 import type { TableArtwork } from "./artwork";
 import { presentedHands } from "./model";
-import { exposedTargets, stagingTargets } from "./areas";
+import { stagingTargets } from "./areas";
 import { Button } from "@/components/ui/button";
 import type { TableSeatSummary } from "./seat-badge";
 export type TablePresentation = {
@@ -75,7 +75,6 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: displayHands[seat.seat], seat: place === 0 ? localSeat : seat,
     options: hands[place],
     hidden: presentation ? presentation.hiddenSeats.includes(seat.seat) : place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : opponentFocus[seat.seat] ?? 0, selected, flipped: state.flipped }));
-  for (const [place, seat] of seats.entries()) targets.push(...exposedTargets(state.exposed?.[seat.seat] ?? [], place === 0 ? localSeat : seat, place === 0, hands[place].scale, settings.angle, state.handLayout === "spread"));
   targets.push(...stagingTargets(state.staging ?? [], state.stagingArea === "discard" ? discard : { x: 1.2, z: -0.2, scale: 1 }, settings.angle, (fit.right - fit.left) * 0.4));
   targets.push(...TablePile({ cards: state.deck, position: deckPosition, rotation: deckRotation, scale: settings.deckScale, height: settings.pileHeight, faceUp: false,
     moving: state.cue.ids.filter(id => state.motions[id]?.kind === "collect") }).map(target => ({ ...target, zone: "deck" as const, interactive: true })));

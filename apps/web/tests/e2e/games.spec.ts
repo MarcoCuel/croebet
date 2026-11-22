@@ -448,6 +448,19 @@ async function selectLoveCard(page: import("@playwright/test").Page, name: strin
 
 test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe histórico",async({page},testInfo)=>{
  prepareLoveTable();
+ const { loveTableState } = await import("../../features/games/love-letter/table-model");
+ const { presentedHands } = await import("../../three/table/model");
+ const { TableHand } = await import("../../three/table/hand");
+ if (!loveRoom || loveRoom.status === "lobby" || !("legalActions" in loveRoom.state)) throw new Error("Fixture Love Letter ausente");
+ const state = loveTableState(loveRoom.state, 0);
+ const hand = presentedHands(state, 0)[1];
+ const cards = TableHand({ cards: hand, seat: { seat: 1, position: [0, 0, -2], angle: 0, width: 3 },
+  options: { layout: "line", width: 3, scale: 1, spacing: 0.76, overlap: 0, curve: 0, tilt: 3.5, orientation: 0 },
+  hidden: true, interactive: false, focus: 0, selected: null, flipped: [] });
+ expect(cards.map(card => [card.zone, card.pose.scale, card.hidden])).toEqual([["hand", 1, false], ["hand", 1, true]]);
+ expect(cards[0].id).toBe(state.exposed![1][0].id);
+ expect(cards[1].id).toBe(state.hands[1][0].id);
+
  const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const table=page.getByLabel("Mesa do Love Letter");
@@ -477,11 +490,40 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  const actions = page.locator("[data-game-actions]");
  await expect(actions.getByRole("button", { name: "Comprar", exact: true })).toHaveCount(0);
  await expect(actions.getByRole("button", { name: "Parar", exact: false })).toHaveCount(0);
+ const scene = table.getByTestId("love-table-scene");
+ const assertActionsAboveScene = async () => {
+  const toolbarBox = (await scene.locator("[data-table-toolbar]").boundingBox())!;
+  const playfieldBox = (await scene.locator("[data-table-playfield]").boundingBox())!;
+  const actionsBox = (await actions.boundingBox())!;
+  expect(actionsBox.y).toBeGreaterThanOrEqual(toolbarBox.y);
+  expect(actionsBox.y + actionsBox.height).toBeLessThanOrEqual(playfieldBox.y);
+  expect(toolbarBox.y + toolbarBox.height).toBeLessThanOrEqual(playfieldBox.y + 1);
+  expect(playfieldBox.height).toBeGreaterThan(100);
+ };
+ await assertActionsAboveScene();
+ if (testInfo.project.name === "desktop") {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await expect.poll(async () => {
+   const header = (await scene.locator("[data-table-header]").boundingBox())!;
+   const action = (await actions.boundingBox())!;
+   return Math.abs(action.x + action.width / 2 - header.x - header.width / 2);
+  }).toBeLessThan(2);
+  const controlsBox = (await page.getByLabel("Controles da partida", { exact: true }).boundingBox())!;
+  const action = (await actions.boundingBox())!;
+  expect(Math.abs(action.y + action.height / 2 - controlsBox.y - controlsBox.height / 2)).toBeLessThan(2);
+  await assertActionsAboveScene();
+ }
  await selectLoveCard(page, "Descartar 1 · Guarda");
+ await expect(actions.getByRole("status")).toHaveText("Toque no jogador que receberá a carta.");
+ await expect(actions.getByRole("button", { name: "Cancelar escolha" })).toBeVisible();
+ await expect(table.getByText("Toque no jogador que receberá a carta.", { exact: true })).toHaveCount(1);
+ await assertActionsAboveScene();
  await expect(table.getByRole("button",{name:"Escolher jogador Bot 1",exact:true})).toHaveCount(0);
  await table.getByRole("button",{name:"Escolher jogador Bot 2",exact:true}).click();
  await expect(table.getByRole("button",{name:"Adivinhar 8 · Condessa",exact:true})).toHaveCount(0);
  await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice", "true");
+ await expect(actions.getByRole("status")).toHaveText("Qual carta você acha que ele tem?");
+ await assertActionsAboveScene();
  await selectLoveCard(page, "Adivinhar 9 · Princesa");
  await expect(table.getByTestId("love-table-scene")).toHaveAttribute("data-choice", "false");
  await expect(table.getByLabel("Descartes da rodada")).toHaveCount(0);

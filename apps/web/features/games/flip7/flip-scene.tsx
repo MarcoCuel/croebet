@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { MatchParticipant } from "@croebet/shared";
 import { usePresentationClock } from "@/three/table/use-presentation-clock";
-import { TableViewport } from "@/three/table/table-viewport";
+import { TableViewport, type TableViewportHeader } from "@/three/table/table-viewport";
 import { numberNames, type TableArtwork } from "@/three/table/artwork";
 import type { TablePresentation } from "@/three/table/table-scene";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ const artwork: TableArtwork = { back: { text: "7", color: "#ad158f" }, faces: Ob
 export default function FlipScene({ game, viewer, participants, eligible, targetSeats, interactive, selected, onCard, onSeat, canDraw, onDraw, status, onAnimating, animate, held, children, actions, header, paused, timeScale, localPlayer, summaryGame }: {
   game: Game; viewer: number; participants: MatchParticipant[]; eligible: number[]; targetSeats: number[]; interactive: boolean; selected: number[]; onCard: (id: number) => void;
   onSeat: (seat: number) => void; canDraw: boolean; onDraw: () => void; status: string; onAnimating: (busy: boolean) => void;
-  animate: boolean; held: { card: Card; target: number } | null; children?: React.ReactNode; actions?: React.ReactNode; header?: React.ReactNode;
+  animate: boolean; held: { card: Card; target: number } | null; children?: React.ReactNode; actions?: React.ReactNode; header?: TableViewportHeader;
   paused?: boolean; timeScale?: number;
   localPlayer: boolean; summaryGame: Game;
 }) {
@@ -45,7 +45,7 @@ export default function FlipScene({ game, viewer, participants, eligible, target
       summary: { score: summaryGame.players[seat].total, liveScore: summaryGame.players[seat].total + (summaryGame.phase === "playing" ? score(summaryGame.players[seat], summaryGame) : 0),
         status: { playing: "Ativo", stayed: "Parou", frozen: "Congelado", busted: "Estourou" }[summaryGame.players[seat].status] },
       disabled: !seatTargets.includes(seat), label: game.bonusChoice != null ? game.bonusChoice === seat ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}` : `Escolher ${player.name}` })) };
-  const fallback = <div className="absolute inset-x-3 top-32 bottom-20 flex flex-wrap content-center justify-center gap-2 overflow-y-auto bg-background/95 p-3">
+  const fallback = <div className="absolute inset-x-3 top-3 bottom-20 flex flex-wrap content-center justify-center gap-2 overflow-y-auto bg-background/95 p-3">
     <p className="w-full text-center text-sm text-muted">Visualização 3D indisponível. Troque para a interface Atual.</p>
     <Button disabled={!canDraw} onClick={onDraw}>Comprar carta do baralho</Button>
     {allCards.filter(({ card }) => eligible.includes(card.id) && choosing).map(({ card, owner }) => <Button key={card.id} variant="secondary" onClick={() => onCard(card.id)} aria-label={`Selecionar ${cardLabel(card)} de ${owner}`}>{cardLabel(card)} · {owner}</Button>)}

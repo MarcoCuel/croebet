@@ -18,25 +18,27 @@ function SettledFallback({ children, settle }: { children: ReactNode; settle: ()
 
 function useTableLayout(hands: LabCard[][], state: TableState, viewer: number, viewport: { width: number; height: number }, visual: LaboratorySettings) {
   const countKey = hands.map(hand => hand.length).join(":");
-  const exposedKey = state.exposed?.map(cards => cards.length).join(":") ?? "";
   const widthKey = hands.map(hand => hand.some(card => card.sideways) ? 1.05 : 0.72).join(":");
   const handLayout = state.handLayout, choosing = !!state.choice, players = state.hands.length;
-  return useMemo(() => resolveTableLayout({ players, viewer, counts: countKey.split(":").map(Number), exposedCounts: exposedKey.split(":").map(Number), handLayout, choosing, cardWidths: widthKey.split(":").map(Number), ...viewport,
+  return useMemo(() => resolveTableLayout({ players, viewer, counts: countKey.split(":").map(Number), handLayout, choosing, cardWidths: widthKey.split(":").map(Number), ...viewport,
     angle: visual.angle, localCardScale: visual.localCardScale, opponentCardScale: visual.opponentCardScale, localHandCurve: visual.localHandCurve,
     deck: [visual.deckX, 0.035, visual.deckZ], deckRotation: visual.deckRotation, deckScale: visual.deckScale,
-    discard: { x: visual.discardX, z: visual.discardZ, rotation: visual.discardRotation, scale: visual.discardScale } }), [players, handLayout, choosing, viewer, countKey, exposedKey, widthKey, viewport, visual]);
+    discard: { x: visual.discardX, z: visual.discardZ, rotation: visual.discardRotation, scale: visual.discardScale } }), [players, handLayout, choosing, viewer, countKey, widthKey, viewport, visual]);
 }
+
+export type TableViewportHeader = { identity: ReactNode; controls: ReactNode };
 
 /** Shared by real games: the simulator never handles commands for this viewport. */
 export function TableViewport({ state, presentation, viewer, turn, canDraw, onDraw, onCard, onSeat, status, children, actions, header, fallback, testId, onAnimating, paused, timeScale, localPlayer = true }: {
   state: TableState; presentation: TablePresentation; viewer: number; turn: number; canDraw: boolean;
   onDraw: () => void; onCard: (id: string) => void; onSeat: (seat: number) => void; status: string;
-  children?: ReactNode; actions?: ReactNode; header?: ReactNode; fallback?: ReactNode; testId?: string; onAnimating?: (busy: boolean) => void;
+  children?: ReactNode; actions?: ReactNode; header?: TableViewportHeader; fallback?: ReactNode; testId?: string; onAnimating?: (busy: boolean) => void;
   paused?: boolean; timeScale?: number;
   localPlayer?: boolean;
 }) {
   const { settings: visual, onDeckChange, onDiscardChange } = useTableVisualSettings();
   const root = useRef<HTMLDivElement>(null);
+  const sceneRoot = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 960, height: 640 });
   const [top, setTop] = useState<number | null>(null);
   const [reduced, setReduced] = useState(false);
@@ -53,9 +55,9 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
   useEffect(() => () => { active.current.clear(); callback.current?.(false); }, []);
   useEffect(() => {
     const measure = () => {
-      if (!root.current) return;
+      if (!root.current || !sceneRoot.current) return;
       const rect = root.current.getBoundingClientRect();
-      setViewport({ width: root.current.clientWidth, height: root.current.clientHeight });
+      setViewport({ width: sceneRoot.current.clientWidth, height: sceneRoot.current.clientHeight });
       setTop(rect.top + globalThis.scrollY);
     };
     const observer = new ResizeObserver(measure);
@@ -63,6 +65,7 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
       observer.observe(root.current);
       if (root.current.parentElement) observer.observe(root.current.parentElement);
     }
+    if (sceneRoot.current) observer.observe(sceneRoot.current);
     measure();
     globalThis.addEventListener("resize", measure);
     const query = matchMedia("(prefers-reduced-motion: reduce)");
@@ -75,13 +78,19 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
   const count = hands[viewer].length;
   const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const local = presentation.seats[viewer];
-  return <div ref={root} data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
-    <TableSceneBoundary fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>}><Scene fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>} state={state} settings={settings} layout={layout} presentation={presentation} selected={null} focus={focus}
-      reducedMotion={reduced} paused={paused} timeScale={timeScale} canDraw={canDraw} onDeckChange={onDeckChange} onDiscardChange={onDiscardChange} onDraw={onDraw} onSelect={onCard} onTurn={onSeat} onMenu={() => {}} onMotion={onMotion} /></TableSceneBoundary>
-    <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex flex-col items-center gap-2 text-center">
-      {header && <div className="pointer-events-auto w-full text-left" data-table-header>{header}</div>}
+  return <div ref={root} data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative @container flex flex-col h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
+    <div className="relative z-20 flex shrink-0 flex-col items-center gap-3 py-2 px-6 text-center" data-table-toolbar>
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 @[72rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" data-table-header>
+        {header && <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-3 text-left">{header.identity}</div>}
+        {header && <div className="col-start-2 row-start-1 min-w-0 justify-self-end @[72rem]:col-start-3">{header.controls}</div>}
+        {actions && <div className="col-span-2 row-start-2 min-w-0 justify-self-center @[72rem]:col-span-1 @[72rem]:col-start-2 @[72rem]:row-start-1">{actions}</div>}
+      </div>
       {status && <p role="status" className="rounded-lg bg-background/90 px-3 py-2 text-sm font-medium backdrop-blur-sm">{status}</p>}
-      <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2">{children}</div>
+      {children && <div className="flex max-w-full flex-wrap items-center justify-center gap-2">{children}</div>}
+    </div>
+    <div ref={sceneRoot} className="relative min-h-0 flex-1 overflow-hidden" data-table-playfield>
+      <TableSceneBoundary fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>}><Scene fallback={<SettledFallback settle={settle}>{fallback}</SettledFallback>} state={state} settings={settings} layout={layout} presentation={presentation} selected={null} focus={focus}
+        reducedMotion={reduced} paused={paused} timeScale={timeScale} canDraw={canDraw} onDeckChange={onDeckChange} onDiscardChange={onDiscardChange} onDraw={onDraw} onSelect={onCard} onTurn={onSeat} onMenu={() => {}} onMotion={onMotion} /></TableSceneBoundary>
     </div>
     <div className="absolute bottom-3 left-3 z-20 max-w-[45%]">
       <TableSeatBadge {...local} active={turn === viewer} local={localPlayer} compact={viewport.width < 600} onActivate={() => onSeat(viewer)} />
@@ -93,6 +102,5 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
     </div>}
     <span className="sr-only">{hands.flatMap((hand, seat) => hand.filter(card => card.hidden ?? presentation.hiddenSeats.includes(seat)).map(card => <span key={card.id} aria-label="Carta oculta">Carta oculta de {presentation.seats[seat].name}</span>))}</span>
     <span className="sr-only">{state.staging?.map(card => <span key={card.id} aria-label={card.label}>{card.label}</span>)}</span>
-    {actions}
   </div>;
 }

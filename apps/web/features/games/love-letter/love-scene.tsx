@@ -2,16 +2,17 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { loveTokenGoal, type LoveView, type MatchParticipant } from "@croebet/shared";
 import type { TablePresentation } from "@/three/table/table-scene";
-import { TableViewport } from "@/three/table/table-viewport";
+import { TableViewport, type TableViewportHeader } from "@/three/table/table-viewport";
 import { loveTableState } from "./table-model";
 import { Button } from "@/components/ui/button";
 import { LoveCard } from "./love-card";
+import { presentedHands } from "@/three/table/model";
 import { loveArtwork } from "./artwork";
 
 export function LoveScene({ view, viewer, participants, selected, target, labels, onCard, onDraw, onSeat, canDraw, deckLabel, eligible, guesses, onGuess, children, actions, header, onAnimating }: {
   view: LoveView; viewer?: number; participants: MatchParticipant[]; selected: number | null; target: number | null;
   labels: Record<number, string>; onCard: (index: number) => void; onDraw: () => void; onSeat: (seat: number) => void;
-  canDraw: boolean; deckLabel: string; eligible: number[]; guesses: { value: number; label: string }[]; onGuess: (value: number) => void; children?: ReactNode; actions?: ReactNode; header?: ReactNode;
+  canDraw: boolean; deckLabel: string; eligible: number[]; guesses: { value: number; label: string }[]; onGuess: (value: number) => void; children?: ReactNode; actions?: ReactNode; header?: TableViewportHeader;
   onAnimating?: (busy: boolean) => void;
 }) {
   const [moving, setMoving] = useState(false);
@@ -24,7 +25,8 @@ export function LoveScene({ view, viewer, participants, selected, target, labels
   }
   const hand = viewer === undefined ? [] : state.hands[viewer];
   const choices = guesses.map(guess => ({ id: `guess:${guess.value}`, value: guess.value, hidden: false, label: guess.label }));
-  const displayed = choices.length ? choices : hand.filter(card => !state.staging?.some(staged => staged.id === card.id));
+  const displayedHands = presentedHands(choices.length ? { ...state, choice: { cards: choices } } : state, viewer ?? 0);
+  const displayed = displayedHands[viewer ?? 0];
   const cardLabels = choices.length ? Object.fromEntries(guesses.map(guess => [`guess:${guess.value}`, guess.label])) : Object.fromEntries(hand.map((card, index) => [card.id, labels[index]]));
   const presentation: TablePresentation = { artwork: loveArtwork[view.mode],
     seats: view.players.map((player, seat) => ({ name: player.name, avatar: participants.find(p => p.seat === seat)?.avatarUrl ?? undefined,
@@ -38,13 +40,12 @@ export function LoveScene({ view, viewer, participants, selected, target, labels
     if (guess) onGuess(guess.value);
     else { const index = hand.findIndex(card => card.id === id); if (index >= 0) onCard(index); }
   };
-  const fallback = <div className="absolute inset-x-3 top-32 bottom-20 flex flex-wrap content-center justify-center gap-3 overflow-y-auto rounded-panel bg-background/95 p-3">
+  const fallback = <div className="absolute inset-x-3 top-3 bottom-20 flex flex-wrap content-center justify-center gap-3 overflow-y-auto rounded-panel bg-background/95 p-3">
     <p className="w-full text-center text-sm text-muted">Visualização 3D indisponível.</p>
     <Button disabled={!canDraw} aria-label={deckLabel} onClick={onDraw}>Baralho · {state.deck.length}</Button>
-    {displayed.map(card => cardLabels[card.id] ? <Button key={card.id} variant="ghost" className="h-auto p-0" aria-label={cardLabels[card.id]} onClick={() => choose(card.id)}><LoveCard mode={view.mode} value={card.value < 0 ? undefined : card.value} /></Button> : <LoveCard key={card.id} mode={view.mode} value={card.value < 0 ? undefined : card.value} />)}
+    {displayedHands.map((cards, seat) => <div key={seat} aria-label={`Cartas de ${view.players[seat].name}`} className="flex flex-wrap items-center gap-3"><span className="text-xs">{view.players[seat].name}</span>{cards.map(card => cardLabels[card.id] ? <Button key={card.id} variant="ghost" className="h-auto p-0" aria-label={cardLabels[card.id]} onClick={() => choose(card.id)}><LoveCard mode={view.mode} value={card.hidden || card.value < 0 ? undefined : card.value} /></Button> : <LoveCard key={card.id} mode={view.mode} value={card.hidden || card.value < 0 ? undefined : card.value} />)}</div>)}
     {(state.staging ?? []).map(card => <div key={card.id} className="flex flex-col items-center gap-1"><span className="text-xs">{card.label}</span><LoveCard mode={view.mode} value={card.hidden ? undefined : card.value} /></div>)}
     {eligible.map(seat => <Button key={seat} onClick={() => onSeat(seat)} aria-label={`Escolher jogador ${view.players[seat].name}`}>{view.players[seat].name}</Button>)}
-    {view.players.map((player, seat) => <div key={seat} aria-label={`Descartes de ${player.name}`} className="flex flex-wrap items-center gap-1 text-xs"><span>{player.name}</span>{player.discard.map((value, index) => <LoveCard key={index} mode={view.mode} value={value} small compact />)}</div>)}
   </div>;
   return <TableViewport testId="love-table-scene" localPlayer={viewer !== undefined} state={choices.length ? { ...state, choice: { cards: choices } } : state} presentation={presentation} viewer={viewer ?? 0} turn={view.turn}
     canDraw={canDraw && !moving} onDraw={onDraw} onCard={choose} onSeat={onSeat} status="" header={header} actions={actions} onAnimating={reportMotion} fallback={fallback}>{children}</TableViewport>;

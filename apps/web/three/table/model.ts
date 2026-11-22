@@ -50,9 +50,9 @@ export type LaboratoryState = { hands: LabCard[][]; handLayout?: "spread"; deck:
   choice?: { cards: LabCard[] }; flipped: string[]; cue: MotionCue; motions: Record<string, TableMove> };
 export type TableState = LaboratoryState;
 
-/** A choice is a temporary presentation; ownership in the confirmed state stays untouched. */
+/** Public and held cards share one hand layout; confirmed ownership stays untouched. */
 export function presentedHands(state: TableState, viewer: number): LabCard[][] {
-  if (!state.choice && !state.staging?.length) return state.hands;
+  if (!state.choice && !state.staging?.length && !state.exposed?.some(cards => cards.length)) return state.hands;
   const ids = new Set([...(state.choice?.cards ?? []), ...(state.staging ?? [])].map(card => card.id));
-  return state.hands.map((hand, seat) => seat === viewer && state.choice ? state.choice.cards : hand.filter(card => !ids.has(card.id)));
+  return state.hands.map((hand, seat) => seat === viewer && state.choice ? state.choice.cards : [...(state.exposed?.[seat] ?? []), ...hand].filter(card => !ids.has(card.id)));
 }

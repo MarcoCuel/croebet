@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import type { TableViewportHeader } from "@/three/table/table-viewport";
 import { X } from "lucide-react";
 import type { LoveAction, LoveView, MatchParticipant } from "@croebet/shared";
 import { GameActionBar } from "../game-action-bar";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { classic, modern, loveRoles } from "./love-card";
 import { LoveScene } from "./love-scene";
 
-type Props = { header?: ReactNode; state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[]; onAnimating?: (busy: boolean) => void };
+type Props = { header?: TableViewportHeader; state: LoveView; busy: boolean; play: (action: LoveAction) => Promise<void>; viewerSeat?: number; participants: MatchParticipant[]; onAnimating?: (busy: boolean) => void };
 type Play = Extract<LoveAction, { type: "play" }>;
 
 export function LoveTable(props: Props) {
@@ -79,9 +80,13 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
   };
   const draw = () => { if (state.legalActions.some(a => a.type === "next")) void play({ type: "next" }); };
   const actionBar = <GameActionBar contained>
-      <h2 role="status" className="text-sm font-medium" aria-live="polite">{moving ? "Movendo cartas" : status}</h2>
+      <h2 role="status" className="text-sm font-medium" aria-live="polite">{moving ? "Movendo cartas" : instruction || status}</h2>
       {canContinue && <Button disabled={busy || moving} onClick={() => void play({ type: "continue" })}>Continuar</Button>}
       {!busy && !moving && state.legalActions.some(a => a.type === "next") && <Button onClick={draw}>Próxima rodada</Button>}
+      {(card !== null || chosen.length > 0) && <Button size="icon-sm" variant="secondary" aria-label="Cancelar escolha" onClick={() => { setCard(null); setTarget(null); setChosen([]); }}><X className="size-4" /></Button>}
+      {chosen.length > 0 && <p className="text-xs text-muted">Manter: {names[hand[chosen[0]]]}{chosen.length > 1 && ` · Devolver: ${chosen.slice(1).map(index => names[hand[index]]).join(", ")}`}</p>}
+      {card !== null && <p className="max-w-sm text-xs text-muted">{loveRoles[names[card]].effect}</p>}
+      {state.removed.length > 0 && <details className="text-left text-xs text-muted"><summary className="cursor-pointer">Fora da rodada</summary>{state.removed.map(value => `${value} · ${names[value]}`).join(", ")}</details>}
     </GameActionBar>;
   return <section aria-label="Mesa do Love Letter" className="relative min-w-0">
     <LoveScene header={header} actions={actionBar} view={state} viewer={viewerSeat} participants={participants} selected={card} target={target} labels={labels} onAnimating={value => { setMoving(value); onAnimating?.(value); }}
@@ -89,13 +94,7 @@ function LoveDecision({ state, busy, play, viewerSeat, participants, onAnimating
       guesses={!busy && target !== null ? guesses.map(value => ({ value, label: `Adivinhar ${value} · ${names[value]}` })) : []} onGuess={submitGuess}
       canDraw={!busy && state.legalActions.some(a => a.type === "next")}
       deckLabel={state.phase === "summary" && state.legalActions.some(a => a.type === "next") ? "Distribuir próxima rodada" : "Baralho"}
-      onDraw={draw}>
-      {instruction && <p className="max-w-md rounded-lg bg-background/90 px-3 py-1.5 text-xs text-muted" aria-live="polite">{instruction}</p>}
-      {(card !== null || chosen.length > 0) && <Button size="icon-sm" variant="secondary" aria-label="Cancelar escolha" onClick={() => { setCard(null); setTarget(null); setChosen([]); }}><X className="size-4" /></Button>}
-      {chosen.length > 0 && <p className="rounded-lg bg-background/90 px-2 py-1 text-xs text-muted">Manter: {names[hand[chosen[0]]]}{chosen.length > 1 && ` · Devolver: ${chosen.slice(1).map(index => names[hand[index]]).join(", ")}`}</p>}
-      {card !== null && <p className="max-w-sm rounded-lg bg-background/90 px-2 py-1 text-xs text-muted">{loveRoles[names[card]].effect}</p>}
-      {state.removed.length > 0 && <details className="rounded-lg bg-background/95 p-2 text-left text-xs text-muted"><summary className="cursor-pointer">Fora da rodada</summary>{state.removed.map(value => `${value} · ${names[value]}`).join(", ")}</details>}
-    </LoveScene>
+      onDraw={draw} />
 
   </section>;
 }

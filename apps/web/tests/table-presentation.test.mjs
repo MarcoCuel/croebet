@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { presentedHands, defaultSettings } from '../three/table/model.ts';
 import { routeProgress } from '../three/table/motion.ts';
-import { exposedTargets, stagingTargets } from '../three/table/areas.ts';
+import { stagingTargets } from '../three/table/areas.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
 import { handPlacements } from '../three/table/layout.ts';
 import { poseBounds } from '../three/table/pile-transform.ts';
@@ -57,8 +57,8 @@ test('cartas expostas ficam na área do dono e o cenário misto preserva cartas 
   assert.ok(!exposed.hands[0].some(card => card.id === id));
   assert.equal(exposed.exposed[0].at(-1).id, id);
   assert.deepEqual(exposed.discard, []);
-  const targets = exposedTargets(exposed.exposed[0], { position: [2, 0, -2], angle: 0, width: 3, seat: 0 }, false, 1, 36);
-  assert.ok(targets.every(target => target.zone === 'exposed' && !target.hidden && target.pose.position.every(Number.isFinite)));
+  assert.ok(presentedHands(exposed, 0)[0].some(card => card.id === id));
+  assert.equal(presentedHands(exposed, 0)[0][0].hidden, false);
   const collected = laboratoryReducer(exposed, { type: 'collect', players: defaultSettings.players });
   assert.ok(collected.exposed.every(hand => hand.length === 0));
   assert.ok(collected.deck.some(card => card.id === id));
@@ -148,12 +148,11 @@ test('escolhas temporárias mantêm exatamente o leque anterior, inclusive no Lo
   }
 });
 
-test('cartas públicas e ações temporárias ficam separadas em linhas, sem formar uma pilha', () => {
+test('ações temporárias ficam separadas em linhas, sem formar uma pilha', () => {
   const cards = Array.from({ length: 15 }, (_, i) => ({ id: String(i), value: i }));
   const angle = 36, fit = resolveTableLayout({ players: 4, viewer: 0, counts: [7, 7, 7, 7], width: 1600, height: 800, angle, deck: [-1.5, 0.035, -0.6] }).fit;
   const viewport = { fit, angle, width: 1600, height: 800 };
-  for (const targets of [stagingTargets(cards, { x: 0, z: 0.15, scale: 1 }, angle, 3),
-    exposedTargets(cards, { seat: 1, position: [0, 0, -2], angle: 0, width: 3 }, false, 1, angle, true)]) {
+  for (const targets of [stagingTargets(cards, { x: 0, z: 0.15, scale: 1 }, angle, 3)]) {
     const boxes = targets.map(target => poseBounds(target.pose, viewport));
     for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
       const a = boxes[i], b = boxes[j];

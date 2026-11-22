@@ -1,14 +1,13 @@
 import { fitCamera, foregroundSeat, handWindow, sceneBounds, seatPlacements, type HandOptions, type Vec3 } from "./layout.ts";
 
-import { constrainDiscardTransform, handObstacles, pileBounds, poseBounds, projectPoint, type PileTransform } from "./pile-transform.ts";
-import { exposedTargets } from "./areas.ts";
+import { constrainDiscardTransform, handObstacles, pileBounds, projectPoint, type PileTransform } from "./pile-transform.ts";
 import { constrainDeckPosition } from "./deck-placement.ts";
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /** Presentation rules only: no game engine state, renderer or stored manual geometry. */
-export function resolveTableLayout({ players, viewer, counts, exposedCounts = [], handLayout, choosing = false, cardWidths = [], width, height, angle, deck, deckRotation = -18, deckScale = 1, localCardScale = 1, opponentCardScale = 1, localHandCurve = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
-  players: number; viewer: number; counts: number[]; exposedCounts?: number[]; handLayout?: "spread"; choosing?: boolean; cardWidths?: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; localCardScale?: number; opponentCardScale?: number; localHandCurve?: number; discard?: PileTransform;
+export function resolveTableLayout({ players, viewer, counts, handLayout, choosing = false, cardWidths = [], width, height, angle, deck, deckRotation = -18, deckScale = 1, localCardScale = 1, opponentCardScale = 1, localHandCurve = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
+  players: number; viewer: number; counts: number[]; handLayout?: "spread"; choosing?: boolean; cardWidths?: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; localCardScale?: number; opponentCardScale?: number; localHandCurve?: number; discard?: PileTransform;
 }) {
   const aspect = width / Math.max(1, height);
   const roomy = clamp((aspect - 0.5) / 1.1, 0, 1);
@@ -108,10 +107,6 @@ export function resolveTableLayout({ players, viewer, counts, exposedCounts = []
   const deckPosition: Vec3 = [deckPoint.x, 0.035, deckPoint.z];
   const viewport = { fit, angle, width, height };
   const obstacles = handObstacles(seats.map((seat, place) => place === 0 ? localSeat : seat), hands, counts, viewport);
-  seats.forEach((seat, place) => {
-    const cards = Array.from({ length: exposedCounts[seat.seat] ?? 0 }, (_, index) => ({ id: String(index), value: 0 }));
-    obstacles.push(...exposedTargets(cards, place === 0 ? localSeat : seat, place === 0, hands[place].scale, angle, handLayout === "spread").map(target => poseBounds(target.pose, viewport)));
-  });
   obstacles.push(pileBounds({ ...deckPoint, rotation: deckRotation, scale: deckScale }, "deck", viewport));
   const deckLabel = projectPoint(deckPoint.x, 0.06, deckPoint.z + 0.95 * deckScale, viewport);
   obstacles.push({ left: deckLabel.x - 24, right: deckLabel.x + 24, top: deckLabel.y - 14, bottom: deckLabel.y + 14 });

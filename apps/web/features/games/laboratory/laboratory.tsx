@@ -64,11 +64,10 @@ export function GameLaboratory() {
   }, []);
   const displayHands = presentedHands(state, settings.viewer);
   const countKey = displayHands.slice(0, settings.players).map(hand => hand.length).join(":");
-  const exposedKey = state.exposed?.map(hand => hand.length).join(":") ?? "";
   const counts = useMemo(() => countKey.split(":").map(Number), [countKey]);
-  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts, exposedCounts: exposedKey.split(":").map(Number),
+  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts,
     width: viewport.width, height: viewport.height, angle: settings.angle, localCardScale: settings.localCardScale, opponentCardScale: settings.opponentCardScale, localHandCurve: settings.localHandCurve, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation, deckScale: settings.deckScale, discard: { x: settings.discardX, z: settings.discardZ, rotation: settings.discardRotation, scale: settings.discardScale } }),
-    [settings.players, settings.viewer, counts, exposedKey, viewport.width, viewport.height, settings.angle, settings.localCardScale, settings.opponentCardScale, settings.localHandCurve, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
+    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.localCardScale, settings.opponentCardScale, settings.localHandCurve, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
     const normalized = { ...next, viewer: 0 };

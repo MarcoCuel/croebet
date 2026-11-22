@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function GameActionBar({ children, wide = false, contained = false }: { children: ReactNode; wide?: boolean; contained?: boolean }) {
-  return <div className={cn("pointer-events-none inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 flex justify-center px-4", contained ? "absolute" : "fixed")} data-game-actions>
-    <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-3 shadow-lg backdrop-blur-md sm:gap-4", wide ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-2rem)]", contained && "max-w-full")}>{children}</div>
+  return <div className={cn("pointer-events-none z-30 flex justify-center px-4", contained ? "relative shrink-0 w-full" : "fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))]")} data-game-actions>
+    <div className={cn("pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-panel border border-contrast/6 bg-surface/95 p-2 [&:not(:has(button,summary))_h2]:p-2 shadow-lg backdrop-blur-md", wide ? "w-[min(48rem,calc(100vw-8rem))]" : "w-fit max-w-[calc(100vw-2rem)]", contained && "max-w-full")}>{children}</div>
   </div>;
 }
 
