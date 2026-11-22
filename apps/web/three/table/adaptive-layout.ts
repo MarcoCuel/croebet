@@ -6,8 +6,8 @@ import { constrainDeckPosition } from "./deck-placement.ts";
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /** Presentation rules only: no game engine state, renderer or stored manual geometry. */
-export function resolveTableLayout({ players, viewer, counts, width, height, angle, deck, deckRotation = -18, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
-  players: number; viewer: number; counts: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; discard?: PileTransform;
+export function resolveTableLayout({ players, viewer, counts, width, height, angle, deck, deckRotation = -18, deckScale = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
+  players: number; viewer: number; counts: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; discard?: PileTransform;
 }) {
   const aspect = width / Math.max(1, height);
   const roomy = clamp((aspect - 0.5) / 1.1, 0, 1);
@@ -72,12 +72,12 @@ export function resolveTableLayout({ players, viewer, counts, width, height, ang
   const expandedRadius = outerSeatX > 0 ? radius * (1 + extraWidth / outerSeatX) : radius;
   const { seats, hands, bounds, fit } = expandedRadius > radius ? arrange(expandedRadius) : initial;
   const localSeat = foregroundSeat(seats[0], fit, hands[0], angle);
-  const deckPoint = constrainDeckPosition({ x: deck[0], z: deck[2] }, { fit, angle, width, height, rotation: deckRotation });
+  const deckPoint = constrainDeckPosition({ x: deck[0], z: deck[2] }, { fit, angle, width, height, rotation: deckRotation, scale: deckScale });
   const deckPosition: Vec3 = [deckPoint.x, 0.035, deckPoint.z];
   const viewport = { fit, angle, width, height };
   const obstacles = handObstacles(seats.map((seat, place) => place === 0 ? localSeat : seat), hands, counts, viewport);
-  obstacles.push(pileBounds({ ...deckPoint, rotation: deckRotation, scale: 1 }, "deck", viewport));
-  const deckLabel = projectPoint(deckPoint.x, 0.06, deckPoint.z + 0.95, viewport);
+  obstacles.push(pileBounds({ ...deckPoint, rotation: deckRotation, scale: deckScale }, "deck", viewport));
+  const deckLabel = projectPoint(deckPoint.x, 0.06, deckPoint.z + 0.95 * deckScale, viewport);
   obstacles.push({ left: deckLabel.x - 24, right: deckLabel.x + 24, top: deckLabel.y - 14, bottom: deckLabel.y + 14 });
   const discardTransform = constrainDiscardTransform(discard, viewport, obstacles);
   return { seats, hands, bounds, fit, localSeat, deckPosition, discardTransform, obstacles };

@@ -699,7 +699,7 @@ test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", asyn
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  const scene = page.getByTestId("love-table-scene");
  await expect(scene.locator("canvas")).toBeVisible();
- for (const name of ["Rotacionar deck", "Rotacionar descarte", "Redimensionar descarte"]) {
+ for (const name of ["Rotacionar deck", "Redimensionar deck", "Rotacionar descarte", "Redimensionar descarte"]) {
   const control = scene.getByRole("button", { name, exact: true });
   await expect(control).toBeEnabled();
   const description = scene.locator(`[id="${await control.getAttribute("aria-describedby")}"]`);

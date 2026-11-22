@@ -22,7 +22,7 @@ export function useTableVisualSettings() {
     read(); window.addEventListener("storage", read); window.addEventListener(tableSettingsEvent, read);
     return () => { window.removeEventListener("storage", read); window.removeEventListener(tableSettingsEvent, read); };
   }, []);
-  const onDeckChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation })), []);
+  const onDeckChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation, deckScale: point.scale })), []);
   const onDiscardChange = useCallback((point: PileTransform) => setSettings(current => ({ ...current, discardX: point.x, discardZ: point.z, discardRotation: point.rotation, discardScale: point.scale })), []);
   return { settings, onDeckChange, onDiscardChange };
 }

@@ -65,8 +65,8 @@ export function GameLaboratory() {
   const countKey = state.hands.slice(0, settings.players).map(hand => hand.length).join(":");
   const counts = useMemo(() => countKey.split(":").map(Number), [countKey]);
   const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts,
-    width: viewport.width, height: viewport.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation, discard: { x: settings.discardX, z: settings.discardZ, rotation: settings.discardRotation, scale: settings.discardScale } }),
-    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.deckX, settings.deckZ, settings.deckRotation, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
+    width: viewport.width, height: viewport.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation, deckScale: settings.deckScale, discard: { x: settings.discardX, z: settings.discardZ, rotation: settings.discardRotation, scale: settings.discardScale } }),
+    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
     const normalized = { ...next, viewer: 0 };
@@ -116,7 +116,7 @@ export function GameLaboratory() {
     <h1 className="sr-only">Laboratório de jogos</h1>
     <div ref={sceneRef} tabIndex={-1} className="relative h-[calc(100dvh-var(--header-height)-2rem)] min-h-[32rem] w-full overflow-hidden rounded-panel border border-contrast/6 bg-background" data-lenis-prevent data-testid="laboratory-scene" aria-label={`Mesa 3D de teste · Deck: ${state.deck.length} · Descarte: ${state.discard.length}`}>
       <TableSceneBoundary><Scene settings={settings} layout={layout} state={state} selected={menuCard} focus={focus} reducedMotion={reducedMotion}
-        artwork={artworkMode === "neutral" ? undefined : loveArtwork[artworkMode]} canDraw={canDraw} onDeckChange={point => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation }))}
+        artwork={artworkMode === "neutral" ? undefined : loveArtwork[artworkMode]} canDraw={canDraw} onDeckChange={point => setSettings(current => ({ ...current, deckX: point.x, deckZ: point.z, deckRotation: point.rotation, deckScale: point.scale }))}
         onDiscardChange={point => setSettings(current => ({ ...current, discardX: point.x, discardZ: point.z, discardRotation: point.rotation, discardScale: point.scale }))} onDraw={draw} onSelect={discard} onMenu={openMenu} onTurn={seat => update("turn", seat)} /></TableSceneBoundary>
       <div className="absolute bottom-4 left-4 z-10" data-testid="local-seat"><TableSeatBadge name="Jogador 1" count={count} active={settings.turn === settings.viewer} local compact={false} onActivate={() => update("turn", settings.viewer)} /></div>
       <div className="absolute right-3 top-3 z-20"><Button size="icon" variant="secondary" aria-label="Configuração da mesa" aria-expanded={configOpen} aria-controls="laboratory-settings" onClick={() => setConfigOpen(!configOpen)}>{configOpen ? <X className="size-4" /> : <Settings2 className="size-4" />}</Button></div>

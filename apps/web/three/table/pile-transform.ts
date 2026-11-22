@@ -4,7 +4,7 @@ import { constrainDeckPosition, type DeckViewport } from "./deck-placement.ts";
 export type PileTransform = { x: number; z: number; rotation: number; scale: number };
 export type PileKind = "deck" | "discard";
 export type ScreenRect = { left: number; right: number; top: number; bottom: number };
-export type PileViewport = Omit<DeckViewport, "rotation">;
+export type PileViewport = Omit<DeckViewport, "rotation" | "scale">;
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 export const wrapRotation = (n: number) => ((n + 180) % 360 + 360) % 360 - 180;
 
@@ -28,14 +28,14 @@ export function pileBounds(t: PileTransform, kind: PileKind, viewport: PileViewp
   const rotation: [number, number, number] = kind === "deck" ? [-Math.PI / 2, radians(t.rotation), Math.PI / 2] : [-radians(viewport.angle), 0, radians(t.rotation)];
   const base = poseBounds({ position: [t.x, kind === "deck" ? 0.035 : 0.6, t.z], rotation, scale: t.scale }, viewport);
   if (kind === "deck") {
-    const upper = poseBounds({ position: [t.x, 0.67, t.z], rotation, scale: 1 }, viewport);
+    const upper = poseBounds({ position: [t.x, 0.01 + 0.66 * t.scale, t.z], rotation, scale: t.scale }, viewport);
     base.top = Math.min(base.top, upper.top); base.bottom = Math.max(base.bottom, upper.bottom);
   }
   return base;
 }
 export function constrainDeckTransform(t: PileTransform, viewport: PileViewport): PileTransform {
-  const rotation = wrapRotation(t.rotation);
-  return { ...constrainDeckPosition(t, { ...viewport, rotation }), rotation, scale: 1 };
+  const rotation = wrapRotation(t.rotation), scale = clamp(t.scale, 0.65, 1.8);
+  return { ...constrainDeckPosition(t, { ...viewport, rotation, scale }), rotation, scale };
 }
 const overlaps = (a: ScreenRect, b: ScreenRect) => a.left < b.right + 8 && a.right > b.left - 8 && a.top < b.bottom + 8 && a.bottom > b.top - 8;
 

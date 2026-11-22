@@ -44,29 +44,29 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
   const { seats, hands, bounds, localSeat, deckPosition, fit } = layout;
   const [deckX, , deckZ] = deckPosition;
   const viewport = { fit, angle: settings.angle, width: size.width, height: size.height };
-  const deckTransform = { x: deckX, z: deckZ, rotation: settings.deckRotation, scale: 1 };
+  const deckTransform = { x: deckX, z: deckZ, rotation: settings.deckRotation, scale: settings.deckScale };
   const discard = layout.discardTransform;
   const deckDrag = usePileTransform(deckTransform, viewport, t => constrainDeckTransform(t, viewport), onDeckChange, () => { if (canDraw) onDraw(); }, true);
   const discardDrag = usePileTransform(discard, viewport, t => constrainDiscardTransform(t, viewport, layout.obstacles), onDiscardChange, () => {}, false);
   const discardRotation = pileRotation(true, settings.angle); discardRotation[2] = radians(discard.rotation);
   const deckRotation = pileRotation(false); deckRotation[1] = radians(settings.deckRotation);
-  const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight);
-  const deckOrigin: CardPose = { position: [deckX, deckHeight + 0.05, deckZ], rotation: deckRotation, scale: 1 };
+  const deckHeight = Math.min(0.6, state.deck.length * settings.pileHeight) * settings.deckScale;
+  const deckOrigin: CardPose = { position: [deckX, deckHeight + 0.05, deckZ], rotation: deckRotation, scale: settings.deckScale };
   const targets: Omit<CardTarget, "motion">[] = seats.flatMap((seat, place) => TableHand({ cards: state.hands[seat.seat], seat: place === 0 ? localSeat : seat,
     options: hands[place],
     hidden: presentation ? presentation.hiddenSeats.includes(seat.seat) : place !== 0 && !settings.reveal, interactive: place === 0, focus: place === 0 ? focus : 0, selected, flipped: state.flipped }));
-  targets.push(...TablePile({ cards: state.deck, position: deckPosition, rotation: deckRotation, height: settings.pileHeight, faceUp: false,
+  targets.push(...TablePile({ cards: state.deck, position: deckPosition, rotation: deckRotation, scale: settings.deckScale, height: settings.pileHeight, faceUp: false,
     moving: state.cue.kind === "collect" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "deck" as const, interactive: true })));
   targets.push(...TablePile({ cards: state.discard, position: [discard.x, 0.6, discard.z], height: settings.pileHeight, faceUp: true, rotation: discardRotation, scale: discard.scale, moving: state.cue.kind === "discard" ? state.cue.ids : [] }).map(target => ({ ...target, zone: "discard" as const, interactive: true })));
   return <>
     <TableCamera angle={settings.angle} bounds={bounds} />
     <TableLighting ambient={settings.ambient} intensity={settings.light} pointIntensity={settings.pointLight}
       pointHeight={settings.pointHeight} deckX={deckX} deckZ={deckZ} deckHeight={deckHeight} shadows={settings.shadows} softness={settings.shadowSoftness} opacity={settings.shadowOpacity} />
-    <mesh position={[deckX, 0.01, deckZ]} rotation={[0, radians(settings.deckRotation), 0]} onPointerDown={event => { event.stopPropagation(); if (moveDeck) deckDrag.begin(event.nativeEvent); }} onClick={event => { event.stopPropagation(); deckDrag.click(); }}
+    <mesh scale={[settings.deckScale, 1, settings.deckScale]} position={[deckX, 0.01, deckZ]} rotation={[0, radians(settings.deckRotation), 0]} onPointerDown={event => { event.stopPropagation(); if (moveDeck) deckDrag.begin(event.nativeEvent); }} onClick={event => { event.stopPropagation(); deckDrag.click(); }}
       onContextMenu={presentation ? undefined : event => { event.stopPropagation(); event.nativeEvent.preventDefault(); deckDrag.cancelClick(); onMenu({ kind: "deck" }, { x: event.clientX, y: event.clientY }); }}>
       <boxGeometry args={[1.15, 0.03, 0.8]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
-    <Html position={[deckX, 0.06, deckZ + 0.95]} center zIndexRange={[19, 0]}>
+    <Html position={[deckX, 0.06, deckZ + 0.95 * settings.deckScale]} center zIndexRange={[19, 0]}>
       <button className="cursor-pointer select-none bg-transparent px-1 py-1 text-xs tabular-nums text-muted" aria-label={presentation?.deckLabel ?? "Comprar carta"} title={`${state.deck.length} cartas`} disabled={!!presentation && !canDraw && !moveDeck} aria-disabled={!canDraw} onClick={() => { if (canDraw) onDraw(); }}
         onKeyDown={event => {
           if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); onMenu({ kind: "deck" }, { x: r.left, y: r.bottom }); }

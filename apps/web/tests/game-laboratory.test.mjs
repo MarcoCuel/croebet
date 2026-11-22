@@ -3,7 +3,7 @@ import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
-import { constrainDiscardTransform, pileBounds } from '../three/table/pile-transform.ts';
+import { constrainDeckTransform, constrainDiscardTransform, pileBounds } from '../three/table/pile-transform.ts';
 import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
@@ -289,13 +289,13 @@ test('cantos seguem arcos de círculo amostrados e UVs preservam as proporções
 });
 
 test('posição e rotação do deck são persistidas sem recuperar ajustes manuais antigos', () => {
-  const configured = { ...defaultSettings, deckX: -3, deckZ: -2.6, deckRotation: -25 };
+  const configured = { ...defaultSettings, deckX: -3, deckZ: -2.6, deckRotation: -25, deckScale: 1.4 };
   assert.deepEqual(parseSettings(configured), configured);
   const legacy = { ...defaultSettings };
-  for (const key of ['deckX', 'deckZ', 'deckRotation']) delete legacy[key];
+  for (const key of ['deckX', 'deckZ', 'deckRotation', 'deckScale']) delete legacy[key];
   const parsed = parseSettings(legacy);
-  for (const key of ['deckX', 'deckZ', 'deckRotation']) assert.equal(parsed[key], defaultSettings[key]);
-  for (const change of [{ deckX: NaN }, { deckZ: -101 }, { deckRotation: 181 }]) {
+  for (const key of ['deckX', 'deckZ', 'deckRotation', 'deckScale']) assert.equal(parsed[key], defaultSettings[key]);
+  for (const change of [{ deckX: NaN }, { deckZ: -101 }, { deckRotation: 181 }, { deckScale: 0.64 }, { deckScale: 1.81 }]) {
     assert.equal(parseSettings({ ...defaultSettings, ...change }), null);
   }
 });
@@ -429,5 +429,22 @@ test('arco aproveita largura e altura em telas largas sem distorcer cartas nem r
     const tall = resolveTableLayout({ ...request, width: 2560, height: 900 });
     const short = resolveTableLayout({ ...request, width: 2560 });
     assert.ok(Math.max(...short.seats.map(seat => Math.abs(seat.position[0]))) > Math.max(...tall.seats.map(seat => Math.abs(seat.position[0]))), 'altura também deve influenciar a disposição');
+  }
+});
+
+
+test('escala do deck mantém a pilha girada e os controles no enquadramento e atualiza o obstáculo do descarte', () => {
+  for (const width of [360, 1200, 2400]) for (const scale of [0.65, 1, 1.8]) for (const rotation of [-90, -18, 45]) {
+    const request = { players: 4, viewer: 0, counts: [2,2,2,2], width, height: 700, angle: 36, deck: [500,0.035,500], deckRotation: rotation, deckScale: scale };
+    const layout = resolveTableLayout(request);
+    const viewport = { fit: layout.fit, angle: 36, width, height: 700 };
+    const t = constrainDeckTransform({ x: 500, z: 500, rotation, scale }, viewport);
+    assert.equal(t.scale, scale);
+    assert.equal(t.x, layout.deckPosition[0]); assert.equal(t.z, layout.deckPosition[2]);
+    const box = pileBounds(t, 'deck', viewport);
+    assert.ok(box.left >= 0 && box.right <= width && box.top >= 0 && box.bottom <= 700);
+    assert.deepEqual(layout.obstacles.at(-2), box);
+    const fixed = resolveTableLayout({ ...request, deckScale: 1 });
+    assert.deepEqual(layout.fit, fixed.fit, 'a escala do deck não deve alterar a câmera');
   }
 });
