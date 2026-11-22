@@ -36,7 +36,7 @@ export function LoveScene({ view, viewer, drawn, participants, selected, target,
   }, []);
   const settings = { ...visual, players: view.players.length, viewer: viewer ?? 0, turn: view.turn, reveal: false };
   const countKey = state.hands.map(hand => hand.length).join(":");
-  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts: countKey.split(":").map(Number), ...viewport, angle: visual.angle,
+  const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts: countKey.split(":").map(Number), ...viewport, angle: visual.angle, localCardScale: visual.localCardScale, opponentCardScale: visual.opponentCardScale, localHandCurve: visual.localHandCurve,
     deck: [visual.deckX, 0.035, visual.deckZ], deckRotation: visual.deckRotation, deckScale: visual.deckScale, discard: { x: visual.discardX, z: visual.discardZ, rotation: visual.discardRotation, scale: visual.discardScale } }), [settings.players, settings.viewer, countKey, viewport, visual]);
   const hand = viewer === undefined ? [] : state.hands[viewer];
   const presentation: TablePresentation = { artwork: loveArtwork[view.mode],

@@ -140,7 +140,7 @@ export function foregroundSeat(seat: SeatPlacement, fit: ReturnType<typeof fitCa
   const center = fit.target[1] * cos - fit.target[2] * sin;
   const desired = center + fit.bottom + projectedHeight * 0.3;
   const current = (seat.position[1] + 0.65 * hand.scale) * cos - seat.position[2] * sin;
-  return { ...seat, position: [seat.position[0], seat.position[1], seat.position[2] + (current - desired) / sin] };
+  return { ...seat, position: [fit.target[0], seat.position[1], seat.position[2] + (current - desired) / sin] };
 }
 /** Frame hands and opponent labels; the background is independent of the camera bounds. */
 export function sceneBounds(seats: SeatPlacement[], hands: HandOptions[], counts: number[], deck?: Vec3): Vec3[] {

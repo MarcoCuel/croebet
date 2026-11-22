@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { VSMShadowMap } from "three";
@@ -20,6 +20,7 @@ import { PileControls } from "./pile-controls";
 import { constrainDeckTransform, constrainDiscardTransform, type PileTransform } from "./pile-transform";
 import { canManipulatePile, type PileManipulation, type TableMenuHandler } from "./interaction";
 import type { CardTarget } from "./motion";
+import { distributionDelay } from "./motion";
 import type { TableArtwork } from "./artwork";
 export type TablePresentation = {
   artwork: TableArtwork; seats: { name: string; avatar?: string; detail?: string; selected?: boolean; label: string; disabled: boolean }[];
@@ -36,6 +37,13 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
   const resources = useCardResources(palette, presentation?.artwork ?? artwork);
   const { size, invalidate } = useThree();
   const [visible, setVisible] = useState(true);
+  const motionHistory = useRef(new Map<string, string>());
+  // Visible cards consume cues during layout; record off-page cards after that commit
+  // so navigating later cannot play an old transfer that happened outside the window.
+  useEffect(() => {
+    if (state.cue.serial === 0) motionHistory.current.clear();
+    for (const [id, cue] of Object.entries(state.motions)) motionHistory.current.set(id, `${cue.serial}:${cue.kind}`);
+  }, [state.cue.serial, state.motions, motionHistory]);
   useEffect(() => {
     const update = () => { setVisible(!document.hidden); invalidate(); };
     document.addEventListener("visibilitychange", update);
@@ -85,9 +93,9 @@ function SceneContents({ palette, pileManipulation, artwork, presentation, setti
         actionLabel: presentation?.labels[target.id],
         origin: cue && (cue.kind === "draw" || cue.kind === "deal") ? deckOrigin : undefined,
         motion: { key: cue ? `${cue.serial}:${cue.kind}` : "layout", duration: settings.duration,
-          delay: cue?.kind === "deal" ? Math.min(2, cue.order * 0.08) : 0,
+          delay: cue?.kind === "deal" ? distributionDelay(cue.order, settings.duration) : 0,
           arc: transfer ? settings.arc : 0, shuffle: cue?.kind === "shuffle" },
-      }} resources={resources} reducedMotion={reducedMotion || !visible || (target.zone === "deck" && deckDrag.dragging) || (target.zone === "discard" && discardDrag.dragging)} onSelect={target.zone === "deck" ? deckDrag.click : target.zone === "discard" ? discardDrag.click : onSelect} onPilePointerDown={target.zone === "deck" && moveDeck ? deckDrag.begin : target.zone === "discard" && moveDiscard ? discardDrag.begin : undefined}
+      }} resources={resources} motionHistory={motionHistory} reducedMotion={reducedMotion || !visible || (target.zone === "deck" && deckDrag.dragging) || (target.zone === "discard" && discardDrag.dragging)} onSelect={target.zone === "deck" ? deckDrag.click : target.zone === "discard" ? discardDrag.click : onSelect} onPilePointerDown={target.zone === "deck" && moveDeck ? deckDrag.begin : target.zone === "discard" && moveDiscard ? discardDrag.begin : undefined}
         onMenu={(id, point) => { if (target.zone === "deck") deckDrag.cancelClick(); if (target.zone !== "discard") onMenu(target.zone === "deck" ? { kind: "deck" } : { kind: "card", id }, point); }} />;
     })}
   </>;

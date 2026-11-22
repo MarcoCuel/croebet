@@ -12,7 +12,7 @@ export type LabAction =
   | { type: "reset"; settings: LaboratorySettings }
   | { type: "count"; seat: number; count: number }
   | { type: "draw"; seat: number }
-  | { type: "deal"; players: number; count: number }
+  | { type: "deal"; players: number; count: number; startSeat?: number }
   | { type: "discard"; seat: number; id: string }
   | { type: "flip"; seat: number; id: string }
   | { type: "swap"; seat: number; target: number; id: string }
@@ -26,7 +26,7 @@ export function laboratoryReducer(state: LaboratoryState, action: LabAction): La
     const hand = hands[action.seat];
     hands[action.seat] = Array.from({ length: action.count }, (_, i) => hand[i] ?? ({ id: `new:${state.cue.serial + 1}:${action.seat}:${i}`, value: i % 10 }));
   } else if (action.type === "draw" || action.type === "deal") {
-    const seats = action.type === "draw" ? [action.seat] : Array.from({ length: action.players * action.count }, (_, i) => i % action.players);
+    const seats = action.type === "draw" ? [action.seat] : Array.from({ length: action.players * action.count }, (_, i) => ((action.startSeat ?? 0) + i) % action.players);
     for (const seat of seats) { if (hands[seat].length >= 1000) continue; const card = deck.pop(); if (!card) break; hands[seat].push(card); moved.push(card.id); }
   } else if (action.type === "discard" || action.type === "flip" || action.type === "swap") {
     const index = hands[action.seat].findIndex(card => card.id === action.id);

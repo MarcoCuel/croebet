@@ -307,3 +307,82 @@ test("arco acompanha resize de telas largas preservando a altura e a mão local"
   await page.setViewportSize({ width: 1800, height: 800 });
   await expect.poll(async () => Math.abs((await measure()).span - before.span)).toBeLessThan(2);
 });
+
+test("tamanhos das mãos usam multiplicadores independentes e entram na configuração salva", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByText("Cartas", { exact: true }).click();
+  const local = panel.getByRole("slider", { name: /^Suas cartas/ });
+  const opponents = panel.getByRole("slider", { name: /^Cartas dos oponentes/ });
+  const curve = panel.getByRole("slider", { name: /^Curvatura da sua mão/ });
+  await expect(local).toHaveValue("1"); await expect(opponents).toHaveValue("1");
+  await local.focus(); await local.press("End");
+  await opponents.focus(); await opponents.press("Home");
+  await curve.focus(); await curve.press("Home");
+  await expect(curve).toHaveValue("0");
+  await expect(local).toHaveValue("1.5"); await expect(opponents).toHaveValue("0.5");
+  await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
+  await panel.getByRole("button", { name: "Restaurar ajustes das cartas", exact: true }).click();
+  await expect(local).toHaveValue("1"); await expect(opponents).toHaveValue("1");
+  await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
+  await expect(local).toHaveValue("1.5"); await expect(opponents).toHaveValue("0.5");
+  await expect(curve).toHaveValue("0");
+});
+
+
+test("paginar cartas já compradas não repete a entrada pelo baralho", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
+  await openSettings(page);
+  const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
+  await panel.getByText("Cenários de teste", { exact: true }).click();
+  await panel.getByRole("button", { name: "50 cartas", exact: true }).click();
+  await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
+  await scene.getByRole("button", { name: "Comprar carta", exact: true }).click();
+  const bought = scene.getByRole("button", { name: "Descartar carta 3, posição 51", exact: true });
+  await expect(bought).toBeAttached();
+  await page.waitForTimeout(800); // Complete the genuine purchase before navigating away.
+  await page.getByRole("button", { name: "Anteriores", exact: true }).click();
+  await expect(bought).toHaveCount(0);
+  await page.getByRole("button", { name: "Próximas", exact: true }).click();
+  await expect(bought).toBeAttached();
+  await page.waitForTimeout(80); // First painted frames, well before an old 650ms draw could finish.
+  const card = (await bought.boundingBox())!, frame = (await scene.boundingBox())!;
+  expect(card.y).toBeGreaterThan(frame.y + frame.height * 0.6);
+});
+
+
+test("hover e foco deslocam a carta para cima no leque", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  const canvas = scene.locator("canvas");
+  await expect(canvas).toBeVisible();
+  const card = scene.getByRole("button", { name: "Descartar carta 3, posição 4", exact: true });
+  await expect(card).toBeAttached();
+  const before = (await card.boundingBox())!;
+  await card.focus();
+  await page.waitForTimeout(350); // Allow the hover lift to settle before checking its projected displacement.
+  const after = (await card.boundingBox())!;
+  expect(Math.abs(after.x + after.width / 2 - before.x - before.width / 2)).toBeLessThan(2);
+  expect(after.y + after.height / 2).toBeLessThan(before.y + before.height / 2 - 4);
+  await scene.getByRole("button", { name: "Comprar carta", exact: true }).focus();
+  await page.waitForTimeout(220); // Both entry and exit should settle within the same short duration.
+  const returned = (await card.boundingBox())!;
+  expect(Math.abs(returned.y + returned.height / 2 - before.y - before.height / 2)).toBeLessThan(2);
+});
+
+
+test("distribuição segue a vez ativa e anima a mão local na sua posição da sequência", async ({ page }) => {
+  await page.goto("/admin/jogos/laboratorio");
+  const scene = page.getByTestId("laboratory-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
+  await scene.getByRole("button", { name: "Passar vez para Jogador 2", exact: true }).click();
+  await openDeckMenu(page);
+  await page.getByRole("menuitem", { name: "Distribuir cartas", exact: true }).click();
+  await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 100 · Descarte: 0");
+  // The local player receives the fourth card when the deal begins at seat 1.
+  await expect(scene.getByRole("button", { name: "Descartar carta 0, posição 8", exact: true })).toBeAttached();
+});

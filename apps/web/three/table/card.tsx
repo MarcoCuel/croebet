@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Html, useCursor } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Euler, Quaternion, Vector3, type Group } from "three";
 import type { CardResources } from "./resources";
 import type { CardTarget } from "./motion";
-import { arcPosition, easedProgress } from "./motion";
+import { arcPosition, consumeCardMotion, easedProgress, raisedCardPosition } from "./motion";
 
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
-export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, onPilePointerDown }: {
+export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown }: {
+  motionHistory: RefObject<Map<string, string>>;
   target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void; onPilePointerDown?: (event: PointerEvent) => void;
 }) {
   const ref = useRef<Group>(null); const invalidate = useThree(state => state.invalidate);
@@ -21,7 +22,7 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, 
   useEffect(() => () => { if (hold.current) clearTimeout(hold.current); }, []);
   useCursor(hovered && !!target.interactive, target.zone === "hand" ? "pointer" : "grab");
   const animation = useRef({ elapsed: 0, active: false, from: new Vector3(), to: new Vector3(), fromQ: new Quaternion(), toQ: new Quaternion(),
-    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, key: "" });
+    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: false });
   const mounted = useRef(false);
   const raised = (target.zone === "hand" && target.interactive && hovered) || target.selected;
   const [x, y, z] = target.pose.position; const [rx, ry, rz] = target.pose.rotation;
@@ -34,23 +35,24 @@ export function TableCard({ target, resources, reducedMotion, onSelect, onMenu, 
     const group = ref.current; if (!group) return;
     const { target: t, raised: lift, scale: size, reducedMotion: reduce } = latest.current;
     const a = animation.current;
+    const newMotion = consumeCardMotion(motionHistory.current, t.id, t.motion.key);
+    const emphasisChanged = a.raised !== !!lift;
     if (!mounted.current) {
-      const origin = t.origin ?? t.pose;
+      const origin = newMotion ? t.origin ?? t.pose : t.pose;
       group.position.fromArray(origin.position); group.quaternion.setFromEuler(new Euler(...origin.rotation, "YXZ")); group.scale.setScalar(origin.scale);
       mounted.current = true;
     }
     a.from.copy(group.position); a.fromQ.copy(group.quaternion); a.fromScale = group.scale.x;
-    a.to.fromArray(t.pose.position); a.to.y += lift ? 0.25 * t.pose.scale : 0;
+    a.to.fromArray(raisedCardPosition(t.pose, lift ? 0.25 * t.pose.scale : 0));
     a.toQ.setFromEuler(new Euler(...t.pose.rotation, "YXZ")); a.toScale = size;
-    const newMotion = a.key !== t.motion.key;
-    a.duration = lift && !newMotion ? Math.min(t.motion.duration, 0.22) : t.motion.duration;
+    a.duration = emphasisChanged && !newMotion ? Math.min(t.motion.duration, 0.18) : t.motion.duration;
+    a.raised = !!lift;
     a.delay = newMotion ? t.motion.delay ?? 0 : 0;
     a.arc = newMotion ? t.motion.arc : 0; a.shuffle = newMotion && !!t.motion.shuffle;
-    a.key = t.motion.key;
     a.elapsed = 0; a.active = !reduce;
     if (reduce) { group.position.copy(a.to); group.quaternion.copy(a.toQ); group.scale.setScalar(size); }
     invalidate();
-  }, [destination, invalidate]);
+  }, [destination, invalidate, motionHistory]);
   useFrame((_, delta) => {
     const group = ref.current; const a = animation.current; if (!group || !a.active) return;
     a.elapsed += Math.min(delta, 0.1);

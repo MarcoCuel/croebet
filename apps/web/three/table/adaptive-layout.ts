@@ -6,8 +6,8 @@ import { constrainDeckPosition } from "./deck-placement.ts";
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 /** Presentation rules only: no game engine state, renderer or stored manual geometry. */
-export function resolveTableLayout({ players, viewer, counts, width, height, angle, deck, deckRotation = -18, deckScale = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
-  players: number; viewer: number; counts: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; discard?: PileTransform;
+export function resolveTableLayout({ players, viewer, counts, width, height, angle, deck, deckRotation = -18, deckScale = 1, localCardScale = 1, opponentCardScale = 1, localHandCurve = 1, discard = { x: 0, z: 0.15, rotation: 0, scale: 1 } }: {
+  players: number; viewer: number; counts: number[]; width: number; height: number; angle: number; deck: Vec3; deckRotation?: number; deckScale?: number; localCardScale?: number; opponentCardScale?: number; localHandCurve?: number; discard?: PileTransform;
 }) {
   const aspect = width / Math.max(1, height);
   const roomy = clamp((aspect - 0.5) / 1.1, 0, 1);
@@ -36,23 +36,26 @@ export function resolveTableLayout({ players, viewer, counts, width, height, ang
     });
     const worldWidth = 2 * (radius * (1 + Math.max(0, players - 6) * 0.07) + 1.5);
     const pixelsPerUnit = Math.max(1, width) / worldWidth;
-    const rules = (place: number, count: number): HandOptions => {
+    const rules = (place: number, count: number, multiplier = 1): HandOptions => {
       const local = place === 0, seat = seats[place];
       const baseScale = maxScales[place];
-      const scale = Math.max(local ? 1.15 : Math.min(0.5, baseScale * 0.8), baseScale * clamp(1 - Math.max(0, count - 7) * 0.009, 0.8, 1));
+      const automaticScale = Math.max(local ? 1.15 : Math.min(0.5, baseScale * 0.8), baseScale * clamp(1 - Math.max(0, count - 7) * 0.009, 0.8, 1));
+      const scale = automaticScale * multiplier;
+      // Keep the current solver's allocation; larger cards consume more of it.
+      const handWidth = Math.max(0.08, seat.width - 0.72 * (scale - automaticScale));
       const minStripPx = local ? 24 : 10;
-      const availablePx = (seat.width + 0.72 * scale) * pixelsPerUnit;
+      const availablePx = (handWidth + 0.72 * scale) * pixelsPerUnit;
       const visibleLimit = clamp(Math.floor((availablePx - 0.72 * scale * pixelsPerUnit) / minStripPx) + 1, local ? 6 : 2, local ? 26 : 18);
       const visible = Math.min(count, visibleLimit);
       const desiredStep = 0.72 * scale * (local ? 0.68 : 0.6);
-      const step = Math.min(desiredStep, seat.width / Math.max(1, visible - 1));
-      return { layout: local ? "fan" : "line", width: seat.width, scale,
+      const step = Math.min(desiredStep, handWidth / Math.max(1, visible - 1));
+      return { layout: local ? "fan" : "line", width: handWidth, scale,
         spacing: 0.72, overlap: clamp(1 - step / (0.72 * scale), 0, 0.94),
         curve: local ? clamp((visible - 1) * 0.16, 0, 1.35) : 0,
-        spatialCurve: local ? 0 : clamp((visible - 1) * 0.14, 0, 1.05) * clamp(seat.width / 2.8, 0.4, 1),
+        spatialCurve: local ? 0 : clamp((visible - 1) * 0.14, 0, 1.05) * clamp(handWidth / 2.8, 0.4, 1),
         tilt: local ? angle : 3.5, orientation: 0, visibleLimit };
     };
-    const hands = seats.map((seat, place) => rules(place, counts[seat.seat] ?? 0));
+    const hands = seats.map((seat, place) => rules(place, counts[seat.seat] ?? 0, place === 0 ? localCardScale : opponentCardScale));
     // A stable envelope at maximum occupancy avoids zooming on every purchase/discard.
     const envelope = seats.map((_, place) => {
       const limits = rules(place, 1000);
@@ -70,7 +73,20 @@ export function resolveTableLayout({ players, viewer, counts, width, height, ang
   // horizontal space left by the camera instead of capping it at desktop aspect.
   const extraWidth = Math.max(0, initial.fit.right * 0.88 - outerBoundX);
   const expandedRadius = outerSeatX > 0 ? radius * (1 + extraWidth / outerSeatX) : radius;
+  // Frame using the automatic envelope so zoom cannot cancel the user's multiplier.
   const { seats, hands, bounds, fit } = expandedRadius > radius ? arrange(expandedRadius) : initial;
+  // Use the projected viewport, not the original world-space seat width, for the foreground fan.
+  const local = hands[0];
+  const screenWidth = (fit.right - fit.left) * 0.9;
+  local.visibleLimit = clamp(Math.floor(width * 0.9 / 24) + 1, 6, 50);
+  const visible = Math.min(counts[viewer] ?? 0, local.visibleLimit);
+  local.curve = clamp((visible - 1) * 0.16, 0, 1.35) * localHandCurve;
+  const edgeAngle = local.curve * 0.32 / 2;
+  const cardWidth = 2 * (0.36 * Math.cos(edgeAngle) + 0.525 * Math.sin(edgeAngle)) * local.scale;
+  local.width = Math.max(0.08, screenWidth - cardWidth);
+  const spread = 0.68 + 0.26 * clamp((visible - 7) / 13, 0, 1);
+  const step = Math.min(0.72 * local.scale * spread, local.width / Math.max(1, visible - 1));
+  local.overlap = clamp(1 - step / (0.72 * local.scale), 0, 0.94);
   const localSeat = foregroundSeat(seats[0], fit, hands[0], angle);
   const deckPoint = constrainDeckPosition({ x: deck[0], z: deck[2] }, { fit, angle, width, height, rotation: deckRotation, scale: deckScale });
   const deckPosition: Vec3 = [deckPoint.x, 0.035, deckPoint.z];

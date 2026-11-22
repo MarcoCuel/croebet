@@ -3,11 +3,11 @@ import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
-import { constrainDeckTransform, constrainDiscardTransform, pileBounds } from '../three/table/pile-transform.ts';
+import { constrainDeckTransform, constrainDiscardTransform, pileBounds, poseBounds } from '../three/table/pile-transform.ts';
 import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
 import { createCardGeometry } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
-import { arcPosition, easedProgress } from '../three/table/motion.ts';
+import { arcPosition, consumeCardMotion, distributionDelay, easedProgress, raisedCardPosition } from '../three/table/motion.ts';
 import { parseSettings, defaultSettings, initialState, laboratoryReducer } from '../features/games/laboratory/model.ts';
 const options = { layout: 'fan', width: 5.5, curve: 1.2, spacing: 0.76, overlap: 0.35, tilt: 14, scale: 1.15, orientation: 0 };
 
@@ -447,4 +447,128 @@ test('escala do deck mantém a pilha girada e os controles no enquadramento e at
     const fixed = resolveTableLayout({ ...request, deckScale: 1 });
     assert.deepEqual(layout.fit, fixed.fit, 'a escala do deck não deve alterar a câmera');
   }
+});
+
+test('tamanho das mãos usa multiplicadores independentes sobre o solver automático, com câmera estável', () => {
+  for (const width of [360, 1200, 2400]) for (const players of [2, 6, 12]) for (const count of [1, 7, 50, 1000]) {
+    const request = { players, viewer: players - 1, counts: Array(players).fill(count), width, height: 700, angle: 36, deck: [-1.5, 0.035, -0.6] };
+    const base = resolveTableLayout(request);
+    assert.deepEqual(resolveTableLayout({ ...request, localCardScale: 1, opponentCardScale: 1 }), base);
+    const local = resolveTableLayout({ ...request, localCardScale: 1.25 });
+    const opponents = resolveTableLayout({ ...request, opponentCardScale: 0.75 });
+    assert.ok(Math.abs(local.hands[0].scale / base.hands[0].scale - 1.25) < 1e-10);
+    assert.equal(opponents.hands[0].scale, base.hands[0].scale);
+    for (let place = 1; place < players; place++) {
+      assert.equal(local.hands[place].scale, base.hands[place].scale);
+      assert.ok(Math.abs(opponents.hands[place].scale / base.hands[place].scale - 0.75) < 1e-10);
+    }
+    assert.deepEqual(local.fit, base.fit); assert.deepEqual(opponents.fit, base.fit);
+    assert.ok(local.hands[0].width <= base.hands[0].width);
+    const window = adaptiveHandWindow(count, local.hands[0], count - 1);
+    assert.ok(window.length > 0 && window.start + window.length <= count);
+  }
+});
+
+test('presets migram e validam multiplicadores das cartas sem recuperar dimensões fixas', () => {
+  const legacy = { ...defaultSettings }; delete legacy.localCardScale; delete legacy.opponentCardScale;
+  assert.equal(parseSettings(legacy).localCardScale, 1); assert.equal(parseSettings(legacy).opponentCardScale, 1);
+  const next = { ...defaultSettings, localCardScale: 1.25, opponentCardScale: 0.75 };
+  assert.deepEqual(parseSettings(JSON.parse(JSON.stringify(next))), next);
+  for (const key of ['localCardScale', 'opponentCardScale']) for (const value of [NaN, Infinity, 0.49, 1.51, '1.25']) assert.equal(parseSettings({ ...defaultSettings, [key]: value }), null);
+});
+
+
+test('mãos extensas ocupam 90% da largura projetada com margens e paginação adaptativa', () => {
+  for (const [width, count] of [[390, 50], [1200, 21], [1418, 21], [2400, 50]]) {
+    const request = { players: 4, viewer: 0, counts: [count,7,7,7], width, height: 700, angle: 36, deck: [-1.5,0.035,-0.6] };
+    const layout = resolveTableLayout(request);
+    const visible = adaptiveHandWindow(count, layout.hands[0], count - 1);
+    const boxes = handPlacements(visible.length, layout.hands[0]).map(pose => poseBounds(worldHandPose(pose, layout.localSeat), { fit: layout.fit, width, height: 700, angle: 36 }));
+    const left = Math.min(...boxes.map(box => box.left)), right = Math.max(...boxes.map(box => box.right));
+    const coverage = (right - left) / width;
+    assert.ok(coverage >= 0.88 && coverage <= 0.901, `cobertura de ${coverage} para ${width}px`);
+    assert.ok(left >= width * 0.049 && right <= width * 0.951);
+    assert.deepEqual(layout.fit, resolveTableLayout({ ...request, counts: [1,7,7,7] }).fit);
+  }
+});
+
+
+test('paginar e passar o mouse não repetem a compra; a mesma carta ainda anima em uma nova transferência', () => {
+  let state = initialState(defaultSettings);
+  const history = new Map();
+  const id = state.deck.at(-1).id;
+  state = laboratoryReducer(state, { type: 'draw', seat: 0 });
+  const key = `${state.motions[id].serial}:${state.motions[id].kind}`;
+  assert.equal(consumeCardMotion(history, id, key), true, 'primeira compra deve animar');
+  assert.equal(consumeCardMotion(history, id, key), false, 'hover não é uma nova compra');
+  // React removes off-page cards; the table, which stays mounted, owns this history.
+  assert.equal(consumeCardMotion(history, id, key), false, 'remontar na paginação não deve voltar ao deck');
+  state = laboratoryReducer(state, { type: 'discard', seat: 0, id });
+  const discard = `${state.motions[id].serial}:${state.motions[id].kind}`;
+  assert.equal(consumeCardMotion(history, id, discard), true, 'uma nova ação real continua animando');
+  assert.equal(consumeCardMotion(history, id, discard), false);
+  assert.equal(consumeCardMotion(history, 'initial', 'layout'), false);
+  const unseen = new Map([[id, discard]]);
+  assert.equal(consumeCardMotion(unseen, id, discard), false, 'ações fora da janela não são reproduzidas ao paginar');
+});
+
+
+test('curvatura local multiplica o leque automático sem afetar o tamanho, câmera ou oponentes', () => {
+  const request = { players: 4, viewer: 2, counts: [7,7,21,7], width: 1200, height: 700, angle: 36, deck: [-1.5,0.035,-0.6] };
+  const base = resolveTableLayout(request);
+  for (const multiplier of [0, 0.5, 1, 2]) {
+    const layout = resolveTableLayout({ ...request, localHandCurve: multiplier });
+    assert.equal(layout.hands[0].curve, base.hands[0].curve * multiplier);
+    assert.equal(layout.hands[0].scale, base.hands[0].scale);
+    assert.deepEqual(layout.hands.slice(1), base.hands.slice(1));
+    assert.deepEqual(layout.fit, base.fit);
+    const visible = adaptiveHandWindow(21, layout.hands[0]);
+    const poses = handPlacements(visible.length, layout.hands[0]);
+    if (multiplier === 0) assert.ok(poses.every(pose => pose.rotation[2] === 0));
+    const boxes = poses.map(pose => poseBounds(worldHandPose(pose, layout.localSeat), { fit: layout.fit, width: 1200, height: 700, angle: 36 }));
+    assert.ok(Math.min(...boxes.map(box => box.left)) >= 1200 * 0.049);
+    assert.ok(Math.max(...boxes.map(box => box.right)) <= 1200 * 0.951);
+  }
+});
+
+test('presets antigos mantêm curvatura padrão e validam os limites do multiplicador', () => {
+  const legacy = { ...defaultSettings }; delete legacy.localHandCurve;
+  assert.equal(parseSettings(legacy).localHandCurve, 1);
+  for (const value of [0, 0.5, 1, 2]) assert.equal(parseSettings({ ...defaultSettings, localHandCurve: value }).localHandCurve, value);
+  for (const value of [-0.01, 2.01, NaN, Infinity, '1']) assert.equal(parseSettings({ ...defaultSettings, localHandCurve: value }), null);
+});
+
+
+test('hover desloca a carta no plano do leque mantendo a profundidade e a ordem da mão', () => {
+  for (const angle of [25, 36, 65]) {
+    const layout = resolveTableLayout({ players: 4, viewer: 0, counts: [21,7,7,7], width: 1200, height: 700, angle, deck: [-1.5,0.035,-0.6] });
+    const window = adaptiveHandWindow(21, layout.hands[0]);
+    const poses = handPlacements(window.length, layout.hands[0]).map(pose => worldHandPose(pose, layout.localSeat));
+    const normal = new Vector3(0, Math.sin(angle * Math.PI / 180), Math.cos(angle * Math.PI / 180));
+    for (const pose of poses) {
+      const base = new Vector3(...pose.position), hovered = new Vector3(...raisedCardPosition(pose, 0.25 * pose.scale));
+      assert.ok(Math.abs(hovered.dot(normal) - base.dot(normal)) < 1e-10);
+      const up = new Vector3(0, Math.cos(angle * Math.PI / 180), -Math.sin(angle * Math.PI / 180));
+      assert.ok(hovered.sub(base).dot(up) > 0);
+      assert.deepEqual(raisedCardPosition(pose, 0), pose.position);
+    }
+  }
+});
+
+test('distribuir começa por quem está na vez e percorre os assentos a cada volta com stagger crescente', () => {
+  for (const startSeat of [0, 1, 3]) {
+    const before = initialState(defaultSettings);
+    const after = laboratoryReducer(before, { type: 'deal', players: 4, count: 3, startSeat });
+    assert.equal(after.cue.ids[0], before.deck.at(-1).id);
+    const owners = after.cue.ids.map(id => after.hands.findIndex(hand => hand.some(card => card.id === id)));
+    assert.deepEqual(owners, Array.from({ length: 12 }, (_, i) => (startSeat + i) % 4));
+    after.cue.ids.forEach((id, i) => {
+      assert.equal(after.motions[id].order, i);
+      if (i) assert.ok(distributionDelay(i, 0.65) > distributionDelay(i - 1, 0.65));
+    });
+    assert.deepEqual(identities(after), identities(before));
+  }
+  assert.equal(distributionDelay(0, 0.65), 0);
+  assert.ok(distributionDelay(30, 0.65) > distributionDelay(29, 0.65), 'o fim da distribuição não deve sair todo junto');
+  assert.equal(distributionDelay(3, 1), distributionDelay(3, 0.5) * 2);
 });

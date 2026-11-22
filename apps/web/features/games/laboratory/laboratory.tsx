@@ -28,10 +28,10 @@ function NumberControl({ label, value, min, max, step = 1, onChange }: {
     if (Number.isFinite(next)) onChange(Math.max(min, Math.min(max, step === 1 ? Math.round(next) : next)));
   }} /></Field>;
 }
-function LightControl({ label, value, min, max, step, disabled, onChange }: {
-  label: string; value: number; min: number; max: number; step: number; disabled?: boolean; onChange: (value: number) => void;
+function RangeControl({ label, value, min, max, step, disabled, suffix = "", onChange }: {
+  label: string; value: number; min: number; max: number; step: number; disabled?: boolean; suffix?: string; onChange: (value: number) => void;
 }) {
-  return <Field><span className="flex items-center justify-between gap-3">{label}<span className="text-xs tabular-nums text-muted">{value.toFixed(2)}</span></span>
+  return <Field><span className="flex items-center justify-between gap-3">{label}<span className="text-xs tabular-nums text-muted">{value.toFixed(2)}{suffix}</span></span>
     <Input type="range" value={value} min={min} max={max} step={step} disabled={disabled} onChange={event => onChange(event.currentTarget.valueAsNumber)} className="h-5 min-h-5 cursor-pointer border-0 bg-transparent p-0 accent-brand" />
   </Field>;
 }
@@ -65,8 +65,8 @@ export function GameLaboratory() {
   const countKey = state.hands.slice(0, settings.players).map(hand => hand.length).join(":");
   const counts = useMemo(() => countKey.split(":").map(Number), [countKey]);
   const layout = useMemo(() => resolveTableLayout({ players: settings.players, viewer: settings.viewer, counts,
-    width: viewport.width, height: viewport.height, angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation, deckScale: settings.deckScale, discard: { x: settings.discardX, z: settings.discardZ, rotation: settings.discardRotation, scale: settings.discardScale } }),
-    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
+    width: viewport.width, height: viewport.height, angle: settings.angle, localCardScale: settings.localCardScale, opponentCardScale: settings.opponentCardScale, localHandCurve: settings.localHandCurve, deck: [settings.deckX, 0.035, settings.deckZ], deckRotation: settings.deckRotation, deckScale: settings.deckScale, discard: { x: settings.discardX, z: settings.discardZ, rotation: settings.discardRotation, scale: settings.discardScale } }),
+    [settings.players, settings.viewer, counts, viewport.width, viewport.height, settings.angle, settings.localCardScale, settings.opponentCardScale, settings.localHandCurve, settings.deckX, settings.deckZ, settings.deckRotation, settings.deckScale, settings.discardX, settings.discardZ, settings.discardRotation, settings.discardScale]);
   const update = <K extends keyof LaboratorySettings>(key: K, value: LaboratorySettings[K]) => setSettings(current => ({ ...current, [key]: value }));
   const reset = (next: LaboratorySettings) => {
     const normalized = { ...next, viewer: 0 };
@@ -125,19 +125,26 @@ export function GameLaboratory() {
         <div role="group" aria-label="Arte das cartas" className="flex flex-wrap gap-2">{(["neutral", "classic", "modern"] as const).map(mode => <Button key={mode} size="sm" variant="secondary" aria-pressed={artworkMode === mode} onClick={() => setArtworkMode(mode)}>{mode === "neutral" ? "Neutras" : mode === "classic" ? "Love Letter clássico" : "Love Letter moderno"}</Button>)}</div>
         <NumberControl label="Jogadores" value={settings.players} min={2} max={12} onChange={players => { setSettings(current => ({ ...current, players, turn: Math.min(current.turn, players - 1) })); setFocus(0); setMenu(null); }} />
         <p className="text-xs text-muted">Layout automático conforme cartas, jogadores e espaço disponível.</p>
+        <details><summary className="cursor-pointer text-sm font-semibold">Cartas</summary><div className="mt-4 grid gap-4">
+          <RangeControl label="Suas cartas" value={settings.localCardScale} min={0.5} max={1.5} step={0.05} suffix="×" onChange={value => update("localCardScale", value)} />
+          <RangeControl label="Cartas dos oponentes" value={settings.opponentCardScale} min={0.5} max={1.5} step={0.05} suffix="×" onChange={value => update("opponentCardScale", value)} />
+          <RangeControl label="Curvatura da sua mão" value={settings.localHandCurve} min={0} max={2} step={0.05} suffix="×" onChange={value => update("localHandCurve", value)} />
+          <p className="text-xs text-muted">1× mantém o ajuste automático. Curvatura em 0× deixa o leque reto.</p>
+          <Button variant="ghost" onClick={() => setSettings(current => ({ ...current, localCardScale: 1, opponentCardScale: 1, localHandCurve: 1 }))}>Restaurar ajustes das cartas</Button>
+        </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Câmera</summary><div className="mt-4 grid gap-4">{controls([["angle", "Ângulo da câmera", 25, 65]])}</div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Iluminação</summary><div className="mt-4 grid gap-4">
-          <LightControl label="Luz superior" value={settings.light} min={0} max={2.5} step={0.05} onChange={value => update("light", value)} />
-          <LightControl label="Luz ambiente" value={settings.ambient} min={0} max={2} step={0.05} onChange={value => update("ambient", value)} />
-          <LightControl label="Luz do deck" value={settings.pointLight} min={0} max={8} step={0.1} onChange={value => update("pointLight", value)} />
-          <LightControl label="Altura da luz do deck" value={settings.pointHeight} min={1} max={5} step={0.1} onChange={value => update("pointHeight", value)} />
-          <LightControl label="Exposição" value={settings.exposure} min={0.5} max={1.2} step={0.05} onChange={value => update("exposure", value)} />
+          <RangeControl label="Luz superior" value={settings.light} min={0} max={2.5} step={0.05} onChange={value => update("light", value)} />
+          <RangeControl label="Luz ambiente" value={settings.ambient} min={0} max={2} step={0.05} onChange={value => update("ambient", value)} />
+          <RangeControl label="Luz do deck" value={settings.pointLight} min={0} max={8} step={0.1} onChange={value => update("pointLight", value)} />
+          <RangeControl label="Altura da luz do deck" value={settings.pointHeight} min={1} max={5} step={0.1} onChange={value => update("pointHeight", value)} />
+          <RangeControl label="Exposição" value={settings.exposure} min={0.5} max={1.2} step={0.05} onChange={value => update("exposure", value)} />
           <Button variant="ghost" onClick={() => setSettings(current => ({ ...current, light: defaultSettings.light, ambient: defaultSettings.ambient, pointLight: defaultSettings.pointLight, pointHeight: defaultSettings.pointHeight, exposure: defaultSettings.exposure, shadowSoftness: defaultSettings.shadowSoftness, shadowOpacity: defaultSettings.shadowOpacity, shadows: true }))}>Restaurar iluminação</Button>
         </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Sombras</summary><div className="mt-4 grid gap-4">
           <Button variant="secondary" aria-pressed={settings.shadows} onClick={() => update("shadows", !settings.shadows)}>Sombras: {settings.shadows ? "ativadas" : "desativadas"}</Button>
-          <LightControl label="Suavidade da sombra" value={settings.shadowSoftness} min={1} max={12} step={0.5} disabled={!settings.shadows} onChange={value => update("shadowSoftness", value)} />
-          <LightControl label="Intensidade da sombra" value={settings.shadowOpacity} min={0} max={0.8} step={0.05} disabled={!settings.shadows} onChange={value => update("shadowOpacity", value)} />
+          <RangeControl label="Suavidade da sombra" value={settings.shadowSoftness} min={1} max={12} step={0.5} disabled={!settings.shadows} onChange={value => update("shadowSoftness", value)} />
+          <RangeControl label="Intensidade da sombra" value={settings.shadowOpacity} min={0} max={0.8} step={0.05} disabled={!settings.shadows} onChange={value => update("shadowOpacity", value)} />
         </div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Animações</summary><div className="mt-4 grid gap-4">{controls([["duration", "Duração do movimento", 0.15, 2, 0.05], ["arc", "Altura da trajetória", 0, 2, 0.1], ["dealCount", "Cartas por distribuição", 1, 10], ["pileHeight", "Altura por carta na pilha", 0.004, 0.008, 0.001]])}</div></details>
         <details><summary className="cursor-pointer text-sm font-semibold">Cenários de teste</summary><div className="mt-4 grid gap-3">
@@ -158,7 +165,7 @@ export function GameLaboratory() {
           </> : <>
             <DropdownMenuItem disabled={!canDraw} onSelect={draw}>Comprar carta</DropdownMenuItem>
             <DropdownMenuItem disabled={state.deck.length < 2} onSelect={shuffle}>Embaralhar deck</DropdownMenuItem>
-            <DropdownMenuItem disabled={!state.deck.length || state.hands.slice(0, settings.players).every(hand => hand.length >= 1000)} onSelect={() => { dispatch({ type: "deal", players: settings.players, count: settings.dealCount }); setMessage("Cartas distribuídas."); }}>Distribuir cartas</DropdownMenuItem>
+            <DropdownMenuItem disabled={!state.deck.length || state.hands.slice(0, settings.players).every(hand => hand.length >= 1000)} onSelect={() => { dispatch({ type: "deal", players: settings.players, count: settings.dealCount, startSeat: settings.turn }); setMessage("Cartas distribuídas."); }}>Distribuir cartas</DropdownMenuItem>
             <DropdownMenuItem disabled={!canCollect} onSelect={() => { dispatch({ type: "collect", players: settings.players }); setFocus(0); setMessage("Cartas recolhidas."); }}>Recolher cartas</DropdownMenuItem>
             <DropdownMenuSeparator /><DropdownMenuItem onSelect={() => update("turn", (settings.turn + 1) % settings.players)}>Passar a vez</DropdownMenuItem>
           </>}
