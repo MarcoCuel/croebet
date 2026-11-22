@@ -40,7 +40,7 @@ export function NotificationsMenu({ invitations }: { invitations: LobbyInvitatio
             </span>
             <span className="mt-3 block text-xs text-muted">18 de Nov. 2026</span>
           </span>
-          <Image src="/dev.png" alt="" width={96} height={68} sizes="96px" className="h-17 w-24 shrink-0 rounded-lg object-cover" />
+          <Image src="/dev.png" alt="" width={96} height={68} unoptimized sizes="96px" className="h-17 w-24 shrink-0 rounded-lg object-cover" />
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="mx-4 my-1" />
         <DropdownMenuItem asChild className="items-start gap-4 rounded-xl border-0 px-3 py-3.5 whitespace-normal">
@@ -56,7 +56,7 @@ export function NotificationsMenu({ invitations }: { invitations: LobbyInvitatio
                 <span className="sr-only"> (abre em nova aba)</span>
               </span>
             </span>
-            <Image src="/yt.png" alt="" width={96} height={68} sizes="96px" className="h-17 w-24 shrink-0 rounded-lg object-cover" />
+            <Image src="/yt.png" alt="" width={96} height={68} unoptimized sizes="96px" className="h-17 w-24 shrink-0 rounded-lg object-cover" />
           </a>
         </DropdownMenuItem>
       </DropdownMenuContent>

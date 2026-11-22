@@ -22,6 +22,8 @@ Jogos têm infraestrutura comum em `features/games/`: `lobby.tsx`, `match-api.ts
 
 O ambiente de produção independente usa `proxy.ts` com `ENFORCE_HTTPS=true` para redirecionar HTTP ao `WEB_ORIGIN` HTTPS. O Next escuta somente em loopback e considera o protocolo do visitante informado pelo túnel, preservando o proxy HTTP/WebSocket da API. Portas, releases e comandos ficam em [Produção independente no Mac](backend-architecture.md#produção-independente-no-mac).
 
+Imagens de notificações usam `next/image` com `unoptimized`, assim como avatares, capas e mídia. A busca interna do otimizador não encaminha os cabeçalhos HTTPS do túnel e recebe o redirecionamento do proxy; servir o arquivo diretamente preserva a exigência de HTTPS e evita imagens quebradas em produção.
+
 `DeploymentUpdate`, montado com os providers globais, consulta `/api/deployment` sem cache a cada 15 segundos e ao voltar à aba/rede. O endpoint expõe apenas o identificador público da release e só confirma disponibilidade com a API pronta. Uma versão diferente oferece “Atualizar e continuar”; o recarregamento mantém caminho/query da mesa e aguarda se houver comando de jogo em voo. Falhas da consulta preservam a página e permitem retentativa. `NEXT_PUBLIC_RELEASE_ID` identifica o mesmo build no cliente e servidor e alimenta `deploymentId` do Next para recarregar navegações entre versões. Retomada usa o snapshot confirmado da API, sem reenviar ações automaticamente ou restaurar escolhas não enviadas.
 
 - Consulte endpoints HTTP do Fastify no servidor para dados necessários à primeira exibição e redirecionamentos dependentes deles. Passe projeções validadas para a interface; não comece vazio/deslogado para buscar em `useEffect`.
