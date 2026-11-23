@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import Image from "next/image";
 
 type InstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -112,8 +113,9 @@ export function AppInstall() {
 
   return (
     <aside aria-label="App do Croebet" className="shrink-0 @max-[8rem]/sidebar:hidden">
-      <Card className="bg-linear-[-160deg] from-surface from-30% to-quaternary to-200% p-4 text-white">
+      <Card className="bg-linear-[-160deg] from-surface from-30% to-quaternary to-200% p-4 text-white relative z-1">
         <p className="text-lg leading-tight font-extrabold tracking-tight">Jogue <br/>pelo App</p>
+        <Image src="/orb.png" alt="" width={100} height={100} unoptimized sizes="100px" className="w-32 h-32 shrink-0 object-cover absolute right-0 -top-8 -z-1" />
         <Button className="mt-4 w-full bg-quaternary" size="sm" loading={state.installing} onClick={state.install}>
           Baixar app
         </Button>
