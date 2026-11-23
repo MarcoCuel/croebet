@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Trophy, TrendingDown } from "lucide-react";
 import type { Ranking } from "@croebet/shared";
 import { Heading } from "@/components/shared/heading";
@@ -33,7 +34,10 @@ export function RankingCard({ data, category, page, previous, next, retry, perio
           {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="-mx-2 grid grid-cols-3 gap-4 items-end py-4 px-2">
             {data.items.slice(0,3).map((item,index) => <li key={item.userId} value={item.position} className={cn("min-w-0 text-center", index === 0 ? "col-start-2 row-start-1" : index === 1 ? "col-start-1 row-start-1" : "col-start-3 row-start-1")}>
               <Link href={`/perfil/${encodeURIComponent(item.username)}`} aria-label={`Posição ${item.position} ${item.displayName}`} aria-describedby={`ranking-value-${category}-${item.userId}`} className="flex min-w-0 flex-col items-center gap-4 hover:text-brand">
-                <Avatar className={cn("inset-shadow-primary-button",index === 0 ? "size-14" : "size-12")} aria-hidden="true"><AccountAvatarImage name={item.username} src={item.avatarUrl} /><AvatarFallback className="bg-contrast/6 text-sm">{item.displayName.slice(0,2).toUpperCase()}</AvatarFallback></Avatar>
+                <span className="relative shrink-0">
+                  <Avatar className={cn("inset-shadow-primary-button",index === 0 ? "size-14" : "size-12")} aria-hidden="true"><AccountAvatarImage name={item.username} src={item.avatarUrl} /><AvatarFallback className="bg-contrast/6 text-sm">{item.displayName.slice(0,2).toUpperCase()}</AvatarFallback></Avatar>
+                  {index === 0 && <Image src="/host.svg" width={25} height={24} className="absolute -top-3 -left-1 h-6 w-auto" alt="" aria-hidden="true" />}
+                </span>
                 <div className="w-full min-w-0 text-sm leading-none">
                   <span className="block truncate font-medium" title={item.displayName}>{item.displayName}{item.userId===data.own?.userId && <span className="ml-1 text-xs text-brand">Você</span>}</span>
                   <span id={`ranking-value-${category}-${item.userId}`} className="mt-2 block text-muted tabular-nums"><Amount item={item} category={category} /></span>
