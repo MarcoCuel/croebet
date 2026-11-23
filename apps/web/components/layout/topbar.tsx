@@ -157,11 +157,11 @@ export function Topbar({
         <div role="status" aria-label="Carregando conta" className="col-start-3 h-11 w-36 justify-self-end rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
       ) : username ? (
         <>
-          <div className={cn("hidden items-center gap-2 rounded-panel bg-contrast/6 p-1.5 md:flex backdrop-blur-2xl", compactMatch && "md:hidden 2xl:flex")}>
+          <div className={cn("hidden items-center gap-1 rounded-panel bg-contrast/6 p-1.5 md:flex backdrop-blur-2xl", compactMatch && "md:hidden 2xl:flex")}>
             <Button
               asChild
               variant="ghost"
-              className="min-h-0 min-w-0 shrink px-0.5 py-0 font-normal text-foreground"
+              className="min-h-0 min-w-0 shrink p-1 pr-4 font-normal text-foreground backdrop-blur-none"
             >
               <Link href="/carteira" aria-label="Ver carteira">
                 <Balance key={username} value={walletReady ? balance : null} showCurrency />
