@@ -22,15 +22,15 @@ function Amount({ item, category }: { item: Ranking["items"][number]; category: 
 export function RankingCard({ data, category, page, previous, next, retry, period, monthHref, allHref }: { data: Ranking | null; category: Ranking["category"]; page: number; previous: string; next: string; retry: string; period: "month" | "all"; monthHref: string; allHref: string }) {
   const title = rankingTitles[category];
   const listItems = data?.items.slice(page === 1 ? 3 : 0) ?? [];
-  return <Card asChild className="@container bg-contrast/6 p-0 pb-2 rounded-xl"><section aria-labelledby={`ranking-${category}`}>
-    <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+  return <Card asChild className="@container bg-contrast/6 p-0 pb-4 rounded-xl"><section aria-labelledby={`ranking-${category}`}>
+    <div className="flex flex-wrap items-start justify-between gap-3 p-6">
       <Heading id={`ranking-${category}`} className="text-2xl font-medium leading-none @min-[26rem]:text-ranking-title">{title.split(" ").map(word => <span key={word} className="block">{word}</span>)}</Heading>
       {category !== "richest" && <nav aria-label={`Período de ${title}`} className="flex shrink-0 gap-2">{([['month','Este mês',monthHref],['all','Geral',allHref]] as const).map(([key,label,href]) => <Button key={key} asChild variant={key===period ? "secondary" : "ghost"} size="sm" className="min-h-9 px-2 text-sm font-medium @min-[26rem]:px-3"><Link href={href} aria-current={key===period ? "page" : undefined}>{label}</Link></Button>)}</nav>}
     </div>
-    <div className="px-2">
+    <div className="px-4">
       {!data ? <EmptyState title="O placar ficou indisponível." description="Tente novamente para consultar a classificação." action={<Button asChild variant="secondary"><Link href={retry}>Tentar novamente</Link></Button>} /> : <>
         {!data.items.length ? <EmptyState title={page > 1 ? "Você chegou ao fim do ranking." : empty[category][0]} description={page > 1 ? "Os outros colocados ficaram nas páginas anteriores." : empty[category][1]} icon={category === "losers" ? <TrendingDown className="size-6" /> : <Trophy className="size-6" />} /> : <>
-          {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="-mx-2 grid grid-cols-3 gap-2 px-2 items-end pt-4 pb-2">
+          {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="-mx-2 grid grid-cols-3 gap-4 items-end py-4 px-2">
             {data.items.slice(0,3).map((item,index) => <li key={item.userId} value={item.position} className={cn("min-w-0 text-center", index === 0 ? "col-start-2 row-start-1" : index === 1 ? "col-start-1 row-start-1" : "col-start-3 row-start-1")}>
               <Link href={`/perfil/${encodeURIComponent(item.username)}`} aria-label={`Posição ${item.position} ${item.displayName}`} aria-describedby={`ranking-value-${category}-${item.userId}`} className="flex min-w-0 flex-col items-center gap-4 hover:text-brand">
                 <Avatar className={cn("inset-shadow-primary-button",index === 0 ? "size-14" : "size-12")} aria-hidden="true"><AccountAvatarImage name={item.username} src={item.avatarUrl} /><AvatarFallback className="bg-contrast/6 text-sm">{item.displayName.slice(0,2).toUpperCase()}</AvatarFallback></Avatar>
@@ -38,7 +38,7 @@ export function RankingCard({ data, category, page, previous, next, retry, perio
                   <span className="block truncate font-medium" title={item.displayName}>{item.displayName}{item.userId===data.own?.userId && <span className="ml-1 text-xs text-brand">Você</span>}</span>
                   <span id={`ranking-value-${category}-${item.userId}`} className="mt-2 block text-muted tabular-nums"><Amount item={item} category={category} /></span>
                 </div>
-                <span aria-hidden="true" className={cn("grid w-full place-items-center rounded-xl border border-white/6 text-2xl font-medium leading-none text-white tabular-nums",index === 0 ? "h-18 bg-ranking-gold" : index === 1 ? "h-12 bg-ranking-silver" : "h-[2.1875rem] bg-ranking-bronze")}>{item.position}</span>
+                <span aria-hidden="true" className={cn("grid w-full place-items-center rounded-xl border border-white/6 text-xl font-medium leading-none text-white tabular-nums inset-shadow-primary-button",index === 0 ? "h-18 bg-ranking-gold" : index === 1 ? "h-12 bg-ranking-silver" : "h-[2.1875rem] bg-ranking-bronze")}>{item.position} lugar</span>
               </Link>
             </li>)}
           </ol>}
