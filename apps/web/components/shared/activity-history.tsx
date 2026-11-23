@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Gamepad2, History, ArrowDownLeft, ArrowUpRight, ChevronRight } from "lucide-react";
+import { History, ArrowDownLeft, ArrowUpRight, ChevronRight } from "lucide-react";
 import { accountHistorySchema, type AccountHistory } from "@croebet/shared";
+import { GameCover } from "@/features/games/game-cover";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatBalance } from "@/features/wallet/wallet";
@@ -53,9 +54,11 @@ export function ActivityHistoryPanel({ endpoint, title, emptyMessage = "Nenhuma 
     {history && (history.items.length ? <ul className="divide-y divide-contrast/6">
       {history.items.map(entry => {
         const incoming = entry.amount !== null && entry.amount > 0;
-        const Icon = entry.kind === "game" ? Gamepad2 : incoming ? ArrowDownLeft : ArrowUpRight;
+        const Icon = incoming ? ArrowDownLeft : ArrowUpRight;
         const content = <>
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-contrast/6"><Icon className="size-4" aria-hidden="true" /></span>
+          {entry.kind === "game" ? <div className="size-12 shrink-0">
+            <GameCover imageUrl={entry.gameImageUrl} name={entry.gameName ?? entry.description} iconClassName="size-4" />
+          </div> : <span className="grid size-9 shrink-0 place-items-center rounded-full bg-contrast/6"><Icon className="size-4" aria-hidden="true" /></span>}
           <div className="min-w-0 flex-1">
             <p className="break-words text-sm">{entry.description}</p>
             <time dateTime={entry.createdAt} className="mt-1 block text-xs text-muted">{date.format(new Date(entry.createdAt))}</time>

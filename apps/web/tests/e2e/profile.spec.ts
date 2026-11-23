@@ -226,22 +226,25 @@ test("perfil lista somente partidas, pagina e permite retentar falhas", async ({
     const offset = Number(new URL(route.request().url()).searchParams.get("offset"));
     return route.fulfill({ json: {
       items: Array.from({ length: offset ? 1 : 20 }, (_, index) => ({
-        id: `game:${offset + index}`, kind: "game", description: `${offset ? "Love Letter" : "Flip 7"} · Partida concluída`,
+        gameName: offset ? "Love Letter" : "Flip 7", gameImageUrl: "/cover-fixture.svg", id: `game:${offset + index}`, kind: "game", description: `${offset ? "Love Letter" : "Flip 7"} · Partida concluída`,
         createdAt: "2026-11-23T01:00:00.000Z", amount: null,
       })), hasMore: offset === 0,
     } });
   });
+  await page.route("**/cover-fixture.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="purple"/></svg>' }));
   await page.goto("/perfil/Tonho");
   await expect(page.getByRole("heading", { name: "Partidas jogadas" })).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("Não foi possível carregar o histórico.");
   fail = false;
   await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByText("Flip 7 · Partida concluída", { exact: true })).toHaveCount(20);
+  await expect(page.getByRole("img", { name: "Capa de Flip 7", exact: true })).toHaveCount(20);
+  await expect(page.getByRole("img", { name: "Capa de Flip 7", exact: true }).first()).toHaveJSProperty("naturalWidth", 48);
   await page.getByRole("button", { name: "Carregar mais" }).click();
   await expect(page.getByText("Love Letter · Partida concluída", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Carregar mais" })).toHaveCount(0);
   await expect(page.locator('main a[href*="partida="]')).toHaveCount(0);
-  await expect(page.getByText(/Croins/)).toHaveCount(0);
+  await expect(page.getByRole("main").getByText(/Croins/)).toHaveCount(0);
   await page.goto("/perfil/outro");
   await expect(page.getByText("Nenhuma partida registrada ainda.")).toBeVisible();
   await expect(page.getByText("Flip 7 · Partida concluída", { exact: true })).toHaveCount(0);

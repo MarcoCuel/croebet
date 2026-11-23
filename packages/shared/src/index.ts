@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gameImageSchema } from "./games.js";
 import { matchCodeSchema } from "./matches.js";
 export * from "./matches.js";
 export * from "./realtime.js";
@@ -30,6 +31,7 @@ export const accountHistoryQuerySchema = z.object({
 }).strict();
 export const accountHistorySchema = z.object({
   items: z.array(z.object({
+    gameName: z.string().nullable().default(null), gameImageUrl: gameImageSchema.default(null),
     id: z.string(), matchId: z.uuid().nullable().default(null), matchCode: matchCodeSchema.nullable().default(null), gameSlug: z.string().nullable().default(null), kind: z.enum(["transaction", "game"]), description: z.string(), createdAt: z.iso.datetime(),
     amount: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER).nullable(),
   }).strict()), hasMore: z.boolean(),

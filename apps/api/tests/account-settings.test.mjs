@@ -94,7 +94,7 @@ test("histórico exige sessão, limita paginação e retorna somente a projeçã
   const response = await app.inject({ url: "/api/v1/me/history?limit=1", cookies });
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["cache-control"], "no-store");
-  assert.deepEqual(response.json(), { items: [{ id: "game:one", matchId: "93089d02-0b34-4b78-9d3e-f2679c190b5c", matchCode: "ABCDEF123456", gameSlug: "flip7", kind: "game", description: "Flip 7 · Partida concluída", createdAt: "2026-11-20T12:00:00.000Z", amount: null }], hasMore: true });
+  assert.deepEqual(response.json(), { items: [{ gameName: null, gameImageUrl: null, id: "game:one", matchId: "93089d02-0b34-4b78-9d3e-f2679c190b5c", matchCode: "ABCDEF123456", gameSlug: "flip7", kind: "game", description: "Flip 7 · Partida concluída", createdAt: "2026-11-20T12:00:00.000Z", amount: null }], hasMore: true });
 });
 
 test("replay pessoal exige sessão, valida código/paginação e oculta partidas sem participação", async t => {

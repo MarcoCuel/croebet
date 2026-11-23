@@ -45,17 +45,18 @@ test("partidas do perfil são públicas, paginadas e não expõem carteira nem a
     }
     historyQueries++;
     assert.doesNotMatch(sql, /wallet_|wallet_operations|state|frames/);
+    assert.match(sql, /g.image_url as game_image_url/);
     assert.match(sql, /status in \('finished','abandoned'\)/);
     assert.match(sql, /p->>'userId'=\$1::text/);
     assert.match(sql, /order by created_at desc, id desc/);
     assert.deepEqual(params, [id, 2, 3]);
-    return { rows: [0, 1].map(index => ({ id: `game:${index}`, kind: "game", description: "Flip 7 · Partida concluída", created_at: new Date("2026-11-23T01:00:00Z"), amount: null, match_id: id, match_code: "ABCDEF123456", game_slug: "flip7" })) };
+    return { rows: [0, 1].map(index => ({ game_name: "Flip 7", game_image_url: "/games/flip7.webp", id: `game:${index}`, kind: "game", description: "Flip 7 · Partida concluída", created_at: new Date("2026-11-23T01:00:00Z"), amount: null, match_id: id, match_code: "ABCDEF123456", game_slug: "flip7" })) };
   } };
   await app.register(authRoutes, { pool, config: { APP_ENV: "test" } });
   const response = await app.inject("/api/v1/profiles/TONHO/matches?limit=1&offset=3");
   assert.equal(response.statusCode, 200);
   assert.equal(response.headers["cache-control"], "no-store");
-  assert.deepEqual(response.json(), { items: [{ id: "game:0", kind: "game", description: "Flip 7 · Partida concluída", createdAt: "2026-11-23T01:00:00.000Z", amount: null, matchId: null, matchCode: null, gameSlug: null }], hasMore: true });
+  assert.deepEqual(response.json(), { items: [{ gameName: "Flip 7", gameImageUrl: "/games/flip7.webp", id: "game:0", kind: "game", description: "Flip 7 · Partida concluída", createdAt: "2026-11-23T01:00:00.000Z", amount: null, matchId: null, matchCode: null, gameSlug: null }], hasMore: true });
   for (const name of ["inexistente", "xy", "nome!invalido"]) {
     assert.equal((await app.inject(`/api/v1/profiles/${name}/matches`)).statusCode, 404);
   }
