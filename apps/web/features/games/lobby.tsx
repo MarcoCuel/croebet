@@ -3,7 +3,7 @@ import { gameUrl } from "./game-url";
 import { MatchExitControl } from "./match-cancellation";
 import { managementRequest } from "@/features/admin/management-api";
 import { randomUUID } from "@/lib/uuid";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Eye, Plus, UserRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,6 +32,10 @@ import { GameEntryHeader } from "./game-entry-header";
 import { playerName } from "./player-name";
 import { readGamePreferences, saveGamePreferences } from "./setup-storage";
 
+const subscribeToHydration=()=>()=>{};
+const clientSnapshot=()=>true;
+const serverSnapshot=()=>false;
+
 function SeatOutline() {
   return <svg className="pointer-events-none absolute inset-0 size-full text-field-border" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
     <circle cx="32" cy="32" r="31.5" stroke="currentColor" strokeWidth="1" strokeDasharray="3 5" vectorEffect="non-scaling-stroke"/>
@@ -50,11 +54,15 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const [directory,setDirectory]=useState<LobbyList>(()=>scopeDirectory(initial.directory));
   const [matches,setMatches]=useState(initial.items);
   const definition=getGameDefinition(game.moduleId ?? game.slug)!;
-  const [preferences]=useState(()=>readGamePreferences(game.moduleId ?? game.slug));
-  const [capacity,setCapacity]=useState(preferences.count);
+  const hydrated=useSyncExternalStore(subscribeToHydration,clientSnapshot,serverSnapshot);
+  const gameId=game.moduleId ?? game.slug;
+  const preferences=useMemo(()=>hydrated?readGamePreferences(gameId):{count:definition.minPlayers,options:gameOptionsSchema.parse(definition.defaults)},[hydrated,gameId,definition]);
+  const [chosenCapacity,setCapacity]=useState<number>();
+  const capacity=chosenCapacity ?? preferences.count;
   const [bots,setBots]=useState(0);
   const [onlyBots,setOnlyBots]=useState(false);
-  const [options,setOptions]=useState<Lobby["options"]>(preferences.options);
+  const [chosenOptions,setOptions]=useState<Lobby["options"]>();
+  const options=chosenOptions ?? preferences.options;
   const [entryAmount,setEntryAmount]=useState(0);
   const [busy,setBusy]=useState(false);
   const [inviting,setInviting]=useState(searchParams.get("convidar")==="1");

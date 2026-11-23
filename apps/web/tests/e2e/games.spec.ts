@@ -384,6 +384,9 @@ test("Love Letter no modo dev reutiliza configurações, vagas e listagem de sal
 });
 
 test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({page})=>{
+ const errors:string[]=[];
+ page.on("pageerror",error=>errors.push(error.message));
+ page.on("console",message=>{if(message.type()==="error")errors.push(message.text());});
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
  await page.goto("/jogos/love-letter?teste=1");
  const count=page.getByLabel("Número de jogadores"),mode=page.getByLabel("Modo do Love Letter");
@@ -402,6 +405,8 @@ test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({pag
  await count.selectOption("5");await expect(mode).toHaveValue("modern");
  await page.reload();
  await expect(count).toHaveValue("5");await expect(mode).toHaveValue("modern");
+ await expect(bots.locator("option")).toHaveText(["0","1","2","3","4"]);
+ expect(errors.filter(message=>/hydration|hydrated|script tag|server rendered HTML/i.test(message))).toEqual([]);
  // Fixed-limit games use the same capacity control and trim bots as well.
  await page.goto("/jogos/flip7?teste=1");
  await count.selectOption("6");await bots.selectOption("5");

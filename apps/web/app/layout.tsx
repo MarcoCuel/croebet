@@ -3,6 +3,7 @@ import { GameLinksProvider } from "@/features/games/game-links";
 import { getPublicGames } from "@/features/games/server-games";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import type { ReactNode } from "react";
 import "lenis/dist/lenis.css";
 import "./globals.css";
@@ -42,7 +43,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `(() => { let theme = 'system'; try { const saved = localStorage.getItem('croebet:theme'); if (saved === 'light' || saved === 'dark' || saved === 'dark-contrast') theme = saved; } catch {} document.documentElement.dataset.themePreference = theme; document.documentElement.dataset.theme = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme; })();` }} />
+        <Script id="croebet-theme" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: `(() => { let theme = 'system'; try { const saved = localStorage.getItem('croebet:theme'); if (saved === 'light' || saved === 'dark' || saved === 'dark-contrast') theme = saved; } catch {} document.documentElement.dataset.themePreference = theme; document.documentElement.dataset.theme = theme === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme; })();` }} />
       </head>
       <body className="bg-background font-sans text-base text-foreground">
         <Motion />
