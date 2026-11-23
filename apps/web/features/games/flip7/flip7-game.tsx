@@ -599,7 +599,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       <GameActionShortcuts onDraw={playable && !exitOpen && !leaving ? () => { void send({ type: "draw" }); } : undefined} onStop={playable && !exitOpen && !leaving && canStay(current, game) ? () => { void send({ type: "stay" }); } : undefined} />
       {tableView.view === "classic" && actionBar}
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
-          {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
+          {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-4 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
       <GameTableLayout history={visibleGame.log.map(entry => ({
         message: entry.message,
         player: entry.player === undefined ? undefined : {
@@ -617,7 +617,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             onSeat={seat => { if (game.bonusChoice != null && human) void send({ type: "bonus", target: game.bonusChoice === seat ? null : seat }); else if (human && validTargets.includes(seat)) void send({ type: "target", target: seat }); }}
             canDraw={playable && !exitOpen && !leaving} onDraw={() => void send({ type: "draw" })} status="" onAnimating={setSceneAnimating} animate={!!presentationBefore} held={resolvingCard} paused={replay?.paused} timeScale={replay ? 1000 / replay.delay : 1}>
           </FlipScene> : <>
-          <div className="mb-6 flex flex-wrap items-center gap-5 sm:gap-8">
+          <div className="mb-6 flex flex-wrap items-center gap-4 sm:gap-8">
             <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
               <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deckCount} cartas no baralho`}>
                 <div className="absolute inset-x-[12cqi] top-[12cqi] flex items-start justify-between gap-[6cqi]">

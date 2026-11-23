@@ -58,7 +58,7 @@ export function InvitePlayers({gameSlug,code,open,onOpenChange}:{gameSlug:string
             const group=players.items.filter(person=>person.online===online);
             return <details key={String(online)} open>
               <summary className="cursor-pointer text-sm font-medium">{online?"Online":"Offline"} <span className="text-muted">({group.length})</span></summary>
-              {group.length===0?<p className="py-3 text-xs text-muted">Nenhum jogador {online?"online":"offline"} encontrado.</p>:<ul className="mt-2 space-y-1">{group.map(person=><li key={person.userId} className="flex items-center gap-3 py-2">
+              {group.length===0?<p className="py-3 text-xs text-muted">Nenhum jogador {online?"online":"offline"} encontrado.</p>:<ul className="mt-2 space-y-1">{group.map(person=><li key={person.userId} className="flex items-center gap-4 py-2">
                 <span className="relative"><Avatar className="size-10"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{person.username[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar><span aria-hidden="true" className={`absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-surface ${online?"bg-flip-green":"bg-muted"}`}/></span>
                 <span className="min-w-0 flex-1 truncate text-sm">{person.username}</span>
                 <Button size="icon-sm" variant="secondary" aria-label={person.invited?`Convite enviado para ${person.username}`:`Convidar ${person.username}`} disabled={person.invited || sending!==null} loading={sending===person.userId} onClick={()=>void invite(person.userId)}>{person.invited?<Check className="size-4" aria-hidden="true"/>:<UserPlus className="size-4" aria-hidden="true"/>}</Button>

@@ -41,7 +41,7 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
     update(items);
   }
   const replace = (id: string, change: (item: MenuItem) => MenuItem) => update(current.items.map(item => item.id === id ? change(item) : item));
-  return <div className="grid items-start gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
+  return <div className="grid items-start gap-4 xl:grid-cols-[20rem_minmax(0,1fr)]">
     <aside className="xl:sticky xl:top-[calc(var(--header-height)+1rem)]" aria-label="Adicionar itens ao menu">
       <Card className="divide-y divide-contrast/6 overflow-hidden p-0 sm:p-0 xl:max-h-[calc(100dvh-var(--header-height)-2rem)] xl:overflow-y-auto" data-lenis-prevent>
         <div role="group" aria-label="Páginas fixas" className="grid gap-4 p-4">
@@ -94,11 +94,11 @@ export function AdminMenus({ initial }: { initial: MenuAdmin }) {
         {current.items.map((item, index) => {
           const page = item.type === "page" ? initial.pages.find(page => page.id === item.pageId) : null;
           return <li key={item.id} aria-label={`Item ${index + 1}`}><Card asChild className="overflow-hidden p-0 sm:p-0"><details className="group">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border border-transparent p-4 font-semibold outline-none hover:bg-contrast/6 focus-visible:border-foreground [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 border border-transparent p-4 font-semibold outline-none hover:bg-contrast/6 focus-visible:border-foreground [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 break-words">{item.label || "Sem título"}</span>
               <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
             </summary>
-            <div className="grid gap-3 border-t border-contrast/6 p-4">
+            <div className="grid gap-4 border-t border-contrast/6 p-4">
               <div className="flex items-end gap-2">
                 <Field className="min-w-0 flex-1">Título<Input value={item.label} maxLength={80} required disabled={saving} onChange={event => replace(item.id, item => ({ ...item, label: event.target.value }))} /></Field>
                 <div className="flex min-h-11 shrink-0 items-center gap-1">

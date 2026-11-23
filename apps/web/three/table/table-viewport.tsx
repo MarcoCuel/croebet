@@ -80,9 +80,9 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
   const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const local = presentation.seats[viewer];
   return <div ref={root} data-table-viewport data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative @container flex flex-col h-[calc(100dvh-var(--header-height)-5rem)] min-h-0 w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
-    <div className="relative z-20 flex shrink-0 flex-col items-center gap-3 py-2 px-6 text-center" data-table-toolbar>
-      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 @[72rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" data-table-header>
-        {header && <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-3 text-left">{header.identity}</div>}
+    <div className="relative z-20 flex shrink-0 flex-col items-center gap-4 py-2 px-6 text-center" data-table-toolbar>
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 @[72rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" data-table-header>
+        {header && <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-4 text-left">{header.identity}</div>}
         {header && <div className="col-start-2 row-start-1 min-w-0 justify-self-end @[72rem]:col-start-3">{header.controls}</div>}
         {actions && <div className="col-span-2 row-start-2 min-w-0 justify-self-center @[72rem]:col-span-1 @[72rem]:col-start-2 @[72rem]:row-start-1">{actions}</div>}
       </div>

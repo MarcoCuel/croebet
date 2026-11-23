@@ -41,7 +41,7 @@ export function LoveScene({ view, viewer, participants, selected, target, labels
     if (guess) onGuess(guess.value);
     else { const index = hand.findIndex(card => card.id === id); if (index >= 0) onCard(index); }
   };
-  const fallback = <div className="absolute inset-x-3 top-3 bottom-20 flex flex-wrap content-center justify-center gap-3 overflow-y-auto rounded-panel bg-background/95 p-3">
+  const fallback = <div className="absolute inset-x-3 top-3 bottom-20 flex flex-wrap content-center justify-center gap-4 overflow-y-auto rounded-panel bg-background/95 p-3">
     <p className="w-full text-center text-sm text-muted">Visualização 3D indisponível.</p>
     <Button disabled={!canDraw} aria-label={deckLabel} onClick={onDraw}>Baralho · {state.deck.length}</Button>
     {displayedHands.map((cards, seat) => <div key={seat} aria-label={`Cartas de ${view.players[seat].name}`} className="flex flex-wrap items-center gap-3"><span className="text-xs">{view.players[seat].name}</span>{cards.map(card => cardLabels[card.id] ? <Button key={card.id} variant="ghost" className="h-auto p-0" aria-label={cardLabels[card.id]} onClick={() => choose(card.id)}><LoveCard mode={view.mode} value={card.hidden || card.value < 0 ? undefined : card.value} /></Button> : <LoveCard key={card.id} mode={view.mode} value={card.hidden || card.value < 0 ? undefined : card.value} />)}</div>)}

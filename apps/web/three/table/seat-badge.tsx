@@ -12,7 +12,7 @@ export type TableSeatSummary = {
 export function TableSeatBadge({ name, avatar, active, local, compact, onActivate, summary, label, disabled, selected }: {
   name: string; avatar?: string; active: boolean; local: boolean; compact: boolean; onActivate: () => void; summary?: TableSeatSummary; label?: string; disabled?: boolean; selected?: boolean;
 }) {
-  return <Button variant="ghost" onClick={onActivate} disabled={disabled} aria-pressed={selected} aria-label={label ?? `Passar vez para ${name}`} className={`h-auto w-max min-h-0 justify-start gap-3 rounded-none border-0 bg-transparent p-0 text-left font-normal text-foreground hover:bg-transparent disabled:opacity-100 ${compact ? "text-xs" : "text-sm"}`} title={`${name}${active ? local ? " · Sua vez" : " · Vez deste jogador" : ""}`}>
+  return <Button variant="ghost" onClick={onActivate} disabled={disabled} aria-pressed={selected} aria-label={label ?? `Passar vez para ${name}`} className={`h-auto w-max min-h-0 justify-start gap-4 rounded-none border-0 bg-transparent p-0 text-left font-normal text-foreground hover:bg-transparent disabled:opacity-100 ${compact ? "text-xs" : "text-sm"}`} title={`${name}${active ? local ? " · Sua vez" : " · Vez deste jogador" : ""}`}>
     <Avatar className={`${compact ? "size-10" : "size-12"} ${selected ? "shadow-[0_0_0_2px_var(--color-brand)]" : ""}`}><AvatarImage src={avatar} /><AvatarFallback>{name.slice(0, 1)}</AvatarFallback></Avatar>
     <span className="min-w-0">
       <span className="flex items-baseline gap-2 whitespace-nowrap"><span className={`max-w-32 truncate font-medium ${active && !summary?.status ? "text-brand" : ""}`}>{name}</span>{summary?.status && <span className={active ? "text-brand" : "text-muted"}>{summary.status}</span>}</span>

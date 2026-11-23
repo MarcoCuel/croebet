@@ -45,7 +45,7 @@ export function ActiveMatchesMenu() {
         const key = item.yourTurn ? item.turnKey : null;
         if (key && turns.get(item.code) !== key) {
           if (location.current !== item.code) {
-            toast(<Link href={destination(item)} prefetch={false} onClick={() => toast.dismiss(toastId(item.code))} className="flex w-full items-center gap-3 text-sm font-medium">
+            toast(<Link href={destination(item)} prefetch={false} onClick={() => toast.dismiss(toastId(item.code))} className="flex w-full items-center gap-4 text-sm font-medium">
               <Play className="size-5 shrink-0 text-brand" aria-hidden="true" />
               Sua vez em {item.gameName}
             </Link>, { id: toastId(item.code), duration: 6000, closeButton: true });

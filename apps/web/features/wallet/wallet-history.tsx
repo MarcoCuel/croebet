@@ -116,7 +116,7 @@ export function WalletHistory({ initial, direction, now }: {
                   <li key={entry.id}>
                     <Dialog>
                       <DialogTrigger asChild>
-                        <Button variant="ghost" className="w-full justify-start gap-3 rounded-none px-4 py-4 text-left font-normal text-foreground sm:gap-4 sm:px-6">
+                        <Button variant="ghost" className="w-full justify-start gap-4 rounded-none px-4 py-4 text-left font-normal text-foreground sm:gap-4 sm:px-6">
                           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-contrast/6"><Icon className="size-4" aria-hidden="true" /></span>
                           <span className="min-w-0 flex-1">
                             <span className="block break-words text-sm font-medium">{entry.description}</span>

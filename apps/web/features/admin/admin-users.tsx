@@ -42,8 +42,8 @@ export function AdminUsers({ initial, query }: { initial: ReturnType<typeof admi
     <h1 className="sr-only">Usuários</h1>
     <AdminListHeader filterLabel="Status dos usuários" filters={<>{[["all", "Todos"], ["active", "Ativos"], ["suspended", "Suspensos"]].map(([value, label]) => <Button key={value} size="sm" variant={query.status === value ? "secondary" : "ghost"} asChild><Link href={listHref("/admin/usuarios", { ...query, status: value, offset: 0 })} aria-current={query.status === value ? "page" : undefined}>{label} {query.status === value && <AdminFilterCount count={initial.counts[value as keyof typeof initial.counts]} />}</Link></Button>)}</>} search={<ManagementSearch base="/admin/usuarios" query={query} label="Buscar usuários no admin" placeholder="Buscar por nome ou usuário" />} />
     <Card className="overflow-hidden p-0 sm:p-0">
-      <ul className="divide-y divide-contrast/6">{initial.items.map(user => <li key={user.id}><Link href={`/admin/usuarios/${user.id}`} aria-label={`Ver usuário ${user.username}`} className="grid grid-cols-2 items-center gap-3 p-5 transition-colors hover:bg-contrast/10 xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]">
-        <div className="col-span-2 flex min-w-0 items-center gap-3 xl:col-span-1"><UserAvatar user={user} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{user.displayName}</p><p className="truncate text-xs text-muted">@{user.username}</p></div></div>
+      <ul className="divide-y divide-contrast/6">{initial.items.map(user => <li key={user.id}><Link href={`/admin/usuarios/${user.id}`} aria-label={`Ver usuário ${user.username}`} className="grid grid-cols-2 items-center gap-4 p-5 transition-colors hover:bg-contrast/10 xl:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr_2rem]">
+        <div className="col-span-2 flex min-w-0 items-center gap-4 xl:col-span-1"><UserAvatar user={user} /><div className="min-w-0"><p className="truncate text-sm font-semibold">{user.displayName}</p><p className="truncate text-xs text-muted">@{user.username}</p></div></div>
         <span className="text-sm text-muted">{roleLabel[user.role]}</span><Status user={user} /><span className="col-span-2 text-sm font-medium tabular-nums xl:col-span-1">{formatBalance.format(user.balance)} <span className="text-xs text-muted">Croins</span></span><ArrowUpRight className="hidden size-4 justify-self-end text-muted xl:block" aria-hidden="true" />
       </Link></li>)}</ul>
       {!initial.items.length && <EmptyState title="Nenhum usuário encontrado." />}
@@ -135,8 +135,8 @@ export function AdminUserDetail({ initial }: { initial: ReturnType<typeof adminU
   const [loading, setLoading] = useState(false);
   return <div className="grid gap-5">
     <Card className="flex flex-wrap items-center gap-4"><UserAvatar user={user} large /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h1 className="break-words text-xl font-semibold">{user.displayName}</h1><div className="rounded-xl bg-contrast/5 px-3 py-2 text-sm"><Balance value={user.balance} /></div></div><p className="mt-1 text-sm text-muted">@{user.username}</p></div><Status user={user} /></Card>
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-      <Card className="grid gap-5 xl:sticky xl:top-20"><h2 className="font-semibold">Dados da conta</h2>
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <Card className="grid gap-4 xl:sticky xl:top-20"><h2 className="font-semibold">Dados da conta</h2>
         <div><UserIdentity user={user} field="displayName" /><UserIdentity user={user} field="username" /><EditableRow label="Cadastro" value={adminDate(user.createdAt)} /><UserPermissions user={user} field="status" /><UserPermissions user={user} field="role" /><UserPassword user={user} /><AdminUserBalance userId={user.id} balance={user.balance} /></div>
         <AdminUserDelete user={user} />
       </Card>

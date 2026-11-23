@@ -17,7 +17,7 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
   const durationMinutes = game.averageDurationSeconds == null ? null : Math.max(1, Math.round(game.averageDurationSeconds / 60));
   return <Card aria-label="Apresentação do jogo" className="relative isolate overflow-hidden">
     {definition && <GameHeroCards gameId={game.moduleId ?? game.slug} />}
-    <div className="flex flex-col items-start gap-6 p-6 relative">
+    <div className="flex flex-col items-start gap-4 p-6 relative">
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="grid gap-3">
           {(definition || durationMinutes !== null) && <div className="flex flex-wrap gap-2" aria-label="Informações do jogo">
@@ -30,7 +30,7 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
       </div>
       {game.description && <p className="whitespace-pre-line text-sm leading-relaxed text-muted sm:text-base sm:max-w-[60%]">{game.description}</p>}
 
-      {(actions || !userId) && <div className="flex w-full shrink-0 flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+      {(actions || !userId) && <div className="flex w-full shrink-0 flex-col gap-4 sm:w-auto sm:flex-row sm:items-center">
         {!userId && <Button className="w-full shrink-0 sm:w-auto" onClick={openLogin}>Entrar para jogar</Button>}
         {actions}
       </div>}

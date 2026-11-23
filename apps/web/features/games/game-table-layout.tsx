@@ -39,7 +39,7 @@ export function GameTableLayout({ children, history }: { children: ReactNode; hi
   const [visible, setVisible] = useState(true);
   return <HistoryContext.Provider value={{ id, visible, toggle: () => setVisible(value => !value) }}>
     <div ref={root} className="@container h-[var(--table-height,calc(100dvh-var(--header-height)-1rem))] min-h-0" style={height === null ? undefined : { "--table-height": `${height}px` } as CSSProperties} data-game-table-layout>
-      <div className={cn("grid h-full min-h-0 grid-rows-[minmax(0,1fr)] items-stretch [--history-width:clamp(8rem,25cqi,14rem)] transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", visible ? "grid-cols-[minmax(0,1fr)_var(--history-width)] gap-3 sm:gap-6" : "grid-cols-[minmax(0,1fr)_0rem] gap-0")}>
+      <div className={cn("grid h-full min-h-0 grid-rows-[minmax(0,1fr)] items-stretch [--history-width:clamp(8rem,25cqi,14rem)] transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", visible ? "grid-cols-[minmax(0,1fr)_var(--history-width)] gap-4 sm:gap-6" : "grid-cols-[minmax(0,1fr)_0rem] gap-0")}>
         <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain" data-lenis-prevent data-game-table-content>
           {children}
         </div>

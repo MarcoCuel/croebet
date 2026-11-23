@@ -44,7 +44,7 @@ export function Sidebar({
           </Link>
         </div>
         <div
-          className="flex min-h-0 flex-1 flex-col justify-between gap-5 px-3 pb-3"
+          className="flex min-h-0 flex-1 flex-col justify-between gap-4 px-3 pb-3"
           data-lenis-prevent
         >
           <div className="min-h-0 overflow-y-auto">

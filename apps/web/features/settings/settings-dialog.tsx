@@ -109,21 +109,21 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
       >
         {section === "Geral" && (
           <dl className="divide-y divide-contrast/6 text-sm">
-            <div className="flex flex-wrap justify-between gap-3 pb-5">
+            <div className="flex flex-wrap justify-between gap-4 pb-5">
               <dt className="text-muted">Nome</dt>
               <dd className="break-all">{displayName}</dd>
             </div>
-            <div className="flex flex-wrap justify-between gap-3 py-5">
+            <div className="flex flex-wrap justify-between gap-4 py-5">
               <dt className="text-muted">Usuário</dt>
               <dd className="break-all">@{username}</dd>
             </div>
-            <div className="flex flex-wrap justify-between gap-3 py-5">
+            <div className="flex flex-wrap justify-between gap-4 py-5">
               <dt className="text-muted">Saldo atual</dt>
               <dd className="tabular-nums">
                 <BalanceValue key={username} value={walletReady ? balance : null} /> <span aria-hidden="true">Croins</span>
               </dd>
             </div>
-            <div className="flex flex-wrap justify-between gap-3 py-5">
+            <div className="flex flex-wrap justify-between gap-4 py-5">
               <dt className="text-muted">Bônus diário</dt>
               <dd>{!walletReady ? "Indisponível" : dailyClaimed ? "Aguardando próximo resgate" : "Disponível"}</dd>
             </div>
@@ -132,7 +132,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
         {section === "Aparência" && (
           <div role="group" aria-label="Tema" className="grid gap-4">
             <p className="text-sm text-muted">Tema</p>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2">
               {themes.map(({ value, label, icon: Icon }) => (
                 <Button
                   key={value}
@@ -140,7 +140,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
                   aria-pressed={theme === value}
                   onClick={() => setTheme(value)}
                   className={cn(
-                    "min-h-16 justify-start gap-3 px-4 font-normal lg:min-h-24 lg:flex-col lg:justify-center",
+                    "min-h-16 justify-start gap-4 px-4 font-normal lg:min-h-24 lg:flex-col lg:justify-center",
                     theme === value && "bg-contrast/10 text-brand",
                   )}
                 >

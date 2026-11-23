@@ -104,7 +104,7 @@ export function AdminPages({ pages }: { pages: SitePageRecord[] }) {
 }
 
 function SettingRow({ label, children, onClick, disabled }: { label: string; children: ReactNode; onClick: () => void; disabled: boolean }) {
-  return <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3 text-sm">
+  return <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-4 text-sm">
     <dt className="text-muted">{label}</dt>
     <dd className="min-w-0"><Button variant="link" className="h-auto min-h-11 w-full justify-start px-0 text-foreground text-left whitespace-normal break-words" aria-label={`Editar ${label.toLowerCase()}`} onClick={onClick} disabled={disabled}>{children}</Button></dd>
   </div>;

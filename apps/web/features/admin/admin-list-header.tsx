@@ -12,7 +12,7 @@ export function AdminListHeader({ filters, filterLabel, search, create }: {
 }) {
   return <div data-slot="admin-list-header" className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
     <nav aria-label={filterLabel} className="flex flex-wrap gap-1">{filters}</nav>
-    <div className="ml-auto flex w-full max-w-full min-w-0 items-center gap-3 sm:w-auto">
+    <div className="ml-auto flex w-full max-w-full min-w-0 items-center gap-4 sm:w-auto">
       <div className="min-w-0 flex-1 sm:w-72">{search}</div>
       {create && <Button asChild className="bg-none px-3 inset-shadow-none sm:px-4">
         <Link href={create.href} aria-label={create.label}>

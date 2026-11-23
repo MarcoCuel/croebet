@@ -38,7 +38,7 @@ export function AdminOverview({ data }: { data: AdminOverviewData }) {
           </Card>
         ))}
       </dl>
-      <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card className="min-w-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><h2 className="font-semibold">Atividade das carteiras</h2><p className="mt-1 text-xs text-muted">Movimentações por dia</p></div>
@@ -58,11 +58,11 @@ export function AdminOverview({ data }: { data: AdminOverviewData }) {
           </dl>
         </Card>
       </div>
-      <div className="grid min-w-0 items-start gap-5 2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid min-w-0 items-start gap-4 2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Cadastros recentes</h2><Button variant="link" size="sm" asChild className="px-0"><Link href="/admin/usuarios">Ver usuários<ArrowUpRight className="size-4" aria-hidden="true" /></Link></Button></div>
           <ul className="mt-3 divide-y divide-contrast/6">
-            {data.recentUsers.map(user => <li key={user.id}><Link href={`/admin/usuarios/${user.id}`} className="flex items-center justify-between gap-3 py-4 hover:text-brand"><div className="min-w-0"><p className="break-words text-sm font-medium">@{user.username}</p><p className="mt-1 text-xs text-muted">{dateFormat.format(new Date(user.createdAt))}</p></div><ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link></li>)}
+            {data.recentUsers.map(user => <li key={user.id}><Link href={`/admin/usuarios/${user.id}`} className="flex items-center justify-between gap-4 py-4 hover:text-brand"><div className="min-w-0"><p className="break-words text-sm font-medium">@{user.username}</p><p className="mt-1 text-xs text-muted">{dateFormat.format(new Date(user.createdAt))}</p></div><ArrowUpRight className="size-4 shrink-0" aria-hidden="true" /></Link></li>)}
           </ul>
           {!data.recentUsers.length && <p className="py-8 text-sm text-muted">Nenhum cadastro neste período.</p>}
         </Card>

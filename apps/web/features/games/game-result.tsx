@@ -35,7 +35,7 @@ export function GameResult({ result, match, leaving, onPlayAgain, onReplay, repl
   }
   return <>
     <DialogTitle>Resultado da partida</DialogTitle>
-    <div className="my-6 grid justify-items-center gap-3 text-center">
+    <div className="my-6 grid justify-items-center gap-4 text-center">
       <div className="flex flex-wrap justify-center gap-3">{winners.map(player => <div className="relative" key={player.seat}>{playerAvatar(player, true)}<span className="absolute -right-1 -bottom-1 grid size-6 place-items-center rounded-full bg-brand text-white"><Trophy className="size-3.5" aria-hidden="true" /></span></div>)}</div>
       <DialogDescription className="text-lg text-foreground"><span className="font-semibold">{winners.map(player => player.name).join(" e ")}</span> {winners.length > 1 ? "venceram a partida!" : "venceu a partida!"}</DialogDescription>
     </div>
@@ -49,7 +49,7 @@ export function GameResult({ result, match, leaving, onPlayAgain, onReplay, repl
     <ol aria-label="Classificação final" className="grid gap-1.5">
       {standings.map(player => {
         const payout = match?.payouts.find(item => item.seat === player.seat);
-        return <li key={player.seat} className={cn("flex min-w-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm", player.winner ? "bg-selected" : "bg-contrast/6")}>
+        return <li key={player.seat} className={cn("flex min-w-0 items-center gap-4 rounded-lg px-3 py-2.5 text-sm", player.winner ? "bg-selected" : "bg-contrast/6")}>
           <span className="w-5 shrink-0 text-xs text-muted tabular-nums">{standings.findIndex(person => person.score === player.score) + 1}º</span>
           {playerAvatar(player)}
           <span className="min-w-0 flex-1 break-words font-medium">{player.name}</span>

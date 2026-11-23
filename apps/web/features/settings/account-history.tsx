@@ -59,8 +59,8 @@ export function AccountHistoryPanel({ onNavigate }: { onNavigate?: () => void })
           </span>}
         </>;
         return <li key={entry.id}>{entry.kind === "game" && entry.matchCode && entry.gameSlug
-          ? <Link href={`/jogos/${encodeURIComponent(entry.gameSlug)}?partida=${entry.matchCode}`} prefetch={false} onClick={onNavigate} className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-4 transition-colors hover:bg-contrast/6 focus-visible:outline-foreground">{content}<ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" /></Link>
-          : <div className="flex items-center gap-3 py-4">{content}</div>}</li>;
+          ? <Link href={`/jogos/${encodeURIComponent(entry.gameSlug)}?partida=${entry.matchCode}`} prefetch={false} onClick={onNavigate} className="-mx-2 flex items-center gap-4 rounded-lg px-2 py-4 transition-colors hover:bg-contrast/6 focus-visible:outline-foreground">{content}<ChevronRight className="size-4 shrink-0 text-muted" aria-hidden="true" /></Link>
+          : <div className="flex items-center gap-4 py-4">{content}</div>}</li>;
       })}
     </ul> : <EmptyState title="Nenhuma atividade registrada ainda." icon={<History className="size-6" />} />)}
     {loading && !history && <p role="status" className="text-sm text-muted">Carregando histórico…</p>}

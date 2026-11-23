@@ -20,7 +20,7 @@ export function AchievementsView({ data }: { data: Achievements }) {
   return (
     <>
         <h1 className="sr-only">Conquistas</h1>
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <Card className="flex flex-col gap-4">
             <Award className="size-5 text-brand" aria-hidden="true" />
             <div>
@@ -41,7 +41,7 @@ export function AchievementsView({ data }: { data: Achievements }) {
             </Card>
           ))}
         </div>
-        <ul className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ul className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {data.items.map(({ id, name: title, iconNode, imageUrl, current, metric, levels }) => {
             const level = levels.filter(item=>item.unlockedAt).length;
             const completed = level === levels.length;

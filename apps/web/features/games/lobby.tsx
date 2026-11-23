@@ -261,7 +261,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
           void configure(next,count,entry,{...next,count});
         }}>{Array.from({length:maxGamePlayers(definition,settings)-definition.minPlayers+1},(_,i)=>i+definition.minPlayers).map(n=><option key={n} value={n}>{n}</option>)}</Select></Field>
       </fieldset>:<div className="flex min-h-11 items-center justify-between gap-4 text-sm font-semibold"><span>Número de jogadores</span><span>{limit}</span></div>}
-      {entry>0 && <div className="flex items-center justify-between gap-3 rounded-lg bg-contrast/6 p-3 text-sm mb-8"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
+      {entry>0 && <div className="flex items-center justify-between gap-4 rounded-lg bg-contrast/6 p-3 text-sm mb-8"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
         {Array.from({length:limit},(_,i)=>{
           const person=seats[i];

@@ -19,7 +19,7 @@ export default function NotFound() {
         <p className="mt-3 text-sm leading-relaxed text-muted">
           Essa página não existe. Até a casa perde alguma coisa de vez em quando.
         </p>
-        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+        <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
           <Button asChild>
             <Link href="/">Voltar ao início</Link>
           </Button>

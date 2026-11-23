@@ -47,7 +47,7 @@ export function AdminMarketCatalogEditor({ market }: { market?: CatalogMarket })
       }}>
         <Field>Pergunta<Input name="question" defaultValue={market?.question} maxLength={200} required disabled={pending} /></Field>
         <Field>Critério de apuração<Textarea name="criterion" defaultValue={market?.criterion} maxLength={4000} required disabled={pending} /></Field>
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field>Formato<Select value={type} onChange={event => setType(event.target.value as CatalogMarket["type"])} disabled={pending}>
             <option value="binary">Sim ou não</option><option value="choice">Opções</option><option value="number">Número</option>
           </Select></Field>

@@ -43,13 +43,13 @@ export function AdminGameHistory({ gameId }: { gameId: string }) {
       </div>
     </div>
     {source==="development" && data && <div className="grid gap-2 text-sm" aria-label="Médias dos testes"><h3 className="font-medium">Duração média · testes concluídos</h3>{data.averages.length ? data.averages.map((average,index)=><div key={index} className="rounded-lg bg-contrast/6 p-3"><p>{gameSettingLabels(getGameDefinition(average.game)!,average.options).join(" · ")} · {average.players} jogadores · {average.onlyBots?"Só bots":"Com humanos"}</p><p className="mt-1 text-xs text-muted">{average.count} partidas · Total: {resultDuration(Math.round(average.durationSeconds))}{average.activeDurationSeconds != null && ` · Em reprodução: ${resultDuration(Math.round(average.activeDurationSeconds))}`}</p></div>):<p className="text-xs text-muted">Nenhum teste concluído com duração registrada.</p>}</div>}
-    {error ? <div role="alert" className="grid justify-items-start gap-3 text-sm">{error}<Button variant="secondary" size="sm" onClick={() => { reset(); setRetry(value => value + 1); }}>Tentar novamente</Button></div>
+    {error ? <div role="alert" className="grid justify-items-start gap-4 text-sm">{error}<Button variant="secondary" size="sm" onClick={() => { reset(); setRetry(value => value + 1); }}>Tentar novamente</Button></div>
       : !data ? <p role="status" className="py-5 text-sm text-muted">Carregando partidas…</p>
         : <><ul aria-label="Partidas do jogo" className="divide-y divide-contrast/6">
           {data.items.map(match => {
             const winners = match.players.filter(player => player.winner);
             return <li key={match.id}>
-              <Link href={`/admin/jogos/${gameId}/partidas/${match.id}`} aria-label={`Ver histórico da partida ${match.code}`} className="group -mx-2 flex items-center gap-3 rounded-lg px-2 py-5 transition-colors hover:bg-contrast/6 focus-visible:outline-foreground">
+              <Link href={`/admin/jogos/${gameId}/partidas/${match.id}`} aria-label={`Ver histórico da partida ${match.code}`} className="group -mx-2 flex items-center gap-4 rounded-lg px-2 py-5 transition-colors hover:bg-contrast/6 focus-visible:outline-foreground">
                 <div className="grid min-w-0 flex-1 gap-3">
                   <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-mono text-xs text-muted">#{match.code}</span><MatchBadges match={match} /></div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">{match.players.map(player => <MatchPlayerIdentity key={player.seat} player={player} />)}</div>

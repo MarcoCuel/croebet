@@ -17,7 +17,7 @@ export function SeoInputs({ value, onChange, form }: { value: SeoFields; onChang
 }
 export function SeoEditor({ variant = "outline", disabled = false, ...props }: Parameters<typeof SeoInputs>[0] & { variant?: "outline" | "card"; disabled?: boolean }) {
   const content = <details className={variant === "card" ? "group" : "mt-5 rounded-panel border border-foreground/6 p-5"} inert={disabled}>
-    <summary className={variant === "card" ? "flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold [&::-webkit-details-marker]:hidden" : "cursor-pointer text-sm font-medium"}>
+    <summary className={variant === "card" ? "flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold [&::-webkit-details-marker]:hidden" : "cursor-pointer text-sm font-medium"}>
       SEO{variant === "card" && <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />}
     </summary>
     <p className="my-4 text-sm text-muted">Deixe os campos vazios para usar os padrões do site.</p><SeoInputs {...props} />

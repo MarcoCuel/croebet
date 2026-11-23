@@ -49,9 +49,9 @@ export function MediaBrowser({ onSelect }: { onSelect: (item: MediaItem) => void
       } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível enviar a imagem."); }
       finally { setUploading(false); }
     }} />
-    {error ? <div role="alert" className="grid justify-items-start gap-3 text-sm"><p>{error}</p><Button variant="outline" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</Button></div>
+    {error ? <div role="alert" className="grid justify-items-start gap-4 text-sm"><p>{error}</p><Button variant="outline" onClick={() => setRefresh(value => value + 1)}>Tentar novamente</Button></div>
       : loading ? <p role="status" className="py-8 text-center text-sm text-muted">Carregando imagens…</p>
-      : data?.items.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{data.items.map(item => <Button key={item.id} variant="ghost" className="h-auto min-w-0 flex-col items-stretch gap-2 border border-contrast/6 p-2 text-left" aria-label={`Selecionar ${item.name}`} onClick={() => onSelect(item)}>
+      : data?.items.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">{data.items.map(item => <Button key={item.id} variant="ghost" className="h-auto min-w-0 flex-col items-stretch gap-2 border border-contrast/6 p-2 text-left" aria-label={`Selecionar ${item.name}`} onClick={() => onSelect(item)}>
         <MediaPreview url={item.url} name={item.name} /><span className="truncate text-sm">{item.name}</span><span className="text-xs font-normal text-muted">{item.width} × {item.height}</span>
       </Button>)}</div> : <EmptyState title={q ? "Nenhuma imagem encontrada." : "Nenhuma imagem enviada."} />}
     <div className="flex justify-end gap-2">

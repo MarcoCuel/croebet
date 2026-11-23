@@ -11,7 +11,7 @@ function Banner({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "relative isolate flex min-h-52 flex-col items-start justify-between gap-6 overflow-hidden rounded-panel p-banner text-white @container sm:min-h-56 lg:min-h-banner-height",
+        "relative isolate flex min-h-52 flex-col items-start justify-between gap-4 overflow-hidden rounded-panel p-banner @container sm:min-h-56 lg:min-h-banner-height",
         className,
       )}
       {...props}
@@ -35,12 +35,12 @@ export function HomeBanners() {
     .map(value => String(value).padStart(2, "0")).join(":");
   return (
     <section
-      className="grid gap-3 sm:grid-cols-2"
+      className="grid gap-4 sm:grid-cols-2"
       aria-label="Destaques da Croebet"
     >
       <Banner className="bg-brand">
         <Heading asChild variant="banner">
-          <h1>
+          <h1 className="text-white">
             Jogue na
             <br />
             Croebet
@@ -58,7 +58,7 @@ export function HomeBanners() {
           </Button>
         )}
       </Banner>
-      <Banner className="bg-secondary text-secondary-foreground">
+      <Banner className="bg-surface">
         <Heading variant="banner">Bônus diário</Heading>
         <Button className="mt-5 bg-secondary text-white" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
           {coolingDown ? `Próximo resgate em ${countdown}` : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar 10 Croins"}

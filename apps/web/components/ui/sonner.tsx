@@ -15,7 +15,7 @@ export function Toaster(props: ToasterProps) {
         closeButtonAriaLabel: "Fechar notificação",
         classNames: {
           toast:
-            "flex w-full items-center gap-3 rounded-panel border-(length:--border-width-hairline) border-contrast/6 bg-surface p-4 font-sans text-sm text-foreground shadow-lg",
+            "flex w-full items-center gap-4 rounded-panel border-(length:--border-width-hairline) border-contrast/6 bg-surface p-4 font-sans text-sm text-foreground shadow-lg",
           content: "min-w-0 flex-1",
           icon: "shrink-0 text-brand",
           title: "font-semibold",
