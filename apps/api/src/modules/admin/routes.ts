@@ -2,10 +2,10 @@ import { tableVisualPresetSchema } from "@croebet/shared";
 import { readTableVisualSettings, saveTableVisualSettings } from "./table-visual-settings.ts";
 import { achievementWriteSchema } from "@croebet/shared";
 import { readAchievementDefinitions, readAchievementDefinition, saveAchievement, readOwnAchievements } from "../achievements/service.ts";
-import { mediaQuerySchema, mediaMaxBytes, mediaContentTypes } from "@croebet/shared";
+import { mediaQuerySchema, mediaMaxBytes, mediaContentTypes, mediaUpdateSchema } from "@croebet/shared";
 import type { ImageStorage } from "../storage/images.ts";
 import { validImageKey } from "../storage/images.ts";
-import { readMedia, uploadMedia, deleteMedia } from "../media/service.ts";
+import { readMedia, uploadMedia, deleteMedia, updateMedia } from "../media/service.ts";
 import { adminUserPasswordSchema, adminUserIdentitySchema } from "@croebet/shared";
 import { scheduleUserDeletion, changeUserPassword, changeUserIdentity } from "./service.ts";
 import { matchHistoryQuerySchema } from "@croebet/shared";
@@ -67,6 +67,7 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
       const name = z.string().max(1000).parse((request.query as {name?: string}).name ?? "Imagem");
       return uploadMedia(pool, storage, actor.id, hash, request.body, type, name);
     }));
+    app.patch("/api/v1/admin/media/:id", (request, reply) => run(request, reply, true, async (actor, hash) => updateMedia(pool, actor.id, hash, id(request), mediaUpdateSchema.parse(request.body))));
     app.delete("/api/v1/admin/media/:id", (request, reply) => run(request, reply, true, async (actor, hash) => deleteMedia(pool, actor.id, hash, id(request))));
     app.get<{Params: {key: string}}>("/api/v1/media/:key", async (request, reply) => {
       const { key } = request.params;

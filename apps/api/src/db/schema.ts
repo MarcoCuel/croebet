@@ -251,6 +251,7 @@ export const gameTestArchiveFrames = pgTable("game_test_archive_frames", {
 
 export const mediaAssets = pgTable("media_assets", {
   id: uuid("id").primaryKey(), name: text("name").notNull(),
+  title: text("title").notNull().default(""), description: text("description").notNull().default(""),
   width: integer("width").notNull(), height: integer("height").notNull(), bytes: integer("bytes").notNull(),
   state: text("state").notNull().default("uploading"),
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),

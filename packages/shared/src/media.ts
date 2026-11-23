@@ -3,6 +3,7 @@ export const mediaMaxBytes = 10 * 1024 * 1024;
 export const mediaContentTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 export const mediaItemSchema = z.object({
   id: z.uuid(), url: z.string().startsWith("/api/v1/media/"), name: z.string().max(160),
+  title: z.string().max(160).default(""), description: z.string().max(2000).default(""),
   width: z.number().int().positive(), height: z.number().int().positive(),
   bytes: z.number().int().positive(), createdAt: z.iso.datetime(),
 });
@@ -10,3 +11,5 @@ export const mediaListSchema = z.object({ items: z.array(mediaItemSchema), hasMo
 export const mediaQuerySchema = z.object({ q: z.string().trim().max(160).default(""), offset: z.coerce.number().int().min(0).max(1000000).default(0) });
 export type MediaItem = z.infer<typeof mediaItemSchema>;
 export const mediaDeleteResultSchema = z.object({ ok: z.literal(true) });
+
+export const mediaUpdateSchema = z.object({ title: z.string().trim().max(160), description: z.string().trim().max(2000) });

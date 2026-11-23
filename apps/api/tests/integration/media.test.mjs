@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { createDatabase } from '../../dist/db/client.js';
-import { uploadMedia, readMedia, deleteMedia, cleanupMedia } from '../../dist/modules/media/service.js';
+import { uploadMedia, readMedia, deleteMedia, cleanupMedia, updateMedia } from '../../dist/modules/media/service.js';
 import { createGame, saveGame } from '../../dist/modules/games/service.js';
 import { saveAchievement } from '../../dist/modules/achievements/service.js';
 import { gameCreateSchema } from '@croebet/shared';
@@ -29,6 +29,10 @@ test('PostgreSQL: upload, reutilização, exclusão protegida e limpeza com rete
   await assert.rejects(uploadMedia(pool,storage,user.id,user.hash,bytes,'image/png','a.png'),{code:'NOT_FOUND'});
   const item=await uploadMedia(pool,storage,admin.id,admin.hash,bytes,'image/png','capa.png');media.push(item.id);
   assert.equal((await readMedia(pool,'capa',0)).items.some(i=>i.id===item.id),true);
+  await assert.rejects(updateMedia(pool,user.id,user.hash,item.id,{title:'Título',description:'Descrição'}),{code:'NOT_FOUND'});
+  const updated=await updateMedia(pool,admin.id,admin.hash,item.id,{title:'Título único',description:'Descrição de teste'});
+  assert.equal(updated.title,'Título único');
+  assert.equal((await readMedia(pool,'Título único',0)).items.some(i=>i.id===item.id),true);
   const input=gameCreateSchema.parse({slug:`media-${randomUUID()}`,name:'Mídia',enabled:false,imageUrl:item.url});
   const game=await createGame(pool,admin.id,admin.hash,input);games.push(game.id);
   await assert.rejects(deleteMedia(pool,admin.id,admin.hash,item.id),{code:'MEDIA_IN_USE'});
@@ -48,5 +52,5 @@ test('PostgreSQL: upload, reutilização, exclusão protegida e limpeza com rete
   fail=false;await cleanupMedia(pool,storage,'test');assert.equal(files.size,0);
   assert.equal((await pool.query('select 1 from media_assets where id=$1',[item.id])).rows.length,0);
   const audit=await pool.query('select action from admin_audit where target_id=$1 order by created_at',[item.id]);
-  assert.deepEqual(audit.rows.map(r=>r.action),['media.created','media.deleted']);
+  assert.deepEqual(audit.rows.map(r=>r.action),['media.created','media.updated','media.deleted']);
 });

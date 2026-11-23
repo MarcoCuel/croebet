@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { z } from "zod";
 import type { Pool, PoolClient } from "pg";
-import { mediaItemSchema, mediaListSchema } from "@croebet/shared";
+import { mediaItemSchema, mediaListSchema, type mediaUpdateSchema } from "@croebet/shared";
 import { adminTransaction, audit, ManagementError } from "../admin/service.ts";
 import type { ImageStorage } from "../storage/images.ts";
 import { processMedia } from "./image.ts";
@@ -9,7 +10,7 @@ function project(row: Record<string, unknown>) {
   return mediaItemSchema.parse({ ...row, url: mediaUrl(String(row.id)), createdAt: (row.created_at as Date).toISOString() });
 }
 export async function readMedia(pool: Pool, q: string, offset: number) {
-  const result = await pool.query("select * from media_assets where state='ready' and name ilike $1 order by created_at desc,id desc limit 25 offset $2", [`%${q.replace(/[\\%_]/g, "\\$&")}%`, offset]);
+  const result = await pool.query("select * from media_assets where state='ready' and (name ilike $1 or title ilike $1 or description ilike $1) order by created_at desc,id desc limit 25 offset $2", [`%${q.replace(/[\\%_]/g, "\\$&")}%`, offset]);
   return mediaListSchema.parse({ items: result.rows.slice(0, 24).map(project), hasMore: result.rows.length > 24 });
 }
 // All writers already share adminTransaction's governance lock, including deletion.
@@ -37,6 +38,16 @@ export async function uploadMedia(pool: Pool, storage: ImageStorage, actorId: st
     if (!result.rows[0]) throw new ManagementError(409, "MEDIA_UNAVAILABLE", "Envie a imagem novamente.");
     const item = project(result.rows[0]);
     await audit(client, actorId, id, "media.created", "Envio de imagem", { after: item });
+    return item;
+  });
+}
+export async function updateMedia(pool: Pool, actorId: string, hash: string, id: string, input: z.infer<typeof mediaUpdateSchema>) {
+  return adminTransaction(pool, actorId, hash, null, async client => {
+    const before = (await client.query("select * from media_assets where id=$1 and state='ready' for update", [id])).rows[0];
+    if (!before) throw new ManagementError(404, "NOT_FOUND", "Imagem não encontrada.");
+    const result = await client.query("update media_assets set title=$2, description=$3 where id=$1 returning *", [id, input.title, input.description]);
+    const item = project(result.rows[0]);
+    await audit(client, actorId, id, "media.updated", "Edição de imagem", { before: project(before), after: item });
     return item;
   });
 }

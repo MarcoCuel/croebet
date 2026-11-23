@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { defaultSeoSettings, type MediaItem } from "@croebet/shared";
 import { expect, test } from "@playwright/test";
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Admin", displayName: "Admin", role: "admin" };
-const item: MediaItem = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", url: "/api/v1/media/93089d02-0b34-4b78-9d3e-f2679c190b5c.webp", name: "capa.png", width: 600, height: 300, bytes: 1024, createdAt: "2026-11-20T12:00:00Z" };
+const item: MediaItem = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", url: "/api/v1/media/93089d02-0b34-4b78-9d3e-f2679c190b5c.webp", name: "capa.png", title: "", description: "", width: 600, height: 300, bytes: 1024, createdAt: "2026-11-20T12:00:00Z" };
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 let items: MediaItem[] = [], inUse = false;
 let settings = structuredClone(defaultSeoSettings);
@@ -20,6 +20,7 @@ function respond(path: string, method = "GET", body: Record<string, unknown> = {
     if (method === "POST") { items = [item]; return { status: 200, data: item }; }
     return { status: 200, data: { items: items.filter(i => i.name.includes(url.searchParams.get("q") ?? "")), hasMore: false } };
   }
+  if (path.startsWith("/api/v1/admin/media/") && method === "PATCH") { items = items.map(value => ({ ...value, ...body })); return { status: 200, data: items[0] }; }
   if (path.startsWith("/api/v1/admin/media/") && method === "DELETE") {
     if (inUse) return { status: 409, data: { error: { message: "Esta imagem está em uso." } } };
     items = []; return { status: 200, data: { ok: true } };
@@ -49,24 +50,25 @@ test.beforeEach(async ({ page, context }) => {
     await route.fulfill({ status: result.status, json: result.data });
   });
 });
-test("biblioteca envia, busca, visualiza e confirma exclusão, preservando imagem em uso", async ({ page }) => {
+test("biblioteca envia, edita e exclui imagens preservando as que estão em uso", async ({ page }) => {
   await page.goto("/admin/midia");
   await expect(page.getByText("Nenhuma imagem enviada.")).toBeVisible();
-  await page.getByLabel("Enviar imagem", { exact: true }).setInputFiles({ name: "capa.png", mimeType: "image/png", buffer: png });
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading", { name: "capa.png" })).toBeVisible();
-  await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page.getByLabel("Enviar imagens", { exact: true }).setInputFiles({ name: "capa.png", mimeType: "image/png", buffer: png });
+  await expect(page.getByLabel("Título")).toBeVisible();
+  await page.getByLabel("Título").fill("Capa do jogo");
+  await page.getByLabel("Descrição").fill("Uma capa");
+  await page.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByText("Imagem atualizada.")).toBeVisible();
   await page.getByPlaceholder("Buscar imagens").fill("ausente");
   await expect(page.getByText("Nenhuma imagem encontrada.")).toBeVisible();
   await page.getByPlaceholder("Buscar imagens").fill("");
-  await page.getByRole("button", { name: "Selecionar capa.png" }).click();
   inUse = true;
-  await dialog.getByRole("button", { name: "Excluir imagem", exact: true }).click();
-  await dialog.getByRole("button", { name: "Confirmar exclusão" }).click();
-  await expect(page.getByText("Esta imagem está em uso.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Excluir imagem", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(page.getByText(/Esta imagem está em uso/)).toBeVisible();
   inUse = false;
-  await dialog.getByRole("button", { name: "Confirmar exclusão" }).click();
-  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "Excluir imagem", exact: true }).click();
+  await page.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(page.getByText("Nenhuma imagem enviada.")).toBeVisible();
 });
 test("capa de jogo reutiliza imagem e permite remover a seleção", async ({ page }) => {
@@ -83,10 +85,12 @@ test("capa de jogo reutiliza imagem e permite remover a seleção", async ({ pag
   expect(bounds!.x).toBeGreaterThanOrEqual(16);
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   await page.getByRole("button", { name: "Selecionar capa.png" }).click();
+  await page.getByRole("button", { name: "Usar imagem" }).click();
   await expect(page.getByRole("button", { name: "Alterar imagem", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Remover imagem", exact: true }).click();
   await page.getByRole("button", { name: "Selecionar imagem", exact: true }).first().click();
   await page.getByRole("button", { name: "Selecionar capa.png" }).click();
+  await page.getByRole("button", { name: "Usar imagem" }).click();
   await page.getByLabel("Nome do jogo", { exact: true }).fill("Teste");
   await page.getByLabel("Endereço do jogo", { exact: true }).fill("teste");
   await page.getByRole("button", { name: "Criar jogo", exact: true }).click();
@@ -97,6 +101,7 @@ test("configurações selecionam imagem existente no modal de edição", async (
   await page.getByRole("button", { name: "Editar imagem de compartilhamento", exact: true }).first().click();
   await page.getByRole("button", { name: "Selecionar imagem", exact: true }).click();
   await page.getByRole("button", { name: "Selecionar capa.png" }).click();
+  await page.getByRole("button", { name: "Usar imagem" }).click();
   await page.getByRole("button", { name: "Salvar alterações", exact: true }).click();
   await expect(page.getByText("Configurações salvas.", { exact: true })).toBeVisible(); expect(settings.image).toBe(item.url);
 });
