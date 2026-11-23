@@ -17,6 +17,9 @@
   --color-muted: #aaa;
   --color-field-border: #595959;
   --color-selected: rgba(255, 44, 103, 0.12);
+  --color-ranking-gold: #ffbf00;
+  --color-ranking-silver: #9fa9b2;
+  --color-ranking-bronze: #d58153;
   --color-prediction-yes: #4dc48b;
   --color-prediction-no: #f15b66;
 
@@ -117,6 +120,7 @@
   --text-section: clamp(1.25rem, 2vw, 1.75rem);
   --text-banner: clamp(1.625rem, 9.7cqi, 3.25rem);
   --text-cover: clamp(1.25rem, 10cqi, 3rem);
+  --text-ranking-title: 2rem;
   --text-wordmark: 1.5rem;
   --text-auth-title: 1.75rem;
   --tracking-display: -0.04em;
