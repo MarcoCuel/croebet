@@ -68,12 +68,12 @@ export function ActiveMatchesMenu() {
   const items = confirmed?.userId === userId ? confirmed.items : [];
   useLobbyExpiration(items);
   if (!items.length) return null;
-  const icon = <><Play className="size-4" aria-hidden="true" />{items.some(item => item.yourTurn) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-white" />}</>;
-  if (items.length === 1) return <Button asChild variant="default" size="icon" className="relative bg-tertiary text-white">
+  const icon = <><Play className="size-4" aria-hidden="true" />{items.some(item => item.yourTurn) && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand" />}</>;
+  if (items.length === 1) return <Button asChild variant="secondary" size="icon" className="relative">
     <Link href={destination(items[0])} prefetch={false} aria-label={`Voltar à partida de ${items[0].gameName}`}>{icon}</Link>
   </Button>;
   return <DropdownMenu>
-    <DropdownMenuTrigger asChild><Button variant="default" size="icon" className="relative bg-tertiary text-white" aria-label={`Minhas partidas (${items.length})`}>{icon}</Button></DropdownMenuTrigger>
+    <DropdownMenuTrigger asChild><Button variant="secondary" size="icon" className="relative" aria-label={`Minhas partidas (${items.length})`}>{icon}</Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-80 space-y-1 p-2 max-h-[min(32rem,70dvh)] overflow-y-auto">
       <DropdownMenuLabel>Minhas partidas</DropdownMenuLabel>
       {items.map(item => <DropdownMenuItem asChild key={item.code} className="bg-contrast/4 p-3">

@@ -12,7 +12,7 @@ export function useGameHistory() {
   return history;
 }
 
-/** Shared viewport, table columns and independently scrolling history for every game. */
+/** Shared viewport: stacked on narrow containers, independent columns on desktop. */
 export function GameTableLayout({ children, history }: { children: ReactNode; history: GameHistoryEntry[] }) {
   const root = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
@@ -39,13 +39,13 @@ export function GameTableLayout({ children, history }: { children: ReactNode; hi
   const [visible, setVisible] = useState(true);
   return <HistoryContext.Provider value={{ id, visible, toggle: () => setVisible(value => !value) }}>
     <div ref={root} className="@container h-[var(--table-height,calc(100dvh-var(--header-height)-1rem))] min-h-0" style={height === null ? undefined : { "--table-height": `${height}px` } as CSSProperties} data-game-table-layout>
-      <div className={cn("grid h-full min-h-0 grid-rows-[minmax(0,1fr)] items-stretch [--history-width:clamp(8rem,25cqi,14rem)] transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", visible ? "grid-cols-[minmax(0,1fr)_var(--history-width)] gap-4 sm:gap-6" : "grid-cols-[minmax(0,1fr)_0rem] gap-0")}>
+      <div className={cn("grid h-full min-h-0 grid-cols-1 auto-rows-min items-stretch overflow-y-auto overscroll-contain @3xl:grid-rows-[minmax(0,1fr)] @3xl:overflow-hidden [--history-width:clamp(8rem,25cqi,14rem)] transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", visible ? "gap-4 @3xl:grid-cols-[minmax(0,1fr)_var(--history-width)] @3xl:gap-6" : "gap-0 @3xl:grid-cols-[minmax(0,1fr)_0rem]")} data-lenis-prevent>
         {/* Keep the outer 2px seat highlight inside the horizontal scroll clip. */}
-        <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-0.5" data-lenis-prevent data-game-table-content>
+        <div className="min-h-0 min-w-0 px-0.5 @3xl:overflow-x-hidden @3xl:overflow-y-auto @3xl:overscroll-contain" data-lenis-prevent data-game-table-content>
           {children}
         </div>
-        <aside id={id} inert={!visible} aria-hidden={!visible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[opacity,visibility] duration-300 ease-in-out motion-reduce:transition-none", !visible && "invisible opacity-0")} aria-label="Histórico da partida">
-          <div className="h-full min-h-0 overflow-y-auto overscroll-contain rounded-panel bg-surface p-4 text-xs leading-relaxed text-muted" data-lenis-prevent>
+        <aside id={id} inert={!visible} aria-hidden={!visible} className={cn("min-h-0 min-w-0 overflow-hidden transition-[opacity,visibility] duration-300 ease-in-out motion-reduce:transition-none", !visible && "hidden @3xl:invisible @3xl:block @3xl:opacity-0")} aria-label="Histórico da partida">
+          <div className="max-h-80 min-h-0 overflow-y-auto @3xl:h-full @3xl:max-h-none overscroll-contain rounded-panel bg-surface p-4 text-xs leading-relaxed text-muted" data-lenis-prevent>
             <GameHistory entries={history} />
           </div>
         </aside>

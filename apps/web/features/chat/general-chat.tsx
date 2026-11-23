@@ -20,7 +20,7 @@ export function GeneralChat() {
   const state = useGeneralChat();
   if (!state) return null;
   const { chat, open, changeOpen } = state;
-  return <Button variant="secondary" size="icon" className="relative" aria-controls="general-chat-sidebar" aria-expanded={open} aria-label={chat.unread ? `Chat geral, ${chat.unread} mensagens não lidas` : "Chat geral"} onClick={event => {
+  return <Button variant="ghost" size="icon" className="relative" aria-controls="general-chat-sidebar" aria-expanded={open} aria-label={chat.unread ? `Chat geral, ${chat.unread} mensagens não lidas` : "Chat geral"} onClick={event => {
     changeOpen(!open, false, event.currentTarget);
   }}>
     <MessageCircle className="size-4" aria-hidden="true" />

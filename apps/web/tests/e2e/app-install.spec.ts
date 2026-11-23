@@ -40,52 +40,44 @@ test("manifest e ícones permitem abrir como app", async ({ page, request }) => 
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/apple-touch-icon.png");
 });
 
-test("instalação exige clique e some após aceitar", async ({ page, isMobile }) => {
+test("banner personalizado aparece sem convite automático e abre instruções", async ({ page, isMobile }) => {
   await page.goto("/");
-  expect(await offerInstall(page)).toBe(true);
   if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
   const banner = page.getByRole("complementary", { name: "App do Croebet" });
+  await expect(banner).toContainText("Jogue pelo app");
+  await banner.getByRole("button", { name: "Baixar app", exact: true }).click();
+  const help = page.getByRole("dialog", { name: "Baixar app", exact: true });
+  await expect(help).toContainText(isMobile ? "Adicionar à Tela de Início" : "barra de endereço");
+  await help.getByRole("button", { name: "Fechar", exact: true }).click();
   await expect(banner).toBeVisible();
-  if (isMobile) {
-    await expect(page.getByRole("dialog", { name: "Menu da Croebet" }).getByRole("complementary", { name: "App do Croebet" })).toBeVisible();
-  } else {
-    const sidebar = page.getByRole("complementary", { name: "Menu lateral" });
-    await expect(sidebar.getByRole("complementary", { name: "App do Croebet" })).toBeVisible();
-    const bannerBox = await banner.boundingBox();
-    const signupBox = await sidebar.getByRole("button", { name: "Criar conta" }).boundingBox();
-    expect(bannerBox!.y + bannerBox!.height).toBeLessThan(signupBox!.y);
-    await page.getByRole("button", { name: "Ocultar menu lateral", exact: true }).click();
-    await expect(banner).not.toBeVisible();
-    await page.getByRole("button", { name: "Mostrar menu lateral", exact: true }).click();
-    await expect(banner).toBeVisible();
-  }
-  await expect(page.locator("html")).not.toHaveAttribute("data-install-called");
-  await banner.getByRole("button", { name: "Instalar app" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-install-called", "true");
-  await expect(banner).not.toBeVisible();
 });
 
-test("dispensar o aviso evita repetição ao recarregar", async ({ page, isMobile }) => {
-  await page.goto("/");
-  await offerInstall(page);
-  if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
-  await page.getByRole("button", { name: "Fechar aviso do app" }).click();
-  await page.reload();
-  await offerInstall(page);
-  if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: "App do Croebet" })).not.toBeVisible();
-});
-
-test("Safari iOS recebe instruções para a tela inicial", async ({ page, isMobile }) => {
-  test.skip(!isMobile, "Safari iOS");
+test("preferência antiga de dispensa não oculta o banner", async ({ page, isMobile }) => {
+  await page.addInitScript(() => localStorage.setItem("croebet:app-install-dismissed", String(Date.now())));
   await page.goto("/");
   if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
-  const banner = page.getByRole("complementary", { name: "App do Croebet" });
-  await expect(banner).toContainText("Adicionar à Tela de Início");
-  await expect(banner.getByRole("button", { name: "Instalar app" })).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: "App do Croebet" })).toBeVisible();
 });
 
-test("o app instalado não exibe o aviso", async ({ page }) => {
+for (const outcome of ["accepted", "dismissed"] as const) {
+  test(`convite nativo: ${outcome}`, async ({ page, isMobile }) => {
+    await page.goto("/");
+    expect(await offerInstall(page, outcome)).toBe(true);
+    if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+    const banner = page.getByRole("complementary", { name: "App do Croebet" });
+    await expect(page.locator("html")).not.toHaveAttribute("data-install-called");
+    await banner.getByRole("button", { name: "Baixar app", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-install-called", "true");
+    if (outcome === "accepted") await expect(banner).not.toBeVisible();
+    else {
+      await expect(banner).toBeVisible();
+      await banner.getByRole("button", { name: "Baixar app", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Baixar app", exact: true })).toBeVisible();
+    }
+  });
+}
+
+test("o app em standalone não exibe o banner", async ({ page }) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, "standalone", { value: true }); });
   await page.goto("/");
   await offerInstall(page);
@@ -107,4 +99,32 @@ test("banner fica acima dos Croins no sidebar da conta", async ({ page, context,
   const bannerBox = await banner.boundingBox();
   const walletBox = await wallet.boundingBox();
   expect(bannerBox!.y + bannerBox!.height).toBeLessThan(walletBox!.y);
+});
+
+test("Safari do Mac orienta a adicionar ao Dock", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Safari de desktop");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15" });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Baixar app", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Baixar app", exact: true })).toContainText("Adicionar ao Dock");
+});
+
+test("navegador sem suporte ao convite mantém banner e orienta alternativa", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Navegador de desktop");
+  await page.addInitScript(() => Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 Firefox/145.0" }));
+  await page.goto("/");
+  await page.getByRole("button", { name: "Baixar app", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Baixar app", exact: true })).toContainText("Chrome, Edge ou Safari");
+});
+
+test("instalação pelo navegador esconde o banner", async ({ page, isMobile }) => {
+  await page.goto("/");
+  await offerInstall(page);
+  if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+  const banner = page.getByRole("complementary", { name: "App do Croebet" });
+  await expect(banner).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("appinstalled")));
+  await expect(banner).not.toBeVisible();
 });

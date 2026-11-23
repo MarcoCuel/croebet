@@ -1292,7 +1292,7 @@ test("mesa 3D aguarda a revelação e entrega antes de liberar outra ação", as
 });
 
 for (const view of ["classic", "3d"] as const) {
-  test(`histórico lateral acompanha topo e altura da mesa ${view}`, async ({ page }) => {
+  test(`histórico acompanha a mesa e empilha em telas estreitas ${view}`, async ({ page }) => {
     const code = "ABCDEF343434";
     const options = { mode: "classic" as const, brutal: false };
     const state = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, options);
@@ -1307,13 +1307,20 @@ for (const view of ["classic", "3d"] as const) {
     const history = page.getByRole("complementary", { name: "Histórico da partida", exact: true });
     const verify = async () => {
       await expect(history).toBeVisible();
+      const stacked = (await layout.boundingBox())!.width < 768;
       await expect.poll(async () => {
         const left = (await table.boundingBox())!, right = (await history.boundingBox())!;
-        return Math.max(Math.abs(left.y - right.y), Math.abs(left.height - right.height));
+        return stacked
+          ? Math.max(Math.abs(left.x - right.x), Math.abs(left.width - right.width))
+          : Math.max(Math.abs(left.y - right.y), Math.abs(left.height - right.height));
       }).toBeLessThanOrEqual(1);
       const left = (await table.boundingBox())!, right = (await history.boundingBox())!;
-      expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
-      expect(right.y + right.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+      if (stacked) {
+        expect(right.y).toBeGreaterThanOrEqual(left.y + left.height);
+      } else {
+        expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
+        expect(right.y + right.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+      }
       expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
       await history.locator("[data-lenis-prevent]").evaluate(element => { element.scrollTop = 150; });
       expect(await history.locator("[data-lenis-prevent]").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
@@ -1328,8 +1335,10 @@ for (const view of ["classic", "3d"] as const) {
       }
     };
     await verify();
-    await page.setViewportSize({ width: 900, height: 560 });
-    await verify();
+    for (const width of [320, 600, 900]) {
+      await page.setViewportSize({ width, height: 560 });
+      await verify();
+    }
     await page.getByRole("button", { name: "Esconder histórico", exact: true }).click();
     await expect(history).toBeHidden();
     await page.getByRole("button", { name: "Mostrar histórico", exact: true }).click();

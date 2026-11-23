@@ -19,7 +19,7 @@ export function NotificationsMenu({ invitations }: { invitations: LobbyInvitatio
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" size="icon" className="relative" aria-label={invitationCount?`Notificações (${invitationCount} ${invitationCount===1?"convite":"convites"})`:"Notificações"}>
+        <Button variant="ghost" size="icon" className="relative" aria-label={invitationCount?`Notificações (${invitationCount} ${invitationCount===1?"convite":"convites"})`:"Notificações"}>
           <Bell className="size-4" aria-hidden="true" />
           {invitationCount>0 && <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-brand"/>}
         </Button>
