@@ -1,11 +1,13 @@
 "use client";
 
+import { ActivityHistoryPanel } from "@/components/shared/activity-history";
 import type { PublicProfile } from "@croebet/shared";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AccountAvatarImage } from "@/features/auth/account-avatar-image";
 import { useSession } from "@/features/auth/session-context";
 import { AvatarSettings } from "@/features/settings/avatar-settings";
 import { ActivityHeatmap } from "@/features/profile/activity-heatmap";
+import { Card } from "@/components/ui/card";
 
 export function ProfileView({ profile }: { profile: PublicProfile }) {
   const { username: currentUsername } = useSession();
@@ -24,6 +26,15 @@ export function ProfileView({ profile }: { profile: PublicProfile }) {
       <h1 className="mt-5 max-w-full text-2xl font-semibold wrap-anywhere">{profile.displayName}</h1>
       <p className="mt-2 max-w-full text-sm text-muted wrap-anywhere">@{profile.username}</p>
       <ActivityHeatmap key={profile.username} activity={profile.activity} />
+      <Card className="mt-10 w-full max-w-xl text-left">
+        <ActivityHistoryPanel
+          key={profile.username}
+          endpoint={`/api/v1/profiles/${encodeURIComponent(profile.username)}/matches`}
+          title="Partidas jogadas"
+          emptyMessage="Nenhuma partida registrada ainda."
+          linkMatches={false}
+        />
+      </Card>
     </section>
   );
 }

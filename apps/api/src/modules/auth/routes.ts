@@ -219,6 +219,16 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
       throw error;
     }
   });
+  app.get<{ Params: { username: string } }>("/api/v1/profiles/:username/matches", async (request, reply) => {
+    const parsed = usernameSchema.safeParse(request.params.username);
+    if (!parsed.success) return reply.code(404).send({ error: { code: "PROFILE_NOT_FOUND", message: "Perfil não encontrado." } });
+    const result = await pool.query("select id from users where lower(username) = $1 and status = 'active'", [parsed.data.toLowerCase()]);
+    const user = result.rows[0];
+    if (!user) return reply.code(404).send({ error: { code: "PROFILE_NOT_FOUND", message: "Perfil não encontrado." } });
+    const query = accountHistoryQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Paginação inválida." } });
+    return readAccountHistory(pool, user.id, query.data.limit, query.data.offset, true);
+  });
   app.get<{ Params: { username: string } }>("/api/v1/profiles/:username", async (request, reply) => {
     const parsed = usernameSchema.safeParse(request.params.username);
     if (parsed.success) {

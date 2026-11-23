@@ -24,6 +24,10 @@ test.beforeAll(async () => {
       response.end(JSON.stringify({ user: sessionActive ? { ...user, avatarUrl: storedAvatar } : null }));
       return;
     }
+    if (request.url?.includes("/matches?")) {
+      response.end(JSON.stringify({ items: [], hasMore: false }));
+      return;
+    }
     const name = decodeURIComponent(request.url?.split("/").at(-1) ?? "");
     response.statusCode = profileStatus;
     response.end(JSON.stringify(profileStatus === 200
@@ -212,4 +216,33 @@ test("dia com apenas bônus omite as atividades que não ocorreram", async ({ pa
   await expect(calendar.getByRole("button", { name: /0 partidas|0 vitórias|0 bônus|0 cupons/ })).toHaveCount(0);
   await calendar.getByRole("button", { name: "19 de novembro de 2026: 1 bônus diário.", exact: true }).click();
   await expect(page.getByRole("tooltip")).toHaveText("19 de novembro de 2026: 1 bônus diário.");
+});
+
+
+test("perfil lista somente partidas, pagina e permite retentar falhas", async ({ page }) => {
+  let fail = true;
+  await page.route("**/api/v1/profiles/Tonho/matches?*", route => {
+    if (fail) return route.fulfill({ status: 503, json: {} });
+    const offset = Number(new URL(route.request().url()).searchParams.get("offset"));
+    return route.fulfill({ json: {
+      items: Array.from({ length: offset ? 1 : 20 }, (_, index) => ({
+        id: `game:${offset + index}`, kind: "game", description: `${offset ? "Love Letter" : "Flip 7"} · Partida concluída`,
+        createdAt: "2026-11-23T01:00:00.000Z", amount: null,
+      })), hasMore: offset === 0,
+    } });
+  });
+  await page.goto("/perfil/Tonho");
+  await expect(page.getByRole("heading", { name: "Partidas jogadas" })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar o histórico.");
+  fail = false;
+  await page.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(page.getByText("Flip 7 · Partida concluída", { exact: true })).toHaveCount(20);
+  await page.getByRole("button", { name: "Carregar mais" }).click();
+  await expect(page.getByText("Love Letter · Partida concluída", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Carregar mais" })).toHaveCount(0);
+  await expect(page.locator('main a[href*="partida="]')).toHaveCount(0);
+  await expect(page.getByText(/Croins/)).toHaveCount(0);
+  await page.goto("/perfil/outro");
+  await expect(page.getByText("Nenhuma partida registrada ainda.")).toBeVisible();
+  await expect(page.getByText("Flip 7 · Partida concluída", { exact: true })).toHaveCount(0);
 });
