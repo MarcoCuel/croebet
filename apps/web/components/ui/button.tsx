@@ -10,12 +10,12 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "border-0 bg-brand bg-(image:--background-image-primary-button) text-white inset-shadow-primary-button focus-visible:border-(length:--border-width-hairline)",
-        secondary: "bg-contrast/6 text-foreground hover:bg-contrast/10",
+          "border-0 bg-brand bg-(image:--background-image-primary-button) text-white inset-shadow-primary-button focus-visible:border-(length:--border-width-hairline) ",
+        secondary: "bg-contrast/6 text-foreground hover:bg-contrast/10 backdrop-blur-2xl",
         outline:
           "border-field-border bg-transparent text-foreground hover:bg-contrast/10",
         ghost:
-          "bg-transparent text-muted hover:bg-contrast/10 hover:text-foreground",
+          "bg-transparent text-muted hover:bg-contrast/10 hover:text-foreground backdrop-blur-2xl",
         destructive: "bg-destructive text-white hover:bg-destructive-hover",
         link: "h-auto rounded-sm bg-transparent p-0 text-brand underline-offset-4 hover:underline",
       },

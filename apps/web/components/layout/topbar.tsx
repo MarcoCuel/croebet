@@ -115,7 +115,7 @@ export function Topbar({
     openRegister,
   } = useSession();
   return (
-    <header className={cn("fixed top-0 right-(--chat-width) left-(--sidebar-width) z-20 flex h-(--header-height) items-center justify-between gap-2 bg-background px-(--page-gap) transition-[left,right,padding-left] duration-300 ease-in-out motion-reduce:transition-none md:group-data-[sidebar=collapsed]/navigation:pl-16 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]", compactMatch && "md:flex")}>
+    <header className={cn("fixed top-0 right-(--chat-width) left-(--sidebar-width) z-20 flex h-(--header-height) items-center justify-between gap-2 bg-linear-to-b from-background to-transparent px-(--page-gap) transition-[left,right,padding-left] duration-300 ease-in-out motion-reduce:transition-none md:group-data-[sidebar=collapsed]/navigation:pl-16 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]", compactMatch && "md:flex")}>
       <div className="flex min-w-0 items-center gap-2">
         <Button
           variant="secondary"
@@ -157,7 +157,7 @@ export function Topbar({
         <div role="status" aria-label="Carregando conta" className="col-start-3 h-11 w-36 justify-self-end rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
       ) : username ? (
         <>
-          <div className={cn("hidden items-center gap-2 rounded-panel bg-contrast/6 p-1.5 md:flex", compactMatch && "md:hidden 2xl:flex")}>
+          <div className={cn("hidden items-center gap-2 rounded-panel bg-contrast/6 p-1.5 md:flex backdrop-blur-2xl", compactMatch && "md:hidden 2xl:flex")}>
             <Button
               asChild
               variant="ghost"
