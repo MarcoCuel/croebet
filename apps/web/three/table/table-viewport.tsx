@@ -58,7 +58,8 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
       if (!root.current || !sceneRoot.current) return;
       const rect = root.current.getBoundingClientRect();
       setViewport({ width: sceneRoot.current.clientWidth, height: sceneRoot.current.clientHeight });
-      setTop(rect.top + globalThis.scrollY);
+      // Keep the height stable when the match's internal content is scrolled.
+      setTop(rect.top + globalThis.scrollY + (root.current.closest<HTMLElement>("[data-match-content]")?.scrollTop ?? 0) + (root.current.closest<HTMLElement>("[data-game-table-content]")?.scrollTop ?? 0));
     };
     const observer = new ResizeObserver(measure);
     if (root.current) {
@@ -78,7 +79,7 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
   const count = hands[viewer].length;
   const window = adaptiveHandWindow(count, layout.hands[0], focus);
   const local = presentation.seats[viewer];
-  return <div ref={root} data-table-viewport data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative @container flex flex-col h-[calc(100dvh-var(--header-height)-5rem)] min-h-[30rem] w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
+  return <div ref={root} data-table-viewport data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative @container flex flex-col h-[calc(100dvh-var(--header-height)-5rem)] min-h-0 w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
     <div className="relative z-20 flex shrink-0 flex-col items-center gap-3 py-2 px-6 text-center" data-table-toolbar>
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 @[72rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" data-table-header>
         {header && <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-3 text-left">{header.identity}</div>}

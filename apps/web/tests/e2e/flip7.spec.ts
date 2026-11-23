@@ -1263,3 +1263,41 @@ test("mesa 3D aguarda a revelação e entrega antes de liberar outra ação", as
   await expect(toggle).toBeDisabled();
   await expect(toggle).toBeEnabled();
 });
+
+for (const view of ["classic", "3d"] as const) {
+  test(`histórico lateral acompanha topo e altura da mesa ${view}`, async ({ page }) => {
+    const code = "ABCDEF343434";
+    const options = { mode: "classic" as const, brutal: false };
+    const state = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, options);
+    state.log = Array.from({ length: 60 }, (_, index) => ({ message: `Jogada ${index + 1} de Marco.`, player: 0 }));
+    const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state: flip7Driver.project(state), hostId: matchUsers[0].id, capacity: 2, options, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+    fixture.states.set(code, { room, privateState: state, frames: [] });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(`/jogos/flip7?partida=${code}`);
+    if (view === "3d") await page.getByRole("button", { name: "3D", exact: true }).click();
+    const layout = page.locator("[data-game-table-layout]");
+    const table = layout.locator("[data-game-table-content]");
+    const history = page.getByRole("complementary", { name: "Histórico da partida", exact: true });
+    const verify = async () => {
+      await expect(history).toBeVisible();
+      await expect.poll(async () => {
+        const left = (await table.boundingBox())!, right = (await history.boundingBox())!;
+        return Math.max(Math.abs(left.y - right.y), Math.abs(left.height - right.height));
+      }).toBeLessThanOrEqual(1);
+      const left = (await table.boundingBox())!, right = (await history.boundingBox())!;
+      expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
+      expect(right.y + right.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+      expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
+      await history.locator("[data-lenis-prevent]").evaluate(element => { element.scrollTop = 150; });
+      expect(await history.locator("[data-lenis-prevent]").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+      expect(await table.evaluate(element => element.scrollTop)).toBe(0);
+    };
+    await verify();
+    await page.setViewportSize({ width: 900, height: 560 });
+    await verify();
+    await page.getByRole("button", { name: "Esconder histórico", exact: true }).click();
+    await expect(history).toBeHidden();
+    await page.getByRole("button", { name: "Mostrar histórico", exact: true }).click();
+    await verify();
+  });
+}

@@ -21,7 +21,7 @@ function Table({game,room,controls,exit,viewerId,busy,play,onAnimating,replayCon
    card:played ? <LoveCard value={Number(played[1])} mode={state.mode} small compact /> : undefined,
   };
  });
- return <GameTableLayout fitTable history={history}>
+ return <GameTableLayout history={history}>
  <div className="min-w-0">
  <CancellationNotice match={room}/>
  <LoveTable replayControls={replayControls} header={{ identity: <><span className="text-sm font-medium">{game.name}</span>{gameSettingLabels(getGameDefinition(game.moduleId ?? game.slug)!,room.options).map(label=><Badge key={label} variant="secondary">{label}</Badge>)}{room.development && <Badge>Desenvolvimento</Badge>}</>, controls: <GameControls developmentControls={controls}>{exit}</GameControls> }} state={room.status==="playing"?state:{...state,legalActions:[]}} busy={busy} onAnimating={onAnimating} play={action=>play(loveActionSchema.parse(action))} participants={room.participants} viewerSeat={room.participants.find(p=>p.userId===viewerId)?.seat}/>

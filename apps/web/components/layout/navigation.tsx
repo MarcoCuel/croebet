@@ -25,7 +25,8 @@ import { PageBackProvider } from "./page-back";
 import { Topbar } from "./topbar";
 import { MenuLinks } from "./navigation-links";
 import { AppInstall } from "./app-install";
-import { FooterLinks } from "./footer";
+import { Footer, FooterLinks } from "./footer";
+import { cn } from "@/lib/utils";
 import { brandLinkClass, Wordmark } from "./brand";
 
 export function Navigation({ children }: { children: ReactNode }) {
@@ -163,11 +164,14 @@ function NavigationLayout({ children }: { children: ReactNode }) {
         </Dialog>
         <ChatSidebar />
         <div
-          className="flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pr-(--chat-width) pt-(--header-height) transition-[padding-left,padding-right] duration-300 ease-in-out motion-reduce:transition-none"
+          className={cn("flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pr-(--chat-width) pt-(--header-height) transition-[padding-left,padding-right] duration-300 ease-in-out motion-reduce:transition-none", sidebarScope && "h-dvh overflow-hidden")}
           id="page-content"
           tabIndex={-1}
         >
-          {children}
+          <div className={sidebarScope ? "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain" : "contents"} data-lenis-prevent={sidebarScope ? "" : undefined} data-match-content={sidebarScope ? "" : undefined}>
+            {children}
+          </div>
+          {!sidebarScope && <Footer />}
         </div>
       </div>
     </PageBackProvider>

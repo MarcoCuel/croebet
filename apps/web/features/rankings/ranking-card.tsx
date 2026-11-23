@@ -28,15 +28,15 @@ export function RankingCard({ data, category, page, previous, next, retry, perio
     </div>
     {!data ? <EmptyState title="O placar ficou indisponível." description="Tente novamente para consultar a classificação." action={<Button asChild variant="secondary"><Link href={retry}>Tentar novamente</Link></Button>} /> : <>
       {!data.items.length ? <EmptyState title={page > 1 ? "Você chegou ao fim do ranking." : empty[category][0]} description={page > 1 ? "Os outros colocados ficaram nas páginas anteriores." : empty[category][1]} icon={category === "losers" ? <TrendingDown className="size-6" /> : <Trophy className="size-6" />} /> : <>
-        {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="mx-auto mt-8 grid max-w-sm grid-cols-3 items-end gap-2 pb-8 pt-4">
-          {data.items.slice(0,3).map((item, index) => <li key={item.userId} value={item.position} className={cn("flex min-w-0 flex-col items-center text-center",index === 0 ? "order-2 pb-5 col-start-2" : index === 1 ? "order-1 col-start-1 row-start-1" : "order-3 col-start-3 row-start-1")}>
-            <Link href={`/perfil/${encodeURIComponent(item.username)}`} className="flex w-full min-w-0 flex-col items-center hover:text-brand">
-              <div className="relative"><Avatar className={cn("border-2 border-brand p-1",index===0 ? "size-20" : "size-16")} aria-hidden="true"><AccountAvatarImage name={item.username} src={item.avatarUrl} /><AvatarFallback className="rounded-full text-lg">{item.displayName.slice(0,2).toUpperCase()}</AvatarFallback></Avatar>
-                <span className="absolute -top-3 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-brand text-xs font-semibold text-white"><span className="sr-only">Posição </span>{item.position}</span></div>
-              <span className="mt-3 w-full truncate text-sm font-semibold" title={item.displayName}>{item.displayName}</span>
+        {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="mx-auto mt-6 grid max-w-sm grid-cols-3 items-end gap-1 pb-6">
+          {data.items.slice(0,3).map((item, index) => <li key={item.userId} value={item.position} className={cn("min-w-0 text-center", index === 0 ? "order-2 col-start-2" : index === 1 ? "order-1 col-start-1 row-start-1" : "order-3 col-start-3 row-start-1")}>
+            <Link href={`/perfil/${encodeURIComponent(item.username)}`} aria-label={`Posição ${item.position} ${item.displayName}`} className="group flex w-full min-w-0 flex-col items-center hover:text-brand">
+              <Avatar className="size-12" aria-hidden="true"><AccountAvatarImage name={item.username} src={item.avatarUrl} /><AvatarFallback className="text-base">{item.displayName.slice(0,2).toUpperCase()}</AvatarFallback></Avatar>
+              <span className="mt-2 w-full truncate text-xs font-semibold" title={item.displayName}>{item.displayName}</span>
+              <span className="mt-1 w-full text-xs text-muted tabular-nums [&_span]:ml-0 [&_span]:block"><Amount item={item} category={category} /></span>
+              {item.userId===data.own?.userId && <span className="mt-1 text-xs text-brand">Você</span>}
+              <span aria-hidden="true" className={cn("mt-3 flex w-full justify-center rounded-t-panel bg-linear-to-b from-brand/15 to-brand/5 pt-4 text-4xl font-medium leading-none text-foreground/80 transition-colors group-hover:from-brand/25", index === 0 ? "h-32 from-brand/25 text-5xl" : index === 1 ? "h-24" : "h-20")}>{item.position}</span>
             </Link>
-            <span className="mt-1 text-xs text-muted tabular-nums"><Amount item={item} category={category} /></span>
-            {item.userId===data.own?.userId && <span className="mt-1 text-xs text-brand">Você</span>}
           </li>)}
         </ol>}
         {data.items.length > (page === 1 ? 3 : 0) && <ol role="list" aria-label={`Classificação de ${title}`} start={page === 1 ? 4 : (page-1)*10+1} className="divide-y divide-contrast/6 border-t border-contrast/6">

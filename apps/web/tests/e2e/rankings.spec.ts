@@ -37,6 +37,16 @@ test('cards preservam pódio, filtros independentes e empty state',async({page})
   const rich=page.getByRole('region',{name:'Mais ricos',exact:true});
   const losers=page.getByRole('region',{name:'Maiores perdedores',exact:true});
   await expect(wins.getByRole('list',{name:'Pódio de Vitórias'}).getByRole('listitem')).toHaveCount(3);
+  const podium = wins.getByRole('list',{name:'Pódio de Vitórias'});
+  const columns = await Promise.all([1,2,3].map(position => podium.getByRole('link',{name:`Posição ${position} Jogador ${position-1}`,exact:true}).boundingBox()));
+  const [first,second,third] = columns;
+  expect(first && second && third).toBeTruthy();
+  expect(second!.x).toBeLessThan(first!.x);
+  expect(first!.x).toBeLessThan(third!.x);
+  expect(first!.y).toBeLessThan(second!.y);
+  expect(second!.y).toBeLessThan(third!.y);
+  expect(Math.abs(first!.y + first!.height - second!.y - second!.height)).toBeLessThan(1);
+  expect(Math.abs(first!.y + first!.height - third!.y - third!.height)).toBeLessThan(1);
   await expect(rich.getByRole('navigation')).toHaveCount(0);
   await expect(losers.getByText('Ninguém perdeu ainda. Suspeito.')).toBeVisible();
   await wins.getByRole('link',{name:'Geral',exact:true}).click();

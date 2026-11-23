@@ -600,7 +600,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       {tableView.view === "classic" && actionBar}
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
-      <GameTableLayout fitTable={tableView.view === "3d"} history={visibleGame.log.map(entry => ({
+      <GameTableLayout history={visibleGame.log.map(entry => ({
         message: entry.message,
         player: entry.player === undefined ? undefined : {
           name: visibleGame.players[entry.player].name,
@@ -608,7 +608,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
         },
         card: entry.card ? <PlayingCard card={entry.card} compact /> : undefined,
       }))}>
-        <div className={cn("min-w-0", tableView.view === "3d" ? "pb-4" : replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24")}>
+        <div className={cn("min-w-0", tableView.view !== "3d" && (replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24"))}>
           {tableView.view === "classic" && <div className="mb-4 flex flex-wrap items-center gap-3">{tableHeader.identity}{tableHeader.controls}</div>}
           {!replay && matchInfo && <CancellationNotice match={matchInfo}/>}
           {tableView.view === "3d" ? <FlipScene header={tableHeader} actions={actionBar} key={replay?.epoch ?? "live"} game={displayGame} summaryGame={sceneAnimating ? presentationBefore ?? game : game} localPlayer={!spectator} participants={tableParticipants} viewer={ownSeat ?? 0}

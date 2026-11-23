@@ -11,7 +11,6 @@ import { Motion } from "@/components/layout/motion";
 import { Navigation } from "@/components/layout/navigation";
 import { Providers } from "@/components/layout/providers";
 import { getInitialSession } from "@/features/auth/server-session";
-import { Footer } from "@/components/layout/footer";
 import { loadPageLinks } from "@/features/pages/api";
 import { loadNavigation } from "@/features/menus/api";
 import { AppInstallProvider } from "@/components/layout/app-install";
@@ -52,7 +51,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <GameLinksProvider games={initialGames?.items ?? []}>
               <Navigation>
                 {children}
-                <Footer />
               </Navigation>
             </GameLinksProvider>
           </AppInstallProvider>

@@ -30,6 +30,29 @@ async function signIn(page: Page, username = "Arquitetura") {
   await expect(dialog).not.toBeVisible();
 }
 
+test("partida remove rodapé e mantém conteúdo extenso dentro da tela", async ({ page }) => {
+  await page.goto("/jogos/flip7");
+  await expect(page.getByRole("contentinfo")).toBeVisible();
+  await page.evaluate(() => window.history.pushState(null, "", "/jogos/flip7?partida=ABCDEF123456"));
+  await expect(page.getByRole("contentinfo")).toHaveCount(0);
+  const content = page.locator("[data-match-content]");
+  await expect(content).toBeVisible();
+  // Simulate a long table/history without depending on a game engine or WebGL.
+  await content.evaluate(element => {
+    const section = document.createElement("div");
+    section.style.minHeight = "200vh";
+    section.dataset.testOverflow = "";
+    element.append(section);
+  });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
+  await content.evaluate(element => { element.scrollTop = 100; });
+  await expect.poll(() => content.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  await page.goBack();
+  await expect(page.getByRole("contentinfo")).toBeVisible();
+  await expect(content).toHaveCount(0);
+});
+
 test("sidebar oculta apenas na partida e reaparece no lobby", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "Sidebar fixa é exclusiva do desktop");
   const sidebar = page.locator("#lobby-sidebar");
