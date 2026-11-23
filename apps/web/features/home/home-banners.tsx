@@ -58,9 +58,9 @@ export function HomeBanners() {
           </Button>
         )}
       </Banner>
-      <Banner className="bg-surface">
+      <Banner className="bg-secondary text-secondary-foreground">
         <Heading variant="banner">Bônus diário</Heading>
-        <Button className="mt-5" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
+        <Button className="mt-5 bg-secondary text-white" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
           {coolingDown ? `Próximo resgate em ${countdown}` : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar 10 Croins"}
         </Button>
       </Banner>

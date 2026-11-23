@@ -58,7 +58,7 @@ export function GameResult({ result, match, leaving, onPlayAgain, onReplay, repl
       })}
     </ol>
     <div className={cn("mt-6 grid gap-2", onReplay ? "grid-cols-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]")}>
-      <Button disabled={leaving} onClick={onPlayAgain} className={onReplay ? "col-span-2 sm:col-span-1" : undefined}>Jogar novamente</Button>
+      <Button disabled={leaving} onClick={onPlayAgain} className={cn("bg-tertiary text-white", onReplay && "col-span-2 sm:col-span-1")}>Jogar novamente</Button>
       {onReplay && <Button variant="secondary" loading={replayLoading} onClick={onReplay}><RotateCcw className="size-4" aria-hidden="true" />Replay</Button>}
       <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
     </div>

@@ -11,7 +11,7 @@ export function RedeemButton() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="size-8 p-0" aria-label="Resgatar cupom" title="Resgatar cupom">
+        <Button size="sm" className="size-8 bg-tertiary p-0 text-white" aria-label="Resgatar cupom" title="Resgatar cupom">
           <Plus className="size-4" aria-hidden="true" />
         </Button>
       </DialogTrigger>
