@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { flip7OptionsSchema, flip7ActionSchema, flip7EventActionSchema, flip7ViewSchema } from "./flip7.js";
+import { soloOptionsSchema, soloActionSchema, soloViewSchema } from "./solo.js";
 import { loveOptionsSchema, loveActionSchema, loveViewSchema } from "./love-letter.js";
 
 export type SettingField = {
@@ -34,17 +35,23 @@ export const gameDefinitions = {
     minPlayers:2,maxPlayers:(options:unknown)=>loveOptionsSchema.parse(options).mode==="classic"?4:6,
     settings:[{key:"mode",label:"Modo",ariaLabel:"Modo do Love Letter",type:"select",choices:[{value:"classic",label:"Clássico"},{value:"modern",label:"Moderno"}]}],
   },
+  solo: {
+    options:soloOptionsSchema,action:soloActionSchema,view:soloViewSchema,
+    defaults:{mode:"single",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,tableTurnSound:true,
+    minPlayers:2,maxPlayers:()=>10,
+    settings:[{key:"mode",label:"Duração",type:"select",choices:[{value:"single",label:"Uma rodada"},{value:"rounds3",label:"3 rodadas"},{value:"rounds4",label:"4 rodadas"},{value:"points100",label:"100 pontos"},{value:"points250",label:"250 pontos"},{value:"points500",label:"500 pontos"}]}],
+  },
 } satisfies Record<string,GameDefinition>;
 export const gameIdSchema=z.enum(Object.keys(gameDefinitions) as [keyof typeof gameDefinitions,...(keyof typeof gameDefinitions)[]]);
 export type GameId=z.infer<typeof gameIdSchema>;
-export const gameOptionsSchema=z.union([flip7OptionsSchema,loveOptionsSchema]);
-export const gameActionSchema=z.union([flip7ActionSchema,loveActionSchema]);
+export const gameOptionsSchema=z.union([flip7OptionsSchema,loveOptionsSchema,soloOptionsSchema]);
+export const gameActionSchema=z.union([flip7ActionSchema,loveActionSchema,soloActionSchema]);
 export type GameOptions=z.infer<typeof gameOptionsSchema>;
 export type GameAction=z.infer<typeof gameActionSchema>;
 export type GameEngineAction=GameAction|{type:"step"|"draw"|"stay"|"next"};
-export const gameViewSchema=z.union([flip7ViewSchema,loveViewSchema]);
-export const gameEventActionSchema=z.union([flip7EventActionSchema,loveActionSchema]);
-export type GameView=z.infer<typeof flip7ViewSchema>|z.infer<typeof loveViewSchema>;
+export const gameViewSchema=z.union([flip7ViewSchema,loveViewSchema,soloViewSchema]);
+export const gameEventActionSchema=z.union([flip7EventActionSchema,loveActionSchema,soloActionSchema]);
+export type GameView=z.infer<typeof flip7ViewSchema>|z.infer<typeof loveViewSchema>|z.infer<typeof soloViewSchema>;
 export function getGameDefinition(slug:string):GameDefinition|null {
   return Object.hasOwn(gameDefinitions,slug)?gameDefinitions[slug as GameId]:null;
 }

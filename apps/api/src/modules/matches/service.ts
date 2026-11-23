@@ -411,7 +411,8 @@ export async function commandMatch(pool: Pool, actor: string, sessionHash: strin
       const enabled=await client.query("select 1 from games where id=$1 and enabled=true for share",[row.game_id]);
       if(!enabled.rows[0]) throw new MatchError("NOT_FOUND",404,"Jogo indisponível.");
       const decision=driver.decision(state)?.seat;
-      if(member.seat!==decision) throw new MatchError("NOT_YOUR_TURN",403,"Aguarde sua vez.");
+      const permitted=driver.authorize ? "action" in input && driver.authorize(state,member.seat,input.action) : member.seat===decision;
+      if(!permitted)throw new MatchError("NOT_YOUR_TURN",403,driver.authorize?"Esta ação não está disponível para você agora.":"Aguarde sua vez.");
     }
     const result=abandon ? await replaceParticipant(client,row,people,member.seat) : execute(driver,state,row.version,"action" in input?input.action:undefined);
     if(!row.development)await settleMatch(client,row.id,row.code,result.status,driver.outcome(result.state));
@@ -591,4 +592,25 @@ export async function trackTestPlayback(pool:Pool,actor:string,sessionHash:strin
     playback_until=case when $2 then clock_timestamp()+interval '15 seconds' end where id=$1`,[row.id,running]);
   return {ok:true as const};
  });
+}
+
+/** One persisted bot decision per interval, with a row lock shared by human commands.
+ * Only-bot development playback remains controlled by test-step. */
+export async function advanceDeferredMatches(pool:Pool){
+ for(const game of Object.keys(gameDefinitions) as GameId[]){
+  const driver=gameDriver(game),delay=driver.deferredAutomaticMs;if(!delay)continue;
+  const client=await pool.connect();
+  try{
+   await client.query("begin");
+   const rooms=await client.query<Row>("select * from game_matches where game_slug=$1 and rules_version=$2 and status='playing' and not only_bots and updated_at<=clock_timestamp()-($3 * interval '1 millisecond') order by updated_at for update skip locked",[game,driver.rulesVersion,delay]);
+   for(const row of rooms.rows){
+    const current=driver.parse(row.state),action=driver.automatic(current);if(!action)continue;
+    const state=driver.apply(current,action);driver.parse(state);const status=driver.finished(state)?"finished":"playing";
+    if(!row.development)await settleMatch(client,row.id,row.code,status,driver.outcome(state));
+    await recordFrames(client,row.id,[{action:driver.eventAction(action),state:driver.project(state),version:row.version+1}]);
+    await client.query("update game_matches set state=$2,status=$3,version=version+1,updated_at=clock_timestamp() where id=$1",[row.id,JSON.stringify(state),status]);
+   }
+   await client.query("commit");
+  }catch(error){await client.query("rollback");throw error;}finally{client.release();}
+ }
 }

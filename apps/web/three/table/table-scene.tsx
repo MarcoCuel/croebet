@@ -42,7 +42,7 @@ export type LaboratorySceneProps = {
 function SceneContents({ palette, pileManipulation, artwork, presentation, settings, layout, state, selected, focus, reducedMotion, canDraw, onDeckChange, onDiscardChange, onDraw, onSelect, onMenu, onTurn, onMotion, paused, timeScale }: LaboratorySceneProps & { palette: TablePalette }) {
   const moveDeck = canManipulatePile(pileManipulation, "deck");
   const moveDiscard = canManipulatePile(pileManipulation, "discard");
-  const resources = useCardResources(palette, presentation?.artwork ?? artwork, settings.numberCardColor);
+  const resources = useCardResources(palette, presentation?.artwork ?? artwork, settings.numberCardColor, settings.numberCardBackground);
   const { size, invalidate } = useThree();
   const [visible, setVisible] = useState(true);
   const [opponentFocus, setOpponentFocus] = useState<Record<number, number>>({});

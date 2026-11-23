@@ -9,7 +9,7 @@ Este resumo descreve a implementação, não certifica a execução das validaç
 | Conta | Cadastro/login/logout, sessões PostgreSQL, nome, troca de username, exclusão com senha, perfil público, avatar e onboarding de nome/foto |
 | Economia | Carteira/extrato, bônus de cadastro, resgate diário, cupons e ajustes administrativos transacionais |
 | Administração | Visão geral, usuários/permissões/suspensão, cupons, páginas, menus, catálogo de jogos e catálogo de apostas via API |
-| Jogos | Flip 7 gratuito ou com Croins e Love Letter somente em desenvolvimento; motores na API/PostgreSQL, executor e lobbies compartilhados, espectadores em mesas normais, sincronização Socket.IO, expiração de lobbies e bots após abandono/expulsão conforme as capacidades do jogo |
+| Jogos | Flip 7 gratuito ou com Croins; Love Letter e Solo somente em desenvolvimento; motores na API/PostgreSQL, executor e lobbies compartilhados, espectadores em mesas normais, sincronização Socket.IO, expiração de lobbies e bots após abandono/expulsão conforme as capacidades do jogo |
 | Chat | Conversa geral autenticada, histórico persistido, sincronização pela conexão compartilhada e moderação administrativa |
 | Apostas | Apenas catálogo administrativo persistido; sem palpites, apuração ou pagamentos no backend; acesso público desabilitado |
 | Rankings e conquistas | Rankings públicos de vitórias, saldo e perdas líquidas; conquistas privadas com níveis persistidos e catálogo administrável |
@@ -198,7 +198,7 @@ Admin pode remover mensagens ou silenciar por 10 minutos, uma hora ou 24 horas e
 
 ## Base compartilhada dos jogos
 
-Os jogos são módulos revisados no repositório. O registro público em `packages/shared/src/game-registry.ts` declara configurações, limites e capacidades; `modules/games/registry.ts` liga cada identificador ao seu driver na API. Flip 7 e Love Letter usam o mesmo executor, autorização, recibos, locks, persistência e transporte. O catálogo administrativo não instala código: um cadastro sem módulo registrado continua em desenvolvimento.
+Os jogos são módulos revisados no repositório. O registro público em `packages/shared/src/game-registry.ts` declara configurações, limites e capacidades; `modules/games/registry.ts` liga cada identificador ao seu driver na API. Flip 7, Love Letter e Solo usam o mesmo executor, autorização, recibos, locks, persistência e transporte. O catálogo administrativo não instala código: um cadastro sem módulo registrado continua em desenvolvimento.
 
 | Responsabilidade | Contrato e limites |
 | --- | --- |
@@ -219,6 +219,10 @@ Os jogos são módulos revisados no repositório. O registro público em `packag
 
 Sessão e carteira já existem; não recriá-las por jogo. As rotas de partidas reutilizam a consulta de sessão de `modules/auth/routes.ts` e revalidam conta/sessão na transação. Socket.IO valida sessão/CSRF no handshake e revalida sessão/conta antes de comandos, atualizações e periodicamente, sem renovar o prazo ocioso pelo heartbeat. Contratos comuns publicados ficam em `shared`, estados privados e motores na API. No frontend, compartilhar transporte, sincronização e componentes visuais comprovadamente comuns; tabuleiro, animações, ações disponíveis e cálculo exibido continuam nas features dos jogos.
 
+Jogos com intervenções podem implementar `authorize(state, seat, action)` no driver. O executor continua verificando sessão, participação humana, versão e recibo; o driver valida a vaga autenticada e as ações legais, incluindo as de fora da vez. Os drivers sem essa capacidade mantêm a autorização pela decisão atual.
+
+`deferredAutomaticMs` interrompe a cadeia síncrona de automações somente para os jogos que o declaram. O processo da API chama `advanceDeferredMatches` periodicamente: o intervalo usa `updated_at` persistido, locks `FOR UPDATE SKIP LOCKED` e uma única ação por sala vencida. Reinícios preservam o intervalo; múltiplas instâncias não repetem decisões. Salas sem automação aguardam a ação humana, sem timeout. Testes só com bots continuam usando avanço manual/reprodução de desenvolvimento. O Solo utiliza 2,4 segundos entre automações para permitir intervenções reais; o navegador apresenta o snapshot privado atual e não bloqueia essas intervenções por animações.
+
 ### Adicionar um jogo
 
 1. Criar schemas de opções, ações e projeção pública em `packages/shared/src/<jogo>.ts`; exportar pelo índice. Registrar a definição e os schemas nas uniões de `game-registry.ts`. Definir valores iniciais, campos `select`/`switch`, dependências entre campos, limites por configuração e capacidades. A definição não contém segredos.
@@ -228,7 +232,7 @@ Sessão e carteira já existem; não recriá-las por jogo. As rotas de partidas 
 
 Para informação oculta, `snapshotOnly` recupera sempre a projeção atual por destinatário, sem reproduzir frames públicos como se fossem privados. `eventAction` deve remover escolhas sigilosas; os frames persistidos usam sempre a projeção de espectador. No Love Letter, ações nos eventos são marcadas como `step`, sem cartas privadas do Chanceler; recibos devolvem apenas confirmação. O Flip 7 mantém seus frames de apresentação e replay. Reconectar não executa motores nem reproduz ações no banco.
 
-O contrato atual atende aos dois jogos de mesa/turnos, com 2–12 vagas e distribuição de pote entre vencedores. Jogos solo, sem turnos, em tempo real contínuo ou com financiamento/distribuição distintos ainda exigem ampliar esses contratos a partir de um caso concreto. A pontuação do resumo é específica de cada jogo. Histórico/replay HTTP aceita projeções registradas; a apresentação administrativa de replay ainda usa a mesa do Flip 7, portanto um novo jogo com replay precisa fornecer e integrar seu apresentador antes da liberação. Instalação/upload de código de usuários pelo site, isolamento de módulos externos e SDK publicado permanecem pendentes.
+O contrato atual atende jogos de mesa/turnos, com 2–12 vagas e distribuição de pote entre vencedores. Solo é multiplayer e está restrito ao desenvolvimento; suas regras estão em [solo.md](solo.md). Jogos de um jogador, sem turnos, em tempo real contínuo ou com financiamento/distribuição distintos ainda exigem ampliar esses contratos a partir de um caso concreto. A pontuação do resumo é específica de cada jogo. Histórico/replay HTTP aceita projeções registradas; a apresentação administrativa de replay seleciona as mesas de Flip 7, Love Letter e Solo pelo estado registrado; um novo jogo com replay precisa integrar seu apresentador antes da liberação. Instalação/upload de código de usuários pelo site, isolamento de módulos externos e SDK publicado permanecem pendentes.
 
 ## Partidas integradas
 

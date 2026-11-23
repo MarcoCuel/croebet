@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/shared/heading";
 import { useSession } from "@/features/auth/session-context";
+import { GameHeroCards } from "./game-hero-cards";
 
 export function GameEntryHeader({ game, actions, development=false }: { game: Pick<GameRecord, "name" | "description" | "slug" | "moduleId" | "averageDurationSeconds">; actions?: ReactNode; development?:boolean }) {
   const { userId, openLogin } = useSession();
   const definition = getGameDefinition(game.moduleId ?? game.slug);
   const durationMinutes = game.averageDurationSeconds == null ? null : Math.max(1, Math.round(game.averageDurationSeconds / 60));
-  return <Card aria-label="Apresentação do jogo">
+  return <Card aria-label="Apresentação do jogo" className="relative isolate overflow-hidden">
+    {definition && <GameHeroCards gameId={game.moduleId ?? game.slug} />}
     <div className="flex flex-col items-start gap-6 p-6 relative">
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="grid gap-3">
@@ -26,7 +28,7 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
         </div>
         <GameModeSwitch moduleId={game.moduleId} slug={game.slug} development={development}/>
       </div>
-      {game.description && <p className="whitespace-pre-line text-sm leading-relaxed text-muted sm:text-base">{game.description}</p>}
+      {game.description && <p className="whitespace-pre-line text-sm leading-relaxed text-muted sm:text-base sm:max-w-[60%]">{game.description}</p>}
 
       {(actions || !userId) && <div className="flex w-full shrink-0 flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
         {!userId && <Button className="w-full shrink-0 sm:w-auto" onClick={openLogin}>Entrar para jogar</Button>}

@@ -1,6 +1,6 @@
 import type { GameDriver } from "./driver.ts";
 
-/** Automatic rules finish atomically; the browser only schedules their presentation. */
+/** Resolve automatic rules atomically unless the driver requests server reaction intervals. */
 export function execute<State, View, Setup, Action>(driver: GameDriver<State, View, Setup, Action>, initial: State, version: number, command?: Action) {
   let state = initial;
   const before = driver.project(initial);
@@ -12,10 +12,10 @@ export function execute<State, View, Setup, Action>(driver: GameDriver<State, Vi
     frames.push({ action, state: driver.project(state), version: ++version });
   };
   if (command) {
-    if (driver.finished(state) || driver.automatic(state)) throw new Error("ILLEGAL_ACTION");
+    if (driver.finished(state) || (!driver.deferredAutomaticMs && driver.automatic(state))) throw new Error("ILLEGAL_ACTION");
     apply(command);
   }
-  for (let steps = 0; !driver.finished(state); steps++) {
+  for (let steps = 0; !driver.deferredAutomaticMs && !driver.finished(state); steps++) {
     const action = driver.automatic(state);
     if (!action) break;
     if (steps >= 1000) throw new Error("AUTOMATION_LIMIT");

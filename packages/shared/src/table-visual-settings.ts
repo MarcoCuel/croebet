@@ -2,6 +2,7 @@ import { z } from "zod";
 
 /** Global presentation only: never includes seats, hands, visibility or game rules. */
 export const tableVisualSettingsSchema = z.object({
+  numberCardBackground: z.string().regex(/^#[0-9a-f]{6}$/i).nullable().default(null),
   numberCardColor: z.string().regex(/^#[0-9a-f]{6}$/i).default("#ad158f"),
   localCardScale: z.number().min(0.5).max(1.5).default(1),
   opponentCardScale: z.number().min(0.5).max(1.5).default(1),

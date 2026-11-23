@@ -1,10 +1,12 @@
 import {gameDefinitions, type GameId, type GameView, type GameEngineAction} from "@croebet/shared";
 import type { MatchDriver } from "../matches/driver.ts";
 import { matchDriver as flip7 } from "./flip7/driver.ts";
+import { soloDriver } from "./solo/driver.ts";
 import { loveDriver } from "./love-letter/driver.ts";
 
 const drivers: Record<GameId,MatchDriver<GameView,GameEngineAction>> = {
   flip7,
+  solo:soloDriver,
   "love-letter":loveDriver,
 };
 export function gameDriver(game:GameId) { return drivers[game]; }

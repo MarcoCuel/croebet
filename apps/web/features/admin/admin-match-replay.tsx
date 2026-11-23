@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { gameReplaySchema } from "@croebet/shared";
+import { SoloTable } from "@/features/games/solo/solo-table";
 import { LoveTable } from "@/features/games/love-letter/love-table";
 import { resultDuration } from "@/features/games/game-result";
 import { ReplayControls } from "@/features/games/replay-controls";
@@ -59,7 +60,7 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
           <ReplayControls index={index} count={match.frameCount} playing={playing && index < match.frameCount - 1} delay={delay} loading={loading} error={error} seek={seek} toggle={() => setPlaying(value => !value)} setDelay={setDelay} />
         </Card>
         {error ? <Card role="alert" className="grid justify-items-start gap-3 text-sm">{error}<Button variant="secondary" size="sm" onClick={() => { setError(""); setRetry(value => value + 1); }}>Tentar novamente</Button></Card> : loading || !frame ? <Card role="status" className="text-sm text-muted">Carregando jogadas…</Card> : <>
-          {! ("brutal" in frame.state) ? <LoveTable state={{...frame.state,legalActions:[]}} busy play={async()=>{}} participants={match.players.flatMap(p=>p.userId?[{userId:p.userId,seat:p.seat,username:p.name,displayName:p.name,avatarUrl:p.avatarUrl}]:[])} /> : <Card className="min-w-0">
+          {"game" in frame.state && frame.state.game==="solo" ? <SoloTable state={{...frame.state,legalActions:[]}} busy play={async()=>{}} participants={[]}/> : !("brutal" in frame.state) && !("game" in frame.state) ? <LoveTable state={{...frame.state,legalActions:[]}} busy play={async()=>{}} participants={match.players.flatMap(p=>p.userId?[{userId:p.userId,seat:p.seat,username:p.name,displayName:p.name,avatarUrl:p.avatarUrl}]:[])} /> : "brutal" in frame.state ? <Card className="min-w-0">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Rodada {frame.state.round}</h2><Badge variant="secondary">{frame.state.phase === "over" ? "Fim da partida" : frame.state.phase === "summary" ? "Fim da rodada" : `Vez de ${match.players.find(player => player.seat === frame.state.turn)?.name ?? frame.state.players[frame.state.turn].name}`}</Badge></div>
             <div className="divide-y divide-contrast/6">{frame.state.players.map((player, seat) => {
               const identity = match.players.find(person => person.seat === seat) ?? { name: player.name, avatarUrl: null };
@@ -71,7 +72,7 @@ export function AdminMatchReplay({ initial }: { initial: Replay }) {
                 <div className="flex min-w-0 flex-wrap gap-2 sm:pl-13">{player.cards.map(card => <PlayingCard key={card.id} card={card} compact flipped={player.status === "busted"} />)}{!player.cards.length && <p className="text-xs text-muted">Sem cartas nesta rodada.</p>}</div>
               </div>;
             })}</div>
-          </Card>}
+          </Card> : null}
           <Card><h2 className="font-semibold">Histórico da jogada</h2><ul className="mt-3 divide-y divide-contrast/6 text-sm text-muted">{frame.state.log.slice(0, 8).map((entry, index) => <li className="py-2 first:pt-0 last:pb-0" key={index}>{typeof entry === "string" ? entry : entry.message}</li>)}</ul></Card>
         </>}
       </div>

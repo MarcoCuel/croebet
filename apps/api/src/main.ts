@@ -1,3 +1,4 @@
+import { advanceDeferredMatches } from "./modules/matches/service.ts";
 import { createImageStorage } from "./modules/storage/images.ts";
 import { cleanupMedia } from "./modules/media/service.ts";
 import { cleanupDeletedAccounts } from "./modules/auth/account-cleanup.ts";
@@ -26,10 +27,15 @@ function cleanup() {
     .finally(() => { cleanupTask = undefined; });
   return cleanupTask;
 }
+let automationTask:Promise<void>|undefined;
+const automationTimer=setInterval(()=>{
+ automationTask ??= advanceDeferredMatches(pool).catch(()=>{app.log.warn("Não foi possível avançar as automações de partidas; uma nova tentativa será feita.");}).finally(()=>{automationTask=undefined;});
+},250);
+automationTimer.unref();
 const cleanupTimer = setInterval(() => { void cleanup(); }, 60000);
 cleanupTimer.unref();
 void cleanup();
-app.addHook("onClose", async () => { clearInterval(cleanupTimer); await cleanupTask; await pool.end(); });
+app.addHook("onClose", async () => { clearInterval(cleanupTimer); clearInterval(automationTimer); await automationTask; await cleanupTask; await pool.end(); });
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => {
   void app.close().catch(() => { process.exitCode = 1; });
 });

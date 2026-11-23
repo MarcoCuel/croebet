@@ -1,6 +1,6 @@
 import { defaultTableVisualSettings } from "@croebet/shared";
 export type LaboratorySettings = {
-  numberCardColor: string; players: number; counts: number[]; viewer: number; localCardScale: number; opponentCardScale: number; localHandCurve: number;
+  numberCardBackground: string | null; numberCardColor: string; players: number; counts: number[]; viewer: number; localCardScale: number; opponentCardScale: number; localHandCurve: number;
   deckX: number; deckZ: number; deckRotation: number; deckScale: number;
   discardX: number; discardZ: number; discardRotation: number; discardScale: number;
   angle: number; light: number; ambient: number; pileHeight: number;
@@ -34,6 +34,7 @@ export function parseSettings(value: unknown): LaboratorySettings | null {
     const n = v[key];
     if (typeof n !== "number" || !Number.isFinite(n) || n < range[0] || n > range[1] || (range.length === 3 && !Number.isInteger(n))) return null;
   }
+  if (v.numberCardBackground !== null && (typeof v.numberCardBackground !== "string" || !/^#[0-9a-f]{6}$/i.test(v.numberCardBackground))) return null;
   if (typeof v.numberCardColor !== "string" || !/^#[0-9a-f]{6}$/i.test(v.numberCardColor)) return null;
   if ((v.viewer as number) >= (v.players as number) || (v.turn as number) >= (v.players as number)
     || !Array.isArray(v.counts) || v.counts.length !== 12 || !v.counts.every(n => Number.isInteger(n) && n >= 0 && n <= 1000)

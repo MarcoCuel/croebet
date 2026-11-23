@@ -146,13 +146,17 @@ test("cor única das cartas numéricas é salva e restaurada no preset", async (
   await openSettings(page);
   const panel = page.getByRole("complementary", { name: "Configuração da mesa" });
   await panel.getByText("Cartas", { exact: true }).click();
-  const color = panel.getByLabel("Cor das cartas numéricas", { exact: true });
+  const color = panel.getByLabel("Cor dos números", { exact: true });
   await expect(color).toHaveValue("#ad158f");
   await color.fill("#239bd0");
+  const background=panel.getByLabel("Cor do fundo",{exact:true});
+  await background.fill("#283540");
   await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
   await color.fill("#f15b66");
   await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
   await expect(color).toHaveValue("#239bd0");
+  await expect(background).toHaveValue("#283540");
+  expect(preset.settings.numberCardBackground).toBe("#283540");
 });
 
 test("visitantes e contas comuns não acessam o laboratório", async ({ page }) => {

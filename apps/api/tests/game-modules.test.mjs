@@ -5,6 +5,7 @@ import {gameDefinitions,createMatchSchema,gameRoomSchema,realtimeRequestSchema} 
 import {gameDriver} from '../dist/modules/games/registry.js';
 import {execute} from '../dist/modules/matches/execution.js';
 import {commandMatch,getRoomSync} from '../dist/modules/matches/service.js';
+import {legalSolo} from '../dist/modules/games/solo/engine.js';
 import {legalLove} from '../dist/modules/games/love-letter/engine.js';
 import {botAction} from '../dist/modules/games/flip7/engine.js';
 
@@ -29,14 +30,20 @@ function fixture(game){
 for(const game of Object.keys(gameDefinitions)){
  test(`${game}: mesmo executor cria, automatiza e conclui bots sem alterar o estado inicial`,()=>{
   const driver=gameDriver(game),initial=driver.create({setup:[{name:'A',kind:'normal'},{name:'B',kind:'normal'}],options:gameDefinitions[game].defaults,onlyBots:true},'Observador');
-  const before=structuredClone(initial),result=execute(driver,initial,1);
+  const before=structuredClone(initial);let result=execute(driver,initial,1);
+  if(driver.deferredAutomaticMs){
+   for(let steps=0;result.status!=="finished";steps++){
+    assert.ok(steps<10000,"bots devem concluir a partida");const action=driver.automatic(result.state);assert.ok(action);
+    const next=execute(driver,result.state,result.version,action);result={...next,frames:[...result.frames,...next.frames]};
+   }
+  }
   assert.equal(result.status,'finished');assert.ok(result.frames.length>0);
   assert.deepEqual(initial,before);assert.ok(driver.outcome(result.state).winners.length);
   for(const frame of result.frames){assert.equal('deck' in frame.state,false);assert.equal('seed' in frame.state,false);}
  });
  test(`${game}: comandos comuns autorizam o turno, deduplicam e recusam versão obsoleta`,async()=>{
   const f=fixture(game),seat=f.driver.decision(f.row.state).seat;
-  const action=game==='flip7'?botAction(f.row.state):legalLove(f.row.state)[0];
+  const action=game==='flip7'?botAction(f.row.state):game==='solo'?legalSolo(f.row.state,seat).find(a=>a.type==='solo-draw'):legalLove(f.row.state)[0];
   const input={commandId:randomUUID(),expectedVersion:f.row.version,action};
   assert.equal(realtimeRequestSchema.safeParse({type:'command',code:f.row.code,input}).success,true);
   await assert.rejects(commandMatch(f.pool,f.ids[1-seat],'session',f.row.code,input),{code:'NOT_YOUR_TURN'});

@@ -1,6 +1,8 @@
 /** The executor owns persistence; the driver owns rules and public projections. */
 export type GameDriver<State, View, Setup, Action> = {
   rulesVersion: number;
+  /** Persisted updated_at anchors the server-side reaction interval. */
+  deferredAutomaticMs?: number;
   create: (setup: Setup, username: string) => State;
   parse: (value: unknown) => State;
   project: (state: State) => View;
@@ -19,6 +21,7 @@ export type GamePlayerSummary = {name:string;score:number;bot:boolean;winner:boo
 
 /** Unknown values cross the registry boundary only through the module's parsers. */
 export type MatchDriver<View, Action> = GameDriver<unknown,View,GameSetup,Action> & {
+  authorize?: (state:unknown,seat:number,action:Action)=>boolean;
   decision: (state:unknown)=>{seat:number;key:string}|null;
   human: (state:unknown,seat:number)=>boolean;
   replace: (state:unknown,seat:number)=>unknown;

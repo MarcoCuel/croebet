@@ -149,6 +149,50 @@ test.beforeEach(async ({ page, context }) => {
     await route.fulfill({ status: result.status, json: result.data });
   });
 });
+for (const slug of ["flip7", "love-letter", "solo"] as const) test(`hero ${slug} anima cartas sem bloquear controles e respeita movimento reduzido`, async ({ page }) => {
+  if (slug !== "flip7") upcoming = { ...game, id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", slug, moduleId: slug, name: slug === "solo" ? "Solo" : "Love Letter" };
+  await page.goto(`/jogos/${slug}${slug === "flip7" ? "" : "?teste=1"}`);
+  const header = page.getByLabel("Apresentação do jogo");
+  const artwork = header.locator(`[data-game-hero-cards="${slug}"]`);
+  await expect(artwork).toBeVisible();
+  await expect(artwork).toHaveAttribute("aria-hidden", "true");
+  const tracks = artwork.locator("[data-hero-track]");
+  await expect(tracks).toHaveCount(3);
+  expect(await tracks.evaluateAll(elements => elements.map(el => getComputedStyle(el).animationDirection))).toEqual(["normal", "reverse", "normal"]);
+  const first = tracks.first();
+  const initialTransform = await first.evaluate(el => getComputedStyle(el).transform);
+  await expect.poll(() => first.evaluate(el => getComputedStyle(el).transform)).not.toBe(initialTransform);
+  // The repeated group must land exactly where the first group began at the loop boundary.
+  const seam = await first.evaluate(el => {
+    const animation = el.getAnimations()[0];
+    animation.pause();
+    animation.currentTime = 0;
+    const start = el.children[0].getBoundingClientRect();
+    animation.currentTime = 32000 - 1;
+    const end = el.children[1].getBoundingClientRect();
+    return { x: Math.abs(start.x - end.x), y: Math.abs(start.y - end.y) };
+  });
+  expect(seam.x).toBeLessThan(1);
+  expect(seam.y).toBeLessThan(1);
+  if (slug === "flip7") await header.getByRole("switch", { name: "Modo dev", exact: true }).click({ trial: true });
+  await expect(artwork.locator("[data-card-back]")).toHaveCount(0);
+  if (slug === "love-letter") {
+    await expect.poll(() => artwork.locator("img").evaluateAll(images => images.every(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0))).toBe(true);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(() => first.evaluate(el => getComputedStyle(el).animationName)).toBe("none");
+  const order = () => first.locator(":scope > div").first().evaluate(el => Array.from(el.children).map(card => `${card.textContent}:${card.querySelector("img")?.getAttribute("src") ?? ""}`).join("|"));
+  const originalOrder = await order();
+  const observedOrders = new Set([originalOrder]);
+  for (let attempt = 0; attempt < 3 && observedOrders.size === 1; attempt++) {
+    await page.reload();
+    await expect(artwork).toBeVisible();
+    observedOrders.add(await order());
+  }
+  expect(observedOrders.size).toBeGreaterThan(1);
+});
+
 test("lista administrativa edita o catálogo persistente e pausa sua publicação", async ({ page, browser }) => {
   await page.goto("/admin/jogos");
   const list = page.getByRole("list", { name: "Jogos", exact: true });
@@ -483,7 +527,7 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  const { loveTableState } = await import("../../features/games/love-letter/table-model");
  const { presentedHands } = await import("../../three/table/model");
  const { TableHand } = await import("../../three/table/hand");
- if (!loveRoom || loveRoom.status === "lobby" || !("legalActions" in loveRoom.state)) throw new Error("Fixture Love Letter ausente");
+ if (!loveRoom || loveRoom.status === "lobby" || !("privateInfo" in loveRoom.state)) throw new Error("Fixture Love Letter ausente");
  const state = loveTableState(loveRoom.state, 0);
  const hand = presentedHands(state, 0)[1];
  const cards = TableHand({ cards: hand, seat: { seat: 1, position: [0, 0, -2], angle: 0, width: 3 },
@@ -610,7 +654,7 @@ test("fichas exibem a meta da partida e os espaços restantes", async ({ page })
 
 test("Guarda com um único alvo válido abre palpites sem confirmar jogador",async({page})=>{
  prepareLoveTable();
- if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture Love Letter ausente");
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture Love Letter ausente");
  loveRoom.state.legalActions=[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:2,guess:8},{type:"play",card:4}];
  const commands=gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
@@ -673,7 +717,7 @@ test("revelação privada mostra somente versos e espera para os demais jogadore
 
 test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxima rodada",async({page})=>{
  prepareLoveTable();
- if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
  const state=loveRoom.state;
  state.pending=true;state.players[0].hand=[1,4,9];state.players[0].handCount=3;
  state.legalActions=[{type:"keep",cards:[9,1,4]},{type:"keep",cards:[9,4,1]}];
@@ -697,7 +741,7 @@ test("Love Letter preserva escolha do Chanceler, Condessa obrigatória e próxim
 
 test("Love Letter apresenta bots em sequência e libera apenas a decisão final privada",async({page})=>{
  prepareLoveTable();
- if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture ausente");
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture ausente");
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  await expect(page.getByRole("status").filter({hasText:"Sua vez"})).toBeVisible();
  const initial=structuredClone(loveRoom);
@@ -719,7 +763,7 @@ test("Love Letter apresenta bots em sequência e libera apenas a decisão final 
 
 test("Love Letter abre resultado após as jogadas, permite reabrir e voltar ao lobby dev",async({page})=>{
  prepareLoveTable();
- if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture ausente");
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture ausente");
  await page.goto("/jogos/love-letter?partida=ABCDEF654321&teste=1");
  await expect(page.getByLabel("Mesa do Love Letter")).toBeVisible();
  const initial=structuredClone(loveRoom);
@@ -748,7 +792,7 @@ test("Love Letter abre resultado após as jogadas, permite reabrir e voltar ao l
 
 test("Love Letter não abre resultado em resumo de rodada ou partida abandonada",async({page})=>{
  prepareLoveTable();
- if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw Error("Fixture ausente");
+ if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture ausente");
  loveRoom.state.phase="summary";loveRoom.state.winners=[0];
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
  await expect(page.getByLabel("Mesa do Love Letter").getByRole("status")).toContainText("Rodada encerrada");
@@ -774,7 +818,7 @@ test("estados de teste não recriam assinaturas e sair remove a observação",as
  await expect(page.getByRole("region",{name:"Mesa do Love Letter"})).toBeVisible();
  await expect.poll(()=>roomWatches.length).toBe(1);
  for(let index=0;index<5;index++){
-  if(!loveRoom || loveRoom.status==="lobby" || !("legalActions" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
+  if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
   loveRoom=gameRoomSchema.parse({...loveRoom,version:loveRoom.version+1,state:{...loveRoom.state,round:index+2}});
   sockets.emit("room",{room:loveRoom,frames:[],reset:false});
   await expect(page.getByText(`Rodada ${index+2}`,{exact:true})).toBeVisible();
@@ -890,7 +934,7 @@ test("aviso de expiração permite manter lobby aberto fora da página do jogo",
 
 test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", async ({ page }) => {
  prepareLoveTable();
- if (!loveRoom || loveRoom.status === "lobby" || !("legalActions" in loveRoom.state)) throw new Error("Fixture Love Letter ausente");
+ if (!loveRoom || loveRoom.status === "lobby" || !("privateInfo" in loveRoom.state)) throw new Error("Fixture Love Letter ausente");
  loveRoom.state.turn = 1; loveRoom.state.legalActions = [];
  const commands = gameCommands;
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
@@ -1010,4 +1054,43 @@ test("exclui jogo do catálogo com confirmação e permite cancelar", async ({pa
   await expect(page).toHaveURL(/\/admin\/jogos$/);
   expect(upcoming).toBeNull();
   await expect(page.getByRole("list",{name:"Jogos",exact:true}).getByRole("listitem")).toHaveCount(1);
+});
+
+function prepareSolo(){
+ upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",moduleId:"solo",slug:"solo",name:"Solo"};
+ const red={id:"red5",kind:"number",number:5,color:"red"};
+ const wild={id:"wild",kind:"wild",number:null,color:null};
+ loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"solo",rulesVersion:1,version:2,capacity:3,options:{mode:"single",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:2,onlyBots:false,status:"playing",state:{game:"solo",mode:"single",round:1,turn:1,direction:1,phase:"playing",activeColor:"red",deckCount:80,discard:[{...red,id:"top"}],penalty:0,penaltyKind:null,pendingCall:null,drawn:false,winners:[],log:["Rodada 1."],players:[{name:"Ana",kind:"human",hand:[red,wild],handCount:2,points:0},...[1,2].map(n=>({name:`Bot ${n}`,kind:"normal",hand:null,handCount:8,points:0}))],legalActions:[{type:"solo-play",seat:0,cardId:"red5",solo:false},{type:"solo-play",seat:0,cardId:"red5",solo:true}]}});
+}
+test("Solo em desenvolvimento permite intervenção e anúncio fora da vez sem expor mãos",async({page})=>{
+ prepareSolo();
+ await page.goto("/jogos/solo?partida=ABCDEF654321");
+ const table=page.getByTestId("solo-table-scene");await expect(table).toBeVisible();
+ await expect(table.getByText("Vez de Bot 1",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Anunciar Solo!",exact:true}).click();
+ const card=table.getByRole("button",{name:"Intervir com 5 vermelho",exact:true});await card.focus();await card.press("Enter");
+ await expect.poll(()=>gameCommands[0]).toEqual({type:"solo-play",seat:0,cardId:"red5",solo:true});
+ await expect(table.getByRole("button",{name:"Comprar",exact:true})).toHaveCount(0);
+ await expect(table.getByRole("button",{name:/Jogar .*Bot/})).toHaveCount(0);
+ await page.reload();await expect(table).toBeVisible();
+});
+test("Solo escolhe cor, mostra penalidade e usa descarte central",async({page})=>{
+ prepareSolo();if(!loveRoom || loveRoom.status==="lobby" || !("game" in loveRoom.state))throw Error("Solo ausente");
+ const state=loveRoom.state;state.turn=0;state.penalty=4;state.penaltyKind="draw4";
+ state.legalActions=[{type:"solo-draw",seat:0},...(["red","yellow","green","blue"] as const).map(color=>({type:"solo-play" as const,seat:0,cardId:"wild",color,solo:false}))];
+ await page.goto("/jogos/solo?partida=ABCDEF654321");
+ const table=page.getByTestId("solo-table-scene");await expect(table).toHaveAttribute("data-discard-count","1");
+ await expect(table.getByRole("button",{name:"Comprar 4",exact:true})).toBeVisible();
+ const wild=table.getByRole("button",{name:"Jogar Escolher cor",exact:true});await wild.focus();await wild.press("Enter");
+ await table.getByRole("button",{name:"Escolher azul",exact:true}).click();
+ await expect.poll(()=>gameCommands[0]).toEqual({type:"solo-play",seat:0,cardId:"wild",color:"blue",solo:false});
+});
+test("Solo continua em breve para contas comuns e o lobby dev limita a dez pessoas",async({page})=>{
+ prepareSolo();sessionRole="user";
+ await page.goto("/jogos/solo");await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Jogar",exact:true})).toHaveCount(0);
+ sessionRole="admin";await page.goto("/jogos/solo");
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
+ await expect(page.getByLabel("Duração",{exact:true})).toBeVisible();
 });
