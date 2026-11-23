@@ -159,6 +159,8 @@ Regras e valores aprovados estão em [CROEBET.md, seção 4.3](../CROEBET.md#43-
 
 O emblema opcional é salvo em `achievement_definitions.image_url`, selecionado da biblioteca e validado na transação administrativa; referências de conquistas, inclusive inativas, impedem exclusão da imagem. A migration incremental `0034_achievement_emblems.sql` deve ser aplicada antes da API/web: acrescenta somente a coluna com valor vazio para preservar o ícone atual. Em rollback, mantenha a coluna e as imagens, sem reverter dados.
 
+Cores opcionais em `achievement_definitions.color` e `achievement_levels.color` aceitam somente hexadecimal de seis dígitos; `achievement_levels.image_url` permite emblema próprio por nível, validado e protegido contra exclusão pela biblioteca, inclusive em conquistas inativas. Personalização de níveis concedidos preserva metas, IDs e datas de desbloqueio. A migration incremental `0041_past_princess_powerful.sql` acrescenta essas colunas sem reescrever concessões; aplique antes de publicar API/web e mantenha as colunas ao recuar a aplicação. Valores nulos/vazios herdam os padrões existentes.
+
 A migration `0028` adiciona catálogo, níveis e concessões, com seis definições iniciais editáveis. Aplicar antes de publicar API/interface; não requer reset, seed de contas nem reescrita do livro/arquivos. Para recuar a aplicação, desabilitar o acesso à funcionalidade e manter as tabelas/concessões, sem reversão destrutiva. Exclusão de conta remove seu progresso privado via FK; os históricos independentes de partidas/economia permanecem preservados.
 
 ## Conteúdo e administração

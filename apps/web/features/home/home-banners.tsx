@@ -58,7 +58,7 @@ export function HomeBanners() {
           </Button>
         )}
       </Banner>
-      <Banner className="bg-surface">
+      <Banner className="bg-radial-[at_20%_-150%] from-secondary to-surface to-80%">
         <Heading variant="banner">Bônus diário</Heading>
         <Button className="mt-5 bg-secondary text-white" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
           {coolingDown ? `Próximo resgate em ${countdown}` : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar 10 Croins"}

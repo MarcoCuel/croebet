@@ -274,6 +274,7 @@ export const gameMatchStakes = pgTable("game_match_stakes", {
   check("match_stake_amounts", sql`${table.entryAmount}>0 and ${table.potTotal}>=${table.entryAmount} and ${table.potTotal}<=9007199254740991`)]);
 
 export const achievementDefinitions = pgTable("achievement_definitions", {
+  color: text("color"),
   imageUrl: text("image_url").notNull().default(""),
   id: uuid("id").primaryKey().defaultRandom(), name: text("name").notNull(), icon: text("icon").notNull(),
   metric: text("metric").notNull(), active: boolean("active").notNull().default(true),
@@ -281,6 +282,7 @@ export const achievementDefinitions = pgTable("achievement_definitions", {
 }, table => [check("achievement_metric_valid", sql`${table.metric} in ('games','wins','dailyDays','dailyStreak','coupons','losingGames')`),
   check("achievement_definition_valid", sql`char_length(${table.name}) between 1 and 80 and ${table.order} >= 0 and ${table.version} > 0`)]);
 export const achievementLevels = pgTable("achievement_levels", {
+  color: text("color"), imageUrl: text("image_url").notNull().default(""),
   id: uuid("id").primaryKey().defaultRandom(), achievementId: uuid("achievement_id").notNull().references(() => achievementDefinitions.id),
   target: bigint("target", { mode: "number" }).notNull(), description: text("description").notNull(),
 }, table => [uniqueIndex("achievement_level_target_unique").on(table.achievementId, table.target),

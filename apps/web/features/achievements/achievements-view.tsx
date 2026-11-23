@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import { achievementMetrics, type Achievements } from "@croebet/shared";
 import { Award, CalendarDays, Check, PlayingCards, Coins, Icon } from "lucide-react";
@@ -42,8 +43,11 @@ export function AchievementsView({ data }: { data: Achievements }) {
           ))}
         </div>
         <ul className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {data.items.map(({ id, name: title, iconNode, imageUrl, current, metric, levels }) => {
+          {data.items.map(({ id, name: title, iconNode, imageUrl: defaultImageUrl, color, current, metric, levels }) => {
             const level = levels.filter(item=>item.unlockedAt).length;
+            const earnedLevel = levels.filter(item=>item.unlockedAt).at(-1);
+            const displayColor = earnedLevel?.color ?? color ?? "var(--color-brand)";
+            const imageUrl = earnedLevel?.imageUrl || defaultImageUrl;
             const completed = level === levels.length;
             const milestone = levels.find(item=>!item.unlockedAt) ?? levels[levels.length-1];
             if (!milestone) return null;
@@ -52,13 +56,13 @@ export function AchievementsView({ data }: { data: Achievements }) {
 
             return (
               <Card asChild key={id}>
-                <li className="flex min-w-0 flex-col items-center text-center">
+                <li className="flex min-w-0 flex-col items-center text-center" style={{ "--achievement-color": displayColor } as CSSProperties}>
                   <div
                     className={cn(
                       "relative my-10 grid size-24 place-items-center",
                       !imageUrl && "rounded-full border-4 bg-primary-button inset-shadow-primary-button",
                       !imageUrl && (level > 0
-                        ? "border-brand/30 bg-brand/15 text-brand"
+                        ? "border-[color-mix(in_srgb,var(--achievement-color)_30%,transparent)] bg-[color-mix(in_srgb,var(--achievement-color)_15%,transparent)] text-[var(--achievement-color)]"
                         : "border-contrast/6 bg-contrast/6 text-muted"),
                     )}
                   >
@@ -72,7 +76,7 @@ export function AchievementsView({ data }: { data: Achievements }) {
 
                   <h2 className="mt-5 flex items-center gap-1.5 text-base font-semibold">
                     {title}
-                    {completed && <Check className="size-4 text-brand" aria-label="Concluída" />}
+                    {completed && <Check className="size-4 text-[var(--achievement-color)]" aria-label="Concluída" />}
                   </h2>
                   <p className="mt-1 mb-6 flex-1 text-sm text-muted">
                     {milestone.description}
@@ -89,7 +93,7 @@ export function AchievementsView({ data }: { data: Achievements }) {
                       className="h-1.5 flex-1 overflow-hidden rounded-full bg-contrast/6"
                     >
                       <div
-                        className="h-full rounded-full bg-brand"
+                        className="h-full rounded-full bg-[var(--achievement-color)]"
                         style={{ width: `${(progress / milestone.target) * 100}%` }}
                       />
                     </div>

@@ -288,6 +288,13 @@
       "when": 1795396000000,
       "tag": "0040_bind_solo_module",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1795469934150,
+      "tag": "0041_past_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

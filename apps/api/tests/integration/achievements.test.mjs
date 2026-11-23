@@ -51,6 +51,11 @@ test('PostgreSQL: conquistas usam histórico real, Brasília, empates, bots, pre
     assert.equal(first.items[0].levels.filter(l=>l.unlockedAt).length,2);
     const again=await readOwnAchievements(transactionPool,user,hash);
     assert.deepEqual(again.items[0].levels,first.items[0].levels);
+    definition=await saveAchievement(transactionPool,user,hash,definition.id,{...definition,color:'#42c0e3',levels:definition.levels.map(l=>({...l,color:l.target===2?'#a8ff60':null}))});
+    const colored=await readOwnAchievements(transactionPool,user,hash);
+    assert.equal(colored.items[0].color,'#42c0e3');
+    assert.equal(colored.items[0].levels[1].color,'#a8ff60');
+    assert.deepEqual(colored.items[0].levels.map(l=>l.unlockedAt),first.items[0].levels.map(l=>l.unlockedAt));
     const toWrite=()=>({...definition,levels:definition.levels.map(({id,target,description})=>({id,target,description}))});
     await assert.rejects(saveAchievement(transactionPool,user,hash,definition.id,{...toWrite(),levels:levels.slice(1)}),{code:'AWARDED_LEVEL'});
     await assert.rejects(saveAchievement(transactionPool,user,hash,definition.id,{...toWrite(),metric:'wins'}),{code:'AWARDED_METRIC'});

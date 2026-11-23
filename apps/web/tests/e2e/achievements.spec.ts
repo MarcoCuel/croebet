@@ -8,7 +8,7 @@ let definitions: AchievementDefinition[]=[];
 let signedIn=true;
 let unavailable=false;
 let closeApi:(()=>Promise<void>)|undefined;
-const definition=():AchievementDefinition=>({id:randomUUID(),name:'Só mais uma',icon:'playing-cards',imageUrl:'',metric:'games',active:true,order:0,version:1,levels:[1,25,100].map((target,i)=>({id:randomUUID(),target,description:`Complete ${target} partidas.`,locked:i===0}))});
+const definition=():AchievementDefinition=>({id:randomUUID(),name:'Só mais uma',icon:'playing-cards',imageUrl:'',color:null,metric:'games',active:true,order:0,version:1,levels:[1,25,100].map((target,i)=>({id:randomUUID(),target,color:null,imageUrl:'',description:`Complete ${target} partidas.`,locked:i===0}))});
 test.beforeAll(async()=>{closeApi=await startPublicApi(()=>signedIn?user:null,async(req,res)=>{
   const path=new URL(req.url??'/','http://fixture').pathname;
   if(path==='/api/v1/auth/csrf'){res.setHeader('content-type','application/json');res.end(JSON.stringify({token:'fixture'}));return true;}
@@ -19,7 +19,7 @@ test.beforeAll(async()=>{closeApi=await startPublicApi(()=>signedIn?user:null,as
   if(path==='/api/v1/me/achievements'){
     if(!signedIn){res.statusCode=401;res.end('{}');return true;}
     if(unavailable){res.statusCode=503;res.end('{}');return true;}
-    res.end(JSON.stringify({stats:{currentStreak:3,games:18,lostCroins:10},items:definitions.filter(d=>d.active).map(d=>({id:d.id,name:d.name,icon:d.icon,imageUrl:d.imageUrl,iconNode:[['path',{d:'M4 4h16v16H4z'}]],metric:d.metric,current:18,levels:d.levels.map(l=>({id:l.id,target:l.target,description:l.description,unlockedAt:l.locked?'2026-11-20T12:00:00.000Z':null}))}))}));return true;
+    res.end(JSON.stringify({stats:{currentStreak:3,games:18,lostCroins:10},items:definitions.filter(d=>d.active).map(d=>({id:d.id,name:d.name,icon:d.icon,imageUrl:d.imageUrl,color:d.color,iconNode:[['path',{d:'M4 4h16v16H4z'}]],metric:d.metric,current:18,levels:d.levels.map(l=>({id:l.id,target:l.target,description:l.description,color:l.color,imageUrl:l.imageUrl,unlockedAt:l.locked?'2026-11-20T12:00:00.000Z':null}))}))}));return true;
   }
   if(req.method==='GET'){
     const item=definitions.find(d=>path.endsWith(d.id));res.end(JSON.stringify(path==='/api/v1/admin/achievements'?{items:definitions}:item));return true;
@@ -89,7 +89,7 @@ test('visitante redireciona e falha de serviço permite retentativa sem zerar o 
 test('admin seleciona, salva e remove o emblema do card',async({page})=>{
   const url=`/api/v1/media/${user.id}.webp`;
   await page.goto(`/admin/conquistas/${definitions[0].id}`);
-  await page.getByRole('button',{name:'Selecionar imagem',exact:true}).click();
+  await page.getByRole('button',{name:'Selecionar imagem',exact:true}).first().click();
   await page.getByRole('button',{name:'Selecionar Emblema.png',exact:true}).click();
   await page.getByRole('button',{name:'Salvar conquista',exact:true}).click();
   await expect(page.getByText('Conquista salva.',{exact:true})).toBeVisible();
@@ -103,5 +103,35 @@ test('admin seleciona, salva e remove o emblema do card',async({page})=>{
   await expect(page.getByText('Conquista salva.',{exact:true})).toBeVisible();
   await page.goto('/conquistas');
   await expect(page.getByRole('img',{name:'Emblema de Só mais uma',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('progressbar',{name:'Só mais uma'})).toHaveAttribute('aria-valuenow','18');
+});
+
+test('admin salva cor padrão e imagem/cor do nível conquistado; remoção restaura herança',async({page})=>{
+  const id=definitions[0].id;
+  const url=`/api/v1/media/${user.id}.webp`;
+  await page.goto(`/admin/conquistas/${id}`);
+  await page.getByLabel('Cor padrão',{exact:true}).fill('#42c0e3');
+  await page.getByLabel('Cor do nível 1',{exact:true}).fill('#a8ff60');
+  await page.getByRole('group',{name:/^Nível 1(?: |$)/}).getByRole('button',{name:'Selecionar imagem',exact:true}).click();
+  await page.getByRole('button',{name:'Selecionar Emblema.png',exact:true}).click();
+  await page.getByRole('button',{name:'Salvar conquista',exact:true}).click();
+  await expect(page.getByText('Conquista salva.',{exact:true})).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Cor padrão',{exact:true})).toHaveValue('#42c0e3');
+  await expect(page.getByLabel('Cor do nível 1',{exact:true})).toHaveValue('#a8ff60');
+  await expect(page.getByRole('img',{name:'Imagem do nível 1',exact:true})).toHaveAttribute('src',url);
+  await page.goto('/conquistas');
+  const card=page.getByRole('listitem').filter({has:page.getByRole('heading',{name:'Só mais uma'})});
+  await expect(card).toHaveCSS('--achievement-color','#a8ff60');
+  await expect(card.getByRole('img',{name:'Emblema de Só mais uma'})).toHaveAttribute('src',url);
+  await page.goto(`/admin/conquistas/${id}`);
+  const level=page.getByRole('group',{name:/^Nível 1(?: |$)/});
+  await level.getByRole('button',{name:'Usar cor padrão',exact:true}).click();
+  await level.getByRole('button',{name:'Remover imagem',exact:true}).click();
+  await page.getByRole('button',{name:'Salvar conquista',exact:true}).click();
+  await expect(page.getByText('Conquista salva.',{exact:true})).toBeVisible();
+  await page.goto('/conquistas');
+  await expect(card).toHaveCSS('--achievement-color','#42c0e3');
+  await expect(card.getByRole('img')).toHaveCount(0);
   await expect(page.getByRole('progressbar',{name:'Só mais uma'})).toHaveAttribute('aria-valuenow','18');
 });

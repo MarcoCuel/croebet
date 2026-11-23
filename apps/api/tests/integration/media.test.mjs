@@ -37,7 +37,10 @@ test('PostgreSQL: upload, reutilização, exclusão protegida e limpeza com rete
   const badge=await saveAchievement(pool,admin.id,admin.hash,null,badgeInput);achievements.push(badge.id);
   assert.equal(badge.imageUrl,item.url);
   await assert.rejects(deleteMedia(pool,admin.id,admin.hash,item.id),{code:'MEDIA_IN_USE'});
-  await saveAchievement(pool,admin.id,admin.hash,badge.id,{...badgeInput,version:badge.version,imageUrl:''});
+  const levelBadge=await saveAchievement(pool,admin.id,admin.hash,badge.id,{...badgeInput,version:badge.version,imageUrl:'',levels:badgeInput.levels.map(l=>({...l,imageUrl:item.url}))});
+  assert.equal(levelBadge.levels[0].imageUrl,item.url);
+  await assert.rejects(deleteMedia(pool,admin.id,admin.hash,item.id),{code:'MEDIA_IN_USE'});
+  await saveAchievement(pool,admin.id,admin.hash,badge.id,{...badgeInput,version:levelBadge.version,imageUrl:''});
   await deleteMedia(pool,admin.id,admin.hash,item.id);
   await assert.rejects(saveAchievement(pool,admin.id,admin.hash,null,badgeInput),{code:'MEDIA_UNAVAILABLE'});
   await assert.rejects(createGame(pool,admin.id,admin.hash,{...input,slug:`media-${randomUUID()}`}),{code:'MEDIA_UNAVAILABLE'});

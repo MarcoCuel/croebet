@@ -42,3 +42,20 @@ test('rotas de conquistas mantêm progresso privado e exigem admin e CSRF para e
   assert.equal((await app.inject(`/api/v1/admin/achievements/${randomUUID()}`)).statusCode,404);
   for(const method of ['POST','PATCH']) assert.equal((await app.inject({url:`/api/v1/admin/achievements${method==='PATCH'?'/'+randomUUID():''}`,method,payload:input()})).statusCode,403);
 });
+
+test('cores e imagens dos níveis são opcionais e validadas sem aceitar CSS ou URLs arbitrários',()=>{
+  const original=input();
+  const parsed=achievementWriteSchema.parse(original);
+  assert.equal(parsed.color,null);
+  assert.equal(parsed.levels[0].color,null);
+  assert.equal(parsed.levels[0].imageUrl,'');
+  const imageUrl=`/api/v1/media/${randomUUID()}.webp`;
+  const custom=achievementWriteSchema.parse({...original,color:'#42C0E3',levels:original.levels.map(l=>({...l,color:'#a8ff60',imageUrl}))});
+  assert.equal(custom.color,'#42C0E3');
+  assert.equal(custom.levels[0].imageUrl,imageUrl);
+  for(const color of ['red','#fff','url(x)','#12345678','']) {
+    assert.equal(achievementWriteSchema.safeParse({...original,color}).success,false);
+    assert.equal(achievementWriteSchema.safeParse({...original,levels:original.levels.map(l=>({...l,color}))}).success,false);
+  }
+  assert.equal(achievementWriteSchema.safeParse({...original,levels:original.levels.map(l=>({...l,imageUrl:'https://example.com/image.png'}))}).success,false);
+});
