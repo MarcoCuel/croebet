@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { matchCodeSchema, gameRoomSchema, matchListSchema, lobbyListSchema, type GameRoom, type MatchSummary, type Lobby, type LobbyList, gameReplaySchema, type GameId } from "@croebet/shared";
 
@@ -35,4 +36,21 @@ export async function getInitialMatches(code: string | undefined, game?:GameId):
     const directory=lobbyListSchema.parse(lobbies);
     return {...empty,directory,lobby:directory.owned,items:matchListSchema.parse(data).items};
   }catch(error){const message=error instanceof Error?error.message:"unavailable";return {...empty,unavailable:message==="unavailable" || !["Entre novamente para acessar as salas.","Sala não encontrada."].includes(message),error:message==="unavailable"?"Não foi possível carregar as salas.":message};}
+}
+
+/** Resolve development links before rendering, including public spectator views. */
+export async function getInitialTestRoom(code: string): Promise<GameRoom | null> {
+  const jar = await cookies();
+  const cookie = jar.get("__Host-croebet-session") ?? jar.get("croebet-session");
+  let response: Response;
+  try {
+    response = await fetch(`${process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001"}/api/v1/matches/${code}`, {
+      headers: cookie ? { cookie: `${cookie.name}=${encodeURIComponent(cookie.value)}` } : {},
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5000),
+    });
+  } catch { return null; }
+  if (response.status === 401 || response.status === 404) notFound();
+  if (!response.ok) return null;
+  const parsed = gameRoomSchema.safeParse(await response.json().catch(() => null));
+  return parsed.success ? parsed.data : null;
 }

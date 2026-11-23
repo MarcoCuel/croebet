@@ -5,10 +5,10 @@ import type { GameRoom, GameRoomSync } from "@croebet/shared";
 import { lovePlaybackView } from "./love-letter/playback-view";
 
 /** Public frames are presentation only. Commands always use the confirmed room. */
-export function useGamePlayback(viewerId?: string) {
-  const [room, setRoom] = useState<GameRoom | null>(null);
+export function useGamePlayback(viewerId?: string, initialRoom: GameRoom | null = null) {
+  const [room, setRoom] = useState<GameRoom | null>(initialRoom);
   const [animating, setAnimating] = useState(false);
-  const confirmed = useRef<GameRoom | null>(null);
+  const confirmed = useRef<GameRoom | null>(initialRoom);
   const queue = useRef<GameRoom[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presentationBusy = useRef(false);

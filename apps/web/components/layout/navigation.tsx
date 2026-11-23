@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "./notifications-menu";
 import { Sidebar } from "./sidebar";
 import { PageBackProvider } from "./page-back";
+import { MatchNavbarProvider } from "./match-navbar";
 import { Topbar } from "./topbar";
 import { MenuLinks } from "./navigation-links";
 import { AppInstall } from "./app-install";
@@ -82,6 +83,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
 
   return (
     <PageBackProvider>
+      <MatchNavbarProvider active={!!sidebarScope}>
       <div
         className="group/navigation [--sidebar-width:0rem] [--chat-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)] md:data-[chat=open]:[--chat-width:20rem]"
         data-sidebar={sidebar}
@@ -174,6 +176,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
           {!sidebarScope && <Footer />}
         </div>
       </div>
+    </MatchNavbarProvider>
     </PageBackProvider>
   );
 }

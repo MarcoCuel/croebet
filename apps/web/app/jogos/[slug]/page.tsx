@@ -4,14 +4,14 @@ import { TestGame } from "@/features/games/test-game";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Heading } from "@/components/shared/heading";
-import { getGameDefinition, gameIdSchema } from "@croebet/shared";
+import { getGameDefinition, gameIdSchema, matchCodeSchema, type GameRecord } from "@croebet/shared";
 import { gameServerLoaders } from "@/features/games/server-registry";
 import { publicMetadata } from "@/features/seo/metadata";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { GameScreen } from "@/features/games/game-screen";
 import { PageShell } from "@/components/layout/page-shell";
-import { getInitialMatches } from "@/features/games/server-matches";
+import { getInitialMatches, getInitialTestRoom } from "@/features/games/server-matches";
 import { getPublicGames } from "@/features/games/server-games";
 import { ManagementUnavailable } from "@/features/admin/management-shared";
 
@@ -22,6 +22,14 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if ((await searchParams).partida && !data?.items[0]) return { title: "Histórico da partida · Croebet", robots: { index: false, follow: false } };
   return data ? data.items[0] ? await publicMetadata(`/jogos/${data.items[0].slug}`, data.items[0].name, data.items[0].seo) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
 }
+async function renderTestGame(game: GameRecord, code?: string) {
+  if (code && !matchCodeSchema.safeParse(code).success) notFound();
+  const room = code ? await getInitialTestRoom(code) : null;
+  if (code && !room) return <PageShell><ManagementUnavailable /></PageShell>;
+  if (room && room.game !== (game.moduleId ?? game.slug)) notFound();
+  return <PageShell><TestGame key={code ?? "new"} game={game} initialRoom={room}/></PageShell>;
+}
+
 export default async function Game({ params, searchParams }: Props) {
   const { slug } = await params;
   const query = await searchParams;
@@ -37,9 +45,9 @@ export default async function Game({ params, searchParams }: Props) {
     if(query.teste==="1" && session.user?.role!=="admin")notFound();
     developmentOnlyAdmin=!!definition?.developmentOnly && session.user?.role==="admin";
   }
-  if(data?.items[0] && (developmentOnlyAdmin || query.teste==="1" || (definition?.developmentOnly && !!query.partida)))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
+  if(data?.items[0] && (developmentOnlyAdmin || query.teste==="1" || (definition?.developmentOnly && !!query.partida)))return renderTestGame(data.items[0], query.partida);
   const archivedInitial = query.partida ? await (loadInitial ? loadInitial(query.partida) : getInitialMatches(query.partida)) : null;
-  if(data?.items[0] && (archivedInitial?.lobby?.development || archivedInitial?.match?.development))return <PageShell><TestGame key={query.partida ?? "new"} game={data.items[0]}/></PageShell>;
+  if(data?.items[0] && (archivedInitial?.lobby?.development || archivedInitial?.match?.development))return renderTestGame(data.items[0], query.partida);
   if (archivedInitial?.replay) return <PageShell><h1 className="sr-only">{data?.items[0]?.name ?? "Histórico da partida"}</h1><GameScreen slug={archivedInitial.replay.match.game ?? "flip7"} game={data?.items[0] ?? null} initial={archivedInitial} /></PageShell>;
   if (data && data.items.length === 0) notFound();
   if (data && (!loadInitial || definition?.developmentOnly)) {

@@ -5,6 +5,7 @@ import {gameRoomSchema,gameIdSchema,commandResultSchema,type GameRecord,type Gam
 import {randomUUID} from "@/lib/uuid";
 import {useSession} from "@/features/auth/session-context";
 import {managementRequest} from "@/features/admin/management-api";
+import {Skeleton} from "@/components/ui/skeleton";
 import {Button} from "@/components/ui/button";
 import {Pause,Play,StepForward} from "lucide-react";
 import {gameUrl} from "./game-url";
@@ -18,10 +19,10 @@ import {TestReplay} from "./test-replay";
 import {MatchResult} from "./match-result";
 
 type Room=ReturnType<typeof gameRoomSchema.parse>;
-export function TestGame({game}:{game:GameRecord}){
+export function TestGame({game,initialRoom=null}:{game:GameRecord;initialRoom?:Room|null}){
  const {userId,permissions}=useSession(),query=useSearchParams();
  const code=query.get("partida") ?? "";
- const playback=useGamePlayback(userId ?? undefined);
+ const playback=useGamePlayback(userId ?? undefined,initialRoom);
  const {receive,clear}=playback;
  const loadedRoom=playback.room;
  const setRoom=useCallback((next:Room|null)=>{if(next)receive({room:next,frames:[],reset:true});else clear();},[receive,clear]);
@@ -54,6 +55,7 @@ export function TestGame({game}:{game:GameRecord}){
  const canEnd=room?.status==="playing" && admin && room.hostId===userId;
  const exit=room?.status==="playing" && (canAbandon || canEnd)?<MatchExitControl match={room} onOpen={()=>setRunning(false)} onIndividual={canAbandon?async()=>{await abandonGame(code,randomUUID(),playback.confirmed.current!.version);await refresh();}:undefined} onEndTest={canEnd?async()=>{await managementRequest(`/matches/${code}/end-test`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:playback.confirmed.current!.version});setRoom(null);window.history.replaceState(null,"",gameUrl(game.slug,{development:admin}));}:undefined}/>:null;
  const controls=admin && room?.hostId===userId && room.status!=="lobby"?<div role="group" aria-label="Controles de desenvolvimento" className="flex items-center gap-1">{room.onlyBots && room.status==="playing" && <><Button size="icon" variant="ghost" disabled={busy || playback.animating} aria-label={running?"Pausar teste":"Reproduzir teste"} title={running?"Pausar teste":"Reproduzir teste"} aria-pressed={running} onClick={()=>setRunning(!running)}>{running?<Pause className="size-4"/>:<Play className="size-4"/>}</Button><Button size="icon" variant="ghost" disabled={busy || running || playback.animating} aria-label="Avançar jogada" title="Avançar jogada" onClick={()=>void step()}><StepForward className="size-4"/></Button></>}</div>:null;
+ if(code && !room)return error?<div role="alert" className="space-y-4"><p>{error}</p><Button variant="secondary" onClick={()=>{setError("");void refresh().catch(e=>setError(e instanceof Error?e.message:"Não foi possível abrir a partida."));}}>Tentar novamente</Button></div>:<Skeleton className="min-h-96 w-full" aria-label="Carregando partida"/>;
  if(replaying && room && room.status!=="lobby")return <TestReplay game={game} room={room} onClose={()=>setReplaying(false)}/>;
  return <div className="space-y-4">
  {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={setRoom} onTestStarted={openTest}/>}

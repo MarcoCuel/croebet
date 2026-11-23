@@ -18,7 +18,6 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
   const matches = (game: GameRecord, value: string) => value === "all" || game.enabled === (value === "active");
   const visible = games.filter(game => matches(game, status) && normalize(game.name).includes(normalize(search.trim())));
   return <div className="grid min-w-0 gap-4">
-    <div className="flex items-center justify-between gap-3"><h1 className="font-semibold">Jogos</h1><Button asChild variant="secondary"><Link href="/admin/jogos/laboratorio">Laboratório 3D</Link></Button></div>
     <AdminListHeader create={{ href: "/admin/jogos/novo", label: "Criar jogo" }} filterLabel="Status dos jogos" filters={<>
       {[["all", "Todos"], ["active", "Ativos"], ["inactive", "Inativos"]].map(([value, label]) => <Button key={value} size="sm" variant={status === value ? "secondary" : "ghost"} aria-pressed={status === value} onClick={() => setStatus(value)}>
         {label} {status === value && <AdminFilterCount count={games.filter(game => matches(game, value)).length} />}
@@ -40,5 +39,8 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
         </li>)}
       </ul> : <EmptyState title="Nenhum jogo encontrado." />}
     </Card>
+    <Button asChild variant="secondary" className="p-6 pt-16 justify-start">
+      <Link href="/admin/jogos/laboratorio">Laboratório 3D</Link>
+    </Button>
   </div>;
 }

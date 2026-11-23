@@ -6,6 +6,8 @@ import { expect, test, type Page, type Locator } from "@playwright/test";
 import type { GameRecord, LoveView } from "@croebet/shared";
 
 async function checkTableControls(page: Page, table: Locator, desktop: boolean) {
+ const options = page.getByRole("button", {name:"Opções da partida", exact:true});
+ if (await options.isVisible()) await options.click();
  const controls = page.getByLabel("Controles da partida", {exact:true});
  const fullscreen = controls.getByRole("button", {name:"Tela cheia", exact:true});
  const toggle = controls.getByRole("button", {name:"Esconder histórico", exact:true});
@@ -386,7 +388,7 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   const controls=page.locator("[data-game-actions]");
   await expect(controls.getByLabel("Controles de reprodução")).toBeVisible();
   await controls.getByRole("button",{name:"Pausar",exact:true}).click();
-  await checkTableControls(page, page.getByRole("region",{name:"Mesa de Flip7",exact:true}).getByLabel("Controles da partida", {exact:true}).locator("../.."), testInfo.project.name === "desktop");
+  await checkTableControls(page, page.locator("[data-game-table-content]"), testInfo.project.name === "desktop");
   await controls.getByRole("button",{name:"Próxima jogada",exact:true}).click();
   await expect(page.getByText("Jogada registrada 2.",{exact:true})).toBeVisible();
   await controls.getByRole("button",{name:"Início",exact:true}).click();
@@ -517,6 +519,28 @@ function prepareLoveTable() {
  loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:"love-letter",rulesVersion:1,version:2,capacity:6,options:{mode:"modern",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],development:true,bots:5,onlyBots:false,status:"playing",state:{mode:"modern",round:1,turn:0,phase:"playing",deckCount:12,removed:[],winners:[],log:["Rodada 1 iniciada.","Bot 1 jogou 4."],pending:false,players:[{name:"Ana",kind:"human",hand:[1,4],handCount:2,discard:[],protected:false,out:false,tokens:1},...[1,2,3,4,5].map(index=>({name:`Bot ${index}`,kind:"normal",hand:null,handCount:1,discard:[4],protected:index===1,out:index===5,tokens:0}))],privateInfo:["Bot 2: 4 (ao jogar Sacerdote)."],legalActions:[{type:"play",card:1,target:2,guess:9},{type:"play",card:1,target:3,guess:8},{type:"play",card:4}]}});
 }
 
+test("link de teste abre a mesa sem exibir o lobby durante a revalidação", async ({page}) => {
+ prepareLoveTable();
+ await page.addInitScript(() => {
+  const state = window as typeof window & { lobbyFlashed?: boolean };
+  state.lobbyFlashed = false;
+  new MutationObserver(() => {
+   if (document.querySelector('[aria-label="Modo do Love Letter"]')) state.lobbyFlashed = true;
+  }).observe(document, {childList:true, subtree:true});
+ });
+ let release!: () => void;
+ const pending = new Promise<void>(resolve => { release = resolve; });
+ await page.route("**/api/v1/matches/ABCDEF654321", async route => {
+  await pending;
+  await route.fulfill({json:loveRoom});
+ });
+ try {
+  await page.goto("/jogos/love-letter?partida=ABCDEF654321&teste=1");
+  await expect(page.getByLabel("Mesa do Love Letter")).toBeVisible();
+  expect(await page.evaluate(() => (window as typeof window & {lobbyFlashed?:boolean}).lobbyFlashed)).toBe(false);
+ } finally { release(); }
+});
+
 async function selectLoveCard(page: import("@playwright/test").Page, name: string) {
  const card = page.getByRole("button", { name, exact: true });
  await card.focus(); await card.press("Enter");
@@ -586,7 +610,7 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
   }).toBeLessThan(2);
   const controlsBox = (await page.getByLabel("Controles da partida", { exact: true }).boundingBox())!;
   const action = (await actions.boundingBox())!;
-  expect(Math.abs(action.y + action.height / 2 - controlsBox.y - controlsBox.height / 2)).toBeLessThan(2);
+  expect(controlsBox.y + controlsBox.height).toBeLessThanOrEqual(action.y);
   await assertActionsAboveScene();
  }
  await selectLoveCard(page, "Descartar 1 · Guarda");
@@ -627,9 +651,9 @@ test("mesa Love Letter seleciona cartas, valida alvo/palpite e recolhe históric
  await expect(round.locator('[data-slot="avatar"]')).toHaveCount(0);
  await expect(round.getByRole("img")).toHaveCount(0);
  await expect(history.getByRole("listitem").first()).toHaveText("BBot 1 jogou 4.");
- const sceneHeader = page.getByTestId("love-table-scene").locator("[data-table-header]");
- await expect(sceneHeader).toContainText("Love Letter");
- await expect(sceneHeader.getByLabel("Controles da partida", {exact:true})).toBeVisible();
+ const navbar = page.getByRole("banner");
+ await expect(navbar).toContainText("Love Letter");
+ await expect(page.getByTestId("love-table-scene").getByLabel("Controles da partida", {exact:true})).toHaveCount(0);
  await checkTableControls(page, table, testInfo.project.name === "desktop");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath("love-letter-table.png"),fullPage:true});

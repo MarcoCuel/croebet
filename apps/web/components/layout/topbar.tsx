@@ -18,6 +18,7 @@ import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
 import { gameUrl } from "@/features/games/game-url";
 import { useGameLinks } from "@/features/games/game-links";
+import { MatchNavbarControls, MatchNavbarIdentity, useMatchNavbar } from "./match-navbar";
 import { usePageBack } from "./page-back";
 import { cn } from "@/lib/utils";
 import { usePageLinks } from "@/features/pages/page-links";
@@ -31,6 +32,8 @@ export function Topbar({
   onOpenMenu: () => void;
   invitations: LobbyInvitations["items"];
 }) {
+  const matchNavbar = useMatchNavbar();
+  const compactMatch = matchNavbar?.active && matchNavbar.hasHeader;
   const pathname = usePathname();
   const games = useGameLinks();
   const pages = usePageLinks() ?? [];
@@ -112,7 +115,7 @@ export function Topbar({
     openRegister,
   } = useSession();
   return (
-    <header className="fixed top-0 right-(--chat-width) left-(--sidebar-width) z-20 flex h-(--header-height) items-center justify-between gap-2 bg-background px-(--page-gap) transition-[left,right,padding-left] duration-300 ease-in-out motion-reduce:transition-none md:group-data-[sidebar=collapsed]/navigation:pl-16 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+    <header className={cn("fixed top-0 right-(--chat-width) left-(--sidebar-width) z-20 flex h-(--header-height) items-center justify-between gap-2 bg-background px-(--page-gap) transition-[left,right,padding-left] duration-300 ease-in-out motion-reduce:transition-none md:group-data-[sidebar=collapsed]/navigation:pl-16 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]", compactMatch && "md:flex")}>
       <div className="flex min-w-0 items-center gap-2">
         <Button
           variant="secondary"
@@ -142,9 +145,10 @@ export function Topbar({
         )}
         {isInternalPage && (
           <>
-            <span className="truncate text-sm font-medium md:text-base">
+            <span className={cn("truncate text-sm font-medium md:text-base", compactMatch && "shrink-0")}>
               {pageTitle}
             </span>
+            <MatchNavbarIdentity />
 
           </>
         )}
@@ -153,7 +157,7 @@ export function Topbar({
         <div role="status" aria-label="Carregando conta" className="col-start-3 h-11 w-36 justify-self-end rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
       ) : username ? (
         <>
-          <div className="hidden items-center gap-2 rounded-panel bg-contrast/6 p-1.5 md:flex">
+          <div className={cn("hidden items-center gap-2 rounded-panel bg-contrast/6 p-1.5 md:flex", compactMatch && "md:hidden 2xl:flex")}>
             <Button
               asChild
               variant="ghost"
@@ -165,7 +169,8 @@ export function Topbar({
             </Button>
             <RedeemButton />
           </div>
-          <div className="flex min-w-0 items-center justify-self-end gap-2">
+          <div className="flex shrink-0 items-center justify-self-end gap-2">
+            <MatchNavbarControls />
             <div className="hidden md:contents"><DailyBonusButton /></div>
             <Suspense><ActiveMatchesMenu /></Suspense>
             <div className="hidden md:contents">
@@ -177,6 +182,7 @@ export function Topbar({
         </>
       ) : (
         <div className="col-start-3 flex shrink-0 justify-self-end gap-1.5 sm:gap-2">
+          <MatchNavbarControls />
           <Button
             variant="secondary"
             className="px-2.5 text-xs sm:px-4 sm:text-sm"

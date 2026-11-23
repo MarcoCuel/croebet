@@ -1,5 +1,7 @@
 "use client";
 
+import { MatchHeader, useMatchNavbar } from "@/components/layout/match-navbar";
+import { cn } from "@/lib/utils";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { resolveTableLayout, adaptiveHandWindow } from "./adaptive-layout";
@@ -73,6 +75,7 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
     const update = () => setReduced(query.matches); update(); query.addEventListener("change", update);
     return () => { observer.disconnect(); globalThis.removeEventListener("resize", measure); query.removeEventListener("change", update); };
   }, []);
+  const navbarHeader = useMatchNavbar()?.active;
   const hands = presentedHands(state, viewer);
   const layout = useTableLayout(hands, state, viewer, viewport, visual);
   const settings = { ...visual, players: state.hands.length, viewer, turn, reveal: false };
@@ -82,9 +85,11 @@ export function TableViewport({ state, presentation, viewer, turn, canDraw, onDr
   return <div ref={root} data-table-viewport data-testid={testId} data-choice={state.choice ? "true" : "false"} data-hand-layout={state.handLayout ?? "fan"} data-discard-count={state.discard.length} data-staging-count={state.staging?.length ?? 0} style={top === null ? undefined : { height: `calc(100dvh - ${top}px - 1rem)` }} className="relative @container flex flex-col h-[calc(100dvh-var(--header-height)-5rem)] min-h-0 w-full overflow-hidden rounded-panel border border-contrast/6" data-lenis-prevent>
     <div className="relative z-20 flex shrink-0 flex-col items-center gap-4 py-2 px-6 text-center" data-table-toolbar>
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 @[72rem]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" data-table-header>
-        {header && <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-4 text-left">{header.identity}</div>}
-        {header && <div className="col-start-2 row-start-1 min-w-0 justify-self-end @[72rem]:col-start-3">{header.controls}</div>}
-        {actions && <div className="col-span-2 row-start-2 min-w-0 justify-self-center @[72rem]:col-span-1 @[72rem]:col-start-2 @[72rem]:row-start-1">{actions}</div>}
+        {header && <MatchHeader {...header}>
+          <div className="col-start-1 row-start-1 flex min-w-0 flex-wrap items-center gap-4 text-left">{header.identity}</div>
+          <div className="col-start-2 row-start-1 min-w-0 justify-self-end @[72rem]:col-start-3">{header.controls}</div>
+        </MatchHeader>}
+        {actions && <div className={cn("col-span-2 min-w-0 justify-self-center @[72rem]:col-span-1 @[72rem]:col-start-2 @[72rem]:row-start-1", navbarHeader ? "row-start-1" : "row-start-2")}>{actions}</div>}
       </div>
       {status && <p role="status" className="rounded-lg bg-background/90 px-3 py-2 text-sm font-medium backdrop-blur-sm">{status}</p>}
       {children && <div className="flex max-w-full flex-wrap items-center justify-center gap-2">{children}</div>}

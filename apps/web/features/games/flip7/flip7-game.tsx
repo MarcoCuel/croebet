@@ -11,6 +11,7 @@ import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip
 import { Flip7Result } from "./flip7-result";
 import { GameActionBar, GameDrawActions, GameActionShortcuts } from "../game-action-bar";
 import { GameTableLayout } from "../game-table-layout";
+import { MatchHeader } from "@/components/layout/match-navbar";
 import { GameControls } from "../game-controls";
 import { useGameAudio } from "../use-game-audio";
 import { randomUUID } from "@/lib/uuid";
@@ -581,7 +582,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       </GameActionBar>;
 
   const tableHeader = { identity: <>
-            {tableView.view === "3d" && <span className="text-sm font-medium">Flip 7</span>}
+            {tableView.view === "3d" && <span data-game-title className="text-sm font-medium">Flip 7</span>}
             <Badge variant="secondary">{modeLabel(game)}</Badge>
             {!!matchInfo?.entryAmount && <Badge className="gap-1.5 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]" />Pote: {matchInfo.potTotal.toLocaleString("pt-BR")} Croins</Badge>}
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
@@ -609,7 +610,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
         card: entry.card ? <PlayingCard card={entry.card} compact /> : undefined,
       }))}>
         <div className={cn("min-w-0", tableView.view !== "3d" && (replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24"))}>
-          {tableView.view === "classic" && <div className="mb-4 flex flex-wrap items-center gap-3">{tableHeader.identity}{tableHeader.controls}</div>}
+          {tableView.view === "classic" && <MatchHeader {...tableHeader}><div className="mb-4 flex flex-wrap items-center gap-3">{tableHeader.identity}{tableHeader.controls}</div></MatchHeader>}
           {!replay && matchInfo && <CancellationNotice match={matchInfo}/>}
           {tableView.view === "3d" ? <FlipScene header={tableHeader} actions={actionBar} key={replay?.epoch ?? "live"} game={displayGame} summaryGame={sceneAnimating ? presentationBefore ?? game : game} localPlayer={!spectator} participants={tableParticipants} viewer={ownSeat ?? 0}
             interactive={!sceneAnimating && human} eligible={!resolvingCardFinished && !replay && ownSeat === game.pending?.source && actor.kind === "human" ? [...new Set(eligibleCards)] : []} targetSeats={!resolvingCardFinished && human ? validTargets : []} selected={selectedCards}

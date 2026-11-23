@@ -1042,7 +1042,7 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
 });
 
 
-test("mesa de teste mantém identificação e ferramentas na barra sem cabeçalho de entrada",async({page})=>{
+test("mesa de teste leva badges e controles para a navbar e preserva suas ações",async({page},testInfo)=>{
  const code="ABCDEF991122";
  const state=flip7Driver.project(createGame(matchUsers.map(u=>({name:u.username,kind:"human" as const})),42,{mode:"vengeance",brutal:true}));
  const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,development:true,game:"flip7",rulesVersion:1,version:1,status:"playing",state,hostId:matchUsers[0].id,capacity:2,options:{mode:"vengeance",brutal:true},participants:matchUsers.map((u,seat)=>({userId:u.id,username:u.username,displayName:u.displayName,avatarUrl:null,seat}))});
@@ -1051,8 +1051,35 @@ test("mesa de teste mantém identificação e ferramentas na barra sem cabeçalh
  await expect(page.getByRole("region",{name:"Mesa de Flip7"})).toBeVisible();
  await expect(page.getByLabel("Apresentação do jogo")).toHaveCount(0);
  await expect(page.getByRole("button",{name:"Voltar às salas",exact:true})).toHaveCount(0);
- await expect(page.getByRole("region",{name:"Mesa de Flip7"}).getByText("Desenvolvimento",{exact:true})).toBeVisible();
- await expect(page.getByLabel("Controles da partida").getByRole("button",{name:"Silenciar som",exact:true})).toBeVisible();
+ const navbar = page.getByRole("banner");
+ await expect(navbar.getByText("Desenvolvimento",{exact:true})).toBeVisible();
+ await expect(navbar.getByText("Vingança · Brutal",{exact:true})).toBeVisible();
+ const table = page.getByRole("region",{name:"Mesa de Flip7"});
+ await expect(table.getByText("Desenvolvimento",{exact:true})).toHaveCount(0);
+ await expect(table.getByLabel("Controles da partida")).toHaveCount(0);
+ const options = navbar.getByRole("button",{name:"Opções da partida",exact:true});
+ if (testInfo.project.name === "mobile") await options.click();
+ const controls = page.getByLabel("Controles da partida");
+ await controls.getByRole("button",{name:"Silenciar som",exact:true}).click();
+ await expect(controls.getByRole("button",{name:"Ativar som",exact:true})).toBeVisible();
+ await controls.getByRole("button",{name:"Esconder histórico",exact:true}).click();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeHidden();
+ await controls.getByRole("button",{name:"Mostrar histórico",exact:true}).click();
+ await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeVisible();
+ if (testInfo.project.name === "desktop") {
+   await expect(navbar.getByLabel("Controles da partida")).toBeVisible();
+   const before = await controls.boundingBox();
+   const bonus = navbar.getByRole("button",{name:"Bônus diário",exact:true});
+   if (await bonus.count()) expect(before!.x + before!.width).toBeLessThanOrEqual((await bonus.boundingBox())!.x);
+ } else {
+   await page.keyboard.press("Escape");
+   await expect(options).toBeFocused();
+ }
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await page.goto("/jogos/flip7");
+ await expect(navbar.locator("[data-match-identity]")).toHaveCount(0);
+ await expect(navbar.locator("[data-match-controls]")).toHaveCount(0);
+ await expect(page.getByLabel("Apresentação do jogo")).toBeVisible();
 });
 
 
@@ -1188,9 +1215,9 @@ for (const type of ["steal", "swap"] as const) {
     await page.getByRole("button", { name: "3D", exact: true }).click();
     const scene = page.getByTestId("flip-table-scene");
     await expect(scene.locator("canvas")).toBeVisible();
-    const header = scene.locator("[data-table-header]");
-    await expect(header).toContainText("Flip 7");
-    await expect(header.getByLabel("Controles da partida", { exact: true })).toBeVisible();
+    const header = page.getByRole("banner");
+    await expect(header).toContainText("Flip da comunidade");
+    await expect(scene.getByLabel("Controles da partida", { exact: true })).toHaveCount(0);
     if (testInfo.project.name === "desktop") {
       const box = await scene.boundingBox();
       expect(Math.abs(box!.y + box!.height - (page.viewportSize()!.height - 16))).toBeLessThanOrEqual(2);
@@ -1291,6 +1318,14 @@ for (const view of ["classic", "3d"] as const) {
       await history.locator("[data-lenis-prevent]").evaluate(element => { element.scrollTop = 150; });
       expect(await history.locator("[data-lenis-prevent]").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
       expect(await table.evaluate(element => element.scrollTop)).toBe(0);
+      expect(await table.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+      if (view === "classic") {
+        const seat = table.getByRole("region", { name: "Mesa de Marco", exact: true });
+        const viewport = (await table.boundingBox())!, bounds = (await seat.boundingBox())!;
+        // The active seat's 2px outer shadow must fit inside the scroll clip.
+        expect(bounds.x - 2).toBeGreaterThanOrEqual(viewport.x);
+        expect(bounds.x + bounds.width + 2).toBeLessThanOrEqual(viewport.x + viewport.width);
+      }
     };
     await verify();
     await page.setViewportSize({ width: 900, height: 560 });
