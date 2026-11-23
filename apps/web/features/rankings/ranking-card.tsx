@@ -42,7 +42,7 @@ export function RankingCard({ data, category, page, previous, next, retry, perio
                   <span className="block truncate font-medium" title={item.displayName}>{item.displayName}{item.userId===data.own?.userId && <span className="ml-1 text-xs text-brand">Você</span>}</span>
                   <span id={`ranking-value-${category}-${item.userId}`} className="mt-2 block text-muted tabular-nums"><Amount item={item} category={category} /></span>
                 </div>
-                <span aria-hidden="true" className={cn("grid w-full place-items-center rounded-xl border border-white/6 font-medium leading-none text-white tabular-nums inset-shadow-primary-button",index === 0 ? "h-18 bg-ranking-gold" : index === 1 ? "h-12 bg-ranking-silver" : "h-[2.1875rem] bg-ranking-bronze")}>{item.position} lugar</span>
+                <span aria-hidden="true" className={cn("grid w-full place-items-center rounded-xl border border-white/6 font-medium leading-none text-white tabular-nums inset-shadow-primary-button",index === 0 ? "h-18 bg-secondary" : index === 1 ? "h-12 bg-tertiary" : "h-[2.1875rem] bg-quaternary")}>{item.position} lugar</span>
               </Link>
             </li>)}
           </ol>}
