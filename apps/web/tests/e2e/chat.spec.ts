@@ -186,3 +186,21 @@ test("chat desliza a partir da borda sem desmontar nem criar rolagem horizontal"
   await expect(panel).toHaveAttribute("inert", "");
   await expect(page.locator("header")).toHaveCSS("right", "0px");
 });
+
+
+test("título acompanha notificações sem perder metadata da página", async ({ page }) => {
+  await page.goto("/");
+  await expect.poll(() => sockets.sockets.sockets.size).toBeGreaterThan(0);
+  const original = await page.title();
+  sockets.emit("invitations", { items: [
+    { code: "ABCDEF123456", username: "Ana", avatarUrl: null },
+    { code: "ABCDEF123457", username: "Bia", avatarUrl: null },
+  ] });
+  await expect(page).toHaveTitle(`(2) ${original}`);
+  await page.evaluate(() => { document.title = "Outra página | Croebet"; });
+  await expect(page).toHaveTitle("(2) Outra página | Croebet");
+  sockets.emit("invitations", { items: [{ code: "ABCDEF123456", username: "Ana", avatarUrl: null }] });
+  await expect(page).toHaveTitle("(1) Outra página | Croebet");
+  sockets.emit("invitations", { items: [] });
+  await expect(page).toHaveTitle("Outra página | Croebet");
+});

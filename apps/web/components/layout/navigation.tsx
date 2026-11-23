@@ -20,6 +20,7 @@ import { RedeemButton } from "@/features/wallet/redeem-button";
 import { DailyBonusButton } from "@/features/wallet/daily-bonus-button";
 import { Button } from "@/components/ui/button";
 import { NotificationsMenu } from "./notifications-menu";
+import { useNotificationTitle } from "./use-notification-title";
 import { Sidebar } from "./sidebar";
 import { PageBackProvider } from "./page-back";
 import { MatchNavbarProvider } from "./match-navbar";
@@ -38,6 +39,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
   const chat = useGeneralChat();
   const { username, balance, walletReady } = useSession();
   const invitations = useLobbyInvitations();
+  useNotificationTitle(invitations.length);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const matchCode = searchParams.get("partida");
