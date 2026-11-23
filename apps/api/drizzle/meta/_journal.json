@@ -281,6 +281,13 @@
       "when": 1795395000000,
       "tag": "0039_solo_development",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1795396000000,
+      "tag": "0040_bind_solo_module",
+      "breakpoints": true
     }
   ]
 }

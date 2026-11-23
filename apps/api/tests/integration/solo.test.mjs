@@ -42,3 +42,23 @@ test('PostgreSQL Solo: desenvolvimento, intervenções concorrentes, recibos, pr
  await advanceDeferredMatches(pool);assert.equal((await getRoomSync(pool,users[0],lobby.code)).room.version,advanced.version);
  // Synthetic accounts/match remain available for inspection; no production/reset path.
 });
+
+test('PostgreSQL Solo: migration vincula placeholder existente sem substituir catálogo ou históricos',async t=>{
+ assert.ok(process.env.TEST_DATABASE_URL,'Configure TEST_DATABASE_URL exclusivo de test.');
+ const {pool}=createDatabase(process.env.TEST_DATABASE_URL);t.after(()=>pool.end());
+ assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment,'test');
+ const {readFile}=await import('node:fs/promises');
+ const sql=await readFile(new URL('../../drizzle/0040_bind_solo_module.sql',import.meta.url),'utf8');
+ const client=await pool.connect();
+ try{
+  await client.query('begin');
+  // Rollback restores the synthetic catalog, including any registered Solo row.
+  await client.query("update games set module_id=gen_random_uuid()::text,slug='temporary-'||id::text where module_id='solo' or slug='solo'");
+  const placeholder=(await client.query("insert into games(slug,name,description,enabled,module_id) values('solo','Meu Solo','Texto personalizado',true,gen_random_uuid()::text) returning *")).rows[0];
+  await client.query(sql);
+  const bound=(await client.query('select * from games where id=$1',[placeholder.id])).rows[0];
+  assert.deepEqual(bound,{...placeholder,module_id:'solo',version:placeholder.version+1});
+  await client.query(sql);
+  assert.deepEqual((await client.query('select * from games where id=$1',[placeholder.id])).rows[0],bound);
+ }finally{await client.query('rollback');client.release();}
+});
