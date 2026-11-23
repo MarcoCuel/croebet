@@ -22,6 +22,6 @@ export default async function Rankings({ searchParams }: { searchParams: Promise
   };
   return <PageShell>
     <h1 className="sr-only">Rankings</h1>
-    <div className="grid gap-3 lg:grid-cols-3">{categories.map((category,index) => <RankingCard key={category} category={category} data={results[index]} page={pages[index]} period={periods[index]} monthHref={href(category,1,"month")} allHref={href(category,1,"all")} previous={href(category,pages[index]-1)} next={href(category,pages[index]+1)} retry={href(category,pages[index])} />)}</div>
+    <div className="grid gap-4 lg:grid-cols-3">{categories.map((category,index) => <RankingCard key={category} category={category} data={results[index]} page={pages[index]} period={periods[index]} monthHref={href(category,1,"month")} allHref={href(category,1,"all")} previous={href(category,pages[index]-1)} next={href(category,pages[index]+1)} retry={href(category,pages[index])} />)}</div>
   </PageShell>;
 }

@@ -14,7 +14,7 @@ test.beforeAll(async()=>{closeApi=await startPublicApi(()=>null,async(req,res)=>
   res.end(JSON.stringify({category,period:q.get('period'),page:Number(q.get('page')),items,own:null,hasMore:false}));return true;
 });});
 test.afterAll(async()=>{await closeApi?.();});
-test('fotos verticais e horizontais mantêm recorte circular no pódio e na lista',async({page})=>{
+test('fotos verticais e horizontais mantêm recorte circular na lista',async({page})=>{
   unavailable=false;await page.goto('/rankings');
   const wins=page.getByRole('region',{name:'Vitórias',exact:true});
   const images=wins.locator('[data-slot="avatar-image"]');
@@ -29,40 +29,40 @@ test('fotos verticais e horizontais mantêm recorte circular no pódio e na list
     })).toBe(true);
     await expect(image.locator('..').locator('[data-slot="avatar-fallback"]')).toBeHidden();
   }
-  await expect(wins.getByRole('link',{name:'Posição 3 Jogador 2',exact:true}).locator('[data-slot="avatar-fallback"]')).toBeVisible();
+  await expect(wins.getByRole('link',{name:'Jogador 2',exact:true}).locator('[data-slot="avatar-fallback"]')).toBeVisible();
 });
-test('cards preservam pódio, filtros independentes e empty state',async({page})=>{
+test('cards exibem lista vertical, filtros independentes e empty state',async({page})=>{
   unavailable=false;await page.goto('/rankings');
   const wins=page.getByRole('region',{name:'Vitórias',exact:true});
   const rich=page.getByRole('region',{name:'Mais ricos',exact:true});
   const losers=page.getByRole('region',{name:'Maiores perdedores',exact:true});
-  await expect(wins.getByRole('list',{name:'Pódio de Vitórias'}).getByRole('listitem')).toHaveCount(3);
-  const podium = wins.getByRole('list',{name:'Pódio de Vitórias'});
-  const columns = await Promise.all([1,2,3].map(position => podium.getByRole('link',{name:`Posição ${position} Jogador ${position-1}`,exact:true}).boundingBox()));
-  const [first,second,third] = columns;
-  expect(first && second && third).toBeTruthy();
-  expect(second!.x).toBeLessThan(first!.x);
-  expect(first!.x).toBeLessThan(third!.x);
-  expect(first!.y).toBeLessThan(second!.y);
-  expect(second!.y).toBeLessThan(third!.y);
-  expect(Math.abs(first!.y + first!.height - second!.y - second!.height)).toBeLessThan(1);
-  expect(Math.abs(first!.y + first!.height - third!.y - third!.height)).toBeLessThan(1);
+  const list = wins.getByRole('list',{name:'Classificação de Vitórias'});
+  const rows = list.getByRole('listitem');
+  await expect(rows).toHaveCount(4);
+  await expect(wins.getByRole('list')).toHaveCount(1);
+  const boxes = await Promise.all((await rows.all()).map(row => row.boundingBox()));
+  for (let index=1;index<boxes.length;index++) {
+    expect(boxes[index]!.x).toBe(boxes[0]!.x);
+    expect(boxes[index]!.y).toBeGreaterThanOrEqual(boxes[index-1]!.y + boxes[index-1]!.height);
+  }
+  const colors = await Promise.all((await rows.all()).map(row => row.locator(':scope > span').first().evaluate(element => getComputedStyle(element).color)));
+  expect(new Set(colors).size).toBe(4);
   await expect(rich.getByRole('navigation')).toHaveCount(0);
   await expect(losers.getByText('Ninguém perdeu ainda. Suspeito.')).toBeVisible();
   await wins.getByRole('link',{name:'Geral',exact:true}).click();
   await expect(wins.getByRole('link',{name:'Geral',exact:true})).toHaveAttribute('aria-current','page');
   await expect(losers.getByRole('link',{name:'Este mês',exact:true})).toHaveAttribute('aria-current','page');
-  await expect(rich.getByRole('link',{name:'Posição 1 Jogador 0',exact:true})).toHaveAttribute('href','/perfil/Player0');
+  await expect(rich.getByRole('link',{name:'Jogador 0',exact:true})).toHaveAttribute('href','/perfil/Player0');
   await expect(page.getByText('Vitórias e perdas por período.',{exact:false})).toHaveCount(0);
 });
 test('indisponibilidade oferece retentativa sem afirmar que não existem jogadores',async({page})=>{
   unavailable=true;await page.goto('/rankings');
   await expect(page.getByText('O placar ficou indisponível.',{exact:true})).toHaveCount(3);
   unavailable=false;await page.getByRole('link',{name:'Tentar novamente',exact:true}).first().click();
-  await expect(page.getByRole('list',{name:'Pódio de Mais ricos'})).toBeVisible();
+  await expect(page.getByRole('list',{name:'Classificação de Mais ricos'})).toBeVisible();
 });
 
-test('maiores perdedores mostra derrotas no pódio e lista, com singular e plural',async({page})=>{
+test('maiores perdedores mostra derrotas na lista, com singular e plural',async({page})=>{
   unavailable=false;showLosers=true;
   try {
     await page.goto('/rankings');
