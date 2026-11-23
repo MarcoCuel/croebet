@@ -39,7 +39,7 @@ export function CouponDialog({ onRedeemed }: { onRedeemed: () => void }) {
       finally { setPending(false); }
     }}>
       <Field>Código do cupom<Input name="coupon" placeholder="Digite seu cupom" autoComplete="off" autoCapitalize="characters" spellCheck={false} required minLength={3} maxLength={32} disabled={pending} /></Field>
-      <Button type="submit" className="w-full" loading={pending}>Resgatar cupom</Button>
+      <Button type="submit" className="w-full bg-tertiary" loading={pending}>Resgatar cupom</Button>
     </form>
   </DialogContent>;
 }
