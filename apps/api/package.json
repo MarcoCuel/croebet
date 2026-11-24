@@ -22,7 +22,7 @@
     "fastify": "^5.0.0",
     "drizzle-orm": "^0.45.0",
     "pg": "^8.0.0",
-    "zod": "^4.0.0",
+    "zod": "^4.6.7",
     "@fastify/cookie": "^11.0.0",
     "argon2": "^0.44.0",
     "@aws-sdk/client-s3": "3.1048.0",
