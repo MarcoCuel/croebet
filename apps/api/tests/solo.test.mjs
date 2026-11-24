@@ -18,7 +18,7 @@ test('Solo clássico: 112 cartas, 8 por pessoa e nenhuma carta das expansões',(
  const deck=soloDeck();assert.equal(deck.length,112);assert.equal(new Set(deck.map(c=>c.id)).size,112);
  assert.equal(deck.filter(c=>c.kind==='number').length,72);assert.ok(deck.every(c=>!['gift','protection'].includes(c.kind)));
  for(const count of [2,6,10]){const s=createSolo(Array.from({length:count},(_,i)=>({name:`P${i}`,kind:'human'})),'single',rng);parseSolo(s);assert.ok(s.players.every(p=>p.hand.length===8));assert.equal(s.discard.at(-1).kind,'number');}
- assert.equal(gameDefinitions.solo.developmentOnly,true);assert.equal(gameDefinitions.solo.croins,false);
+ assert.equal(gameDefinitions.solo.developmentOnly,false);assert.equal(gameDefinitions.solo.croins,true);
  assert.equal(createMatchSchema.safeParse({requestId:'00000000-0000-4000-8000-000000000001',game:'solo',capacity:11,options:{mode:'single'}}).success,false);
 });
 test('intervenção exige identidade de número/cor ou símbolo/cor e muda a sequência',()=>{

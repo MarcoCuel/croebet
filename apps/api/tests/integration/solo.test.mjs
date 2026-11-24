@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createDatabase } from '../../dist/db/client.js';
 import { tokenHash } from '../../dist/modules/auth/security.js';
-import { createMatch,lobbyAction,commandMatch,getRoomSync,advanceDeferredMatches } from '../../dist/modules/matches/service.js';
+import { createMatch,lobbyAction,inviteLobbyPlayer,commandMatch,getRoomSync,advanceDeferredMatches } from '../../dist/modules/matches/service.js';
 import { soloDeck,createSolo } from '../../dist/modules/games/solo/engine.js';
 
 test('PostgreSQL Solo: desenvolvimento, intervenções concorrentes, recibos, privacidade e bots persistidos',async t=>{
@@ -16,8 +16,11 @@ test('PostgreSQL Solo: desenvolvimento, intervenções concorrentes, recibos, pr
   await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')",[hashes[n],id]);
  }
  const input={requestId:randomUUID(),game:'solo',capacity:3,options:{mode:'single',brutal:false},development:true,entryAmount:0};
- await assert.rejects(createMatch(pool,users[0],hashes[0],{...input,development:false}),{code:'DEVELOPMENT_ONLY'});
+ const publicLobby=await createMatch(pool,users[0],hashes[0],{...input,requestId:randomUUID(),development:false});
+ assert.equal(publicLobby.development,false);
+ await lobbyAction(pool,users[0],hashes[0],publicLobby.code,'leave',{commandId:randomUUID()});
  const lobby=await createMatch(pool,users[0],hashes[0],input);
+ for(let n=1;n<3;n++)await inviteLobbyPlayer(pool,users[0],hashes[0],lobby.code,users[n]);
  for(let n=1;n<3;n++)await lobbyAction(pool,users[n],hashes[n],lobby.code,'join',{commandId:randomUUID()});
  for(const user of users)await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),lobby.id,user]);
  const ready=(await getRoomSync(pool,users[0],lobby.code)).room;

@@ -7,6 +7,7 @@ import { PlayingCard } from "./flip7/playing-card";
 import type { Card } from "./flip7/presentation";
 import { LoveCard } from "./love-letter/love-card";
 import { SoloCard } from "./solo/solo-card";
+import {SocialFace} from "./social/face";
 import styles from "./game-hero-cards.module.css";
 
 // Each game supplies its existing card presentation; motion stays shared.
@@ -16,6 +17,10 @@ const flipCards: Card[] = [
   { id: 22, type: "three", value: 0 }, { id: 23, type: "bonus", value: 4 },
 ];
 const cards: Record<GameId, readonly ReactNode[]> = {
+  "coup":Array.from({length:12},(_,n)=><SocialFace key={n} game="coup" index={n}/>),
+  "dixit":Array.from({length:12},(_,n)=><SocialFace key={n} game="dixit" index={n}/>),
+  "secret-hitler":Array.from({length:12},(_,n)=><SocialFace key={n} game="secret-hitler" index={n}/>),
+  "spyfall":Array.from({length:12},(_,n)=><SocialFace key={n} game="spyfall" index={n}/>),
   flip7: flipCards.map(card => <PlayingCard key={card.id} card={card} fluid />),
   "love-letter": Array.from({ length: 10 }, (_, value) => <LoveCard key={value} value={value} mode="modern" className="w-full sm:w-full" />),
   solo: Array.from({ length: 12 }, (_, index) => <span key={index} className="block [&>div]:w-full"><SoloCard card={{ id: `hero-${index}`, kind: "number", number: index % 9 + 1, color: (["red", "blue", "green", "yellow"] as const)[index % 4] }} /></span>),

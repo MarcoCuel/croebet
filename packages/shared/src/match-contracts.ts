@@ -8,7 +8,7 @@ export const createMatchSchema = z.object({ requestId: z.uuid(), game: gameIdSch
   const definition=gameDefinitions[input.game];
   const options=definition.options.safeParse(input.options);
   if(!options.success){ctx.addIssue({code:"custom",path:["options"],message:"Configuração inválida para este jogo."});return;}
-  if(input.capacity>definition.maxPlayers(options.data))ctx.addIssue({code:"custom",path:["capacity"],message:"Quantidade inválida para este modo."});
+  if(input.capacity<definition.minPlayers || input.capacity>definition.maxPlayers(options.data))ctx.addIssue({code:"custom",path:["capacity"],message:"Quantidade inválida para este modo."});
 });
 export const lobbyCommandSchema = z.object({ commandId: z.uuid() }).strict();
 export const updateLobbySchema = z.object({ commandId: z.uuid(), expectedVersion: integer.positive(), capacity: integer.min(2).max(12), options: gameOptionsSchema, entryAmount: integer.min(0).default(0) }).strict();

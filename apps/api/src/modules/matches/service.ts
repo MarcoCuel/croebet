@@ -213,7 +213,7 @@ export async function createMatch(pool: Pool, actor: string, sessionHash: string
     if(!input.development && (input.bots || input.onlyBots))throw new MatchError("INVALID_INPUT",400,"Bots de teste exigem uma partida de teste.");
     if(input.development && input.entryAmount)throw new MatchError("TEST_ECONOMY",400,"Partidas de teste não movimentam Croins.");
     const max=definition.maxPlayers(input.options);
-    if(input.capacity>max || input.bots+(input.onlyBots?0:1)>input.capacity || (input.onlyBots && input.bots<2))throw new MatchError("INVALID_INPUT",400,"Confira a quantidade de jogadores e bots.");
+    if(input.capacity>max || input.bots+(input.onlyBots?0:1)>input.capacity || (input.onlyBots && input.bots<definition.minPlayers))throw new MatchError("INVALID_INPUT",400,"Confira a quantidade de jogadores e bots.");
     definition.options.parse(input.options);
     if(input.entryAmount && !definition.croins)throw new MatchError("ECONOMY_UNAVAILABLE",400,"Este jogo não aceita Croins.");
     const payloadHash=hash(input);
@@ -338,7 +338,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
       if(Number(row.entry_amount)!==settings.entryAmount)await client.query("update game_match_players set confirmed_entry_amount=$2 where match_id=$1",[row.id,settings.entryAmount>0 && settings.entryAmount<Number(row.entry_amount)?settings.entryAmount:null]);
       if(row.development && settings.entryAmount)throw new MatchError("TEST_ECONOMY",400,"Partidas de teste não movimentam Croins.");
       definition.options.parse(settings.options);
-      if(settings.capacity>definition.maxPlayers(settings.options))throw new MatchError("INVALID_INPUT",400,"Quantidade inválida para este modo.");
+      if(settings.capacity<definition.minPlayers || settings.capacity>definition.maxPlayers(settings.options))throw new MatchError("INVALID_INPUT",400,"Quantidade inválida para este modo.");
       if(settings.entryAmount && !definition.croins)throw new MatchError("ECONOMY_UNAVAILABLE",400,"Este jogo não aceita Croins.");
       const invited=await reservations(client,row.id);
       // Match the lobby's order (people, invitations, bots), always retaining
@@ -362,7 +362,7 @@ export async function lobbyAction(pool: Pool, actor: string, sessionHash: string
     } else {
       if(row.owner_id!==actor) throw new MatchError("HOST_ONLY",403,"Somente o host pode iniciar a partida.");
       if(row.version!==input.expectedVersion) throw new MatchError("VERSION_CONFLICT",409,"A sala mudou. Confira os participantes e tente novamente.");
-      if(people.length+(row.bots ?? 0)<2) throw new MatchError("NOT_ENOUGH_PLAYERS",409,"Aguarde pelo menos mais uma pessoa.");
+      if(people.length+(row.bots ?? 0)<definition.minPlayers) throw new MatchError("NOT_ENOUGH_PLAYERS",409,`São necessários pelo menos ${definition.minPlayers} jogadores.`);
       if((await reservations(client,row.id)).length)throw new MatchError("INVITATIONS_PENDING",409,"Aguarde todos os convidados entrarem ou remova suas vagas.");
       const online=await client.query("select count(distinct user_id)::int total from match_presence where match_id=$1 and expires_at>clock_timestamp() and user_id=any($2::uuid[])",[row.id,people.map(p=>p.userId)]);
       if(online.rows[0].total!==people.length)throw new MatchError("PLAYERS_OFFLINE",409,"Todos os participantes precisam estar online na sala para iniciar.");
