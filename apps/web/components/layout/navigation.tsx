@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ChatProvider, useGeneralChat } from "@/features/chat/chat-context";
+import { ChatProvider } from "@/features/chat/chat-context";
 import { ChatSidebar } from "@/features/chat/general-chat";
 import { useSession } from "@/features/auth/session-context";
 import { useLobbyInvitations } from "@/features/games/lobby-invitations";
@@ -36,7 +36,6 @@ export function Navigation({ children }: { children: ReactNode }) {
 }
 
 function NavigationLayout({ children }: { children: ReactNode }) {
-  const chat = useGeneralChat();
   const { username, balance, walletReady } = useSession();
   const invitations = useLobbyInvitations();
   useNotificationTitle(invitations.length);
@@ -87,9 +86,8 @@ function NavigationLayout({ children }: { children: ReactNode }) {
     <PageBackProvider>
       <MatchNavbarProvider active={!!sidebarScope}>
       <div
-        className="group/navigation [--sidebar-width:0rem] [--chat-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)] md:data-[chat=open]:[--chat-width:20rem]"
+        className="group/navigation [--sidebar-width:0rem] md:data-[sidebar=expanded]:[--sidebar-width:var(--sidebar-expanded)]"
         data-sidebar={sidebar}
-        data-chat={chat?.open ? "open" : "closed"}
       >
         <a
           href="#page-content"
@@ -168,7 +166,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
         </Dialog>
         <ChatSidebar />
         <div
-          className={cn("flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pr-(--chat-width) pt-(--header-height) transition-[padding-left,padding-right] duration-300 ease-in-out motion-reduce:transition-none", sidebarScope && "h-dvh overflow-hidden")}
+          className={cn("flex min-h-dvh min-w-0 flex-col pl-(--sidebar-width) pt-(--header-height) transition-[padding-left] duration-300 ease-in-out motion-reduce:transition-none", sidebarScope && "h-dvh overflow-hidden")}
           id="page-content"
           tabIndex={-1}
         >

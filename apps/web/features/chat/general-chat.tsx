@@ -91,8 +91,8 @@ function ChatPanel() {
   return <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
     <aside id="general-chat-sidebar" inert={!open} aria-hidden={!open} aria-labelledby="general-chat-title" onKeyDown={event => {
     if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); close(); }
-  }} className={cn("pointer-events-auto absolute inset-y-0 right-0 flex w-full flex-col border-l border-contrast/6 bg-background transition-[translate,visibility] duration-300 ease-in-out motion-reduce:transition-none md:w-80", !open && "pointer-events-none invisible translate-x-full")} data-lenis-prevent>
-      <div className="flex min-h-(--header-height) shrink-0 items-center justify-between px-4">
+  }} className={cn("pointer-events-auto absolute right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] flex h-[min(32rem,calc(100dvh-6rem))] w-[min(22.5rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-panel border border-contrast/6 bg-surface shadow-xl transition-[opacity,translate,visibility] duration-200 ease-out motion-reduce:transition-none sm:right-6 sm:bottom-6", !open && "pointer-events-none invisible translate-y-4 opacity-0")} data-lenis-prevent>
+      <div className="flex min-h-(--header-height) shrink-0 items-center justify-between border-b border-contrast/6 px-4">
         <h2 ref={heading} tabIndex={-1} id="general-chat-title" className="text-sm font-semibold outline-none">Chat geral</h2>
         <Button variant="ghost" size="icon-sm" onClick={close} aria-label="Fechar chat"><X className="size-4" aria-hidden="true" /></Button>
       </div>
@@ -108,7 +108,7 @@ function ChatPanel() {
         {chat.mutedUntil && <p className="mb-3 text-sm text-muted" role="status">Você está silenciado até {new Date(chat.mutedUntil).toLocaleString("pt-BR")}.</p>}
         <form onSubmit={event=>{event.preventDefault();void submit();}} className="flex items-end gap-2">
           <label htmlFor="general-chat-message" className="sr-only">Mensagem</label>
-          <Textarea ref={input} id="general-chat-message" placeholder="Escreva uma mensagem…" maxLength={500} rows={1} className="min-h-11 max-h-32 resize-none text-sm" value={text} disabled={sending || !!chat.mutedUntil} onChange={event=>setText(event.target.value)} onKeyDown={event=>{if(event.key==="Enter" && !event.shiftKey && !event.nativeEvent.isComposing){event.preventDefault();void submit();}}}/>
+          <Textarea ref={input} id="general-chat-message" placeholder="Escreva uma mensagem…" maxLength={500} rows={1} className="min-h-11 max-h-32 resize-none rounded-2xl text-sm" value={text} disabled={sending || !!chat.mutedUntil} onChange={event=>setText(event.target.value)} onKeyDown={event=>{if(event.key==="Enter" && !event.shiftKey && !event.nativeEvent.isComposing){event.preventDefault();void submit();}}}/>
           <Button type="submit" size="icon" loading={sending} disabled={!text.trim() || !chat.ready || !chat.connected || !!chat.mutedUntil} aria-label="Enviar mensagem"><Send className="size-4" aria-hidden="true"/></Button>
         </form>
         {mutationError && <p className="mt-2 text-xs text-muted" role="alert">{mutationError}</p>}

@@ -108,83 +108,38 @@ test("chat compartilha conexão, recupera eventos e preserva texto e histórico"
   await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
   await expect(page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true})).toBeFocused();
 });
-test("sidebar reserva espaço no desktop e ocupa a largura disponível no celular",async({page,context,isMobile})=>{
+test("chat flutuante mantém a página disponível e cabe na tela",async({page,context,isMobile})=>{
   await page.goto("/");
+  const panel=page.getByRole("complementary",{name:"Chat geral"});
+  const content=page.locator("#page-content");
   await page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true}).click();
-  const dialog=page.getByRole("complementary",{name:"Chat geral"});
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toHaveCSS("top","0px");
+  await expect(panel).toBeVisible();
+  await expect(page.locator("#general-chat-title")).toBeFocused();
   await expect(page.locator('[data-slot="dialog-overlay"]')).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveAttribute("data-scroll-locked", "1");
-  await expect(dialog.getByText("Conversa da comunidade")).toHaveCount(0);
-  await expect(dialog.getByText("Enter envia · Shift + Enter quebra a linha")).toHaveCount(0);
-  const content=page.locator("#page-content");
-  if(isMobile) {
-    await expect(page.getByRole("dialog", { name: "Menu da Croebet" })).not.toBeVisible();
-    await expect(page.locator("#general-chat-title")).toBeFocused();
-    const box=await dialog.boundingBox();
-    expect(Math.round(box!.width)).toBe(page.viewportSize()!.width);
-    await expect(content).toHaveCSS("padding-right","0px");
-  } else {
-    await expect(dialog).toHaveCSS("width","320px");
-    await expect(content).toHaveCSS("padding-right","320px");
-    await expect(page.locator("header")).toHaveCSS("right","320px");
-    const row=dialog.locator("li").last();
+  await expect(content).toHaveCSS("padding-right","0px");
+  await expect(page.locator("header")).toHaveCSS("right","0px");
+  const box=await panel.boundingBox();
+  const viewport=page.viewportSize()!;
+  expect(box!.width).toBeLessThan(viewport.width);
+  expect(box!.height).toBeLessThan(viewport.height);
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.x+box!.width).toBeLessThanOrEqual(viewport.width);
+  expect(box!.y+box!.height).toBeLessThanOrEqual(viewport.height);
+  if(!isMobile) {
+    const row=panel.locator("li").last();
     const menu=row.getByRole("button",{name:/Moderar mensagem/});
-    await page.locator("#general-chat-title").focus();
-    await expect(menu).toHaveCSS("opacity","0");
     await row.hover();
     await expect(menu).toHaveCSS("opacity","1");
-    await page.locator("#general-chat-title").hover();
-    await expect(menu).toHaveCSS("opacity","0");
-    await row.focus();
-    await expect(menu).toHaveCSS("opacity","1");
-    // Navigation remains available while the chat stays open.
     await page.locator("header").getByRole("link",{name:"Ver carteira"}).first().focus();
-    await expect(dialog).toBeVisible();
+    await expect(panel).toBeVisible();
   }
-  await dialog.getByRole("button",{name:"Fechar chat",exact:true}).click();
-  if(!isMobile)await expect(content).toHaveCSS("padding-right","0px");
+  await panel.getByRole("button",{name:"Fechar chat",exact:true}).click();
+  await expect(page.locator("#general-chat-sidebar")).toHaveAttribute("inert", "");
+  await expect(page.getByRole("button",{name:"Chat geral",exact:true}).filter({visible:true})).toBeFocused();
   await context.clearCookies();await page.reload();
   await expect(page.getByRole("button",{name:/^Chat geral/})).toHaveCount(0);
-});
-
-test("chat desliza a partir da borda sem desmontar nem criar rolagem horizontal", async ({ page, isMobile }) => {
-  await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/");
-  const panel = page.locator("#general-chat-sidebar");
-  await expect(panel).toHaveAttribute("aria-hidden", "true");
-  const sample = async (open: boolean) => page.evaluate(async ({ open }) => {
-    const panel = document.querySelector<HTMLElement>("#general-chat-sidebar")!;
-    const trigger = [...document.querySelectorAll<HTMLButtonElement>('[aria-controls="general-chat-sidebar"]')].find(element => element.getClientRects().length > 0)!;
-    const width = panel.getBoundingClientRect().width;
-    const initial = panel.getBoundingClientRect().x;
-    if (open) trigger.click();
-    else panel.querySelector<HTMLButtonElement>('[aria-label="Fechar chat"]')!.click();
-    const frames: { x: number; display: string; pageWidth: number }[] = [];
-    const start = performance.now();
-    while (performance.now() - start < 400) {
-      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-      frames.push({ x: panel.getBoundingClientRect().x, display: getComputedStyle(panel).display, pageWidth: document.documentElement.scrollWidth });
-    }
-    return { initial, width, viewport: innerWidth, frames, samePanel: panel === document.querySelector("#general-chat-sidebar") };
-  }, { open });
-  const opening = await sample(true);
-  expect(opening.initial).toBeCloseTo(opening.viewport, 0);
-  expect(opening.frames.at(-1)!.x).toBeCloseTo(opening.viewport - opening.width, 0);
-  expect(opening.frames.some(frame => frame.x > opening.viewport - opening.width + 1 && frame.x < opening.viewport - 1)).toBe(true);
-  for (const [index, frame] of opening.frames.entries()) {
-    expect(frame.display).toBe("flex");
-    if (index) expect(frame.x).toBeLessThanOrEqual(opening.frames[index - 1].x + 1);
-    if (!isMobile) expect(frame.pageWidth).toBeLessThanOrEqual(opening.viewport);
-  }
-  expect(opening.samePanel).toBe(true);
-  const closing = await sample(false);
-  expect(closing.frames.at(-1)!.x).toBeCloseTo(closing.viewport, 0);
-  expect(closing.frames.every(frame => frame.display === "flex")).toBe(true);
-  expect(closing.samePanel).toBe(true);
-  await expect(panel).toHaveAttribute("inert", "");
-  await expect(page.locator("header")).toHaveCSS("right", "0px");
 });
 
 
