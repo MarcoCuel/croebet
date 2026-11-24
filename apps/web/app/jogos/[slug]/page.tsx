@@ -20,7 +20,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const { slug } = await params;
   const data = await getPublicGames(slug);
   if ((await searchParams).partida && !data?.items[0]) return { title: "Histórico da partida · Croebet", robots: { index: false, follow: false } };
-  return data ? data.items[0] ? await publicMetadata(`/jogos/${data.items[0].slug}`, data.items[0].name, data.items[0].seo) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
+  return data ? data.items[0] ? await publicMetadata(`/jogos/${data.items[0].slug}`, data.items[0].name, data.items[0].seo, `/jogos/${encodeURIComponent(data.items[0].slug)}/og`) : { title: "Página não encontrada · Croebet", robots: { index: false } } : {};
 }
 async function renderTestGame(game: GameRecord, code?: string) {
   if (code && !matchCodeSchema.safeParse(code).success) notFound();

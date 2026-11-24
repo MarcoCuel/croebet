@@ -10,13 +10,13 @@ export const getSeo = cache(async () => {
   return defaultSeoSettings;
 });
 export const siteOrigin = () => process.env.WEB_ORIGIN ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-export async function publicMetadata(path: string, name?: string, fields?: SeoFields): Promise<Metadata> {
+export async function publicMetadata(path: string, name?: string, fields?: SeoFields, generatedImage?: string): Promise<Metadata> {
   const settings = await getSeo();
   const custom = fields ?? (path === "/" ? settings.home : path === "/jogos" ? settings.games : undefined);
   const title = custom?.title ? (path === "/" ? custom.title : settings.titleTemplate.replaceAll("{título}", custom.title)) : name ? settings.titleTemplate.replaceAll("{título}", name) : settings.title;
   const description = custom?.description || settings.description;
-  const image = custom?.image || settings.image;
-  const alt = custom?.image ? custom.imageAlt : settings.imageAlt;
+  const image = custom?.image || generatedImage || settings.image;
+  const alt = custom?.image ? custom.imageAlt : generatedImage ? `Jogar ${name} no ${settings.siteName}` : settings.imageAlt;
   const url = new URL(path, siteOrigin()).href;
   const images = image ? [{ url: new URL(image, siteOrigin()).href, alt }] : [];
   return { title, description, alternates: { canonical: url }, robots: { index: settings.index && (custom?.index ?? true), follow: true },
