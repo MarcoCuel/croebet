@@ -1,19 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
-import {
-  socialViewSchema,
-  socialSettings,
-  type SocialView,
-} from "@croebet/shared";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { socialViewSchema, socialSettings } from "@croebet/shared";
 import { GameTableLayout } from "../game-table-layout";
 import { GameControls } from "../game-controls";
 import { CancellationNotice } from "../match-cancellation";
 import type { GamePresentation, GameTableProps } from "../game-module";
 import { PublicEntry } from "../public-entry";
-import { SocialFace } from "./face";
+import { SocialSurface } from "./table";
+import { useTableCue } from "../use-table-cue";
+
 const rulesText = {
   coup: [
     "Comece com duas influências. Ganhe uma moeda com Renda, duas com Ajuda, ou três com o Duque. Golpe custa sete e é obrigatório a partir de dez.",
@@ -36,86 +30,6 @@ const rulesText = {
     "Após o tempo há uma última sequência de acusações. O espião ganha dois se escapar e quatro se acertar o local ou se um inocente for condenado. Quem o identifica recebe um ponto, com um ponto extra para quem acusou. O maior total após cinco rodadas vence.",
   ],
 };
-function Clock({ deadline }: { deadline: number }) {
-  const [now, setNow] = useState(0);
-  useEffect(() => {
-    const tick = () => setNow(Date.now());
-    const first = setTimeout(tick, 0);
-    const t = setInterval(tick, 500);
-    return () => {
-      clearTimeout(first);
-      clearInterval(t);
-    };
-  }, [deadline]);
-  const left = Math.max(0, Math.ceil((deadline - now) / 1000));
-  return (
-    <Badge>
-      {now
-        ? Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0")
-        : "8:00"}
-    </Badge>
-  );
-}
-function Choices({
-  s,
-  seat,
-  busy,
-  play,
-}: {
-  s: SocialView;
-  seat: number;
-  busy: boolean;
-  play: GameTableProps["play"];
-}) {
-  const [message, setMessage] = useState("");
-  const label = s.choices.find((c) => c.input)?.input;
-  return (
-    <div className="space-y-3">
-      {label && (
-        <label className="block text-sm font-medium">
-          {label}
-          <Input
-            className="mt-1"
-            maxLength={180}
-            value={message}
-            placeholder={
-              label === "Sua pista"
-                ? "Algo que a imagem faz você lembrar…"
-                : label
-            }
-            onChange={(e) => setMessage(e.target.value)}
-          />
-        </label>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {s.choices.map((c) => (
-          <Button
-            key={c.key}
-            variant="secondary"
-            className={
-              c.art !== undefined
-                ? "h-auto w-24 flex-col whitespace-normal p-1.5 text-xs"
-                : undefined
-            }
-            disabled={busy || (!!c.input && !message.trim())}
-            onClick={() =>
-              void play({
-                type: "social-choice",
-                game: s.game,
-                seat,
-                key: c.key,
-                ...(c.input ? { text: message.trim() } : {}),
-              })
-            }
-          >
-            {c.art !== undefined && <SocialFace game="dixit" index={c.art} />}{" "}
-            {c.label}
-          </Button>
-        ))}
-      </div>
-    </div>
-  );
-}
 function Table({
   game,
   room,
@@ -126,112 +40,46 @@ function Table({
   play,
   replayControls,
 }: GameTableProps) {
-  const s = socialViewSchema.parse(room.state),
-    seat = room.participants.find((p) => p.userId === viewerId)?.seat;
+  const s = socialViewSchema.parse(room.state);
+  const seat = room.participants.find((p) => p.userId === viewerId)?.seat;
+  const live = room.status === "playing" && !replayControls;
+  const cue =
+    s.phase === "over"
+      ? "prize"
+      : s.phase === "loss" || s.phase === "reveal"
+        ? "discard"
+        : "slide";
+  const balances =
+    s.table?.kind === "court"
+      ? s.table.seats.map((player) => player.coins).join(",")
+      : undefined;
+  const audio = useTableCue(
+    room.id,
+    room.version,
+    cue,
+    !replayControls,
+    balances,
+  );
   return (
     <GameTableLayout
       history={[...s.log].reverse().map((message) => ({ message }))}
+      initialHistoryVisible={false}
     >
-      <div className="space-y-4 rounded-panel border border-contrast/10 bg-surface p-4 sm:p-6">
-        <CancellationNotice match={room} />
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted">
-              {game.name} · Rodada {s.round}
-            </p>
-            <h2 className="text-xl font-bold">{s.heading}</h2>
-          </div>
-          <GameControls developmentControls={controls}>{exit}</GameControls>
-        </header>
-        <div className="flex flex-wrap gap-2">
-          {s.players.map((p, i) => (
-            <span
-              key={i}
-              className={
-                "rounded-lg border p-2 text-sm " +
-                (s.phase !== "over" && i === s.turn
-                  ? "border-brand"
-                  : "border-contrast/10")
-              }
-            >
-              <strong>{p.name}</strong>
-              {i === seat ? " · você" : ""}
-              <small className="block text-muted">{p.detail}</small>
-            </span>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 rounded-xl bg-contrast/5 p-4 text-sm">
-          {s.game !== "dixit" && (
-            <div className="w-16 shrink-0 sm:w-20">
-              <SocialFace game={s.game} index={s.round - 1} />
-            </div>
-          )}
-          <div className="space-y-1">
-            {s.board.filter(Boolean).map((line) =>
-              line.startsWith("Locais possíveis: ") ? (
-                <details key="locais">
-                  <summary className="cursor-pointer">
-                    Consultar os 30 locais
-                  </summary>
-                  <p className="mt-2 leading-relaxed">{line.slice(17)}</p>
-                </details>
-              ) : (
-                <p key={line}>{line}</p>
-              ),
-            )}
-          </div>
-          {s.deadline && !replayControls && <Clock deadline={s.deadline} />}
-        </div>
-        {s.images.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {s.images.map((n, i) => (
-              <figure key={n}>
-                <SocialFace game="dixit" index={n} />
-                <figcaption className="text-center text-sm">{i + 1}</figcaption>
-              </figure>
-            ))}
-          </div>
-        )}
-        {s.notes.length > 0 && (
-          <details className="rounded-xl border border-contrast/15 p-3">
-            <summary className="cursor-pointer font-semibold">
-              Seu dossiê privado
-            </summary>
-            {s.notes.map((v, i) => (
-              <p className="mt-1 text-sm" key={i}>
-                {v}
-              </p>
-            ))}
-          </details>
-        )}
-        {s.hand.length > 0 &&
-          !s.choices.some((c) => c.key.startsWith("card:")) && (
-            <details>
-              <summary className="cursor-pointer">
-                Sua mão · {s.hand.length} imagens
-              </summary>
-              <div className="grid grid-cols-4 gap-2">
-                {s.hand.map((n) => (
-                  <SocialFace key={n} game="dixit" index={n} />
-                ))}
-              </div>
-            </details>
-          )}
-        {room.status === "playing" &&
-        seat !== undefined &&
-        s.choices.length > 0 ? (
-          <Choices
-            key={room.version}
-            s={s}
-            seat={seat}
-            busy={busy}
-            play={play}
-          />
-        ) : room.status === "playing" ? (
-          <p className="text-sm text-muted">
-            Aguardando {s.players[s.turn]?.name}.
-          </p>
-        ) : null}
+      <CancellationNotice match={room} />
+      <SocialSurface
+        view={s}
+        name={game.name}
+        seat={seat}
+        version={room.version}
+        live={live}
+        busy={busy}
+        onPlay={play}
+        controls={
+          <GameControls audio={audio} developmentControls={controls}>
+            {exit}
+          </GameControls>
+        }
+      >
         {replayControls}
         <details className="pt-2 text-sm">
           <summary className="cursor-pointer font-semibold">Como jogar</summary>
@@ -258,7 +106,7 @@ function Table({
             </p>
           )}
         </details>
-      </div>
+      </SocialSurface>
     </GameTableLayout>
   );
 }

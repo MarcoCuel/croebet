@@ -1132,10 +1132,16 @@ for (const [slug,title,count] of [["coup","Coup",2],["dixit","Dixit",3],["secret
   loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:slug,rulesVersion:1,version:1,capacity:count,options:{mode:"social",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],status:"playing",state:{game:slug,phase:"playing",round:1,turn:0,winners:[],log:[],heading:"Sua decisão",board:["Mesa pública"],images:[],notes:["Informação reservada"],hand:[],choices:[choice],deadline:null,players:Array.from({length:count},(_,i)=>({name:i?"Pessoa "+i:"Ana",kind:"human",score:0,active:true,detail:"Em jogo"}))}});
   await page.goto("/jogos/"+slug+"?partida=ABCDEF654321");
   await expect(page.getByRole("heading",{name:"Sua decisão"})).toBeVisible();
+  await expect(page.getByText("Informação reservada")).toBeHidden();
   await page.getByText("Seu dossiê privado").click();
   await expect(page.getByText("Informação reservada")).toBeVisible();
-  if(input)await page.getByLabel(input).fill("Noite de feira");
-  await page.getByRole("button",{name:/Confirmar decisão/}).click();
+  if(input){
+    await page.getByLabel(input).fill("Noite de feira");
+    await page.getByRole("button",{name:"Confirmar decisão · 1",exact:true}).click();
+    await expect(page.locator(".ct-confirm .ct-card")).toBeVisible();
+    expect(gameCommands).toHaveLength(0);
+  }
+  await page.getByRole("button",{name:"Confirmar decisão",exact:true}).click();
   await expect.poll(()=>gameCommands[0]).toEqual({type:"social-choice",game:slug,seat:0,key:"qa",...(input?{text:"Noite de feira"}:{})});
  });
 }

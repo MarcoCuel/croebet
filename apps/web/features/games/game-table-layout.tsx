@@ -13,7 +13,7 @@ export function useGameHistory() {
 }
 
 /** Shared viewport: stacked on narrow containers, independent columns on desktop. */
-export function GameTableLayout({ children, history }: { children: ReactNode; history: GameHistoryEntry[] }) {
+export function GameTableLayout({ children, history, initialHistoryVisible = true }: { children: ReactNode; history: GameHistoryEntry[]; initialHistoryVisible?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
   useLayoutEffect(() => {
@@ -36,7 +36,7 @@ export function GameTableLayout({ children, history }: { children: ReactNode; hi
     return () => { observer.disconnect(); window.removeEventListener("resize", update); };
   }, []);
   const id = useId();
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(initialHistoryVisible);
   return <HistoryContext.Provider value={{ id, visible, toggle: () => setVisible(value => !value) }}>
     <div ref={root} className="@container h-[var(--table-height,calc(100dvh-var(--header-height)-1rem))] min-h-0" style={height === null ? undefined : { "--table-height": `${height}px` } as CSSProperties} data-game-table-layout>
       <div className={cn("grid h-full min-h-0 grid-cols-1 auto-rows-min items-stretch overflow-y-auto overscroll-contain @3xl:grid-rows-[minmax(0,1fr)] @3xl:overflow-hidden [--history-width:clamp(8rem,25cqi,14rem)] transition-[grid-template-columns,gap] duration-300 ease-in-out motion-reduce:transition-none", visible ? "gap-4 @3xl:grid-cols-[minmax(0,1fr)_var(--history-width)] @3xl:gap-6" : "gap-0 @3xl:grid-cols-[minmax(0,1fr)_0rem]")} data-lenis-prevent>

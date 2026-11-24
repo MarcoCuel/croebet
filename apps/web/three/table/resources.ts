@@ -29,6 +29,17 @@ function texture(value: number | null, anisotropy: number, palette: TablePalette
   const ink = getComputedStyle(probe).color; probe.remove();
   ctx.fillStyle = asset?.backgroundColor ?? (value === null ? "#343638" : background ?? palette.card); ctx.fillRect(0, 0, 256, 384);
   const numeric = value !== null && (asset?.layout === "numeric" || !asset?.text);
+  if (asset?.finish === "orbit") {
+    ctx.save();
+    ctx.strokeStyle = ink;
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 3;
+    for (const radius of [76, 88, 100])
+      { ctx.beginPath(); ctx.ellipse(132, 197, radius, 178, 0.52, 0, 2 * Math.PI); ctx.stroke(); }
+    ctx.globalAlpha = 0.54; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(13, 13, 230, 358, 14); ctx.stroke();
+    ctx.restore();
+  }
   if (numeric) {
     ctx.fillStyle = asset?.textColor ?? palette.foreground;
     ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.font = `400 41px ${palette.font}`;

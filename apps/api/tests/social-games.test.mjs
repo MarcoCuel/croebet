@@ -14,6 +14,19 @@ function setup(id, n = socialSettings[id].min) {
     "Pessoa 0",
   );
 }
+test("a mesa pública mostra influências viradas e trilhas aprovadas", () => {
+  const court = setup("coup");
+  court.shown[0].push(court.hands[0].pop());
+  assert.deepEqual(gameDriver("coup").project(court).table, {
+    kind: "court",
+    seats: court.players.map((_, seat) => ({
+      coins: court.coins[seat], hidden: seat === 0 ? 1 : 2, revealed: court.shown[seat],
+    })),
+  });
+  assert.deepEqual(gameDriver("secret-hitler").project(setup("secret-hitler")).table, {
+    kind: "parliament", liberal: 0, fascist: 0, failed: 0,
+  });
+});
 function act(s, id, key, seat = s.turn, text) {
   const d = gameDriver(id),
     a = {

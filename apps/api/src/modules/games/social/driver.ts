@@ -29,6 +29,7 @@ export function socialDriver<S extends Base>(
       winners: s.winners,
       log: s.log,
       heading: v.heading,
+      ...(v.table ? { table: v.table } : {}),
       board: v.board ?? [],
       images: v.images ?? [],
       notes: v.privateInfo ?? [],

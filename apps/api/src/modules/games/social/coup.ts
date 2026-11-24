@@ -156,6 +156,9 @@ export const coup: Rules<S> = {
     };
   },
   screen: (s, i) => ({
+    table: { kind: "court", seats: s.players.map((_, j) => ({
+      coins: s.coins[j], hidden: s.hands[j].length, revealed: s.shown[j],
+    })) },
     heading: (
       {
         action: "Escolha uma ação",

@@ -126,6 +126,7 @@ export const government: Rules<S> = {
     };
   },
   screen: (s, i) => ({
+    table: { kind: "parliament", liberal: s.lib, fascist: s.fas, failed: s.failed },
     heading: (
       {
         nominate: "Indicar um chanceler",

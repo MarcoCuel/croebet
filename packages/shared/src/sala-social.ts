@@ -67,6 +67,12 @@ export const socialViewSchema = z
     winners: z.array(seat),
     log: z.array(z.string()),
     heading: z.string(),
+    table: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("court"), seats: z.array(z.object({
+        coins: z.number().int().nonnegative(), hidden: z.number().int().nonnegative(), revealed: z.array(z.string()),
+      })) }),
+      z.object({ kind: z.literal("parliament"), liberal: z.number().int(), fascist: z.number().int(), failed: z.number().int() }),
+    ]).optional(),
     board: z.array(z.string()),
     images: z.array(z.number().int().min(0).max(83)),
     notes: z.array(z.string()),

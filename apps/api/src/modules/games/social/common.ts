@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { z } from "zod";
-import type { Choice, SocialId } from "@croebet/shared";
+import type { Choice, SocialId, SocialView } from "@croebet/shared";
 export const person = z.object({
   name: z.string(),
   kind: z.enum(["human", "normal"]),
@@ -67,6 +67,7 @@ export function high(s: Base) {
   return s.players.flatMap((p, i) => (p.score === best ? [i] : []));
 }
 export type Screen = {
+  table?: SocialView["table"];
   heading: string;
   board?: string[];
   images?: number[];

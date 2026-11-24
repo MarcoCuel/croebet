@@ -1,5 +1,9 @@
 # Jogos de mesa no catálogo
 
+Em Coup, cada assento exibe as moedas e as influências já reveladas. As cartas de personagem na área de ações anunciam o papel que se pretende reivindicar. As influências da própria mão ficam dentro do dossiê privado. Em Dixit, tocar numa imagem amplia a ilustração antes de confirmar a pista ou o voto. A revelação associa cada imagem ao resultado da votação. Em Secret Hitler, os carimbos marcam as políticas aprovadas nas duas trilhas. Em Spyfall, o relógio e a pergunta ficam no centro, e o dossiê separa as informações individuais dos locais que todos podem consultar.
+
+As mesas usam o controle de som do site e respeitam a preferência de movimento reduzido. O histórico das quatro mesas sociais abre pelo controle da partida. No Solo, a mesa 3D e as cartas da interface compartilham o motivo de órbitas do baralho.
+
 | Jogo | Mesa | Decisão central | Economia da sala |
 | --- | --- | --- | --- |
 | Coup | 2–6 | Reivindicar um papel, bloquear ou desafiar antes da resolução | Grátis ou entrada em Croins |
