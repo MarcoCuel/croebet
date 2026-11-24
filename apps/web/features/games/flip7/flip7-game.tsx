@@ -627,7 +627,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                 <svg className="absolute inset-0 size-full font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
                   <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deckCount > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deckCount}</text>
                 </svg>
-                <Button variant="ghost" disabled={!playable || exitOpen || leaving} aria-label="Comprar carta do baralho" title={playable ? "Comprar carta (Enter)" : "Aguarde sua vez de comprar"} onClick={() => send({ type: "draw" })} className="absolute inset-0 z-30 size-full rounded-2xl p-0 hover:bg-contrast/10 disabled:opacity-100 focus-visible:border-foreground">
+                <Button variant="ghost" disabled={!playable || exitOpen || leaving} aria-label="Comprar carta do baralho" title={playable ? "Comprar carta (Enter)" : "Aguarde sua vez de comprar"} onClick={() => send({ type: "draw" })} className="backdrop-blur-none absolute inset-0 z-30 size-full rounded-2xl p-0 hover:bg-contrast/10 disabled:opacity-100 focus-visible:border-foreground">
                   <span className="sr-only">Comprar carta do baralho</span>
                 </Button>
               </div>
@@ -693,7 +693,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                 )} style={{ animationDelay: card.type === "number" && (card.value === 7 || (sixNine && card.value === 9)) ? "-1.2s" : undefined }}>
                 <PlayingCard card={card} flipped={flipped && card.id !== resolvingCard?.card.id && (game.mode !== "vengeance" || player.bustedCards?.includes(card.id) !== false)} sideways={sideways && (card.id === numeric[0]?.id || card.id === modifiers[0]?.id)} fluid />
                 </div>
-                {!resolvingCardFinished && !flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("absolute inset-0 size-full rounded-2xl border hover:border-brand hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
+                {!resolvingCardFinished && !flight && !movingCards && human && eligibleCards.includes(card.id) && <Button variant="ghost" aria-label={`Selecionar ${cardLabel(card)} de ${player.name}`} aria-pressed={selectedCards.includes(card.id)} className={cn("backdrop-blur-none absolute inset-0 size-full rounded-2xl border hover:border-brand hover:bg-brand/10", selectedCards.includes(card.id) ? "border-brand bg-brand/10" : "border-transparent")} onClick={() => {
                   if (game.pending?.card.type === "swap") {
                     if (swapPreview) animateSwapPreview(swapPreview, true);
                     else if (selectedCards.includes(card.id)) setSelectedCards([]);
