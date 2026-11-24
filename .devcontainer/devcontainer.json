@@ -1,0 +1,25 @@
+{
+  "name": "Croebet · catálogo de teste",
+  "dockerComposeFile": "compose.yaml",
+  "service": "web",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "remoteUser": "node",
+  "forwardPorts": [
+    3000
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Croebet · jogar",
+      "onAutoForward": "openBrowser"
+    },
+    "3001": {
+      "onAutoForward": "ignore"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
+  "postCreateCommand": "bash .devcontainer/install.sh",
+  "postStartCommand": "bash .devcontainer/start.sh",
+  "waitFor": "postCreateCommand"
+}

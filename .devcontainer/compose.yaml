@@ -1,0 +1,36 @@
+services:
+  web:
+    image: mcr.microsoft.com/devcontainers/javascript-node:24-bookworm
+    command: sleep infinity
+    init: true
+    volumes:
+      - ../..:/workspaces:cached
+      - pg_socket:/var/run/postgresql
+    depends_on:
+      postgres:
+        condition: service_healthy
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: croebet
+      POSTGRES_DB: croebet_preview_test
+      POSTGRES_INITDB_ARGS: "--auth-local=trust --auth-host=scram-sha-256"
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - |
+        export POSTGRES_PASSWORD="$$(cat /proc/sys/kernel/random/uuid)"
+        exec /usr/local/bin/docker-entrypoint.sh "$$@"
+      - --
+    command: ["postgres", "-c", "listen_addresses="]
+    volumes:
+      - pg_data:/var/lib/postgresql
+      - pg_socket:/var/run/postgresql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "/var/run/postgresql", "-U", "croebet", "-d", "croebet_preview_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+volumes:
+  pg_data:
+  pg_socket:
