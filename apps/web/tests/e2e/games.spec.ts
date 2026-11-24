@@ -81,6 +81,8 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   if (path === "/api/v1/economy") return { status: 200, data: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1, 5, 10, 50], defaultBet: 5 } };
   if (path === "/api/v1/rewards/daily") return { status: 200, data: { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() } };
   if (path === "/api/v1/auth/csrf") return { status: 200, data: { token: "fixture" } };
+  if(path==="/api/v1/matches/lobbies")return {status:200,data:{owned:null,active:null,items:[],joined:[]}};
+  if(path==="/api/v1/matches"&&method==="GET")return {status:200,data:{items:[]}};
   if (path === "/api/v1/pages") return { status: 200, data: { items: [] } };
   if (path === "/api/v1/navigation") return { status: 200, data: { main: [], footer: [] } };
   if (failure && path.includes("games")) return { status: 503, data: {} };
@@ -1148,7 +1150,7 @@ test("Solo em desenvolvimento permite intervenção e anúncio fora da vez sem e
  await page.reload();await expect(table).toBeVisible();
 });
 test("Solo escolhe cor, mostra penalidade e usa descarte central",async({page})=>{
- prepareSolo();if(!loveRoom || loveRoom.status==="lobby" || !("game" in loveRoom.state))throw Error("Solo ausente");
+ prepareSolo();if(!loveRoom || loveRoom.status==="lobby" || (!("game" in loveRoom.state)||loveRoom.state.game!=="solo"))throw Error("Solo ausente");
  const state=loveRoom.state;state.turn=0;state.penalty=4;state.penaltyKind="draw4";
  state.legalActions=[{type:"solo-draw",seat:0},...(["red","yellow","green","blue"] as const).map(color=>({type:"solo-play" as const,seat:0,cardId:"wild",color,solo:false}))];
  await page.goto("/jogos/solo?partida=ABCDEF654321");
@@ -1158,12 +1160,37 @@ test("Solo escolhe cor, mostra penalidade e usa descarte central",async({page})=
  await table.getByRole("button",{name:"Escolher azul",exact:true}).click();
  await expect.poll(()=>gameCommands[0]).toEqual({type:"solo-play",seat:0,cardId:"wild",color:"blue",solo:false});
 });
-test("Solo continua em breve para contas comuns e o lobby dev limita a dez pessoas",async({page})=>{
+test("Solo abre o lobby público e mantém o modo de testes para administradores",async({page})=>{
  prepareSolo();sessionRole="user";
- await page.goto("/jogos/solo");await expect(page.getByText("Em breve",{exact:true})).toBeVisible();
- await expect(page.getByRole("button",{name:"Jogar",exact:true})).toHaveCount(0);
- sessionRole="admin";await page.goto("/jogos/solo");
+ await page.goto("/jogos/solo");await expect(page.getByText("Em breve",{exact:true})).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeVisible();
+ sessionRole="admin";await page.goto("/jogos/solo?teste=1");
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
- await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
+ await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeEnabled();
  await expect(page.getByLabel("Duração",{exact:true})).toBeVisible();
 });
+
+for (const [slug,title,count] of [["coup","Coup",2],["dixit","Dixit",3],["secret-hitler","Secret Hitler",5],["spyfall","Spyfall",3]] as const) {
+ test("Mesa pública do catálogo: "+title,async({page})=>{
+  sessionRole="user";
+  upcoming={...game,slug,moduleId:slug,name:title};
+  await page.goto("/jogos/"+slug);
+  await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeVisible();
+  const input=slug==="dixit"?"Sua pista":undefined;
+  const choice={key:"qa",label:"Confirmar decisão",...(input?{input,art:0}:{})};
+  loveRoom=gameRoomSchema.parse({id:matchId,code:"ABCDEF654321",game:slug,rulesVersion:1,version:1,capacity:count,options:{mode:"social",brutal:false},hostId:id,participants:[{userId:id,username:"Admin",displayName:"Ana",avatarUrl:null,seat:0}],status:"playing",state:{game:slug,phase:"playing",round:1,turn:0,winners:[],log:[],heading:"Sua decisão",board:["Mesa pública"],images:[],notes:["Informação reservada"],hand:[],choices:[choice],deadline:null,players:Array.from({length:count},(_,i)=>({name:i?"Pessoa "+i:"Ana",kind:"human",score:0,active:true,detail:"Em jogo"}))}});
+  await page.goto("/jogos/"+slug+"?partida=ABCDEF654321");
+  await expect(page.getByRole("heading",{name:"Sua decisão"})).toBeVisible();
+  await expect(page.getByText("Informação reservada")).toBeHidden();
+  await page.getByText("Seu dossiê privado").click();
+  await expect(page.getByText("Informação reservada")).toBeVisible();
+  if(input){
+    await page.getByLabel(input).fill("Noite de feira");
+    await page.getByRole("button",{name:"Confirmar decisão · 1",exact:true}).click();
+    await expect(page.locator(".ct-confirm .ct-card")).toBeVisible();
+    expect(gameCommands).toHaveLength(0);
+  }
+  await page.getByRole("button",{name:"Confirmar decisão",exact:true}).click();
+  await expect.poll(()=>gameCommands[0]).toEqual({type:"social-choice",game:slug,seat:0,key:"qa",...(input?{text:"Noite de feira"}:{})});
+ });
+}

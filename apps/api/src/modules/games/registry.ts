@@ -4,9 +4,14 @@ import { matchDriver as flip7 } from "./flip7/driver.ts";
 import { soloDriver } from "./solo/driver.ts";
 import { loveDriver } from "./love-letter/driver.ts";
 
+import {socialDriver} from "./social/driver.ts";
+import {coup} from "./social/coup.ts";
+import {dixit} from "./social/dixit.ts";
+import {government} from "./social/government.ts";
+import {spyfall} from "./social/spyfall.ts";
 const drivers: Record<GameId,MatchDriver<GameView,GameEngineAction>> = {
   flip7,
-  solo:soloDriver,
+  solo:soloDriver, coup:socialDriver(coup),dixit:socialDriver(dixit),"secret-hitler":socialDriver(government),spyfall:socialDriver(spyfall),
   "love-letter":loveDriver,
 };
 export function gameDriver(game:GameId) { return drivers[game]; }

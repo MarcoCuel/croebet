@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {gameDefinitions,createMatchSchema,gameRoomSchema,realtimeRequestSchema} from '@croebet/shared';
+import {socialIds,gameDefinitions,createMatchSchema,gameRoomSchema,realtimeRequestSchema} from '@croebet/shared';
 import {gameDriver} from '../dist/modules/games/registry.js';
 import {execute} from '../dist/modules/matches/execution.js';
 import {commandMatch,getRoomSync} from '../dist/modules/matches/service.js';
@@ -9,10 +9,13 @@ import {legalSolo} from '../dist/modules/games/solo/engine.js';
 import {legalLove} from '../dist/modules/games/love-letter/engine.js';
 import {botAction} from '../dist/modules/games/flip7/engine.js';
 
+function seats(game,kind){
+ return Array.from({length:gameDefinitions[game].minPlayers},(_,i)=>({name:i===0?'Ana':i===1?'Beto':'Pessoa '+i,kind}));
+}
 function fixture(game){
- const driver=gameDriver(game),ids=[randomUUID(),randomUUID()];
- const initial=driver.create({setup:[{name:'Ana',kind:'human'},{name:'Beto',kind:'human'}],options:gameDefinitions[game].defaults},'Ana');
- const row={id:randomUUID(),game_id:randomUUID(),code:'ABCDEF123456',game_slug:game,rules_version:1,version:1,status:'playing',state:execute(driver,initial,1).state,owner_id:ids[0],capacity:2,options:gameDefinitions[game].defaults,development:true,bots:0,only_bots:false,entry_amount:'0'};
+ const driver=gameDriver(game),ids=seats(game,'human').map(()=>randomUUID());
+ const initial=driver.create({setup:seats(game,'human'),options:gameDefinitions[game].defaults},'Ana');
+ const row={id:randomUUID(),game_id:randomUUID(),code:'ABCDEF123456',game_slug:game,rules_version:1,version:1,status:'playing',state:execute(driver,initial,1).state,owner_id:ids[0],capacity:ids.length,options:gameDefinitions[game].defaults,development:true,bots:0,only_bots:false,entry_amount:'0'};
  const receipts=new Map(),events=[];
  const client={release(){},async query(sql,values=[]){
   if(sql.includes('select u.username from users'))return {rows:[{username:'Ana'}]};
@@ -29,7 +32,7 @@ function fixture(game){
 }
 for(const game of Object.keys(gameDefinitions)){
  test(`${game}: mesmo executor cria, automatiza e conclui bots sem alterar o estado inicial`,()=>{
-  const driver=gameDriver(game),initial=driver.create({setup:[{name:'A',kind:'normal'},{name:'B',kind:'normal'}],options:gameDefinitions[game].defaults,onlyBots:true},'Observador');
+  const driver=gameDriver(game),initial=driver.create({setup:seats(game,'normal'),options:gameDefinitions[game].defaults,onlyBots:true},'Observador');
   const before=structuredClone(initial);let result=execute(driver,initial,1);
   if(driver.deferredAutomaticMs){
    for(let steps=0;result.status!=="finished";steps++){
@@ -43,10 +46,11 @@ for(const game of Object.keys(gameDefinitions)){
  });
  test(`${game}: comandos comuns autorizam o turno, deduplicam e recusam versão obsoleta`,async()=>{
   const f=fixture(game),seat=f.driver.decision(f.row.state).seat;
-  const action=game==='flip7'?botAction(f.row.state):game==='solo'?legalSolo(f.row.state,seat).find(a=>a.type==='solo-draw'):legalLove(f.row.state)[0];
+  const choice=socialIds.includes(game)?f.driver.projectFor(f.row.state,seat).choices[0]:null;
+  const action=choice?{type:"social-choice",game,seat,key:choice.key,...(choice.input?{text:"Horizonte"}:{})}:game==='flip7' ?botAction(f.row.state):game==='solo'?legalSolo(f.row.state,seat).find(a=>a.type==='solo-draw'):legalLove(f.row.state)[0];
   const input={commandId:randomUUID(),expectedVersion:f.row.version,action};
   assert.equal(realtimeRequestSchema.safeParse({type:'command',code:f.row.code,input}).success,true);
-  await assert.rejects(commandMatch(f.pool,f.ids[1-seat],'session',f.row.code,input),{code:'NOT_YOUR_TURN'});
+  await assert.rejects(commandMatch(f.pool,f.ids[(seat+1)%f.ids.length],'session',f.row.code,input),{code:'NOT_YOUR_TURN'});
   const reply=await commandMatch(f.pool,f.ids[seat],'session',f.row.code,input);
   const count=f.events.length;
   assert.deepEqual(await commandMatch(f.pool,f.ids[seat],'session',f.row.code,input),reply);
@@ -81,7 +85,7 @@ test('adaptador recusa uma jogada ilegal mesmo ao validar cópias do snapshot',(
 
 test('escolha privada do Chanceler nunca entra nos eventos públicos',()=>{
  const driver=gameDriver('love-letter');
- const state=driver.create({setup:[{name:'Ana',kind:'human'},{name:'Beto',kind:'human'}],options:{mode:'modern'}},'Ana');
+ const state=driver.create({setup:seats('love-letter','human'),options:{mode:'modern'}},'Ana');
  state.pending=true;state.players[state.turn].hand=[0,6,9];
  const result=execute(driver,state,1,{type:'keep',cards:[6,9,0]});
  for(const frame of result.frames){

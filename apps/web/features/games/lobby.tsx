@@ -296,7 +296,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
         {!room?<Button className="w-full bg-tertiary text-white" loading={busy} disabled={creationBlocked || (!!userId && !connected)} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
           :!member && !host?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || (!development && !!directory.active)} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
           :<div className="flex items-center gap-3">
-            <Button className="min-w-0 flex-1 bg-tertiary text-white" loading={busy} disabled={busy || !connected || !host || room.participants.length+room.bots<2 || !allOnline || !allConfirmed} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
+            <Button className="min-w-0 flex-1 bg-tertiary text-white" loading={busy} disabled={busy || !connected || !host || room.participants.length+room.bots<definition.minPlayers || !allOnline || !allConfirmed} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
             <Button className="shrink-0" variant="secondary" disabled={busy || !connected} onClick={()=>void act(room,"leave")}>Cancelar</Button>
           </div>}
         {room && host && entry>0 && !allConfirmed && <p className="text-sm text-muted" role="status">Aguardando todos confirmarem o valor da entrada.</p>}

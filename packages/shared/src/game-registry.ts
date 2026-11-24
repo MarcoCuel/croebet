@@ -3,6 +3,8 @@ import { flip7OptionsSchema, flip7ActionSchema, flip7EventActionSchema, flip7Vie
 import { soloOptionsSchema, soloActionSchema, soloViewSchema } from "./solo.js";
 import { loveOptionsSchema, loveActionSchema, loveViewSchema } from "./love-letter.js";
 
+import {socialSettings,socialActionSchema,socialOptionsSchema,socialViewSchema,type SocialId} from "./sala-social.js";
+
 export type SettingField = {
   key: string; label: string; ariaLabel?: string; badgeLabel?:string; badgeVariant?:"default"|"secondary";
   type: "select" | "switch";
@@ -18,8 +20,14 @@ export type GameDefinition = {
   settings: SettingField[];
 };
 
+function socialDefinition(id:SocialId):GameDefinition{
+ const settings=socialSettings[id];
+ return {options:socialOptionsSchema,action:socialActionSchema.refine(a=>a.game===id),view:socialViewSchema.refine(s=>s.game===id),
+ defaults:{mode:"social",brutal:false},developmentOnly:false,croins:id==="coup",replay:true,kickDuringPlay:false,tableTurnSound:false,minPlayers:settings.min,maxPlayers:()=>settings.max,settings:[]};
+}
 // Explicit registration keeps unreviewed catalog entries from executing code.
 export const gameDefinitions = {
+  coup:socialDefinition("coup"),dixit:socialDefinition("dixit"),"secret-hitler":socialDefinition("secret-hitler"),spyfall:socialDefinition("spyfall"),
   flip7: {
     options:flip7OptionsSchema, action:flip7ActionSchema, view:flip7ViewSchema,
     defaults:{mode:"classic",brutal:false}, developmentOnly:false,croins:true,replay:true,kickDuringPlay:true,tableTurnSound:true,
@@ -37,21 +45,21 @@ export const gameDefinitions = {
   },
   solo: {
     options:soloOptionsSchema,action:soloActionSchema,view:soloViewSchema,
-    defaults:{mode:"single",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,tableTurnSound:true,
+    defaults:{mode:"single",brutal:false},developmentOnly:false,croins:true,replay:true,kickDuringPlay:false,tableTurnSound:true,
     minPlayers:2,maxPlayers:()=>10,
     settings:[{key:"mode",label:"Duração",type:"select",choices:[{value:"single",label:"Uma rodada"},{value:"rounds3",label:"3 rodadas"},{value:"rounds4",label:"4 rodadas"},{value:"points100",label:"100 pontos"},{value:"points250",label:"250 pontos"},{value:"points500",label:"500 pontos"}]}],
   },
 } satisfies Record<string,GameDefinition>;
 export const gameIdSchema=z.enum(Object.keys(gameDefinitions) as [keyof typeof gameDefinitions,...(keyof typeof gameDefinitions)[]]);
 export type GameId=z.infer<typeof gameIdSchema>;
-export const gameOptionsSchema=z.union([flip7OptionsSchema,loveOptionsSchema,soloOptionsSchema]);
-export const gameActionSchema=z.union([flip7ActionSchema,loveActionSchema,soloActionSchema]);
+export const gameOptionsSchema=z.union([flip7OptionsSchema,loveOptionsSchema,soloOptionsSchema,socialOptionsSchema]);
+export const gameActionSchema=z.union([flip7ActionSchema,loveActionSchema,soloActionSchema,socialActionSchema]);
 export type GameOptions=z.infer<typeof gameOptionsSchema>;
 export type GameAction=z.infer<typeof gameActionSchema>;
 export type GameEngineAction=GameAction|{type:"step"|"draw"|"stay"|"next"};
-export const gameViewSchema=z.union([flip7ViewSchema,loveViewSchema,soloViewSchema]);
-export const gameEventActionSchema=z.union([flip7EventActionSchema,loveActionSchema,soloActionSchema]);
-export type GameView=z.infer<typeof flip7ViewSchema>|z.infer<typeof loveViewSchema>|z.infer<typeof soloViewSchema>;
+export const gameViewSchema=z.union([flip7ViewSchema,loveViewSchema,soloViewSchema,socialViewSchema]);
+export const gameEventActionSchema=z.union([flip7EventActionSchema,loveActionSchema,soloActionSchema,socialActionSchema]);
+export type GameView=z.infer<typeof flip7ViewSchema>|z.infer<typeof loveViewSchema>|z.infer<typeof soloViewSchema>|z.infer<typeof socialViewSchema>;
 export function getGameDefinition(slug:string):GameDefinition|null {
   return Object.hasOwn(gameDefinitions,slug)?gameDefinitions[slug as GameId]:null;
 }

@@ -153,6 +153,7 @@ export * from "./achievements.js";
 
 export * from "./love-letter.js";
 export * from "./solo.js";
+export * from "./sala-social.js";
 
 export * from "./game-registry.js";
 

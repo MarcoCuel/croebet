@@ -2,7 +2,7 @@
 
 ## Escopo e referência
 
-Disponível exclusivamente em desenvolvimento, sem Croins nem estatísticas oficiais. Administradores criam os testes; participantes convidados acessam a mesma sala. Usa salas, persistência, abandono para bot, histórico, duração e replay compartilhados. Catálogo inserido incrementalmente pela migration `0039_solo_development.sql`, sem alterar partidas existentes. A migration `0040_bind_solo_module.sql` vincula um cadastro anterior com slug `solo` e identificador de placeholder ao motor, preservando ID, apresentação, publicação e históricos; não reinterpreta registros vinculados a outro jogo.
+Disponível em salas públicas gratuitas ou com entrada em Croins. No modo de desenvolvimento as partidas são gratuitas e ficam fora das estatísticas oficiais. Administradores criam os testes; participantes convidados acessam a mesma sala. Usa salas, persistência, abandono para bot, histórico, duração e replay compartilhados. Catálogo inserido incrementalmente pela migration `0039_solo_development.sql`, sem alterar partidas existentes. A migration `0040_bind_solo_module.sql` vincula um cadastro anterior com slug `solo` e identificador de placeholder ao motor, preservando ID, apresentação, publicação e históricos; não reinterpreta registros vinculados a outro jogo.
 
 Referência: [Solo do Board Game Arena](https://boardgamearena.com/gamepanel?game=solo), incluindo seu resumo em português. Não usar como substituto a edição posterior do manual com Trinca+, Presente ou Proteção. Motor/driver em `apps/api/src/modules/games/solo`; contratos em `packages/shared/src/solo.ts`; apresentação em `apps/web/features/games/solo`.
 

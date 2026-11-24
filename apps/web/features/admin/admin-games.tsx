@@ -5,6 +5,7 @@ import { useState } from "react";
 import { type GameRecord } from "@croebet/shared";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
+import { getGameDefinition } from "@croebet/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
@@ -32,7 +33,7 @@ export function AdminGames({ games }: { games: GameRecord[] }) {
             </div>
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <span className="break-words font-semibold">{game.name}</span>
-              {(game.moduleId ?? game.slug) !== "flip7" && <Badge variant="secondary">Em breve</Badge>}
+              {(getGameDefinition(game.moduleId ?? game.slug)?.developmentOnly ?? true) && <Badge variant="secondary">Em breve</Badge>}
               <Badge variant={game.enabled ? "default" : "secondary"}>{game.enabled ? "Ativo" : "Inativo"}</Badge>
             </div>
           </Link>

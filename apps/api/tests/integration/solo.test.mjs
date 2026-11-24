@@ -16,7 +16,9 @@ test('PostgreSQL Solo: desenvolvimento, intervenções concorrentes, recibos, pr
   await pool.query("insert into sessions(token_hash,user_id,expires_at,idle_expires_at) values($1,$2,now()+interval '1 day',now()+interval '1 day')",[hashes[n],id]);
  }
  const input={requestId:randomUUID(),game:'solo',capacity:3,options:{mode:'single',brutal:false},development:true,entryAmount:0};
- await assert.rejects(createMatch(pool,users[0],hashes[0],{...input,development:false}),{code:'DEVELOPMENT_ONLY'});
+ const publicLobby=await createMatch(pool,users[0],hashes[0],{...input,requestId:randomUUID(),development:false});
+ assert.equal(publicLobby.development,false);
+ await lobbyAction(pool,users[0],hashes[0],publicLobby.code,'leave',{commandId:randomUUID()});
  const lobby=await createMatch(pool,users[0],hashes[0],input);
  for(let n=1;n<3;n++){
   await inviteLobbyPlayer(pool,users[0],hashes[0],lobby.code,users[n]);

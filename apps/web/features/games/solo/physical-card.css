@@ -1,0 +1,79 @@
+.cs-face {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  container-type: inline-size;
+  width: 100%;
+  aspect-ratio: 2/3;
+  overflow: hidden;
+  border-radius: 10%;
+  background: #2a2b34;
+  color: #f6e9d0;
+  box-shadow:
+    inset 0 0 0 1px #fff4,
+    0 3px 5px #0004;
+  font-family: Inter, system-ui, sans-serif;
+}
+.cs-face:after {
+  content: "";
+  position: absolute;
+  inset: 5%;
+  border: 1px solid currentColor;
+  opacity: 0.45;
+  border-radius: 6%;
+}
+.cs-face small {
+  position: absolute;
+  top: 10%;
+  left: 11%;
+  right: 17%;
+  font-size: 12cqi;
+  text-align: left;
+  line-height: 1;
+  font-weight: 600;
+}
+.cs-face strong {
+  position: absolute;
+  inset: 12% 0 5%;
+  display: grid;
+  place-items: center;
+  font-size: 74cqi;
+  font-weight: 700;
+  letter-spacing: -0.08em;
+  line-height: 1;
+}
+.cs-face strong[data-number="true"] {
+  inset: 19% 0 -12%;
+  font-size: 116cqi;
+  font-weight: 550;
+}
+.cs-face i {
+  position: absolute;
+  top: 9%;
+  right: 11%;
+  font: normal 11cqi/1 system-ui;
+}
+.cs-orbits,
+.cs-orbits:before,
+.cs-orbits:after {
+  position: absolute;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+.cs-orbits {
+  inset: 9% 16%;
+  transform: rotate(30deg);
+  opacity: 0.28;
+}
+.cs-orbits:before,
+.cs-orbits:after {
+  content: "";
+  inset: 2% -9%;
+}
+.cs-orbits:after {
+  inset: -2% 9%;
+}
+.cs-face[data-back="true"] {
+  background: repeating-linear-gradient(40deg, #383944 0 5px, #30313a 5px 8px);
+  color: #e4c886;
+}
