@@ -143,6 +143,51 @@ test("chat flutuante mantém a página disponível e cabe na tela",async({page,c
 });
 
 
+test("agrupa mensagens consecutivas por pessoa nas duas visualizações", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat geral", exact: true }).filter({ visible: true }).click();
+  let panel = page.getByRole("complementary", { name: "Chat geral" });
+  await expect(panel.getByText("Mensagem anterior 55", { exact: true })).toBeVisible();
+  const first = panel.locator('li[data-message-id="6"]');
+  const second = panel.locator('li[data-message-id="7"]');
+  await expect(first.getByText("Ana da comunidade")).toBeVisible();
+  await expect(second.getByText("Ana da comunidade")).toHaveCount(0);
+  const group = first.locator("xpath=../..");
+  const avatar = group.locator('[data-slot="avatar"]');
+  await expect(avatar).toHaveCount(1);
+  await expect(avatar).toHaveCSS("position", "sticky");
+  await expect(avatar).toHaveCSS("bottom", "0px");
+  publish(makeMessage("Outra pessoa", id));
+  publish(makeMessage("Ana voltou"));
+  await expect(panel.getByText("Ana voltou")).toBeVisible();
+  await expect(panel.locator("li").filter({ hasText: "Ana voltou" }).getByText("Ana da comunidade")).toBeVisible();
+  await panel.getByRole("link", { name: "Expandir chat" }).click();
+  panel = page.getByRole("complementary", { name: "Chat geral" });
+  await expect(panel.locator('li[data-message-id="7"]').getByText("Ana da comunidade")).toHaveCount(0);
+  await expect(panel.locator("li").filter({ hasText: "Ana voltou" }).getByText("Ana da comunidade")).toBeVisible();
+});
+
+
+test("expandir mantém a conversa e o rascunho na página de chat", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Chat geral", exact: true }).filter({ visible: true }).click();
+  const floating = page.getByRole("complementary", { name: "Chat geral" });
+  await expect(floating.getByText("Mensagem anterior 55", { exact: true })).toBeVisible();
+  await floating.getByLabel("Mensagem", { exact: true }).fill("Rascunho da conversa");
+  await floating.getByRole("link", { name: "Expandir chat" }).click();
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect(page.locator("header").getByText("Chat geral", { exact: true })).toBeVisible();
+  const expanded = page.getByRole("complementary", { name: "Chat geral" });
+  await expect(expanded.getByRole("heading", { name: "Chat geral" })).toHaveCount(0);
+  await expect(expanded.getByText("Mensagem anterior 55", { exact: true })).toBeVisible();
+  await expect(expanded.getByLabel("Mensagem", { exact: true })).toHaveValue("Rascunho da conversa");
+  await expect(expanded.getByRole("button", { name: "Enviar mensagem" })).toHaveCount(0);
+  await expanded.getByLabel("Mensagem", { exact: true }).press("Enter");
+  await expect(expanded.getByText("Rascunho da conversa", { exact: true })).toBeVisible();
+  await expect.poll(() => sockets.sockets.sockets.size).toBe(1);
+});
+
+
 test("título acompanha notificações sem perder metadata da página", async ({ page }) => {
   await page.goto("/");
   await expect.poll(() => sockets.sockets.sockets.size).toBeGreaterThan(0);

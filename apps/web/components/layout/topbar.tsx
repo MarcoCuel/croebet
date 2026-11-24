@@ -77,6 +77,7 @@ export function Topbar({
     (
       {
         "/admin": permissions.canManageSite ? "Admin" : "Página não encontrada",
+        "/chat": "Chat geral",
         "/jogos": "Jogos",
         "/apostas": "Apostas",
         "/rankings": "Rankings",
