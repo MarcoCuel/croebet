@@ -20,11 +20,23 @@ test.beforeAll(async () => {
       response.end(JSON.stringify(request.url === "/api/v1/games" ? { items: [game] } : game));
       return;
     }
+    if (request.url === "/api/v1/matches") {
+      response.end(JSON.stringify({ items: [] }));
+      return;
+    }
+    if (request.url === "/api/v1/matches/lobbies") {
+      response.end(JSON.stringify({ items: [], joined: [], owned: null, active: null }));
+      return;
+    }
     response.end(JSON.stringify(request.url === "/api/v1/economy" ? economy : request.url === "/api/v1/rewards/daily" ? daily : { user }));
   });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.afterAll(async () => {
+  if (!api?.listening) return;
+  api.closeAllConnections();
+  await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+});
 test.beforeEach(async ({ context, page }) => {
   daily = initial();
   await context.addCookies([{ name: "croebet-session", value: "economy-test", url: "http://127.0.0.1:3100" }]);
@@ -32,12 +44,13 @@ test.beforeEach(async ({ context, page }) => {
   await page.route("**/api/v1/economy", route => route.fulfill({ json: economy }));
   await page.route("**/api/v1/rewards/daily", route => route.fulfill({ json: daily }));
 });
-test("saldo e regra do resgate já vêm no HTML inicial", async ({ browser }) => {
+test("saldo e ação do resgate já vêm no HTML inicial", async ({ browser }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   await context.addCookies([{ name: "croebet-session", value: "economy-test", url: "http://127.0.0.1:3100" }]);
   const page = await context.newPage();
   await page.goto("/");
-  await expect(page.getByText("10 Croins por dia. Renova à meia-noite de São Paulo.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bônus diário", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resgatar 10 Croins", exact: true })).toBeVisible();
   await expect(page.locator("header [aria-live=polite]").first()).toContainText("30");
   await context.close();
 });
@@ -54,27 +67,28 @@ test("resgate com saldo 30 credita 10 e persiste o intervalo após reload", asyn
   await page.goto("/");
   await page.getByRole("button", { name: "Resgatar 10 Croins", exact: true }).click();
   await expect(page.locator("header [aria-live=polite]").first()).toContainText("40");
-  await expect(page.getByRole("button", { name: "Aguarde o próximo resgate" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Próximo resgate em/ })).toBeDisabled();
   await page.reload();
   await expect(page.getByText(/Próximo resgate em/)).toBeVisible();
   expect(claims).toBe(1);
 });
 test("Flip 7 usa valor padrão e sugestões da API sem debitar saldo local", async ({ page }) => {
   await page.goto("/jogos/flip7");
-  await page.getByRole("switch", { name: "Jogar com Croins" }).check();
+  await page.getByRole("switch", { name: "Jogar apostando" }).check();
   await expect(page.getByLabel("Entrada por jogador")).toHaveValue("5");
-  const suggestions = page.getByRole("group", { name: "Valores rápidos" });
-  for (const value of [1, 5, 10, 50]) await expect(suggestions.getByRole("button", { name: `${value} Croins`, exact: true })).toBeVisible();
-  await suggestions.getByRole("button", { name: "10 Croins", exact: true }).click();
+  const suggestions = page.getByRole("group", { name: "Valores de aposta sugeridos" });
+  for (const value of [1, 5, 10, 50]) await expect(suggestions.getByRole("button", { name: `Apostar ${value} Croins`, exact: true })).toBeVisible();
+  await suggestions.getByRole("button", { name: "Apostar 10 Croins", exact: true }).click();
   await expect(page.getByLabel("Entrada por jogador")).toHaveValue("10");
-  await expect(page.getByRole("button", { name: "Pagar 10 Croins e jogar" })).toBeDisabled();
+  await expect(page.getByRole("main").getByRole("button", { name: "Jogar", exact: true })).toBeDisabled();
+  await expect(page.locator("header [aria-live=polite]").first()).toContainText("30");
 });
 
 test("contador libera o botão na meia-noite de São Paulo", async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-19T02:59:58Z') });
   daily = { balance: 40, eligible: false, lastClaimAt: '2026-11-19T01:00:00.000Z', nextClaimAt: '2026-11-19T03:00:00.000Z', serverNow: '2026-11-19T02:59:58.000Z' };
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Aguarde o próximo resgate' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Próximo resgate em/ })).toBeDisabled();
   await page.clock.runFor(3000);
   await expect(page.getByRole('button', { name: 'Resgatar 10 Croins', exact: true })).toBeEnabled();
 });

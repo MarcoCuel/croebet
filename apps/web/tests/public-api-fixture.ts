@@ -34,5 +34,10 @@ export async function startPublicApi(session: (request: IncomingMessage) => unkn
   });
   const detach = attach?.(server);
   await new Promise<void>((resolve,reject) => { server.once("error",reject); server.listen(3201,"127.0.0.1",resolve); });
-  return () => new Promise<void>((resolve,reject) => { detach?.(); server.closeAllConnections(); server.close(error => error ? reject(error) : resolve()); });
+  return async () => {
+    try { detach?.(); } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve,reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  };
 }

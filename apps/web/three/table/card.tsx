@@ -3,20 +3,26 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Html, useCursor } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Euler, Quaternion, Vector3, type Group, type MeshStandardMaterial } from "three";
+import { Euler, Quaternion, Vector3, type Group, type Mesh, type MeshStandardMaterial } from "three";
 import { createCardGeometry, interpolateCardGeometry, updateCardGeometry, scaledPaperCurvature } from "./card-geometry";
 import type { CardResources } from "./resources";
 import type { CardTarget } from "./motion";
 import { arcPosition, cardMotionUpdate, consumeCardMotion, easedProgress, routeProgress, raisedCardPosition } from "./motion";
 
+function updateDiagnostic(element: HTMLButtonElement | null, name: string, value: string) {
+  if (element && element.getAttribute(name) !== value) element.setAttribute(name, value);
+}
+
 /** Kept under a single scene parent: changing owner/zone never remounts a moving card. */
-export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown, onMotion, paused = false, timeScale = 1 }: {
+export function TableCard({ target, resources, motionHistory, reducedMotion, onSelect, onMenu, onPilePointerDown, onMotion, paused = false, timeScale = 1, diagnostics = false }: {
   motionHistory: RefObject<Map<string, string>>;
   target: CardTarget; resources: CardResources; reducedMotion: boolean; onSelect: (id: string) => void; onMenu: (id: string, point: { x: number; y: number }) => void; onPilePointerDown?: (event: PointerEvent) => void;
   onMotion?: (id: string, key: string, active: boolean) => void;
-  paused?: boolean; timeScale?: number;
+  paused?: boolean; timeScale?: number; diagnostics?: boolean;
 }) {
   const ref = useRef<Group>(null); const invalidate = useThree(state => state.invalidate);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const interactionPoint = useRef(new Vector3());
   const idleRef = useRef<Group>(null);
   const revealRef = useRef<Group>(null);
   const frontMaterial = useRef<MeshStandardMaterial>(null);
@@ -54,7 +60,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
   useEffect(() => { if (!paused) invalidate(); }, [paused, invalidate]);
   useCursor(hovered && !!target.interactive, target.zone === "hand" ? "pointer" : "grab");
   const animation = useRef({ elapsed: 0, active: false, from: new Vector3(), to: new Vector3(), fromQ: new Quaternion(), toQ: new Quaternion(),
-    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: 0,
+    fromScale: 1, toScale: 1, duration: 0.65, delay: 0, arc: 0, shuffle: false, raised: 0, replayed: false,
     key: "", destination: "", transfer: false, via: null as null | { position: Vector3; quaternion: Quaternion; scale: number }, hold: 0 });
   const motionCallback = useRef(onMotion);
   useLayoutEffect(() => { motionCallback.current = onMotion; });
@@ -100,6 +106,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     a.delay = newMotion ? t.motion.delay ?? 0 : 0;
     a.arc = newMotion ? t.motion.arc : 0; a.shuffle = newMotion && !!t.motion.shuffle;
     a.key = t.motion.key;
+    a.replayed = t.motion.key !== "layout" && !newMotion;
     a.via = newMotion && t.motion.via ? { position: new Vector3(...t.motion.via.position), quaternion: new Quaternion().setFromEuler(new Euler(...t.motion.via.rotation, "YXZ")), scale: t.motion.via.scale } : null;
     a.hold = newMotion ? t.motion.hold ?? 0 : 0;
     a.transfer = returningChoice || newMotion && (!!t.origin || a.arc > 0 || a.delay > 0 || a.shuffle);
@@ -123,9 +130,9 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
   useEffect(() => () => { if (paper) [paper.front, paper.back, paper.current].forEach(set => Object.values(set).forEach(mesh => mesh.dispose())); }, [paper]);
   const geometry = paper?.current ?? resources.flat;
   useFrame((scene, delta) => {
-    const group = ref.current; const a = animation.current; if (!group || paused) return;
+    const group = ref.current; const a = animation.current; if (!group) return;
     const turn = reveal.current;
-    if (turn.active && revealRef.current) {
+    if (!paused && turn.active && revealRef.current) {
       turn.elapsed += Math.min(delta, 0.1) * timeScale;
       const progress = easedProgress(turn.elapsed, Math.min(target.motion.duration, 0.4));
       revealRef.current.rotation.y = turn.from + (turn.to - turn.from) * progress;
@@ -137,23 +144,24 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
       invalidate();
     }
     const idle = !target.hidden && !reducedMotion ? target.idle : undefined;
-    if (idleRef.current) idleRef.current.rotation.z = idle ? Math.sin(scene.clock.elapsedTime * 2.6 + idle.phase) * idle.angle : 0;
-    if (!a.active) { if (idle) invalidate(); return; }
-    a.elapsed += Math.min(delta, 0.1) * timeScale;
-    const route = routeProgress(a.elapsed, a.duration, a.delay, a.hold, !!a.via);
-    const t = route.progress;
-    const from = route.leg === 1 && a.via ? a.via.position : a.from;
-    const to = route.leg === 0 && a.via ? a.via.position : a.to;
-    const fromQ = route.leg === 1 && a.via ? a.via.quaternion : a.fromQ;
-    const toQ = route.leg === 0 && a.via ? a.via.quaternion : a.toQ;
-    const fromScale = route.leg === 1 && a.via ? a.via.scale : a.fromScale;
-    const toScale = route.leg === 0 && a.via ? a.via.scale : a.toScale;
-    group.position.fromArray(arcPosition(from.toArray(), to.toArray(), t, a.arc)); group.quaternion.slerpQuaternions(fromQ, toQ, t);
-    group.scale.setScalar(fromScale + (toScale - fromScale) * t);
-    if (a.shuffle) { group.position.x += Math.sin(t * Math.PI * 4) * Math.sin(t * Math.PI) * 0.4; group.rotateZ(Math.sin(t * Math.PI * 2) * 0.12); }
-    a.active = !route.done;
-    if (!a.active) motionCallback.current?.(target.id, a.key, false);
-    if (a.active || idle) invalidate();
+    if (!paused && idleRef.current) idleRef.current.rotation.z = idle ? Math.sin(scene.clock.elapsedTime * 2.6 + idle.phase) * idle.angle : 0;
+    if (!paused && a.active) {
+      a.elapsed += Math.min(delta, 0.1) * timeScale;
+      const route = routeProgress(a.elapsed, a.duration, a.delay, a.hold, !!a.via);
+      const t = route.progress;
+      const from = route.leg === 1 && a.via ? a.via.position : a.from;
+      const to = route.leg === 0 && a.via ? a.via.position : a.to;
+      const fromQ = route.leg === 1 && a.via ? a.via.quaternion : a.fromQ;
+      const toQ = route.leg === 0 && a.via ? a.via.quaternion : a.toQ;
+      const fromScale = route.leg === 1 && a.via ? a.via.scale : a.fromScale;
+      const toScale = route.leg === 0 && a.via ? a.via.scale : a.toScale;
+      group.position.fromArray(arcPosition(from.toArray(), to.toArray(), t, a.arc)); group.quaternion.slerpQuaternions(fromQ, toQ, t);
+      group.scale.setScalar(fromScale + (toScale - fromScale) * t);
+      if (a.shuffle) { group.position.x += Math.sin(t * Math.PI * 4) * Math.sin(t * Math.PI) * 0.4; group.rotateZ(Math.sin(t * Math.PI * 2) * 0.12); }
+      a.active = !route.done;
+      if (!a.active) motionCallback.current?.(target.id, a.key, false);
+    }
+    if (!paused && (a.active || idle)) invalidate();
   });
   useFrame(() => {
     const shape = paperRef.current, group = ref.current;
@@ -173,6 +181,32 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     if (changed || shape.mix !== mix) {
       interpolateCardGeometry(shape.current, shape.front, shape.back, mix); shape.mix = mix;
     }
+  });
+  useFrame(({ camera }) => {
+    if (!diagnostics) return;
+    const button = buttonRef.current;
+    const angle = revealRef.current?.rotation.y ?? 0;
+    const artwork = resources.maps[target.face ?? target.value] ?? resources.maps.back;
+    const a = animation.current;
+    const group = ref.current;
+    if (group) {
+      interactionPoint.current.set(0, 0.28, 0.0022);
+      group.updateWorldMatrix(true, false);
+      group.localToWorld(interactionPoint.current).project(camera);
+      updateDiagnostic(button, "data-interaction-point", `${((interactionPoint.current.x + 1) / 2).toFixed(6)},${((1 - interactionPoint.current.y) / 2).toFixed(6)}`);
+    }
+    updateDiagnostic(button, "data-motion-key", a.key);
+    updateDiagnostic(button, "data-motion-replayed", String(a.replayed));
+    updateDiagnostic(button, "data-motion-phase", !a.active && !reveal.current.active ? "settled" : a.active && a.elapsed < a.delay ? "delayed" : "running");
+    updateDiagnostic(button, "data-position", group?.position.toArray().map(value => value.toFixed(6)).join(",") ?? "");
+    updateDiagnostic(button, "data-scale", group?.scale.x.toFixed(6) ?? "");
+    updateDiagnostic(button, "data-curvature", (paperRef.current?.curvature ?? 0).toFixed(6));
+    updateDiagnostic(button, "data-reveal-angle", angle.toFixed(6));
+    updateDiagnostic(button, "data-front-visible", String(frontMaterial.current?.map === artwork && Math.cos(angle) > 0));
+    updateDiagnostic(button, "data-shadows", (revealRef.current?.children ?? []).map(child => {
+      const mesh = child as Mesh;
+      return `${Number(mesh.castShadow)}${Number(mesh.receiveShadow)}`;
+    }).join(","));
   });
   const thickness = target.thickness ?? 0.004;
   return <group ref={ref}
@@ -200,6 +234,7 @@ export function TableCard({ target, resources, motionHistory, reducedMotion, onS
     {target.zone === "staging" && target.label && <Html position={[0, -0.95, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-48 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.label}</span></Html>}
     {hovered && target.interactive && target.actionLabel && !target.hidden && <Html position={[0, 0.8, 0]} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}><span className="block w-max max-w-64 rounded-lg bg-background/95 px-2 py-1 text-center text-xs text-foreground">{target.actionLabel}</span></Html>}
     {target.interactive && target.zone === "hand" && <Html center zIndexRange={[12, 0]} style={{ pointerEvents: "none" }}><button
+      ref={buttonRef} data-card-id={diagnostics ? target.id : undefined}
       className="pointer-events-auto sr-only focus:not-sr-only focus:whitespace-nowrap focus:rounded-lg focus:bg-background focus:p-2 focus:text-xs"
       aria-label={target.actionLabel ?? `Descartar ${target.label?.toLowerCase() ?? "carta"}`} onClick={() => onSelect(target.id)}
       onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}

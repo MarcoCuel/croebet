@@ -3,7 +3,7 @@ import { OrthographicCamera, Vector3, Euler } from 'three';
 import assert from 'node:assert/strict';
 import { handPlacements, handWindow, offsetHandPose, seatPlacements, sceneBounds, fitCamera, worldHandPose, foregroundSeat, pileRotation } from '../three/table/layout.ts';
 import { resolveTableLayout, adaptiveHandWindow } from '../three/table/adaptive-layout.ts';
-import { constrainDeckTransform, constrainDiscardTransform, pileBounds, poseBounds } from '../three/table/pile-transform.ts';
+import { constrainDeckTransform, constrainDiscardTransform, pileBounds, pileControlBounds, poseBounds } from '../three/table/pile-transform.ts';
 import { constrainDeckPosition, moveDeckByPixels } from '../three/table/deck-placement.ts';
 import { createCardGeometry, interpolateCardGeometry, updateCardGeometry, scaledPaperCurvature } from '../three/table/card-geometry.ts';
 import { TablePile } from '../three/table/pile.ts';
@@ -507,11 +507,13 @@ test('descarte permanece central e separado de mãos, identificações e deck ao
       const layout = resolveTableLayout(request), viewport = { fit: layout.fit, angle, width, height };
       for (const x of [-100, 0, 100]) for (const z of [-100, 0, 100]) for (const rotation of [-45, 0, 90]) {
         const transform = constrainDiscardTransform({ x, z, rotation, scale: 1.8 }, viewport, layout.obstacles);
-        const box = pileBounds(transform, 'discard', viewport);
+        const box = pileBounds(transform, 'discard', viewport), controls = pileControlBounds(transform, 'discard', viewport);
         assert.ok(transform.scale >= 0.65 && transform.scale <= 1.8);
         assert.ok(box.left >= width * 0.24 - 1e-6 && box.right <= width * 0.76 + 1e-6);
         assert.ok(box.top >= height * 0.27 - 1e-6 && box.bottom <= height * 0.8 + 1e-6);
+        assert.ok(controls.left >= 0 && controls.right <= width && controls.top >= 0 && controls.bottom <= height);
         assert.ok(layout.obstacles.every(o => box.right <= o.left || box.left >= o.right || box.bottom <= o.top || box.top >= o.bottom));
+        assert.ok(layout.obstacles.every(o => controls.right <= o.left || controls.left >= o.right || controls.bottom <= o.top || controls.top >= o.bottom));
       }
     }
   }

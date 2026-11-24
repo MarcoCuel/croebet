@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho Público", role: "user" };
 
 // Server rendering must be exercised against an HTTP fixture, not page.route.
-// Run with --config playwright.session.config.ts.
+// Run with --config playwright.pages.config.ts.
 const activity = { timeZone: "America/Sao_Paulo", days: Array.from({ length: 391 }, (_, index) => ({ date: new Date(Date.UTC(2025, 9, 26 + index)).toISOString().slice(0, 10), games: index === 390 ? 3 : 0, wins: index === 390 ? 1 : 0, dailyBonuses: index >= 389 ? 1 : 0, coupons: index === 390 ? 1 : 0 })) };
 let api: Server;
 let hasActivity = true;
@@ -40,7 +40,11 @@ test.beforeEach(async ({ context }) => {
   hasActivity = true; sessionActive = true; profileStatus = 200; storedAvatar = null;
   await context.addCookies([{ name: "croebet-session", value: "profile-test", url: "http://127.0.0.1:3100" }]);
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve())); });
+test.afterAll(async () => {
+  if (!api?.listening) return;
+  api.closeAllConnections();
+  await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+});
 
 test("menu abre perfil pelo usuário e /perfil redireciona para a mesma conta", async ({ page }) => {
   await page.route("**/api/v1/me", route => route.fulfill({ json: { user } }));
@@ -155,7 +159,7 @@ test.describe("perfil na primeira renderização", () => {
     profileStatus = 404;
     const response = await page.goto("/perfil/inexistente");
     expect(response?.status()).toBe(404);
-    await expect(page.getByRole("heading", { name: "Perfil não encontrado." })).toBeVisible();
+    await expect(page.locator('head meta[name="robots"]')).toHaveAttribute("content", "noindex");
   });
   test("atalho /perfil redireciona no servidor para a conta autenticada", async ({ page }) => {
     await page.goto("/perfil");
@@ -234,7 +238,7 @@ test("perfil lista somente partidas, pagina e permite retentar falhas", async ({
   await page.route("**/cover-fixture.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="purple"/></svg>' }));
   await page.goto("/perfil/Tonho");
   await expect(page.getByRole("heading", { name: "Partidas jogadas" })).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("Não foi possível carregar o histórico.");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Não foi possível carregar o histórico.");
   fail = false;
   await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByText("Flip 7 · Partida concluída", { exact: true })).toHaveCount(20);

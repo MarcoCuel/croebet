@@ -39,7 +39,11 @@ test.beforeAll(async () => {
   });
   await new Promise<void>((resolve,reject) => { api.once("error",reject); api.listen(3201,"127.0.0.1",resolve); });
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.afterAll(async () => {
+  if (!api?.listening) return;
+  api.closeAllConnections();
+  await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+});
 test.beforeEach(async ({ context, page }) => {
   role = "admin"; unavailable = false; empty = false;
   await context.addCookies([{ name: "croebet-session", value: "overview-fixture", url: "http://127.0.0.1:3100" }]);

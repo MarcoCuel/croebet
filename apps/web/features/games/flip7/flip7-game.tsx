@@ -136,6 +136,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     setLiveRevision(n=>n+1);
   },()=>{},(message,roomClosed)=>{toast.error(message);if(roomClosed){router.push(gameUrl(gameSlug));router.refresh();}});
   const [creation] = useState(() => replay ? null : createdPresentation(initial.match));
+  const presentedVersion = useRef((initial.match?.version ?? 0) - (creation?.frames.length ?? 0));
   useEffect(() => { if (!replay) clearCreatedPresentation(initial.match?.code); }, [initial.match?.code, replay]);
   const pendingCommand = useRef<MatchCommand | null>(null);
   const pendingAbandon = useRef<{ commandId: string; expectedVersion: number } | null>(null);
@@ -297,8 +298,11 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   }, [replayActive, replayReset, replayLoading, replayFrameIndex, liveGame, flight, movingCards, resolvingCardFinished, onReplayPresented, replayPot, playSound, sceneAnimating]);
   const send = useCallback(async (action: Action) => {
     const match = serverMatch.current;
-    if (!match || !connected || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || sceneAnimating || frames.length || resolvingCardFinished) return;
+    if (!match || !connected || match.version !== presentedVersion.current || (incoming.current && incoming.current.room.version>receivedVersion.current) || locked.current || busy || sceneAnimating || frames.length || resolvingCardFinished) return;
     if (action.type === "step" || action.type === "next" || action.type === "start" || action.type === "replace") return;
+    const current = gameRef.current;
+    const seat = current?.bonusChoice ?? current?.pending?.source ?? current?.turn ?? -1;
+    if (!current || current.phase !== "playing" || match.participants.find(person => person.userId === userId)?.seat !== seat) return;
     if (pendingCommand.current && JSON.stringify(pendingCommand.current.action) !== JSON.stringify(action)) {
       toast.error("Confirme a ação pendente ou recarregue a partida."); return;
     }
@@ -310,7 +314,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       // Confirmed frames arrive through the same Socket.IO event for everyone.
     } catch (error) { setCommandError(error instanceof Error ? error.message : "Não foi possível enviar a jogada."); }
     finally { locked.current = false; setBusy(false); }
-  }, [busy, connected, frames.length, resolvingCardFinished, sceneAnimating]);
+  }, [busy, connected, frames.length, resolvingCardFinished, sceneAnimating, userId]);
   const leave = async () => {
     if (!serverMatch.current || leavingRef.current || busy) return false;
     leavingRef.current = true;
@@ -475,6 +479,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     const timer = setTimeout(() => {
       setFrames(previous => previous.slice(1));
       present(frame.action, frame.state);
+      presentedVersion.current = frame.version;
     }, game.phase === "summary" ? 1600 : 0);
     return () => clearTimeout(timer);
   }, [game, resolvingCardFinished, flight, movingCards, exitOpen, leaving, busy, frames, present, sceneAnimating]);
@@ -493,7 +498,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       stopSounds();
       // Recover directly to the confirmed snapshot instead of replaying a long
       // animation backlog after a slow connection or a suspended browser tab.
-      receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
+      receivedVersion.current=sync.room.version;serverMatch.current=sync.room;presentedVersion.current=sync.room.version;
       setMatchInfo(sync.room);gameRef.current=sync.room.state;setGame(sync.room.state);setPresentationBefore(null);
       setResolvingCard(forcedActionPresentation(sync.room.state));
       setFrames([]);pendingCommand.current=null;setCommandError("");return;

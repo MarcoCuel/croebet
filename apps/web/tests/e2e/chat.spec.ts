@@ -56,7 +56,7 @@ test.beforeAll(async()=>{
   },server=>{
     sockets=new Server(server,{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"]});
     sockets.on("connection",socket=>{socket.emit("personal-matches",{items:[]});socket.emit("invitations",{items:[]});});
-    return ()=>{void sockets.close();};
+    return ()=>{sockets.disconnectSockets(true);sockets.engine.close();};
   });
 });
 test.afterAll(async()=>{await closeApi?.();});

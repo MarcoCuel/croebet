@@ -20,8 +20,10 @@ test('PostgreSQL Solo: desenvolvimento, intervenções concorrentes, recibos, pr
  assert.equal(publicLobby.development,false);
  await lobbyAction(pool,users[0],hashes[0],publicLobby.code,'leave',{commandId:randomUUID()});
  const lobby=await createMatch(pool,users[0],hashes[0],input);
- for(let n=1;n<3;n++)await inviteLobbyPlayer(pool,users[0],hashes[0],lobby.code,users[n]);
- for(let n=1;n<3;n++)await lobbyAction(pool,users[n],hashes[n],lobby.code,'join',{commandId:randomUUID()});
+ for(let n=1;n<3;n++){
+  await inviteLobbyPlayer(pool,users[0],hashes[0],lobby.code,users[n]);
+  await lobbyAction(pool,users[n],hashes[n],lobby.code,'join',{commandId:randomUUID()});
+ }
  for(const user of users)await pool.query("insert into match_presence(id,match_id,user_id,expires_at) values($1,$2,$3,now()+interval '1 hour')",[randomUUID(),lobby.id,user]);
  const ready=(await getRoomSync(pool,users[0],lobby.code)).room;
  await lobbyAction(pool,users[0],hashes[0],lobby.code,'start',{commandId:randomUUID(),expectedVersion:ready.version});

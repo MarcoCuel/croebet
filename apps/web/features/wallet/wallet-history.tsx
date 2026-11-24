@@ -111,23 +111,24 @@ export function WalletHistory({ initial, direction, now }: {
               {history.items.map(entry => {
                 const incoming = entry.amount > 0;
                 const Icon = originIcon(entry.description, entry.amount);
+                const iconStyle = Icon === Gift ? "bg-secondary  text-white" : Icon === Ticket ? "bg-quaternary text-white" : incoming ? "bg-tertiary  text-white" : "bg-brand text-white";
                 const amount = `${incoming ? "+" : "−"}${formatBalance.format(Math.abs(entry.amount))} Croins`;
                 return (
                   <li key={entry.id}>
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button variant="ghost" className="w-full justify-start gap-4 rounded-none px-4 py-4 text-left font-normal text-foreground sm:gap-4 sm:px-6">
-                          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-contrast/6"><Icon className="size-4" aria-hidden="true" /></span>
+                          <span className={cn("grid size-9 shrink-0 place-items-center rounded-full", iconStyle)}><Icon className="size-4" aria-hidden="true" /></span>
                           <span className="min-w-0 flex-1">
                             <span className="block break-words text-sm font-medium">{entry.description}</span>
                             <time dateTime={entry.createdAt} className="mt-1 block text-xs text-muted">{dateLabel(entry.createdAt, now)}</time>
                           </span>
-                          <span className={cn("shrink-0 text-xs font-semibold tabular-nums sm:text-sm", incoming && "text-brand")}>{amount}</span>
+                          <span className={cn("shrink-0 text-xs font-semibold tabular-nums sm:text-sm", incoming ? "text-tertiary" : "text-brand")}>{amount}</span>
                         </Button>
                       </DialogTrigger>
                       <DialogContent aria-describedby={undefined}>
                         <DialogTitle>{entry.description}</DialogTitle>
-                        <p className={cn("mt-6 text-2xl font-semibold tabular-nums", incoming && "text-brand")}>{amount}</p>
+                        <p className={cn("mt-6 text-2xl font-semibold tabular-nums", incoming ? "text-tertiary" : "text-brand")}>{amount}</p>
                         <dl className="mt-6 grid gap-4 text-sm">
                           <div className="flex justify-between gap-4"><dt className="text-muted">Saldo após a operação</dt><dd className="text-right tabular-nums">{formatBalance.format(entry.balance)} Croins</dd></div>
                           <div className="flex justify-between gap-4"><dt className="text-muted">Data</dt><dd className="text-right"><time dateTime={entry.createdAt}>{fullDate.format(new Date(entry.createdAt))}</time></dd></div>

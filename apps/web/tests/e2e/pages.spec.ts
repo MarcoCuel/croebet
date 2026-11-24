@@ -61,7 +61,11 @@ test.beforeAll(async () => {
   });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.afterAll(async () => {
+  if (!api?.listening) return;
+  api.closeAllConnections();
+  await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+});
 test.beforeEach(async ({ page, context }) => {
   pages = [structuredClone(base), { ...structuredClone(base), id: "93089d02-0b34-4b78-9d3e-f2679c190b5d", slug: "rascunho", title: "Segredo", status: "draft", published: false }]; failure = false; settings = structuredClone(defaultSeoSettings); settingsFailure = false;
   await context.addCookies([{ name: "croebet-session", value: "pages-test", url: "http://127.0.0.1:3100" }]);
@@ -232,14 +236,14 @@ test("configurações usam a nova URL e salvam campos individuais sem perder out
   await expect(page).toHaveURL("/admin/configuracoes");
   await expect(page).toHaveTitle("Configurações · Admin · Croebet");
   await expect(page.getByRole("navigation", { name: "Seções do admin" }).getByRole("link", { name: "Configurações" })).toHaveAttribute("aria-current", "page");
-  await page.getByRole("button", { name: "Editar título SEO", exact: true }).first().click();
+  await page.getByRole("button", { name: "Editar título seo", exact: true }).first().click();
   let dialog = page.getByRole("dialog");
   await dialog.getByLabel("Título SEO", { exact: true }).fill("Croebet da comunidade");
   await dialog.getByRole("button", { name: "Salvar alterações" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText("Configurações salvas.")).toBeVisible();
   await expect(page.getByText("Croebet da comunidade", { exact: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "Editar título SEO", exact: true }).nth(1).click();
+  await page.getByRole("button", { name: "Editar título seo", exact: true }).nth(1).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel("Título SEO", { exact: true }).fill("Bem-vindo à Croebet");
   await dialog.getByRole("button", { name: "Salvar alterações" }).click();

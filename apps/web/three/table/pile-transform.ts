@@ -33,6 +33,16 @@ export function pileBounds(t: PileTransform, kind: PileKind, viewport: PileViewp
   }
   return base;
 }
+
+/** Match the two 28px handles and their 4px gap, including their pointer targets. */
+export function pileControlBounds(t: PileTransform, kind: PileKind, viewport: PileViewport): ScreenRect {
+  const box = pileBounds(t, kind, viewport);
+  if (kind === "deck") return { left: box.right - 30, right: box.right + 30, top: box.bottom - 14, bottom: box.bottom + 14 };
+  const center = (box.left + box.right) / 2;
+  return viewport.width < 600
+    ? { left: center - 14, right: center + 14, top: box.top - 64, bottom: box.top - 4 }
+    : { left: center - 30, right: center + 30, top: box.top - 44, bottom: box.top - 16 };
+}
 export function constrainDeckTransform(t: PileTransform, viewport: PileViewport): PileTransform {
   const rotation = wrapRotation(t.rotation), scale = clamp(t.scale, 0.65, 1.8);
   return { ...constrainDeckPosition(t, { ...viewport, rotation, scale }), rotation, scale };
@@ -45,12 +55,12 @@ export function constrainDiscardTransform(input: PileTransform, viewport: PileVi
   const desired = projectPoint(input.x, 0.6, input.z, viewport);
   for (let scale = clamp(input.scale, 0.65, 1.8); scale >= 0.649; scale = scale <= 0.65 ? 0 : Math.max(0.65, scale - 0.05)) {
     const transform = { ...input, rotation: wrapRotation(input.rotation), scale };
-    const box = pileBounds(transform, "discard", viewport);
-    // Reserve the actual lower-right affordances, not an empty margin on every side.
-    const left = Math.min(box.left - desired.x, box.right - desired.x - 32);
-    const right = box.right - desired.x + 32;
-    const top = Math.min(box.top - desired.y, box.bottom - desired.y - 16);
-    const bottom = box.bottom - desired.y + 16;
+    const box = pileBounds(transform, "discard", viewport), controls = pileControlBounds(transform, "discard", viewport);
+    // Reserve the pile, its handles and the movement label without crowding nearby hands.
+    const left = Math.min(box.left - desired.x, controls.left - desired.x);
+    const right = Math.max(box.right - desired.x, controls.right - desired.x);
+    const top = Math.min(box.top - desired.y, controls.top - desired.y);
+    const bottom = Math.max(box.bottom - desired.y + 16, controls.bottom - desired.y);
     const minX = width * 0.24 - left, maxX = width * 0.76 - right;
     const minY = height * 0.27 - top, maxY = height * 0.8 - bottom;
     if (minX > maxX || minY > maxY) continue;

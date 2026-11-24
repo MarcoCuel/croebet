@@ -34,7 +34,11 @@ test.beforeAll(async () => {
   api = createServer((request, response) => { const result = respond(request.url ?? ""); response.writeHead(result.status, { "content-type": "application/json" }); response.end(JSON.stringify(result.data)); });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.afterAll(async () => {
+  if (!api?.listening) return;
+  api.closeAllConnections();
+  await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+});
 test.beforeEach(async ({ page, context }) => {
   items = []; inUse = false; savedGame = null; settings = structuredClone(defaultSeoSettings);
   await context.addCookies([{ name: "croebet-session", value: "media-test", url: "http://127.0.0.1:3100" }]);

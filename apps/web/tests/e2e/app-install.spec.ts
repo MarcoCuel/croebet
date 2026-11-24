@@ -44,7 +44,7 @@ test("banner personalizado aparece sem convite automático e abre instruções",
   await page.goto("/");
   if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
   const banner = page.getByRole("complementary", { name: "App do Croebet" });
-  await expect(banner).toContainText("Jogue pelo app");
+  await expect(banner).toContainText("Jogue pelo App");
   await banner.getByRole("button", { name: "Baixar app", exact: true }).click();
   const help = page.getByRole("dialog", { name: "Baixar app", exact: true });
   await expect(help).toContainText(isMobile ? "Adicionar à Tela de Início" : "barra de endereço");

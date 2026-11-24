@@ -40,28 +40,20 @@ test("hover dos oponentes recalcula a curvatura junto com a ampliação", async 
   await page.goto("/admin/jogos/laboratorio");
   await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
   const card = page.getByRole("button", { name: "Passar vez para Jogador 2 pelas cartas", exact: true }).first();
-  const measure = () => card.evaluate(button => {
-    type Group = { scale: { x: number }; receiveShadow: boolean; castShadow: boolean; children: Group[]; geometry: { attributes: { position: { array: number[] } } } };
-    type Fiber = { return: Fiber | null; memoizedProps: { target?: { pose: { scale: number } } }; memoizedState: { memoizedState: { current: Group } } };
-    const key = Object.keys(button).find(key => key.startsWith("__reactFiber$"))!;
-    let fiber = (button as unknown as Record<string, Fiber>)[key];
-    while (fiber && !fiber.memoizedProps?.target) fiber = fiber.return!;
-    const group = fiber.memoizedState.memoizedState.current;
-    return { shadows: group.children[0].children[0].children.map(mesh => ({ receives: mesh.receiveShadow, casts: mesh.castShadow })), scale: group.scale.x, targetScale: fiber.memoizedProps.target!.pose.scale, positions: Array.from(group.children[0].children[0].children[1].geometry.attributes.position.array) };
-  });
-  // Wait for the initial deal before exercising the independent hover animation.
-  await expect.poll(async () => { const m = await measure(); return Math.abs(m.scale - m.targetScale); }).toBeLessThan(1e-6);
+  const measure = () => card.evaluate(button => ({
+    shadows: button.getAttribute("data-shadows"),
+    scale: Number(button.getAttribute("data-scale")),
+    curvature: Number(button.getAttribute("data-curvature")),
+  }));
+  await expect(card).toHaveAttribute("data-motion-phase", "settled");
   const before = await measure();
-  expect(before.shadows).toEqual(Array(3).fill({ receives: false, casts: true }));
+  expect(before.shadows).toBe("10,10,10");
   await card.focus();
   await expect.poll(async () => (await measure()).scale).toBeCloseTo(before.scale * 1.1, 5);
-  expect((await measure()).positions).not.toEqual(before.positions);
+  expect((await measure()).curvature).not.toBe(before.curvature);
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).focus();
   await expect.poll(async () => (await measure()).scale).toBeCloseTo(before.scale, 5);
-  await expect.poll(async () => {
-    const after = await measure();
-    return Math.max(...after.positions.map((value, index) => Math.abs(value - before.positions[index])));
-  }).toBeLessThan(1e-6);
+  await expect.poll(async () => (await measure()).curvature).toBe(before.curvature);
 });
 
 test("revelação gira a carta no lugar, sem repetir o arco de compra", async ({ page }) => {
@@ -71,19 +63,11 @@ test("revelação gira a carta no lugar, sem repetir o arco de compra", async ({
   await openSettings(page);
   await page.getByText("Cenários de teste", { exact: true }).click();
   const card = page.getByRole("button", { name: "Passar vez para Jogador 2 pelas cartas", exact: true }).first();
-  const measure = () => card.evaluate(button => {
-    // The accessible card belongs to the same React tree as its Three group.
-    type Group = { position: { toArray(): number[] }; rotation: { y: number }; children: Group[]; material: { map: unknown } };
-    type Fiber = { return: Fiber | null; memoizedProps: { target?: { face?: string; value: number }; resources: { maps: Record<string, unknown> } }; memoizedState: { memoizedState: { current: Group } } };
-    const key = Object.keys(button).find(key => key.startsWith("__reactFiber$"))!;
-    let fiber = (button as unknown as Record<string, Fiber>)[key];
-    while (fiber && !fiber.memoizedProps?.target) fiber = fiber.return!;
-    const group = fiber.memoizedState.memoizedState.current;
-    const paper = group.children[0].children[0];
-    const target = fiber.memoizedProps.target!;
-    return { position: group.position.toArray(), angle: paper.rotation.y,
-      frontVisible: paper.children[1].material.map === fiber.memoizedProps.resources.maps[target.face ?? target.value] };
-  });
+  const measure = () => card.evaluate(button => ({
+    position: button.getAttribute("data-position"),
+    angle: Number(button.getAttribute("data-reveal-angle")),
+    frontVisible: button.getAttribute("data-front-visible") === "true",
+  }));
   await expect.poll(async () => (await measure()).angle).toBeCloseTo(Math.PI, 5);
   const before = await measure();
   await page.getByRole("button", { name: "Revelar adversários: não", exact: true }).click();
@@ -91,17 +75,17 @@ test("revelação gira a carta no lugar, sem repetir o arco de compra", async ({
     const current = await measure();
     return current.angle > 0.05 && current.angle < Math.PI - 0.05;
   }, { intervals: [10] }).toBe(true);
-  expect((await measure()).position).toEqual(before.position);
+  expect((await measure()).position).toBe(before.position);
   await expect.poll(async () => (await measure()).angle).toBe(0);
   expect((await measure()).frontVisible).toBe(true);
-  expect((await measure()).position).toEqual(before.position);
+  expect((await measure()).position).toBe(before.position);
   await page.getByRole("button", { name: "Revelar adversários: sim", exact: true }).click();
   await expect.poll(async () => (await measure()).angle).toBeCloseTo(Math.PI, 5);
   expect((await measure()).frontVisible).toBe(false);
-  expect((await measure()).position).toEqual(before.position);
+  expect((await measure()).position).toBe(before.position);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.getByRole("button", { name: "Revelar adversários: não", exact: true }).click();
-  expect((await measure()).angle).toBe(0);
+  await expect.poll(async () => (await measure()).angle).toBe(0);
   expect((await measure()).frontVisible).toBe(true);
 });
 
@@ -175,16 +159,15 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
   const scene = page.getByTestId("laboratory-scene");
   const canvas = scene.locator("canvas");
   await expect(canvas).toBeVisible();
-  // Use the actual camera projection to hit the deck and a card in the WebGL canvas.
+  // Project the deck into the canvas, then click the purchased card's rendered interaction point.
   const { OrthographicCamera, Vector3 } = await import("three");
-  const { handPlacements, worldHandPose } = await import("../../three/table/layout");
   const { resolveTableLayout } = await import("../../three/table/adaptive-layout");
   const { defaultSettings: settings } = await import("../../features/games/laboratory/model");
   const box = (await canvas.boundingBox())!;
   expect(Number(await canvas.getAttribute("width"))).toBeGreaterThanOrEqual(box.width * 1.45);
   const request = { players: settings.players, viewer: 0, counts: settings.counts, width: box.width, height: box.height,
     angle: settings.angle, deck: [settings.deckX, 0.035, settings.deckZ] as [number, number, number] };
-  const { fit } = resolveTableLayout(request);
+  const { fit, deckPosition } = resolveTableLayout(request);
   const camera = new OrthographicCamera(fit.left, fit.right, fit.top, fit.bottom, 0.1, 250);
   camera.position.fromArray(fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld();
   const screen = (position: [number, number, number]) => {
@@ -192,21 +175,27 @@ test("comprar e descartar pelo 3D, abrir contexto e operar por teclado", async (
     return { x: box.x + (point.x + 1) / 2 * box.width, y: box.y + (1 - point.y) / 2 * box.height };
   };
   await expect(scene.getByRole("button", { name: "Comprar carta", exact: true })).toBeVisible();
-  const deck = screen([settings.deckX, 0.035 + 103 * settings.pileHeight + 0.0022, settings.deckZ]);
+  const deck = screen([deckPosition[0], 0.035 + 103 * settings.pileHeight + 0.0022, deckPosition[2]]);
   await page.mouse.click(deck.x, deck.y);
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 0");
-  const boughtLayout = resolveTableLayout({ ...request, counts: settings.counts.map((count, seat) => seat === 0 ? count + 1 : count) });
-  const card = screen(worldHandPose(handPlacements(8, boughtLayout.hands[0])[7], boughtLayout.localSeat).position);
-  await page.mouse.click(card.x, card.y);
+  const bought = scene.locator('[data-card-id="deck:103"]');
+  await expect(bought).toHaveAttribute("data-motion-phase", "settled");
+  await expect(bought).toHaveAttribute("data-interaction-point", /^[\d.]+,[\d.]+$/);
+  const point = (await bought.getAttribute("data-interaction-point"))!.split(",").map(Number);
+  await canvas.scrollIntoViewIfNeeded();
+  const card = (await canvas.boundingBox())!;
+  const click = { x: card.x + point[0] * card.width, y: card.y + point[1] * card.height };
+  expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, click)).toBe("CANVAS");
+  await page.mouse.click(click.x, click.y);
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 1");
-  await page.mouse.click(deck.x, deck.y, { button: "right" });
+  await openDeckMenu(page);
   await expect(page.getByRole("menuitem", { name: "Embaralhar deck", exact: true })).toBeVisible();
   await page.getByRole("menuitem", { name: "Embaralhar deck", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Deck embaralhado.");
+  await expect(page.getByRole("status",{name:"Mensagens do laboratório",exact:true})).toHaveText("Deck embaralhado.");
   const accessibleCard = scene.getByRole("button", { name: "Descartar carta 6, posição 7", exact: true });
   await accessibleCard.focus(); await accessibleCard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Virar carta", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Carta virada.");
+  await expect(page.getByRole("status",{name:"Mensagens do laboratório",exact:true})).toHaveText("Carta virada.");
   await accessibleCard.focus(); await accessibleCard.press("Enter");
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 103 · Descarte: 2");
   await scene.getByRole("button", { name: "Passar vez para Jogador 2", exact: true }).click();
@@ -224,7 +213,7 @@ test("menu do deck permite distribuir, trocar e recolher sem botões externos", 
   await card.focus(); await card.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Trocar com", exact: true }).click();
   await page.getByRole("menuitem", { name: "Jogador 2", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Cartas trocadas.");
+  await expect(page.getByRole("status",{name:"Mensagens do laboratório",exact:true})).toHaveText("Cartas trocadas.");
   await openDeckMenu(page);
   await page.getByRole("menuitem", { name: "Recolher cartas", exact: true }).click();
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 132 · Descarte: 0");
@@ -377,18 +366,25 @@ test("descarte tem controles locais de movimento, rotação e tamanho sem sobrep
 });
 
 
-test("laboratório oferece somente Neutras e Love Letter com as artes originais", async ({ page }) => {
+test("laboratório oferece Neutras, Love Letter e Solo com as artes originais", async ({ page }) => {
   const loaded = new Set<string>();
   page.on("response", response => { if (response.ok() && response.url().includes("/games/love-letter/")) loaded.add(new URL(response.url()).pathname); });
   await page.goto("/admin/jogos/laboratorio");
-  await expect(page.getByTestId("laboratory-scene").locator("canvas")).toBeVisible();
+  const scene = page.getByTestId("laboratory-scene");
+  await expect(scene.locator("canvas")).toBeVisible();
   await openSettings(page);
   await page.getByRole("button", { name: "Love Letter", exact: true }).click();
   await expect.poll(() => ["card", "0", "9"].every(card => loaded.has(`/games/love-letter/${card}.png`))).toBe(true);
   const choices = page.getByRole("group", { name: "Arte das cartas" });
-  await expect(choices.getByRole("button")).toHaveCount(2);
+  await expect(choices.getByRole("button")).toHaveText(["Neutras", "Love Letter", "Solo"]);
+  await expect(scene).toHaveAttribute("data-artwork-mode", "love-letter");
   await expect(choices.getByRole("button", { name: "Love Letter", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await choices.getByRole("button", { name: "Solo", exact: true }).click();
+  await expect(scene).toHaveAttribute("data-artwork-mode", "solo");
+  await expect(choices.getByRole("button", { name: "Solo", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(choices.getByRole("button", { name: "Love Letter", exact: true })).toHaveAttribute("aria-pressed", "false");
   await choices.getByRole("button", { name: "Neutras", exact: true }).click();
+  await expect(scene).toHaveAttribute("data-artwork-mode", "neutral");
   await expect(choices.getByRole("button", { name: "Neutras", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
@@ -452,13 +448,15 @@ test("paginar cartas já compradas não repete a entrada pelo baralho", async ({
   await page.getByRole("button", { name: "Configuração da mesa", exact: true }).click();
   await scene.getByRole("button", { name: "Comprar carta", exact: true }).click();
   const bought = scene.getByRole("button", { name: "Descartar carta 3, posição 51", exact: true });
-  await expect(bought).toBeAttached();
-  await page.waitForTimeout(800); // Complete the genuine purchase before navigating away.
+  await expect(bought).toHaveAttribute("data-motion-phase", "settled");
+  const settledPosition = await bought.getAttribute("data-position");
   await page.getByRole("button", { name: "Anteriores", exact: true }).click();
   await expect(bought).toHaveCount(0);
   await page.getByRole("button", { name: "Próximas", exact: true }).click();
   await expect(bought).toBeAttached();
-  await page.waitForTimeout(80); // First painted frames, well before an old 650ms draw could finish.
+  await expect(bought).toHaveAttribute("data-motion-replayed", "true");
+  await expect(bought).toHaveAttribute("data-motion-phase", "settled");
+  await expect(bought).toHaveAttribute("data-position", settledPosition!);
   const card = (await bought.boundingBox())!, frame = (await scene.boundingBox())!;
   expect(card.y).toBeGreaterThan(frame.y + frame.height * 0.6);
 });
@@ -467,20 +465,19 @@ test("paginar cartas já compradas não repete a entrada pelo baralho", async ({
 test("hover e foco deslocam a carta para cima no leque", async ({ page }) => {
   await page.goto("/admin/jogos/laboratorio");
   const scene = page.getByTestId("laboratory-scene");
-  const canvas = scene.locator("canvas");
-  await expect(canvas).toBeVisible();
+  await expect(scene.locator("canvas")).toBeVisible();
   const card = scene.getByRole("button", { name: "Descartar carta 3, posição 4", exact: true });
   await expect(card).toBeAttached();
-  const before = (await card.boundingBox())!;
+  const center = async () => {
+    const bounds = (await card.boundingBox())!, frame = (await scene.boundingBox())!;
+    return { x: bounds.x + bounds.width / 2 - frame.x, y: bounds.y + bounds.height / 2 - frame.y };
+  };
+  const before = await center();
   await card.focus();
-  await page.waitForTimeout(350); // Allow the hover lift to settle before checking its projected displacement.
-  const after = (await card.boundingBox())!;
-  expect(Math.abs(after.x + after.width / 2 - before.x - before.width / 2)).toBeLessThan(2);
-  expect(after.y + after.height / 2).toBeLessThan(before.y + before.height / 2 - 4);
+  await expect.poll(async () => Math.abs((await center()).x - before.x)).toBeLessThan(2);
+  await expect.poll(async () => before.y - (await center()).y).toBeGreaterThan(4);
   await scene.getByRole("button", { name: "Comprar carta", exact: true }).focus();
-  await page.waitForTimeout(220); // Both entry and exit should settle within the same short duration.
-  const returned = (await card.boundingBox())!;
-  expect(Math.abs(returned.y + returned.height / 2 - before.y - before.height / 2)).toBeLessThan(2);
+  await expect.poll(async () => Math.abs((await center()).y - before.y)).toBeLessThan(2);
 });
 
 
@@ -494,12 +491,9 @@ test("distribuição segue a vez ativa e anima a mão local na sua posição da 
   await expect(scene).toHaveAttribute("aria-label", "Mesa 3D de teste · Deck: 100 · Descarte: 0");
   // The local player receives the fourth card when the deal begins at seat 1.
   const fourth = scene.getByRole("button", { name: "Descartar carta 0, posição 8", exact: true });
-  await expect(fourth).toBeAttached();
-  await page.waitForTimeout(50);
-  const waiting = (await fourth.boundingBox())!;
-  await page.waitForTimeout(100); // Early departures overlap, but the fourth card still waits for its short stagger.
-  const stillWaiting = (await fourth.boundingBox())!;
-  expect(Math.abs(stillWaiting.y - waiting.y)).toBeLessThan(2);
+  await expect(fourth).toHaveAttribute("data-motion-phase", "delayed");
+  await expect(fourth).toHaveAttribute("data-motion-phase", "running");
+  await expect(fourth).toHaveAttribute("data-motion-phase", "settled");
   const frame = (await scene.boundingBox())!;
   await expect.poll(async () => (await fourth.boundingBox())!.y, { timeout: 5000 }).toBeGreaterThan(frame.y + frame.height * 0.6);
 });
@@ -567,7 +561,7 @@ test("padrão global persiste em outro navegador e reiniciar só publica ao salv
   const scale = panel.getByRole("slider", { name: /^Suas cartas/ });
   await scale.focus(); await scale.press("End");
   await panel.getByRole("button", { name: "Salvar configuração", exact: true }).click();
-  await expect(page.getByText("Configuração salva para todos os jogos 3D.", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]").getByText("Configuração salva para todos os jogos 3D.", { exact: true })).toBeVisible();
   expect(preset.settings.localCardScale).toBe(1.5);
   expect("players" in preset.settings).toBe(false);
   const other = await browser.newContext();
@@ -582,7 +576,7 @@ test("padrão global persiste em outro navegador e reiniciar só publica ao salv
     await settings.getByRole("button", { name: "Reiniciar", exact: true }).click();
     expect(preset.settings.localCardScale).toBe(1.5);
     await settings.getByRole("button", { name: "Salvar configuração", exact: true }).click();
-    await expect(second.getByText("Configuração salva para todos os jogos 3D.", { exact: true })).toBeVisible();
+    await expect(second.locator("[data-sonner-toast]").getByText("Configuração salva para todos os jogos 3D.", { exact: true })).toBeVisible();
     expect(preset.settings.localCardScale).toBe(1);
     await panel.getByRole("button", { name: "Restaurar configuração", exact: true }).click();
     await expect(scale).toHaveValue("1");

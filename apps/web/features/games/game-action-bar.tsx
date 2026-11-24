@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -18,10 +18,12 @@ export function GameDrawActions({ onDraw, onStop, canStop = true }: { onDraw: ()
 }
 
 export function GameActionShortcuts({ onDraw, onStop }: { onDraw?: () => void; onStop?: () => void }) {
+  const actions = useRef({ onDraw, onStop });
+  useLayoutEffect(() => { actions.current = { onDraw, onStop }; }, [onDraw, onStop]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || document.visibilityState === "hidden") return;
-      const action = event.key === "Enter" ? onDraw : event.key === "Escape" && !document.fullscreenElement ? onStop : undefined;
+      const action = event.key === "Enter" ? actions.current.onDraw : event.key === "Escape" && !document.fullscreenElement ? actions.current.onStop : undefined;
       if (!action) return;
       const target = event.target;
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
@@ -32,6 +34,6 @@ export function GameActionShortcuts({ onDraw, onStop }: { onDraw?: () => void; o
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onDraw, onStop]);
+  }, []);
   return null;
 }

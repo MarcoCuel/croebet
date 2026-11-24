@@ -2,9 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: ["**/achievements.spec.ts", "**/rankings.spec.ts", "**/media.spec.ts", "**/session-hydration.spec.ts", "**/profile.spec.ts", "**/wallet-history.spec.ts", "**/economy.spec.ts", "**/management.spec.ts", "**/pages.spec.ts", "**/menus.spec.ts", "**/admin-overview.spec.ts"],
+  testIgnore: ["**/achievements.spec.ts", "**/achievements-access.spec.ts", "**/games.spec.ts", "**/flip7.spec.ts", "**/rankings.spec.ts", "**/media.spec.ts", "**/session-hydration.spec.ts", "**/profile.spec.ts", "**/wallet-history.spec.ts", "**/economy.spec.ts", "**/management.spec.ts", "**/pages.spec.ts", "**/menus.spec.ts", "**/admin-overview.spec.ts"],
   fullyParallel: false,
   workers: 1,
+  outputDir: "test-results/main",
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
   projects: [
     {
@@ -21,7 +22,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    env: { API_INTERNAL_URL: "http://127.0.0.1:3201", NEXT_DIST_DIR: ".next-e2e" },
+    env: { API_INTERNAL_URL: "http://127.0.0.1:3201", NEXT_DIST_DIR: ".next-e2e-main" },
     command: "node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,

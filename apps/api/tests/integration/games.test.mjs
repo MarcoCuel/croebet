@@ -59,7 +59,7 @@ test('PostgreSQL: cadastro de jogo preserva catálogo, valida unicidade, permiss
   await assert.rejects(deleteGame(pool,admin.id,admin.hash,game.id,{version:1}),{code:'VERSION_CONFLICT'});
   const matchId=randomUUID();
   await pool.query(`insert into game_matches(id,code,game_id,game_slug,created_by,owner_id,capacity,options,rules_version,version,status,creation_request_id,creation_hash,creation_response)
-    values($1,($1::uuid)::text,$2,'flip7',$3,$3,2,'{}',1,1,'lobby',$1,'test','{}')`,[matchId,game.id,admin.id]);
+    values($1,$4::text,$2,'flip7',$3,$3,2,'{}',1,1,'lobby',$1,'test','{}')`,[matchId,game.id,admin.id,matchId]);
   await assert.rejects(deleteGame(pool,admin.id,admin.hash,game.id,{version:renamed.version}),{code:'GAME_IN_USE'});
   await pool.query("update game_matches set status='playing' where id=$1",[matchId]);
   await assert.rejects(deleteGame(pool,admin.id,admin.hash,game.id,{version:renamed.version}),{code:'GAME_IN_USE'});
@@ -93,8 +93,8 @@ test('PostgreSQL: duração do hero prioriza oficiais, testes e fallback sem dup
       const columns=table==='game_test_archives'?',owner_id,only_bots,recorded_at,playback_milliseconds':'';
       const extra=table==='game_test_archives'?', $1, $5, now(), $6':'';
       await client.query(`insert into ${table}(id,game_id,code,rules_version,status,options,participants,state,started_at,ended_at${columns})
-        values($1,$2,($1::uuid)::text,1,$3,'{}','[]','{}',now()-($4 * interval '1 second'),now()${extra})`,
-        table==='game_test_archives'?[id,gameId,status,seconds,onlyBots,playback]:[id,gameId,status,seconds]);
+        values($1,$2,${table==='game_test_archives'?'$7::text':'$5::text'},1,$3,'{}','[]','{}',now()-($4 * interval '1 second'),now()${extra})`,
+        table==='game_test_archives'?[id,gameId,status,seconds,onlyBots,playback,id]:[id,gameId,status,seconds,id]);
     }
     await archive('game_test_archives',600,'abandoned');
     assert.equal(await duration(),1500);

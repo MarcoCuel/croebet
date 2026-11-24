@@ -28,6 +28,6 @@ test("toques continuam funcionando após fechar menu e modal no celular", async 
   await login.getByRole("button", { name: "Fechar", exact: true }).tap();
   await expect(login).not.toBeVisible();
 
-  await page.getByRole("button", { name: "Criar conta", exact: true }).tap();
+  await page.getByRole("region", { name: "Destaques da Croebet", exact: true }).getByRole("button", { name: "Criar conta", exact: true }).tap();
   await expect(page.getByRole("dialog", { name: "Criar conta", exact: true })).toBeVisible();
 });
