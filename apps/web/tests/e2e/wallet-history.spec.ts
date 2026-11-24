@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role: "user" };
 const entries = Array.from({ length: 25 }, (_, index) => ({
   id: `93089d02-0b34-4b78-9d3e-${String(index).padStart(12, "0")}`,
-  createdAt: "2026-11-19T04:08:00.000Z", description: index % 2 ? "Aposta no Flip 7" : "Prêmio recebido",
+  createdAt: "2026-11-19T04:08:00.000Z", description: index === 2 ? "Bônus diário recebido" : index % 2 ? "Aposta no Flip 7" : "Prêmio recebido",
   amount: index % 2 ? -50 : 200, balance: 1250, reference: "Partida Flip 7",
 }));
 let api: Server;
@@ -25,7 +25,11 @@ test.beforeAll(async () => {
   });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
-test.afterAll(async () => { if (api?.listening) await new Promise<void>(resolve => api.close(() => resolve())); });
+test.afterAll(async () => {
+  if (!api?.listening) return;
+  api.closeAllConnections();
+  await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+});
 test.beforeEach(async ({ context, page }) => {
   unavailable = false;
   await context.addCookies([{ name: "croebet-session", value: "wallet-test", url: "http://127.0.0.1:3100" }]);
@@ -46,9 +50,18 @@ test("detalhes, paginação e filtros consultam o extrato", async ({ page }) => 
   await page.goto("/carteira");
   await expect(page.locator("main li")).toHaveCount(20);
   await expect(page.getByText("Saldo após a operação")).toHaveCount(0);
+  await expect(page.locator("main li").first().getByText("+200 Croins", { exact: true })).toHaveClass(/text-tertiary/);
+  await expect(page.locator("main li").nth(1).getByText("−50 Croins", { exact: true })).toHaveClass(/text-brand/);
+  await expect(page.locator("main li").first().locator("button > span").first()).toHaveClass(/bg-tertiary text-white/);
+  await expect(page.locator("main li").nth(1).locator("button > span").first()).toHaveClass(/bg-brand text-white/);
+  await expect(page.locator("main li").nth(2).locator("button > span").first()).toHaveClass(/bg-secondary text-white/);
   await page.locator("main li").first().getByRole("button").click();
   await expect(page.getByRole("dialog").getByText("Saldo após a operação")).toBeVisible();
   await expect(page.getByRole("dialog").getByText("Partida Flip 7")).toBeVisible();
+  await expect(page.getByRole("dialog").getByText("+200 Croins", { exact: true })).toHaveClass(/text-tertiary/);
+  await page.keyboard.press("Escape");
+  await page.locator("main li").nth(1).getByRole("button").click();
+  await expect(page.getByRole("dialog").getByText("−50 Croins", { exact: true })).toHaveClass(/text-brand/);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Carregar mais" }).click();
   await expect(page.locator("main li")).toHaveCount(25);

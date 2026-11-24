@@ -91,6 +91,7 @@ test('admin seleciona, salva e remove o emblema do card',async({page})=>{
   await page.goto(`/admin/conquistas/${definitions[0].id}`);
   await page.getByRole('button',{name:'Selecionar imagem',exact:true}).first().click();
   await page.getByRole('button',{name:'Selecionar Emblema.png',exact:true}).click();
+  await page.getByRole('button',{name:'Usar imagem',exact:true}).click();
   await page.getByRole('button',{name:'Salvar conquista',exact:true}).click();
   await expect(page.getByText('Conquista salva.',{exact:true})).toBeVisible();
   await page.reload();
@@ -114,6 +115,7 @@ test('admin salva cor padrão e imagem/cor do nível conquistado; remoção rest
   await page.getByLabel('Cor do nível 1',{exact:true}).fill('#a8ff60');
   await page.getByRole('group',{name:/^Nível 1(?: |$)/}).getByRole('button',{name:'Selecionar imagem',exact:true}).click();
   await page.getByRole('button',{name:'Selecionar Emblema.png',exact:true}).click();
+  await page.getByRole('button',{name:'Usar imagem',exact:true}).click();
   await page.getByRole('button',{name:'Salvar conquista',exact:true}).click();
   await expect(page.getByText('Conquista salva.',{exact:true})).toBeVisible();
   await page.reload();

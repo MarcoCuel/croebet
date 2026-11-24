@@ -122,8 +122,8 @@ function UserPermissions({ user, field }: { user: AdminUser; field: "role" | "st
       catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível alterar o usuário."); }
       finally { setPending(false); }
     }}>
-      {field === "role" ? <Field>Permissão<Select name="role" defaultValue={user.role} disabled={pending}><option value="user">Usuário</option><option value="admin">Administrador</option></Select></Field>
-        : <Field>Status<Select name="status" defaultValue={user.status} disabled={pending}><option value="active">Ativo</option><option value="suspended">Suspenso</option></Select></Field>}
+      {field === "role" ? <Field>Permissão<Select name="role" aria-label={label} defaultValue={user.role} disabled={pending}><option value="user">Usuário</option><option value="admin">Administrador</option></Select></Field>
+        : <Field>Status<Select name="status" aria-label={label} defaultValue={user.status} disabled={pending}><option value="active">Ativo</option><option value="suspended">Suspenso</option></Select></Field>}
       <Field>Motivo (opcional)<Input name="reason" maxLength={256} disabled={pending} /></Field>
       <Button type="submit" loading={pending}>Salvar alterações</Button>
     </form>

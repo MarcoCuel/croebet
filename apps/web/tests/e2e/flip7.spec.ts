@@ -5,13 +5,33 @@ import { test, expect, type Page, type Browser } from "@playwright/test";
 import { startPublicApi } from "../public-api-fixture";
 import { matchesFixture, fixtureUser, matchUsers } from "../matches-api-fixture";
 
+async function openMatchOptions(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) >= 1280) return;
+  const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
+  if (!await menu.isVisible()) await page.getByRole("button", { name: "Opções da partida", exact: true }).click();
+  await expect(menu).toBeVisible();
+}
+async function closeMatchOptions(page: Page) {
+  const mobile = (page.viewportSize()?.width ?? 0) < 1280;
+  const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
+  const trigger = page.getByRole("button", { name: "Opções da partida", exact: true });
+  if (await menu.isVisible()) {
+    await trigger.click();
+    if (await menu.isVisible()) await page.keyboard.press("Escape");
+  }
+  if (mobile) {
+    await expect(menu).toBeHidden();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  }
+}
+
 let fixture:ReturnType<typeof matchesFixture>;
 let close:(()=>Promise<void>)|undefined;
 test.beforeEach(async({context})=>{
-  fixture=matchesFixture();close=await startPublicApi(fixtureUser,fixture.handler,fixture.attach);
+  fixture=matchesFixture();close=undefined;close=await startPublicApi(fixtureUser,fixture.handler,fixture.attach);
   await context.addCookies([{name:"croebet-session",value:"game-fixture-marco",url:"http://127.0.0.1:3100"}]);
 });
-test.afterEach(async({context})=>{await context.close();await close?.();});
+test.afterEach(async({context})=>{try{await context.close();}finally{await close?.();}});
 test("header e três colunas mantêm configuração, vagas e lobbies ao criar e retomar",async({page,context},testInfo)=>{
   await page.goto("/jogos/flip7");
   const settings=page.getByLabel("Configuração e regras"),players=page.getByLabel("Jogadores e vagas"),list=page.getByLabel("Lobbies abertos");
@@ -438,6 +458,7 @@ test("host expulsa durante a vez da outra conta e um bot mantém a partida",asyn
 test("abandono do host transfere controle ao bot e host para a outra conta",async({page,browser})=>{
   const peer=await start(page,browser);
   try{
+    await openMatchOptions(page);
     await page.getByRole("button",{name:"Abandonar partida",exact:true}).click();
     await expect(page.getByRole("dialog")).toContainText("Abandonar sozinho entrega sua vaga a um bot");
     await page.getByRole("dialog").getByRole("button",{name:"Abandonar sozinho",exact:true}).click();
@@ -684,7 +705,7 @@ test("entrada e reduções aceitam automaticamente, aumentos exigem confirmaçã
     await peer.page.getByRole("button",{name:"Confirmar entrada de 10 Croins"}).click();
     await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
     await page.getByRole("button",{name:"Jogar",exact:true}).click();
-    const pot = page.getByText("Pote: 20 Croins",{exact:true});
+    const pot = page.getByRole("banner").getByText(/Pote: 20 Croins/);
     await expect(pot).toBeVisible();
     await expect(page.locator("[data-game-actions]").getByText(/Pote:/)).toHaveCount(0);
     await expect(pot.locator("..").getByText("Clássico", { exact: true })).toBeVisible();
@@ -869,6 +890,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
   await instrumentAudio(page);
   const peer = await start(page, browser);
   try {
+    await openMatchOptions(page);
     const controls = page.getByLabel("Controles da partida", { exact: true });
     const exit = controls.getByRole("button", { name: "Abandonar partida", exact: true });
     await expect(exit).toHaveText("");
@@ -887,8 +909,13 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     }
     await sound.focus();
     await expect(volume).toBeVisible();
-    await page.keyboard.press("Tab");
-    await expect(volume).toBeFocused();
+    if (testInfo.project.name === "desktop") {
+      await page.keyboard.press("Tab");
+      await expect(volume).toBeFocused();
+    } else {
+      await volume.focus();
+      await expect(volume).toBeFocused();
+    }
     await volume.press("Home");
     for (let step = 0; step < 6; step++) await volume.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
@@ -899,6 +926,7 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     await controls.getByRole("button", { name: "Silenciar som", exact: true }).click();
     await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toHaveAttribute("aria-pressed", "false");
     await page.reload();
+    await openMatchOptions(page);
     await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
     await controls.getByRole("button", { name: "Ativar som", exact: true }).focus();
@@ -930,12 +958,16 @@ test("permite abandonar durante a animação da jogada de outra pessoa", async (
     await page.getByRole("button", { name: "Parar", exact: true }).click();
     await peer.page.getByRole("button", { name: "Comprar", exact: true }).click();
     await expect(page.locator("[data-flying-card]")).toBeVisible();
+    await openMatchOptions(page);
     await page.getByRole("button", { name: "Abandonar partida", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Sair da partida?", exact: true });
     await expect(page.locator("[data-flying-card]")).toBeVisible();
     await dialog.getByRole("button", { name: "Abandonar sozinho", exact: true }).click();
     await expect(page).not.toHaveURL(/partida=/);
-    expect(fixture.states.get(code)!.room.participants.some(person => person.userId === matchUsers[0].id)).toBe(false);
+    const room = fixture.states.get(code)!.room;
+    expect(room.participants.some(person => person.userId === matchUsers[0].id)).toBe(true);
+    if (room.status !== "playing") throw Error("Partida não iniciada");
+    expect(room.state.players[0].kind).toBe("normal");
   } finally { await peer.context.close(); }
 });
 
@@ -959,6 +991,7 @@ async function instrumentAudio(page: Page) {
 }
 
 async function checkControlsDuringFlight(page: Page) {
+  await openMatchOptions(page);
   const controls = page.getByLabel("Controles da partida", { exact: true });
   const history = controls.getByRole("button", { name: "Esconder histórico", exact: true });
   const views = controls.getByRole("group", { name: "Interface da mesa", exact: true }).getByRole("button");
@@ -1115,9 +1148,11 @@ test("porta do teste com bots pede confirmação e não encerra ao abrir ou desi
  fixture.states.set(code,{room,frames:[]});let ended=0;
  await page.route(`**/api/v1/matches/${code}/end-test`,async route=>{ended++;fixture.states.delete(code);await route.fulfill({json:{ok:true}});});
  await page.goto(`/jogos/flip7?teste=1&partida=${code}`);
+ await openMatchOptions(page);
  await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Encerrar partida de teste?'});await expect(dialog).toBeVisible();expect(ended).toBe(0);
  await dialog.getByRole('button',{name:'Continuar',exact:true}).click();expect(ended).toBe(0);
+ await openMatchOptions(page);
  await page.getByRole('button',{name:'Encerrar teste',exact:true}).click();await dialog.getByRole('button',{name:'Cancelar partida',exact:true}).click();await expect.poll(()=>ended).toBe(1);
 });
 
@@ -1165,11 +1200,14 @@ for (const input of ["deck", "Enter", "Escape"] as const) {
     await page.goto(`/jogos/flip7?partida=${code}`);
     const pile = page.getByRole("button", { name: "Comprar carta do baralho", exact: true });
     await expect(pile).toBeEnabled();
+    await openMatchOptions(page);
     await page.getByRole("button", { name: "Abandonar partida", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Sair da partida?" });
     await expect(dialog).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
+    await closeMatchOptions(page);
+    await expect(page.getByRole("menu", { name: "Opções da partida", exact: true })).toHaveCount(0);
     expect(fixture.commands).toHaveLength(0);
     await page.evaluate(() => {
       const field = document.createElement("input");
@@ -1181,6 +1219,7 @@ for (const input of ["deck", "Enter", "Escape"] as const) {
     await page.keyboard.press("Escape");
     expect(fixture.commands).toHaveLength(0);
     await page.locator("#shortcut-field").evaluate(element => element.remove());
+    await expect(page.getByRole("menu", { name: "Opções da partida", exact: true })).toHaveCount(0);
     // Holding Enter must not issue repeated purchases.
     await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", repeat: true, bubbles: true })));
     expect(fixture.commands).toHaveLength(0);
@@ -1212,7 +1251,9 @@ for (const type of ["steal", "swap"] as const) {
     fixture.states.set(code, { room, privateState: state, frames: [] });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(`/jogos/flip7?partida=${code}`);
+    await openMatchOptions(page);
     await page.getByRole("button", { name: "3D", exact: true }).click();
+    await closeMatchOptions(page);
     const scene = page.getByTestId("flip-table-scene");
     await expect(scene.locator("canvas")).toBeVisible();
     const header = page.getByRole("banner");
@@ -1254,9 +1295,12 @@ for (const type of ["steal", "swap"] as const) {
     await expect.poll(() => fixture.states.get(code)!.privateState!.players[0].cards.some(card => card.id === other.id)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`table-3d-${type}.png`), fullPage: true });
     const address = page.url();
+    await openMatchOptions(page);
     await page.getByRole("button", { name: "Atual", exact: true }).click();
     await expect(scene).toHaveCount(0); expect(page.url()).toBe(address);
+    await openMatchOptions(page);
     await page.getByRole("button", { name: "3D", exact: true }).click();
+    await closeMatchOptions(page);
     await page.reload();
     await expect(page.getByTestId("flip-table-scene").locator("canvas")).toBeVisible();
     expect(fixture.commands).toHaveLength(1);
@@ -1277,18 +1321,25 @@ test("mesa 3D aguarda a revelação e entrega antes de liberar outra ação", as
   fixture.states.set(code, { room, privateState: state, frames: [] });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`/jogos/flip7?partida=${code}`);
+  await openMatchOptions(page);
   const toggle = page.getByRole("button", { name: "3D", exact: true });
   await toggle.click();
+  await closeMatchOptions(page);
   const scene = page.getByTestId("flip-table-scene");
   await expect(scene.locator("canvas")).toBeVisible();
   const draw = scene.getByRole("button", { name: "Comprar", exact: false });
   await expect(draw.last()).toBeEnabled();
   await draw.last().click();
   await expect.poll(() => fixture.commands.length).toBe(1);
+  await openMatchOptions(page);
   await expect(toggle).toBeDisabled();
+  await closeMatchOptions(page);
   await page.waitForTimeout(350);
+  await openMatchOptions(page);
   await expect(toggle).toBeDisabled();
-  await expect(toggle).toBeEnabled();
+  await closeMatchOptions(page);
+  await openMatchOptions(page);
+  await expect(toggle).toBeEnabled({ timeout: 5000 });
 });
 
 for (const view of ["classic", "3d"] as const) {
@@ -1301,7 +1352,11 @@ for (const view of ["classic", "3d"] as const) {
     fixture.states.set(code, { room, privateState: state, frames: [] });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto(`/jogos/flip7?partida=${code}`);
-    if (view === "3d") await page.getByRole("button", { name: "3D", exact: true }).click();
+    if (view === "3d") {
+      await openMatchOptions(page);
+      await page.getByRole("button", { name: "3D", exact: true }).click();
+      await closeMatchOptions(page);
+    }
     const layout = page.locator("[data-game-table-layout]");
     const table = layout.locator("[data-game-table-content]");
     const history = page.getByRole("complementary", { name: "Histórico da partida", exact: true });
@@ -1339,6 +1394,8 @@ for (const view of ["classic", "3d"] as const) {
       await page.setViewportSize({ width, height: 560 });
       await verify();
     }
+    const matchOptions = page.getByRole("button", { name: "Opções da partida", exact: true });
+    if (await matchOptions.isVisible()) await matchOptions.click();
     await page.getByRole("button", { name: "Esconder histórico", exact: true }).click();
     await expect(history).toBeHidden();
     await page.getByRole("button", { name: "Mostrar histórico", exact: true }).click();

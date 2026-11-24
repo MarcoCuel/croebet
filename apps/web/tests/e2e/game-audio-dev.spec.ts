@@ -6,7 +6,7 @@ import { startPublicApi } from "../public-api-fixture";
 import { matchesFixture, fixtureUser, matchUsers } from "../matches-api-fixture";
 
 // Run against the development webServer from playwright.config.ts.
-test("painel dev testa arquivos e salva um único som de compra", async ({ page, context }) => {
+test("painel dev testa arquivos e salva um único som de compra", async ({ page, context, isMobile }) => {
   const fixture = matchesFixture();
   const close = await startPublicApi(fixtureUser, fixture.handler, fixture.attach);
   try {
@@ -16,7 +16,7 @@ test("painel dev testa arquivos e salva um único som de compra", async ({ page,
     fixture.states.set(code, { room, frames: [] });
     await context.addCookies([{ name: "croebet-session", value: "game-fixture-marco", url: "http://127.0.0.1:3100" }]);
     await page.goto(`/jogos/flip7?partida=${code}`);
-    await page.getByRole("button", { name: "Testar sons (dev)", exact: true }).click();
+    await openAudioPanel(page, isMobile);
     const panel = page.getByRole("dialog", { name: "Áudios · Desenvolvimento" });
     const search = panel.getByRole("searchbox", { name: "Buscar áudio" });
     await search.fill("card-slide-7");
@@ -32,7 +32,7 @@ test("painel dev testa arquivos e salva um único som de compra", async ({ page,
     await panel.getByRole("button", { name: "Parar", exact: true }).click();
     await panel.getByRole("button", { name: "Fechar", exact: true }).click();
     await page.reload();
-    await page.getByRole("button", { name: "Testar sons (dev)", exact: true }).click();
+    await openAudioPanel(page, isMobile);
     await expect(panel.getByText("card-slide-7", { exact: true }).first()).toBeVisible();
     await panel.getByRole("button", { name: "Restaurar padrão", exact: true }).click();
     await expect(panel.getByRole("button", { name: "Usar card-slide-1 ao puxar carta", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -71,6 +71,11 @@ test("aviso de turno toca uma vez e não repete ao reconectar", async ({ page, c
     await expect(page.locator("html")).toHaveAttribute("data-notification-plays", "1");
   } finally { await context.close(); await close(); }
 });
+
+async function openAudioPanel(page: Page, isMobile: boolean) {
+  if (isMobile) await page.getByRole("button", { name: "Opções da partida", exact: true }).click();
+  await page.getByRole("button", { name: "Testar sons (dev)", exact: true }).click();
+}
 
 async function recordNotifications(page: Page) {
     await page.addInitScript(() => {

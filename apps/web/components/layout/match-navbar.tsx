@@ -44,9 +44,12 @@ export function MatchNavbarControls() {
   const desktop = useSyncExternalStore(subscribe, desktopSnapshot, () => false);
   if (!active || !hasHeader) return null;
   if (desktop) return <div ref={setControls} data-match-controls className="shrink-0" />;
+  const keepOpenForDialog = (event: Event) => {
+    if (event.target instanceof Element && event.target.closest('[role="dialog"]')) event.preventDefault();
+  };
   return <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Opções da partida"><Ellipsis className="size-4" aria-hidden="true" /></Button></DropdownMenuTrigger>
-    <DropdownMenuContent forceMount align="end" className="max-w-[calc(100vw-2rem)] data-[state=closed]:hidden">
+    <DropdownMenuContent forceMount align="end" className="max-w-[calc(100vw-2rem)] data-[state=closed]:hidden" onInteractOutside={keepOpenForDialog} onFocusOutside={keepOpenForDialog}>
       <div ref={setControls} data-match-controls className="p-1" />
     </DropdownMenuContent>
   </DropdownMenu>;

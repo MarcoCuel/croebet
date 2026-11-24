@@ -5,9 +5,15 @@ import { createServer, type Server } from "node:http";
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import type { GameRecord, LoveView } from "@croebet/shared";
 
+async function openMatchOptions(page: Page) {
+ if ((page.viewportSize()?.width ?? 0) >= 1280) return;
+ const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
+ if (!await menu.isVisible()) await page.getByRole("button", {name:"Opções da partida", exact:true}).click();
+ await expect(menu).toBeVisible();
+}
+
 async function checkTableControls(page: Page, table: Locator, desktop: boolean) {
- const options = page.getByRole("button", {name:"Opções da partida", exact:true});
- if (await options.isVisible()) await options.click();
+ await openMatchOptions(page);
  const controls = page.getByLabel("Controles da partida", {exact:true});
  const fullscreen = controls.getByRole("button", {name:"Tela cheia", exact:true});
  const toggle = controls.getByRole("button", {name:"Esconder histórico", exact:true});
@@ -131,16 +137,29 @@ test.beforeAll(async () => {
         // Bound a regression loop so the test fails without flooding its server.
         if(roomWatches.length<=10)socket.emit("room",{room:loveRoom,frames:[],reset:true});
       }
-      if(loveRoom && loveRoom.status!=="lobby" && request.directory){
-        const {state: _state, durationSeconds: _duration, ...summary}=loveRoom;
-        void _state; void _duration;
+      if(loveRoom && loveRoom.status==="playing" && request.directory){
+        const {
+          state: _state,
+          durationSeconds: _duration,
+          activeDurationSeconds: _activeDuration,
+          ...summary
+        }=loveRoom;
+        void _state; void _duration; void _activeDuration;
         socket.emit("lobbies",{items:[],joined:[],owned:null,active:null,testMatches:[{...summary,round:1,controllerIds:[]}]});
       }
     });
   });
   await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(3201, "127.0.0.1", resolve); });
 });
-test.afterAll(async () => { await new Promise<void>(resolve => sockets.close(() => resolve())); });
+test.afterAll(async () => {
+  try { await new Promise<void>((resolve,reject) => sockets.close(error => error ? reject(error) : resolve())); }
+  finally {
+    if (api.listening) {
+      api.closeAllConnections();
+      await new Promise<void>((resolve,reject) => api.close(error => error ? reject(error) : resolve()));
+    }
+  }
+});
 test.beforeEach(async ({ page, context }) => {
   developmentHistory=false;
   loveRoom = null;createRequest=undefined;roomWatches=[];gameCommands=[];personalMatches={items:[]};
@@ -179,7 +198,14 @@ for (const slug of ["flip7", "love-letter", "solo"] as const) test(`hero ${slug}
   if (slug === "flip7") await header.getByRole("switch", { name: "Modo dev", exact: true }).click({ trial: true });
   await expect(artwork.locator("[data-card-back]")).toHaveCount(0);
   if (slug === "love-letter") {
-    await expect.poll(() => artwork.locator("img").evaluateAll(images => images.every(image => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0))).toBe(true);
+    const sources = await artwork.locator("img").evaluateAll(images => [...new Set(images.map(image => image.getAttribute("src")))]);
+    expect(sources).toHaveLength(10);
+    await expect.poll(() => page.evaluate(urls => Promise.all(urls.map(url => new Promise<boolean>(resolve => {
+      const image = new Image();
+      image.onload = () => resolve(image.naturalWidth > 0);
+      image.onerror = () => resolve(false);
+      image.src = url!;
+    }))).then(loaded => loaded.every(Boolean)), sources)).toBe(true);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -230,8 +256,9 @@ test("lista administrativa edita o catálogo persistente e pausa sua publicaçã
   expect(game.description).toBe("Compre cartas com seus amigos.");
   await publicPage.reload();
   await expect(publicPage.getByText("Nenhum jogo disponível.")).toBeVisible();
-  await publicPage.goto("/jogos/flip7");
-  await expect(publicPage.getByRole("heading", { name: "404", exact: true })).toBeVisible();
+  const response = await publicPage.goto("/jogos/flip7");
+  expect(response?.status()).toBe(404);
+  await expect(publicPage.locator('head meta[name="robots"]')).toHaveAttribute("content", "noindex");
   await list.getByRole("link", { name: "Flip da comunidade", exact: true }).click();
   await page.getByRole("switch", { name: "Jogo ativo" }).check();
   await page.getByRole("button", { name: "Salvar jogo" }).click();
@@ -436,7 +463,7 @@ test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({pag
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
  await page.goto("/jogos/love-letter?teste=1");
  const count=page.getByLabel("Número de jogadores"),mode=page.getByLabel("Modo do Love Letter");
- const bots=page.getByLabel("Configuração e regras").getByLabel("Bots",{exact:true});
+ const bots=page.getByLabel("Configuração e regras").getByRole("combobox",{name:"Bots",exact:true});
  await expect(mode).toHaveValue("classic");
  await expect(count.locator("option")).toHaveText(["2","3","4","5","6"]);
  await count.selectOption("6");
@@ -470,7 +497,12 @@ test("modo dev permite criar outra partida do mesmo jogo com teste em andamento"
  createRequest=input=>{
   creation=input;
   if(!loveRoom || loveRoom.status==="lobby")throw Error("Partida de teste não iniciada");
-  const {durationSeconds: _duration,...base}=loveRoom;void _duration;
+  const {
+    durationSeconds: _duration,
+    activeDurationSeconds: _activeDuration,
+    ...base
+  }=loveRoom;
+  void _duration; void _activeDuration;
   return lobbySchema.parse({...base,id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",code:"ABCDEF654322",version:1,status:"lobby",state:null,capacity:input.capacity,options:input.options,bots:0,onlyBots:false,participants:[{userId:id,username:"Admin",displayName:"Admin",avatarUrl:null,seat:0}]});
  };
  await play.click();
@@ -502,8 +534,10 @@ test("abrir teste do Love Letter mantém link, recarga e volta para o jogo",asyn
  await page.goto("/jogos/love-letter?teste=1");
  await page.getByRole("button",{name:"Visualizar",exact:true}).click();
  await expect(page).toHaveURL("/jogos/love-letter?partida=ABCDEF654321&teste=1");
+ await openMatchOptions(page);
  await expect(page.getByLabel("Controles de desenvolvimento",{exact:true})).toBeVisible();
  await page.reload();
+ await openMatchOptions(page);
  await expect(page.getByLabel("Controles de desenvolvimento",{exact:true})).toBeVisible();
  if(testInfo.project.name==="desktop"){
   await page.getByRole("link",{name:"Voltar para Love Letter",exact:true}).click();
@@ -767,20 +801,22 @@ test("Love Letter apresenta bots em sequência e libera apenas a decisão final 
  prepareLoveTable();
  if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture ausente");
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
- await expect(page.getByRole("status").filter({hasText:"Sua vez"})).toBeVisible();
+ const turnStatus=page.locator("[data-game-actions]").getByRole("status");
+ await expect(turnStatus).toHaveText("Escolha uma carta para descartar");
  const initial=structuredClone(loveRoom);
  if(!("privateInfo" in initial.state))throw Error("Fixture Love Letter ausente");
  const publicState={...initial.state,turn:2,legalActions:[],privateInfo:[],players:initial.state.players.map((p,i)=>({...p,hand:null,handCount:i===0?1:p.handCount}))};
  const second={...publicState,turn:3,deckCount:10,log:[...publicState.log,"Bot 2 jogou 4."],players:publicState.players.map((p,i)=>i===2?{...p,discard:[4,4]}:p)};
+ const finalState={...second,turn:0,legalActions:initial.state.legalActions};
  loveRoom=gameRoomSchema.parse({...initial,version:5,state:{...initial.state,log:second.log,deckCount:9}});
- sockets.emit("room",{room:loveRoom,reset:false,frames:[{version:3,action:{type:"step"},state:publicState},{version:4,action:{type:"step"},state:second},{version:5,action:{type:"step"},state:{...second,turn:0}}]});
+ sockets.emit("room",{room:loveRoom,reset:false,frames:[{version:3,action:{type:"step"},state:publicState},{version:4,action:{type:"step"},state:second},{version:5,action:{type:"step"},state:finalState}]});
  const table=page.getByLabel("Mesa do Love Letter");
- await expect(table.getByRole("status")).toHaveText("Vez de Bot 2");
+ await expect(turnStatus).toHaveText(/Aguarde a jogada…|Movendo cartas/);
  await expect(table.getByLabel("Carta oculta",{exact:true})).toHaveCount(5);
- await expect(table.getByRole("button",{name:"Comprar carta do baralho",exact:true})).toHaveCount(0);
+ await expect(table.getByRole("button",{name:"Baralho",exact:true})).toBeDisabled();
  // A duplicate final snapshot must not cancel the active frame queue.
  sockets.emit("room",{room:loveRoom,reset:false,frames:[]});
- await expect(table.getByRole("status")).toHaveText("Vez de Bot 3");
+ await expect(turnStatus).toHaveText("Escolha uma carta para descartar");
  await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeEnabled({timeout:10000});
  await expect(table.getByRole("button",{name:"Descartar 1 · Guarda",exact:true})).toBeVisible();
 });
@@ -790,19 +826,19 @@ test("Love Letter abre resultado após as jogadas, permite reabrir e voltar ao l
  if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture ausente");
  await page.goto("/jogos/love-letter?partida=ABCDEF654321&teste=1");
  await expect(page.getByLabel("Mesa do Love Letter")).toBeVisible();
+ const result=page.getByRole("dialog",{name:"Resultado da partida"});
+ await expect(result).toHaveCount(0);
  const initial=structuredClone(loveRoom);
  const finalState={...initial.state,phase:"over",round:5,winners:[0,1],legalActions:[],players:initial.state.players.map((player,seat)=>({...player,tokens:seat<2?3:0}))};
  loveRoom=gameRoomSchema.parse({...initial,status:"finished",version:4,durationSeconds:125,state:finalState});
  sockets.emit("room",{room:loveRoom,reset:false,frames:[{version:3,action:{type:"step"},state:{...initial.state,turn:2,legalActions:[]}},{version:4,action:{type:"step"},state:finalState}]});
- const result=page.getByRole("dialog",{name:"Resultado da partida"});
- await expect(page.getByLabel("Mesa do Love Letter").getByRole("status")).toHaveText("Vez de Bot 2");
- await expect(result).toHaveCount(0);
+ await expect(page.locator("[data-game-actions]").getByRole("status")).toHaveText(/Aguarde a jogada…|Movendo cartas/);
  await expect(result).toBeVisible({timeout:10000});
  await expect(result.getByText("Ana e Bot 1",{exact:true})).toBeVisible();
  await expect(result.getByText("2 min 05 s",{exact:true})).toBeVisible();
  await expect(result.getByRole("list",{name:"Classificação final"}).getByRole("listitem")).toHaveCount(6);
  await expect(result.getByText("3 fichas",{exact:true})).toHaveCount(2);
- await result.getByRole("button",{name:"Fechar",exact:true}).click();
+ await result.getByRole("button",{name:"Fechar",exact:true}).first().click();
  sockets.emit("room",{room:loveRoom,frames:[],reset:true});
  await expect(result).toHaveCount(0);
  await page.getByRole("button",{name:"Ver resultado",exact:true}).click();
@@ -819,7 +855,7 @@ test("Love Letter não abre resultado em resumo de rodada ou partida abandonada"
  if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw Error("Fixture ausente");
  loveRoom.state.phase="summary";loveRoom.state.winners=[0];
  await page.goto("/jogos/love-letter?partida=ABCDEF654321");
- await expect(page.getByLabel("Mesa do Love Letter").getByRole("status")).toContainText("Rodada encerrada");
+ await expect(page.locator("[data-game-actions]").getByRole("status")).toContainText("Rodada encerrada");
  await expect(page.getByRole("dialog",{name:"Resultado da partida"})).toHaveCount(0);
  loveRoom=gameRoomSchema.parse({...loveRoom,version:3,status:"abandoned"});
  sockets.emit("room",{room:loveRoom,frames:[],reset:true});
@@ -833,7 +869,15 @@ test("catálogo Love Letter reutiliza cartas, miniaturas e versos das duas ediç
  await expect(page.getByRole("region",{name:"Edição clássica"}).getByRole("article")).toHaveCount(8);
  await expect(page.getByRole("region",{name:"Edição moderna"}).getByRole("article")).toHaveCount(10);
  await expect(page.getByText("Verso · normal, reduzido e miniatura",{exact:true})).toHaveCount(2);
- expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ const layout=await page.evaluate(()=>({
+  viewport:window.innerWidth,
+  scrollWidth:document.documentElement.scrollWidth,
+  offenders:[...document.querySelectorAll<HTMLElement>("main *")].map(element=>{
+   const rect=element.getBoundingClientRect();
+   return {tag:element.tagName,className:element.className,left:rect.left,right:rect.right,width:rect.width};
+  }).filter(rect=>rect.right>window.innerWidth+1 || rect.left < -1).sort((a,b)=>b.right-a.right).slice(0,8),
+ }));
+ expect(layout.scrollWidth,JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport);
 });
 
 test("estados de teste não recriam assinaturas e sair remove a observação",async({page})=>{
@@ -843,9 +887,10 @@ test("estados de teste não recriam assinaturas e sair remove a observação",as
  await expect.poll(()=>roomWatches.length).toBe(1);
  for(let index=0;index<5;index++){
   if(!loveRoom || loveRoom.status==="lobby" || !("privateInfo" in loveRoom.state))throw new Error("Fixture Love Letter ausente");
-  loveRoom=gameRoomSchema.parse({...loveRoom,version:loveRoom.version+1,state:{...loveRoom.state,round:index+2}});
+  const round=index+2;
+  loveRoom=gameRoomSchema.parse({...loveRoom,version:loveRoom.version+1,state:{...loveRoom.state,round,log:[...loveRoom.state.log,`Rodada ${round} iniciada.`]}});
   sockets.emit("room",{room:loveRoom,frames:[],reset:false});
-  await expect(page.getByText(`Rodada ${index+2}`,{exact:true})).toBeVisible();
+  await expect(page.getByText(`Rodada ${round} iniciada.`,{exact:true})).toBeVisible();
  }
  expect(roomWatches).toHaveLength(1);
  const latestVersion=loveRoom!.version;
@@ -927,7 +972,7 @@ test("configurações declaradas pelo jogo respeitam limites e guardam a escolha
  await page.goto("/jogos/love-letter?teste=1");
  const mode=page.getByLabel("Modo do Love Letter"),count=page.getByLabel("Número de jogadores",{exact:true});
  await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
- await expect(count.locator("option")).toHaveCount(3);
+ await expect(count.locator("option")).toHaveCount(5);
  await mode.selectOption("modern");
  await expect(count.locator("option")).toHaveCount(5);
  await count.selectOption("6");
@@ -984,7 +1029,10 @@ test("pilhas da mesa continuam ajustáveis fora da vez sem enviar jogadas", asyn
 
 test("admin separa testes e mostra duração média e replay paginado",async({page})=>{
  await page.goto(`/admin/jogos/${id}`);
- await page.getByRole("combobox",{name:"Origem das partidas"}).selectOption("development");
+ await expect(page.getByRole("list",{name:"Partidas do jogo"}).getByRole("link")).toHaveCount(1);
+ const source=page.getByRole("combobox",{name:"Origem das partidas"});
+ await source.selectOption("development");
+ await expect(source).toHaveValue("development");
  const averages=page.getByLabel("Médias dos testes");
  await expect(averages).toContainText("3 partidas");
  await expect(averages).toContainText("Em reprodução: 2 min 00 s");
@@ -1025,6 +1073,7 @@ test("resultado de teste Love Letter mostra tempo ativo e reproduz na barra comp
  await expect(page.getByText("Última jogada do teste.",{exact:true})).toBeVisible();
  await expect(controls.getByRole("button",{name:"Pausar",exact:true})).toHaveCount(0);
  expect(gameCommands).toEqual([]);
+ await openMatchOptions(page);
  await page.getByRole("button",{name:"Voltar ao resultado"}).click();
  await expect(result).toBeVisible();
 });
@@ -1033,15 +1082,15 @@ test("hero do Love Letter mostra jogadores e duração acima do título", async 
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter",averageDurationSeconds:1260};
  await page.goto("/jogos/love-letter?teste=1");
  const hero=page.getByLabel("Apresentação do jogo");
- await expect(hero.getByText("2–6 jogadores",{exact:true})).toBeVisible();
- await expect(hero.getByText("~21 min por partida",{exact:true})).toBeVisible();
+ await expect(hero.getByText("2 / 6",{exact:true})).toBeVisible();
+ await expect(hero.getByText("21 min.",{exact:true})).toBeVisible();
  const tags=await hero.getByLabel("Informações do jogo").boundingBox();
  const title=await hero.getByRole("heading",{name:"Love Letter",exact:true}).boundingBox();
  expect(tags!.y+tags!.height).toBeLessThanOrEqual(title!.y);
  upcoming={...upcoming,averageDurationSeconds:null};
  await page.reload();
- await expect(hero.getByText("2–6 jogadores",{exact:true})).toBeVisible();
- await expect(hero.getByText(/min por partida/)).toHaveCount(0);
+ await expect(hero.getByText("2 / 6",{exact:true})).toBeVisible();
+ await expect(hero.getByText("21 min.",{exact:true})).toHaveCount(0);
 });
 
 test("admin salva a duração padrão do jogo em minutos", async ({page}) => {
