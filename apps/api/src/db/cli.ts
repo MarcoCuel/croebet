@@ -34,6 +34,15 @@ try {
     await client.query("insert into games (slug,name,module_id) values ('flip7','Flip 7','flip7') on conflict do nothing");
   }
   console.log(`Banco: ${command} concluído.`);
-} catch { console.error("Operação de banco recusada ou indisponível. Confira ambiente, permissões e configuração."); process.exitCode = 1; }
-finally { await client.end(); }
+} catch (error) {
+  if (config.APP_ENV !== "production") {
+    console.error("Erro no banco:", error);
+  } else {
+    console.error("Operação de banco recusada ou indisponível.");
+  }
+
+  process.exitCode = 1;
+} finally {
+  await client.end();
+}
 

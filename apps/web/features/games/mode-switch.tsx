@@ -9,5 +9,5 @@ export function GameModeSwitch({slug,moduleId,development=false}:{slug:string;mo
  const definition=getGameDefinition(moduleId ?? slug);
  if(!permissions.canManageSite || !definition)return null;
  const developmentOnly=definition.developmentOnly;
- return <div className="flex shrink-0 justify-end"><label className="absolute top-0 right-0 whitespace-nowrap flex items-center gap-2 text-sm">Modo dev<Switch checked={developmentOnly || development || query.get("teste")==="1"} disabled={developmentOnly} onCheckedChange={checked=>router.push(gameUrl(slug,{development:checked}))}/></label></div>;
+ return <div className="flex shrink-0 justify-end"><label className="absolute top-0 right-0 whitespace-nowrap flex items-center gap-2 text-sm backdrop-blur-xl">Modo dev<Switch checked={developmentOnly || development || query.get("teste")==="1"} disabled={developmentOnly} onCheckedChange={checked=>router.push(gameUrl(slug,{development:checked}))}/></label></div>;
 }

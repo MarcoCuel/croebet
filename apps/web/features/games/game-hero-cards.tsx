@@ -42,8 +42,8 @@ export function GameHeroCards({ gameId }: { gameId: string }) {
   const parsed = gameIdSchema.safeParse(gameId);
   if (!parsed.success || visitSeed === null) return null;
   const deck = cards[parsed.data];
-  return <div aria-hidden="true" data-game-hero-cards={parsed.data} className="pointer-events-none absolute inset-y-0 right-0 w-3/5 overflow-hidden opacity-15 [mask-image:linear-gradient(to_right,transparent,black_45%)] sm:opacity-40">
-    <div className="absolute top-1/2 right-8 flex h-[60rem] w-[26rem] -translate-y-1/2 rotate-[28deg] gap-4 sm:right-16">
+  return <div aria-hidden="true" data-game-hero-cards={parsed.data} className="pointer-events-none absolute inset-y-0 right-0 w-3/5 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_45%)]">
+    <div className="absolute top-1/2 right-8 flex h-[60rem] w-[26rem] -translate-y-1/2 rotate-[28deg] gap-4 sm:right-16 scale-130">
       {[0, 1, 2].map(column => <div key={column} className="relative min-w-0 flex-1">
         <div data-hero-track={column} className={cn(styles.track, column === 1 && styles.reverse)} style={{ "--hero-duration": `${32 + column * 7}s`, "--hero-delay": `${-column * 9}s` } as CSSProperties}>
           {[0, 1].map(copy => <div key={copy} className="flex flex-col gap-4 pb-4">

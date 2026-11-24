@@ -7,8 +7,8 @@ import { useMenus } from "@/features/menus/menu-provider";
 
 export function Footer() {
   return (
-    <footer className="mx-auto flex w-[calc(100%-2*var(--page-gap))] flex-wrap items-center justify-between gap-x-6 gap-y- py-6 px-2 text-sm text-muted">
-      <FooterLinks />
+    <footer className="flex flex-col gap-4 p-2 text-xs text-muted">
+      <FooterLinks className="flex flex-wrap items-center gap-4" />
       <p>Croebet · 2026</p>
     </footer>
   );

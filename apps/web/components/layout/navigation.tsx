@@ -174,7 +174,6 @@ function NavigationLayout({ children }: { children: ReactNode }) {
           <div className={chatPage ? "flex min-h-0 flex-1 flex-col" : sidebarScope ? "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain" : "contents"} data-lenis-prevent={sidebarScope ? "" : undefined} data-match-content={sidebarScope ? "" : undefined}>
             {children}
           </div>
-          {!sidebarScope && !chatPage && <Footer />}
         </div>
       </div>
     </MatchNavbarProvider>

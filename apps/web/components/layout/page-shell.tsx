@@ -8,7 +8,7 @@ export function PageShell({
   return (
     <main
       className={cn(
-        "mx-auto w-[calc(100%-2*var(--page-gap))] flex-1",
+        "mx-auto w-[calc(100%-2*var(--page-gap))] flex-1 pb-10",
         className,
       )}
       {...props}

@@ -16,6 +16,7 @@ import {
 import { brandLinkClass, Wordmark } from "./brand";
 import { MenuLinks } from "./navigation-links";
 import { AppInstall } from "./app-install";
+import { Footer } from "./footer";
 
 export function Sidebar({
   expanded,
@@ -44,7 +45,7 @@ export function Sidebar({
           </Link>
         </div>
         <div
-          className="flex min-h-0 flex-1 flex-col justify-between gap-4 px-3 pb-3"
+          className="flex min-h-0 flex-1 flex-col justify-between gap-4 px-4 pb-4"
           data-lenis-prevent
         >
           <div className="min-h-0 overflow-y-auto">
@@ -55,7 +56,7 @@ export function Sidebar({
             {!sessionReady ? (
               <div role="status" aria-label="Carregando conta" className="h-28 rounded-panel bg-contrast/6 motion-safe:animate-pulse" />
             ) : username ? (
-              <div className="-mx-3 @max-[8rem]/sidebar:hidden">
+              <div className="-mx-3 @max-[8rem]/sidebar:hidden hidden">
                 <div className="mx-3 mb-3 flex items-center justify-between gap-2 rounded-panel bg-contrast/6 p-2">
                   <Button
                     asChild
@@ -72,9 +73,8 @@ export function Sidebar({
                   <AccountMenu name={username} sidebar />
                 </div>
               </div>
-            ) : (
-              <SignupBanner />
-            )}
+            ) : null}
+            <Footer></Footer>
           </div>
         </div>
       </aside>

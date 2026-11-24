@@ -49,7 +49,7 @@ export function AdminPanel({
 
   return (
     <div className="min-w-0">
-      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[12rem_minmax(0,1fr)]">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]">
         <nav
           className="flex flex-wrap gap-1 lg:sticky lg:top-(--header-height) lg:grid lg:max-h-[calc(100dvh-var(--header-height)-2rem)] lg:overflow-y-auto"
           data-lenis-prevent
