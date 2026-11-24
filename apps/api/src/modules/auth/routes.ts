@@ -26,6 +26,7 @@ import { matchHistoryQuerySchema, matchCodeSchema } from "@croebet/shared";
 import { readAccountHistory } from "./account-history.ts";
 import { accountHistoryQuerySchema, changePasswordSchema } from "@croebet/shared";
 import { updateOwnProfile } from "./profile-onboarding.ts";
+import { clientAddress } from "../../client-address.ts";
 
 type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null; profile_name_provided: boolean; onboarding_remind_at: Date | null };
 const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role, onboarding: { nameProvided: row.profile_name_provided ?? row.display_name !== row.username, remindAt: row.onboarding_remind_at?.toISOString() ?? null } });
@@ -239,7 +240,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     return reply.code(404).send({ error: { code: "PROFILE_NOT_FOUND", message: "Perfil não encontrado." } });
   });
   app.post("/api/v1/auth/register", async (request, reply) => {
-    if (!await limit(`register:${request.ip}`, 10)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    if (!await limit(`register:${clientAddress(request.ip, request.headers["cf-connecting-ip"], config.APP_ENV === "production" && config.TRUST_CLOUDFLARE_PROXY)}`, 10)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: parsed.error.issues[0].message } });
     const password = await passwordHash(parsed.data.password);
@@ -262,7 +263,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     } finally { client.release(); }
   });
   app.post("/api/v1/auth/login", async (request, reply) => {
-    if (!await limit(`login-ip:${request.ip}`, 60)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
+    if (!await limit(`login-ip:${clientAddress(request.ip, request.headers["cf-connecting-ip"], config.APP_ENV === "production" && config.TRUST_CLOUDFLARE_PROXY)}`, 60)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas tentativas. Tente novamente mais tarde." } });
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: "Confira usuário e senha." } });
     const usernameLookup = parsed.data.username.toLowerCase();
