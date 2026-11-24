@@ -328,7 +328,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
             {(active || canCancel || (reserved && !joined)) && <div className="relative z-20 flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/abandon`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
             {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}>Aceitar convite</Button>}</div>}
 
-            {joined && lobby.status==="lobby" && <Button variant="ghost" className="absolute inset-0 z-10 size-full rounded-panel m-0! p-0" aria-label={`Abrir sala de ${hostName}`} disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}/>}
+            {joined && lobby.status==="lobby" && <Button variant="ghost" className="backdrop-blur-none absolute inset-0 z-10 size-full rounded-panel m-0! p-0" aria-label={`Abrir sala de ${hostName}`} disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}/>}
           </Card></li>;
         })}</ul>}
       </>
