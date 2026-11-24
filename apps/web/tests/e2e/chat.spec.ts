@@ -179,6 +179,13 @@ test("expandir mantém a conversa e o rascunho na página de chat", async ({ pag
   await expect(page.locator("header").getByText("Chat geral", { exact: true })).toBeVisible();
   const expanded = page.getByRole("complementary", { name: "Chat geral" });
   await expect(expanded.getByRole("heading", { name: "Chat geral" })).toHaveCount(0);
+  await expect(page.locator("footer")).toHaveCount(0);
+  const bounds = await expanded.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(bounds!.y + bounds!.height).toBeLessThan(viewport.height);
+  expect(viewport.height - (bounds!.y + bounds!.height)).toBeLessThanOrEqual(40);
+  await expect(expanded).toHaveClass(/rounded-panel/);
+  await expect(expanded.getByLabel("Mensagens do chat")).toHaveCSS("overflow-y", "auto");
   await expect(expanded.getByText("Mensagem anterior 55", { exact: true })).toBeVisible();
   await expect(expanded.getByLabel("Mensagem", { exact: true })).toHaveValue("Rascunho da conversa");
   await expect(expanded.getByRole("button", { name: "Enviar mensagem" })).toHaveCount(0);

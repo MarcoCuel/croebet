@@ -106,7 +106,7 @@ function ChatPanel({ page = false }: { page?: boolean }) {
   }
   const content = <aside id={page ? "general-chat-page" : "general-chat-sidebar"} inert={!open} aria-hidden={!open} aria-label={page ? "Chat geral" : undefined} aria-labelledby={page ? undefined : "general-chat-title"} onKeyDown={event => {
     if (!page && event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); close(); }
-  }} className={cn("flex flex-col overflow-hidden bg-surface", page ? "h-[min(44rem,calc(100dvh-10rem))] min-h-96 w-full rounded-panel" : "pointer-events-auto absolute right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] h-[min(32rem,calc(100dvh-6rem))] w-[min(22.5rem,calc(100vw-1.5rem))] rounded-panel shadow-xl transition-[opacity,translate,visibility] duration-200 ease-out motion-reduce:transition-none sm:right-6 sm:bottom-6", !page && !open && "pointer-events-none invisible translate-y-4 opacity-0")} data-lenis-prevent>
+  }} className={cn("flex flex-col overflow-hidden bg-surface", page ? "min-h-0 w-full flex-1 rounded-panel" : "pointer-events-auto absolute right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] h-[min(32rem,calc(100dvh-6rem))] w-[min(22.5rem,calc(100vw-1.5rem))] rounded-panel shadow-xl transition-[opacity,translate,visibility] duration-200 ease-out motion-reduce:transition-none sm:right-6 sm:bottom-6", !page && !open && "pointer-events-none invisible translate-y-4 opacity-0")} data-lenis-prevent>
       {!page && <div className="flex shrink-0 items-center justify-between p-2 pl-4">
         <h2 ref={heading} tabIndex={-1} id="general-chat-title" className="text-sm font-semibold outline-none">Chat geral</h2>
         {!page && <div className="flex items-center gap-1"><Button asChild variant="ghost" size="icon-sm"><Link href="/chat" aria-label="Expandir chat" onClick={() => changeOpen(false)}><Maximize className="size-4" aria-hidden="true" /></Link></Button><Button variant="ghost" size="icon-sm" onClick={close} aria-label="Fechar chat"><X className="size-4" aria-hidden="true" /></Button></div>}
@@ -141,7 +141,7 @@ function ChatPanel({ page = false }: { page?: boolean }) {
         {!chat.connected && !chat.error && <p className="mt-2 text-xs text-muted" role="status">Reconectando…</p>}
       </div>
     </aside>;
-  return page ? <div className="mx-auto flex w-full flex-1 px-(--page-gap)">{content}</div> : <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">{content}</div>;
+  return page ? <div className="flex min-h-0 w-full flex-1 px-(--page-gap) pb-4">{content}</div> : <div className="pointer-events-none fixed inset-0 z-30 overflow-hidden">{content}</div>;
 }
 function Message({message,grouped,admin,own,refresh,close}:{message:ChatMessage;grouped:boolean;admin:boolean;own:boolean;refresh:()=>void;close:()=>void}) {
   const [busy,setBusy]=useState(false);
