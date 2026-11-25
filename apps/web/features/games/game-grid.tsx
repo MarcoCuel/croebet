@@ -10,7 +10,7 @@ export async function GameGrid() {
   const data = await getPublicGames();
   if (!data) return <ManagementUnavailable />;
   if (!data.items.length) return <EmptyState title="Nenhum jogo disponível." />;
-  return <ul className="grid grid-cols-2 gap-4 md:grid-cols-4">
+  return <ul className="grid gap-4 grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
     {data.items.map(game => <li key={game.slug}>
       <Link className="group relative isolate block aspect-square overflow-hidden rounded-panel @container" href={`/jogos/${game.slug}`}>
         {(game.moduleId ?? game.slug) !== "flip7" && <Badge variant="secondary" className="absolute top-3 right-3 z-10 text-white bg-white/10 backdrop-blur-sm">Em breve</Badge>}

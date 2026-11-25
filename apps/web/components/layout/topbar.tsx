@@ -172,13 +172,13 @@ export function Topbar({
           </div>
           <div className="flex shrink-0 items-center justify-self-end gap-2">
             <MatchNavbarControls />
-            <div className="hidden md:contents"><DailyBonusButton /></div>
             <Suspense><ActiveMatchesMenu /></Suspense>
             <div className="hidden md:contents">
               <NotificationsMenu invitations={invitations} />
             </div>
-            <GeneralChat />
+            <div className="hidden lg:contents"><GeneralChat /></div>
             <AccountMenu name={username} />
+            <div className="hidden md:contents"><DailyBonusButton /></div>
           </div>
         </>
       ) : (

@@ -4,11 +4,11 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Wallet,
-  Shield,
   Settings,
   Moon,
   LogOut,
   UserRound,
+  Hammer,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -142,7 +142,7 @@ export function AccountMenu({
           {permissions.canManageSite && (
             <DropdownMenuItem asChild>
               <Link href="/admin">
-                <Shield className="size-4" aria-hidden="true" />
+                <Hammer className="size-4" aria-hidden="true" />
                 Admin
               </Link>
             </DropdownMenuItem>

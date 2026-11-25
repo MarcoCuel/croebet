@@ -23,7 +23,6 @@ export function DailyBonusButton() {
     <Button
       variant="default"
       className="bg-secondary text-white"
-      size="sm"
       aria-label="Resgatar bônus diário"
       title="Resgatar bônus diário"
       disabled={claimingDaily}
