@@ -3,8 +3,9 @@ import { rankingQuerySchema } from "@croebet/shared";
 import { PageShell } from "@/components/layout/page-shell";
 import { getRanking } from "@/features/rankings/server-rankings";
 import { RankingCard } from "@/features/rankings/ranking-card";
+import { publicMetadata } from "@/features/seo/metadata";
 
-export const metadata: Metadata = { title: "Rankings · Croebet" };
+export async function generateMetadata(): Promise<Metadata> { return publicMetadata("/rankings", "Rankings"); }
 const categories = ["wins", "richest", "losers"] as const;
 export default async function Rankings({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
   const params = await searchParams;

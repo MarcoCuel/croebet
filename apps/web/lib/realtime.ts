@@ -1,5 +1,6 @@
 "use client";
 import { io, type Socket } from "socket.io-client";
+import { permanentRealtimeFailure, type RealtimeFailure } from "./realtime-errors";
 
 let socket: Socket | undefined;
 let users = 0;
@@ -8,10 +9,36 @@ let connecting: Socket | undefined;
 let connectController: AbortController | undefined;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let retryDelay = 300;
+let retryAttempts = 0;
+const MAX_RETRY_ATTEMPTS = 20;
+const failureListeners = new Set<(failure: RealtimeFailure) => void>();
 const retained = (connection: Socket) => socket === connection && users > 0;
+
+export function subscribeRealtimeFailure(listener: (failure: RealtimeFailure) => void) {
+  failureListeners.add(listener);
+  return () => { failureListeners.delete(listener); };
+}
+
+function fail(failure: RealtimeFailure) {
+  for (const listener of failureListeners) {
+    try { listener(failure); } catch { /* A UI listener must not break reconnection. */ }
+  }
+}
+
+function stop(connection: Socket) {
+  clearTimeout(retryTimer); retryTimer = undefined;
+  connectController?.abort(); connectController = undefined;
+  if (connecting === connection) connecting = undefined;
+}
 
 function retry(connection: Socket) {
   if (!retained(connection) || retryTimer) return;
+  if (retryAttempts >= MAX_RETRY_ATTEMPTS) {
+    stop(connection);
+    fail({ code: "UNAVAILABLE", message: "Não foi possível conectar em tempo real. Recarregue a página para tentar novamente." });
+    return;
+  }
+  retryAttempts++;
   retryTimer = setTimeout(() => {
     retryTimer = undefined;
     void connect(connection);
@@ -44,8 +71,12 @@ export function realtimeSocket(): Socket {
       path: "/api/v1/realtime", addTrailingSlash: false, transports: ["websocket"],
       autoConnect: false, reconnection: false,
     });
-    connection.on("connect", () => { retryDelay = 300; });
-    connection.on("connect_error", () => retry(connection));
+    connection.on("connect", () => { retryDelay = 300; retryAttempts = 0; });
+    connection.on("connect_error", error => {
+      const permanent = permanentRealtimeFailure(error);
+      if (permanent) { stop(connection); fail(permanent); return; }
+      retry(connection);
+    });
     connection.on("disconnect", reason => {
       if (reason !== "io client disconnect" && reason !== "io server disconnect") retry(connection);
     });
@@ -59,17 +90,17 @@ export function retainRealtimeSocket(userId: string | null) {
   identity = userId;
   users++;
   if (changed) {
-    clearTimeout(retryTimer); retryTimer = undefined;
-    connectController?.abort(); connectController = undefined; connecting = undefined;
+    stop(connection);
+    retryAttempts = 0; retryDelay = 300;
     connection.disconnect();
   }
   // Session changes require a new handshake, including login while watching.
   if (users === 1 || changed) void connect(connection);
   return () => {
     if (--users === 0) {
-      clearTimeout(retryTimer); retryTimer = undefined; retryDelay = 300;
+      stop(connection);
+      retryAttempts = 0; retryDelay = 300;
       socket = undefined; identity = undefined;
-      connectController?.abort(); connectController = undefined;
       connection.disconnect();
     }
   };

@@ -5,7 +5,11 @@ import { readConfig } from "../dist/config.js";
 test("liveness independente do banco; readiness falha sem vazar detalhes", async t => {
   const app = createApp(async () => { throw new Error("postgresql://user:secret@private/db"); });
   t.after(() => app.close());
-  assert.equal((await app.inject("/api/v1/health")).statusCode, 200);
+  const health = await app.inject("/api/v1/health");
+  assert.equal(health.statusCode, 200);
+  assert.equal(health.headers["x-content-type-options"], "nosniff");
+  assert.equal(health.headers["x-frame-options"], "DENY");
+  assert.match(health.headers["content-security-policy"], /frame-ancestors 'none'/);
   const result = await app.inject("/api/v1/health/ready");
   assert.equal(result.statusCode, 503);
   assert.deepEqual(result.json(), { status: "unavailable" });

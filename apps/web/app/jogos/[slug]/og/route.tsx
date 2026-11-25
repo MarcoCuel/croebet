@@ -7,9 +7,22 @@ import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import { getPublicGames } from "@/features/games/server-games";
 import { getSeo } from "@/features/seo/metadata";
+import { createOgGuard, ogClientKey } from "@/lib/og-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const ogGuard = createOgGuard();
+const ogCache = new Map<string, { expiresAt: number; body: Buffer }>();
+const OG_TTL_MS = 5 * 60 * 1000;
+const OG_CACHE_LIMIT = 32;
+const OG_CACHE_HEADERS = { "Cache-Control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400" };
+
+function cachedOg(key: string) {
+  const entry = ogCache.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) { if (entry) ogCache.delete(key); return null; }
+  return entry.body;
+}
 
 const blockedNetworks = new BlockList();
 for (const [address, prefix] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["224.0.0.0", 4], ["240.0.0.0", 4]] as const) blockedNetworks.addSubnet(address, prefix);
@@ -58,15 +71,23 @@ async function coverSource(imageUrl: string | null): Promise<string | null> {
   }
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const [data, settings] = await Promise.all([getPublicGames(slug), getSeo()]);
-  if (!data) return new Response("Serviço indisponível", { status: 503 });
+  if (!data) return new Response("Serviço indisponível", { status: 503, headers: { "Cache-Control": "no-store" } });
   const game = data.items[0];
-  if (!game) return new Response("Jogo não encontrado", { status: 404 });
-  const cover = await coverSource(game.imageUrl);
-
-  return new ImageResponse(
+  if (!game) return new Response("Jogo não encontrado", { status: 404, headers: { "Cache-Control": "no-store" } });
+  const cacheKey = JSON.stringify([slug, game.version, game.name, game.imageUrl, settings.siteName]);
+  const cached = cachedOg(cacheKey);
+  if (cached) return new Response(new Uint8Array(cached), { headers: { "Content-Type": "image/png", ...OG_CACHE_HEADERS } });
+  const decision = ogGuard.acquire(ogClientKey(request.headers));
+  if (decision !== "ok") {
+    const status = decision === "limited" ? 429 : 503;
+    return new Response("Imagem temporariamente indisponível.", { status, headers: { "Cache-Control": "no-store", "Retry-After": decision === "limited" ? "60" : "5" } });
+  }
+  try {
+    const cover = await coverSource(game.imageUrl);
+    const response = new ImageResponse(
     <div style={{ display: "flex", width: "100%", height: "100%", background: "#010101", padding: 60, alignItems: "center", justifyContent: "space-between", fontFamily: "sans-serif" }}>
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: 510, paddingRight: 40, gap: 24 }}>
         <div style={{ color: "#ffffff", fontSize: 60, fontWeight: 700 }}>{settings.siteName}</div>
@@ -79,6 +100,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         ) : <div style={{ display: "flex", color: "#ffffff", fontSize: 120, fontWeight: 700 }}>{game.name.charAt(0).toUpperCase()}</div>}
       </div>
     </div>,
-    { width: 1200, height: 630, headers: { "Cache-Control": "no-store" } },
-  );
+      { width: 1200, height: 630, headers: OG_CACHE_HEADERS },
+    );
+    const body = Buffer.from(await response.arrayBuffer());
+    if (ogCache.size >= OG_CACHE_LIMIT) {
+      const oldest = ogCache.keys().next().value;
+      if (oldest !== undefined) ogCache.delete(oldest);
+    }
+    ogCache.set(cacheKey, { expiresAt: Date.now() + OG_TTL_MS, body });
+    return new Response(new Uint8Array(body), { headers: { "Content-Type": "image/png", ...OG_CACHE_HEADERS } });
+  } finally { ogGuard.release(); }
 }

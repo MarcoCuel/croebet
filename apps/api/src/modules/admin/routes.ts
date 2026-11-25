@@ -91,7 +91,7 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
     const settings = await readSeo(pool);
     if (process.env.APP_ENV !== "production" || !settings.index) return { paths: [] };
     const [pages, games] = await Promise.all([readPages(pool), readGames(pool)]);
-    return { paths: [...(settings.home.index ? ["/"] : []), ...(settings.games.index ? ["/jogos"] : []), ...pages.items.filter(p => p.published && p.seo.index).map(p => `/${p.slug}`), ...games.items.filter(g => g.seo.index).map(g => `/jogos/${g.slug}`)] };
+    return { paths: [...(settings.home.index ? ["/"] : []), ...(settings.games.index ? ["/jogos"] : []), ...(settings.index ? ["/rankings"] : []), ...pages.items.filter(p => p.published && p.seo.index).map(p => `/${p.slug}`), ...games.items.filter(g => g.seo.index).map(g => `/jogos/${g.slug}`)] };
   });
   app.get("/api/v1/admin/seo", (request, reply) => run(request, reply, true, async () => readSeo(pool)));
   app.patch("/api/v1/admin/seo", (request, reply) => run(request, reply, true, async (actor, hash) => saveSeo(pool, actor.id, hash, seoSettingsSchema.parse(request.body))));

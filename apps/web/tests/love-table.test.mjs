@@ -59,7 +59,7 @@ test('edições compartilham arquivos existentes e corrigem a numeração cláss
   for (const artwork of Object.values(loveArtwork)) for (const asset of [artwork.back, ...Object.values(artwork.faces)]) await access(new URL(`../public${asset.src}`, import.meta.url));
   assert.equal(loveArtwork.classic.faces[6].src, loveArtwork.modern.faces[7].src);
   assert.equal(loveArtwork.classic.faces[6].valueOverride, 6);
-  assert.equal(loveArtwork.modern.faces[0].src, '/games/love-letter/0.png');
+  assert.equal(loveArtwork.modern.faces[0].src, '/games/love-letter/0.webp');
 });
 
 

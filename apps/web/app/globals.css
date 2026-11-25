@@ -25,11 +25,6 @@
 
   --color-reward-start: color-mix(in srgb, var(--color-brand) 10%, transparent);
   --color-reward-end: color-mix(in srgb, var(--color-brand) 35%, transparent);
-  --background-image-signup-banner: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--color-brand) 32%, var(--color-image-shade)),
-    color-mix(in srgb, var(--color-brand) 72%, var(--color-image-shade))
-  );
   --color-flip-neutral: #e7c75f;
   --color-flip-slate: #a7a0bb;
   --color-flip-lime: #a8c550;

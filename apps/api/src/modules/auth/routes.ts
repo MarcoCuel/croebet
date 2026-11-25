@@ -1,5 +1,6 @@
 import { chatRoutes } from "../chat/routes.ts";
 import { readRanking } from "../rankings/service.ts";
+import { createRankingCache } from "../rankings/cache.ts";
 import { rankingQuerySchema } from "@croebet/shared";
 import { refundAccountMatches } from "../matches/economy.ts";
 import { matchLifecycleLock } from "../matches/service.ts";
@@ -48,6 +49,7 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const identity = await pool.query("select environment from application_environment where id = 1");
     if (identity.rows[0]?.environment !== config.APP_ENV) return reply.code(503).send({ error: { code: "UNAVAILABLE", message: "Serviço indisponível." } });
   });
+  const publicRanking = createRankingCache<Awaited<ReturnType<typeof readRanking>>>();
   async function limit(key: string, maximum: number) {
     const result = await pool.query(`insert into auth_rate_limits (key, window_start, attempts) values ($1, date_trunc('hour', now()), 1)
       on conflict (key) do update set attempts = case when auth_rate_limits.window_start = date_trunc('hour', now()) then auth_rate_limits.attempts + 1 else 1 end,
@@ -78,7 +80,9 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     const input = rankingQuerySchema.safeParse(request.query);
     if (!input.success) return reply.code(400).send({ error: { code: "INVALID_REQUEST", message: "Filtros de ranking inválidos." } });
     const user = await current(request.cookies[sessionName]);
-    return readRanking(pool, input.data, user?.id ?? null);
+    if (user) return readRanking(pool, input.data, user.id);
+    const key = `${input.data.category}:${input.data.period}:${input.data.page}`;
+    return publicRanking(key, () => readRanking(pool, input.data, null));
   });
   await chatRoutes(app, { pool, current, sessionName, limit });
   await managementRoutes(app, { pool, current, sessionName, limit, mediaStorage });

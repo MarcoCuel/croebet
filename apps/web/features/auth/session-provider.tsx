@@ -11,6 +11,7 @@ import { AuthDialog } from "@/features/auth/auth-dialog";
 import { ProfileOnboarding } from "@/features/auth/profile-onboarding";
 import { loadEconomy, loadDailyStatus, requestDailyClaim } from "@/features/wallet/economy-api";
 import { authRequest } from "@/features/auth/api";
+import { subscribeRealtimeFailure } from "@/lib/realtime";
 
 // Account identity now comes exclusively from the API; local wallets are never loaded.
 export function SessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
@@ -48,6 +49,14 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
     refresh(); window.addEventListener("focus", refresh);
     return () => { mounted = false; clearTimeout(retry); window.removeEventListener("focus", refresh); };
   }, []);
+  useEffect(() => subscribeRealtimeFailure(failure => {
+    toast.error(failure.message);
+    if (failure.code === "UNAUTHENTICATED") {
+      void authRequest("/me").then(next => {
+        if (!next) { setUser(null); setWallet(null); }
+      }).catch(() => {});
+    }
+  }), []);
   function openAuth(mode: "login" | "register") {
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAuthMode(mode);

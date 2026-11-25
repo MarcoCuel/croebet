@@ -1,11 +1,12 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import type { z } from "zod";
 import type { Pool, PoolClient } from "pg";
 import { lobbyPlayersSchema, lobbyInvitationsSchema, lobbySchema, lobbyListSchema, lobbyActionResultSchema, updateLobbySchema, gameExecutionResultSchema, matchListSchema,  type CreateMatch, type GameCommand, type GameView, type GameEngineAction, type GameId, type GameRoom, type MatchParticipant, type Room, type UpdateLobby, type KickMatch } from "@croebet/shared";
 import { gameDriver } from "../games/registry.ts";
 import { cancellationProposalSchema, createMatchSchema, gameRoomSchema, gameRoomSyncSchema, gameMatchResultSchema, personalMatchesSchema, presenceSnapshotSchema, gameDefinitions } from "@croebet/shared";
 
 import { avatarUrl } from "../avatars/storage.ts";
-import { refundCollectiveMatch, fundMatch, settleMatch, readMatchEconomy, MatchEconomyError } from "./economy.ts";
+import { refundCollectiveMatch, fundMatch, settleMatch, readMatchEconomy, readMatchEconomies, MatchEconomyError } from "./economy.ts";
 import { WalletError } from "../wallet/service.ts";
 import { execute } from "./execution.ts";
 
@@ -63,6 +64,96 @@ async function roomView(client: Client, row: Row, members: MatchParticipant[], s
   room.onlineUserIds=(await client.query<{user_id:string}>("select distinct user_id from match_presence where match_id=$1 and expires_at>clock_timestamp() order by user_id",[row.id])).rows.map(p=>p.user_id);
   return room;
 }
+type EconomyMap = Awaited<ReturnType<typeof readMatchEconomies>>;
+type Reservation = { userId:string; username:string; displayName:string; avatarUrl:string|null };
+type ConfirmedPlayer = { user_id:string; confirmed_entry_amount:string|null };
+type Cancellation = z.infer<typeof cancellationProposalSchema>;
+
+async function reservationsByMatch(client: Client, ids: string[]) {
+  const result = new Map<string, Reservation[]>();
+  if (!ids.length) return result;
+  const rows = await client.query<{match_id:string;userId:string;username:string;displayName:string;avatarUrl:string|null}>(`
+    select i.match_id,u.id as "userId",u.username,u.display_name as "displayName",u.avatar_key as "avatarUrl"
+    from game_match_invitations i join users u on u.id=i.recipient_id
+    where i.match_id=any($1::uuid[]) and i.expires_at>clock_timestamp()
+      and not exists(select 1 from game_match_players p where p.match_id=i.match_id and p.user_id=i.recipient_id)
+    order by i.match_id,i.expires_at,i.id`,[ids]);
+  for (const row of rows.rows) {
+    const list=result.get(row.match_id) ?? [];
+    list.push({ userId:row.userId, username:row.username, displayName:row.displayName, avatarUrl:avatarUrl(row.avatarUrl) });
+    result.set(row.match_id,list);
+  }
+  return result;
+}
+
+async function onlineUsersByMatch(client: Client, ids: string[]) {
+  const result = new Map<string,string[]>();
+  if (!ids.length) return result;
+  const rows = await client.query<{match_id:string;user_id:string}>(`select distinct match_id,user_id from match_presence
+    where match_id=any($1::uuid[]) and expires_at>clock_timestamp() order by match_id,user_id`,[ids]);
+  for (const row of rows.rows) {
+    const list=result.get(row.match_id) ?? [];
+    list.push(row.user_id); result.set(row.match_id,list);
+  }
+  return result;
+}
+
+async function confirmedByMatch(client: Client, ids: string[]) {
+  const result = new Map<string,ConfirmedPlayer[]>();
+  if (!ids.length) return result;
+  const rows = await client.query<{match_id:string;user_id:string;confirmed_entry_amount:string|null}>(`select match_id,user_id,confirmed_entry_amount
+    from game_match_players where match_id=any($1::uuid[]) and user_id is not null order by match_id,seat`,[ids]);
+  for (const row of rows.rows) {
+    const list=result.get(row.match_id) ?? [];
+    list.push({ user_id:row.user_id, confirmed_entry_amount:row.confirmed_entry_amount }); result.set(row.match_id,list);
+  }
+  return result;
+}
+
+async function cancellationsByMatch(client: Client, ids: string[]) {
+  const result = new Map<string,Cancellation>();
+  if (!ids.length) return result;
+  const rows = await client.query<{match_id:string;id:string;proposed_by:string;eligible_user_ids:string[];accepted_user_ids:string[];created_at:Date}>(`
+    select match_id,id,proposed_by,eligible_user_ids,accepted_user_ids,created_at from game_match_cancellations
+    where match_id=any($1::uuid[]) and status='pending'`,[ids]);
+  for (const row of rows.rows) result.set(row.match_id,cancellationProposalSchema.parse({
+    id:row.id, proposedBy:row.proposed_by, eligibleUserIds:row.eligible_user_ids,
+    acceptedUserIds:row.accepted_user_ids, createdAt:row.created_at.toISOString(),
+  }));
+  return result;
+}
+
+/** Directory projection: load every per-room relation in one query per relation. */
+async function listRoomViews(client: Client, rows: Row[], people: Map<string,MatchParticipant[]>) {
+  const ids=rows.map(row=>row.id);
+  const paid=rows.filter(row=>Number(row.entry_amount)>0).map(row=>row.id);
+  const playing=rows.filter(row=>row.status==="playing").map(row=>row.id);
+  // A PoolClient executes one statement at a time; keep the batched reads
+  // sequential instead of issuing concurrent Promise.all queries on it.
+  const economies: EconomyMap = await readMatchEconomies(client,paid);
+  const reservations = await reservationsByMatch(client,ids);
+  const online = await onlineUsersByMatch(client,ids);
+  const confirmed = await confirmedByMatch(client,paid);
+  const cancellations = await cancellationsByMatch(client,playing);
+  const rooms=new Map<string,GameRoom>();
+  for(const row of rows){
+    const members=people.get(row.id) ?? [];
+    if(row.status!=="lobby" && row.status!=="playing") { rooms.set(row.id,await roomView(client,row,members)); continue; }
+    const base=view(row,members);
+    if(base.status==="lobby"){
+      const room=lobbySchema.parse({...base,confirmedUserIds:Number(row.entry_amount)>0
+        ? (confirmed.get(row.id) ?? []).filter(person=>person.user_id===row.owner_id ||
+          (person.confirmed_entry_amount!==null && BigInt(person.confirmed_entry_amount)===BigInt(row.entry_amount))).map(person=>person.user_id)
+        : [],pendingInvitations:reservations.get(row.id) ?? [],onlineUserIds:online.get(row.id) ?? []});
+      rooms.set(row.id,room); continue;
+    }
+    const room=gameRoomSchema.parse({...base,...(Number(row.entry_amount)>0?economies.get(row.id) ?? {}:{}),
+      cancellation: row.status==="playing" ? cancellations.get(row.id) ?? null : null});
+    rooms.set(row.id,room);
+  }
+  return rooms;
+}
+
 async function transaction<T>(pool: Pool, actor: string, sessionHash: string, action: (client: PoolClient, username: string) => Promise<T>, lifecycle = false): Promise<T> {
   const client=await pool.connect();
   try {
@@ -94,12 +185,12 @@ export async function listLobbies(pool: Pool, actor: string | null) {
     const active=await client.query<Row>(`select m.* from game_matches m where m.status='playing' and not m.development and exists(select 1 from game_match_players p where p.match_id=m.id and p.controller_id=$1) order by m.created_at,m.id limit 1`,[actor]);
     const all=[...result.rows,...joined.rows,...active.rows];
     const people=await participants(client,all.map(row=>row.id));
-    const rooms=new Map<string,GameRoom>();
-    for(const row of all)if(!rooms.has(row.id))rooms.set(row.id,await roomView(client,row,people.get(row.id) ?? []));
+    const rooms=await listRoomViews(client,all,people);
     const owned=joined.rows.find(row=>row.created_by===actor && row.owner_id===actor);
     const testRows=actor?(await client.query<Row>("select m.* from game_matches m where m.development and m.status='lobby' and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
     const testPeople=await participants(client,testRows.map(r=>r.id));
-    const testLobbies=[];for(const row of testRows)testLobbies.push(await roomView(client,row,testPeople.get(row.id) ?? []));
+    const testRoomViews=await listRoomViews(client,testRows,testPeople);
+    const testLobbies=testRows.map(row=>testRoomViews.get(row.id)).filter((room): room is GameRoom=>!!room);
     const running=actor?(await client.query<Row>("select m.* from game_matches m where m.development and m.status='playing' and (m.owner_id=$1 or exists(select 1 from game_match_players p where p.match_id=m.id and p.user_id=$1)) order by m.created_at desc limit 100",[actor])).rows:[];
     const runningPeople=await participants(client,running.map(r=>r.id));
     const testMatches=running.map(row=>({development:true,bots:row.bots,onlyBots:row.only_bots,id:row.id,code:row.code,game:row.game_slug,hostId:row.owner_id,rulesVersion:row.rules_version,version:row.version,capacity:row.capacity,options:row.options,entryAmount:0,status:"playing",round:(row.state as {round:number}).round,controllerIds:[],participants:runningPeople.get(row.id) ?? []}));
@@ -158,16 +249,19 @@ export async function listPersonalMatches(pool: Pool, actor: string) {
     const people = await participants(client, rows.rows.map(row => row.id));
     return personalMatchesSchema.parse({ items: rows.rows.map(row => {
       const members = people.get(row.id) ?? [];
-      const players = row.status === "playing"
-        ? resolveDriver(row).summarize(resolveDriver(row).projectFor(row.state, null))
-        : [...members.map(person => ({ name:person.displayName || person.username, bot:false })),
-          ...Array.from({ length:row.bots ?? 0 }, (_, index) => ({ name:`Bot ${index+1}`, bot:true }))];
       const emptySeats = Array.from({ length:12 }, (_, seat) => seat).filter(seat => !members.some(person => person.seat === seat));
-      const roster = players.map((player, seat) => {
-        const member = row.status === "lobby" ? members[seat] : members.find(person => person.seat === seat);
-        return { userId:member?.userId ?? null, seat:member?.seat ?? (row.status === "lobby" ? emptySeats[seat-members.length] : seat), username:member?.username ?? player.name,
-          displayName:member?.displayName || player.name, avatarUrl:member?.avatarUrl ?? null, bot:player.bot };
-      });
+      // participants() is ordered by join time, not by seat. Never index the
+      // array by seat: seats can have gaps after a participant leaves.
+      const roster = row.status === "playing"
+        ? resolveDriver(row).summarize(resolveDriver(row).projectFor(row.state, null)).map((player, seat) => {
+          const member = members.find(person => person.seat === seat);
+          return { userId:member?.userId ?? null, seat, username:member?.username ?? player.name,
+            displayName:member?.displayName || player.name, avatarUrl:member?.avatarUrl ?? null, bot:player.bot };
+        })
+        : [...members.map(person => ({ userId:person.userId, seat:person.seat, username:person.username,
+            displayName:person.displayName || person.username, avatarUrl:person.avatarUrl, bot:false })),
+          ...emptySeats.slice(0, row.bots ?? 0).map((seat, index) => ({ userId:null, seat, username:`Bot ${index+1}`,
+            displayName:`Bot ${index+1}`, avatarUrl:null, bot:true }))].sort((a, b) => a.seat - b.seat);
       let yourTurn = false;
       let turnKey: string | null = null;
       if (row.status === 'playing' && row.controller_id === actor && row.seat !== null && !row.only_bots) {

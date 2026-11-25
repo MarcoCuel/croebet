@@ -2,6 +2,7 @@ import { advanceDeferredMatches } from "./modules/matches/service.ts";
 import { createImageStorage } from "./modules/storage/images.ts";
 import { cleanupMedia } from "./modules/media/service.ts";
 import { cleanupDeletedAccounts } from "./modules/auth/account-cleanup.ts";
+import { cleanupAuthState } from "./modules/auth/cleanup.ts";
 import { createApp } from "./app.ts";
 import { readConfig } from "./config.ts";
 import { createDatabase } from "./db/client.ts";
@@ -23,6 +24,7 @@ function cleanup() {
   cleanupTask ??= cleanupDeletedAccounts(pool, config.APP_ENV)
     .then(() => cleanupAvatars(pool, avatarStorage, config.APP_ENV))
     .then(() => cleanupMedia(pool, mediaStorage, config.APP_ENV))
+    .then(async () => { await cleanupAuthState(pool, config.APP_ENV); })
     .catch(() => { app.log.warn("Não foi possível concluir as exclusões pendentes; nova tentativa em um minuto."); })
     .finally(() => { cleanupTask = undefined; });
   return cleanupTask;

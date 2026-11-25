@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { z } from "zod";
 import { matchPayoutSchema } from "@croebet/shared";
 import type { GameOutcome } from "./driver.ts";
@@ -17,6 +17,19 @@ export function splitPot(total: number, seats: number[]) {
   if (!Number.isSafeInteger(total) || total < 1 || !ordered.length || new Set(ordered).size !== ordered.length) throw new Error("Invalid pot distribution");
   const amount = BigInt(total), count = BigInt(ordered.length);
   return ordered.map((seat,index)=>({ seat, amount: Number(amount/count + (BigInt(index)<amount%count?1n:0n)) }));
+}
+
+export type MatchEconomyView = { potTotal: number; payouts: z.infer<typeof matchPayoutSchema>[]; settlement: string };
+
+/** Batch form used by directory listings; avoids one query per room. */
+export async function readMatchEconomies(client: Pick<Pool | PoolClient, "query">, ids: string[]): Promise<Map<string, MatchEconomyView>> {
+  if (!ids.length) return new Map();
+  const rows = (await client.query("select match_id,pot_total,payouts,status from game_match_stakes where match_id=any($1::uuid[])", [ids])).rows;
+  return new Map(rows.map(row => [row.match_id as string, {
+    potTotal: Number(row.pot_total),
+    payouts: z.array(matchPayoutSchema).parse(row.payouts),
+    settlement: row.status as string,
+  }]));
 }
 
 export async function fundMatch(client: PoolClient, id: string, code: string, entry: number, people: {userId:string;seat:number;username:string}[]) {

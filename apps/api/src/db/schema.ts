@@ -56,12 +56,12 @@ export const sessions = pgTable("sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   idleExpiresAt: timestamp("idle_expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [check("sessions_token_hash_check", sql`length(${table.tokenHash}) = 64`), index("sessions_user_id_idx").on(table.userId), index("sessions_expiry_idx").on(table.expiresAt)]);
+}, table => [check("sessions_token_hash_check", sql`length(${table.tokenHash}) = 64`), index("sessions_user_id_idx").on(table.userId), index("sessions_expiry_idx").on(table.expiresAt), index("sessions_idle_expiry_idx").on(table.idleExpiresAt)]);
 export const authRateLimits = pgTable("auth_rate_limits", {
   key: text("key").primaryKey(),
   windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
   attempts: integer("attempts").notNull(),
-}, table => [check("auth_rate_limits_attempts_check", sql`${table.attempts} > 0`)]);
+}, table => [check("auth_rate_limits_attempts_check", sql`${table.attempts} > 0`), index("auth_rate_limits_window_idx").on(table.windowStart)]);
 
 export const avatarCleanup = pgTable("avatar_cleanup", {
   key: text("key").primaryKey(),
@@ -86,7 +86,7 @@ export const walletOperations = pgTable("wallet_operations", {
   reason: text("reason").notNull(),
   reference: text("reference").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [uniqueIndex("wallet_operation_idempotency").on(table.scope, table.idempotencyKey)]);
+}, table => [uniqueIndex("wallet_operation_idempotency").on(table.scope, table.idempotencyKey), index("wallet_operations_created_idx").on(table.createdAt)]);
 export const walletEntries = pgTable("wallet_entries", {
   sequence: bigserial("sequence", { mode: "bigint" }).notNull().unique(),
   id: uuid("id").primaryKey().defaultRandom(),
@@ -190,7 +190,7 @@ export const gameMatches = pgTable("game_matches", {
   lobbyClosedReason: text("lobby_closed_reason"),
   creationRequestId: uuid("creation_request_id").notNull(), creationHash: text("creation_hash").notNull(), creationResponse: jsonb("creation_response").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [check("match_playback_nonnegative",sql`${table.playbackMilliseconds} >= 0`),check("test_economy",sql`NOT ${table.development} OR ${table.entryAmount}=0`),check("test_bots",sql`${table.bots} BETWEEN 0 AND 12 AND (${table.development} OR (${table.bots}=0 AND NOT ${table.onlyBots}))`),check("match_entry_range", sql`${table.entryAmount} between 0 and 9007199254740991`), uniqueIndex("match_creation_request").on(table.createdBy, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), check("match_status", sql`${table.status} in ('lobby','playing','finished','abandoned')`), check("match_capacity", sql`${table.capacity} between 2 and 12`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
+}, table => [check("match_playback_nonnegative",sql`${table.playbackMilliseconds} >= 0`),check("test_economy",sql`NOT ${table.development} OR ${table.entryAmount}=0`),check("test_bots",sql`${table.bots} BETWEEN 0 AND 12 AND (${table.development} OR (${table.bots}=0 AND NOT ${table.onlyBots}))`),check("match_entry_range", sql`${table.entryAmount} between 0 and 9007199254740991`), uniqueIndex("match_creation_request").on(table.createdBy, table.creationRequestId), index("match_owner_status").on(table.ownerId,table.status), index("match_lobby_listing").on(table.status,table.development,table.createdAt), index("match_playing_listing").on(table.status,table.development,table.updatedAt), check("match_status", sql`${table.status} in ('lobby','playing','finished','abandoned')`), check("match_capacity", sql`${table.capacity} between 2 and 12`), check("match_versions", sql`${table.version}>0 and ${table.rulesVersion}>0`)]);
 export const gameMatchPlayers = pgTable("game_match_players", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatches.id, { onDelete: "cascade" }),
   confirmedEntryAmount: bigint("confirmed_entry_amount", { mode: "bigint" }),
@@ -230,7 +230,7 @@ export const gameMatchArchives = pgTable("game_match_archives", {
   rulesVersion: integer("rules_version").notNull(), status: text("status").notNull(), options: jsonb("options").notNull(),
   participants: jsonb("participants").notNull(), state: jsonb("state").notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull(), endedAt: timestamp("ended_at", { withTimezone: true }),
-}, table => [index("archive_game_started").on(table.gameId, table.startedAt, table.id)]);
+}, table => [index("archive_game_started").on(table.gameId, table.startedAt, table.id), index("archive_ranking").on(table.status, table.endedAt)]);
 export const gameMatchArchiveFrames = pgTable("game_match_archive_frames", {
   id: uuid("id").primaryKey().defaultRandom(), matchId: uuid("match_id").notNull().references(() => gameMatchArchives.id),
   version: integer("version").notNull(), event: jsonb("event").notNull(),

@@ -152,6 +152,8 @@ pnpm build
 | `pnpm test:ops` | Executar testes unitários dos scripts operacionais |
 | `pnpm test:ops:integration` | Executar ensaios operacionais em infraestrutura sintética de teste |
 
+O workflow `.github/workflows/validation.yml` executa lint, typecheck, testes unitários, migrations/seed, integração e build em push/PR, além de uma agenda diária. A família E2E roda na agenda e em execução manual.
+
 Integração exige banco separado com marcador `test`, migrations/seed aplicados e `TEST_DATABASE_URL` configurada. E2E possui configurações específicas, algumas com build próprio; execute as suítes de navegador sequencialmente. A preparação completa está em [Validação](docs/backend-architecture.md#validação).
 
 `pnpm build` gera os artefatos das aplicações. Para executá-las após o build, use `pnpm start` para o frontend e `pnpm start:api` para a API, com os ambientes configurados.

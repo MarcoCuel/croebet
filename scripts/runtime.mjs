@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createServer, createConnection } from 'node:net';
-import { existsSync, readFileSync, mkdirSync, chmodSync, openSync, unlinkSync, createWriteStream, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, chmodSync, openSync, unlinkSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import { createLogSink } from './log-file.mjs';
 
 export const sourceRoot = fileURLToPath(new URL('../', import.meta.url));
 export const envFile = path => existsSync(path) ? parseEnv(readFileSync(path, 'utf8')) : {};
@@ -37,7 +38,7 @@ export async function freePort(port) {
 }
 export function logFiles(home) {
   const directory = join(home, 'logs');
-  for (const name of existsSync(directory) ? readdirSync(directory).sort() : []) {
+  for (const name of existsSync(directory) ? readdirSync(directory).filter(name => name.endsWith('.log')).sort() : []) {
     console.log(`\n--- ${name} ---\n${readFileSync(join(directory, name), 'utf8').split('\n').slice(-60).join('\n')}`);
   }
 }
@@ -98,7 +99,7 @@ async function supervise(mode, home, release, foreground) {
     process.exitCode = failed ? 1 : 0;
   }
   function start(name, command, args, cwd, env) {
-    const log = createWriteStream(join(home, 'logs', `${name}.log`), { flags: 'a', mode: 0o600 });
+    const log = createLogSink(join(home, 'logs', `${name}.log`));
     logs.push(log); log.write(`\n[${new Date().toISOString()}] ${release}\n`);
     const child = spawn(command, args, { cwd, env: { ...baseEnv(), ...env }, detached: true, stdio: ['ignore','pipe','pipe'] });
     children.add(child);

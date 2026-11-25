@@ -374,7 +374,7 @@ test("laboratório oferece Neutras, Love Letter e Solo com as artes originais", 
   await expect(scene.locator("canvas")).toBeVisible();
   await openSettings(page);
   await page.getByRole("button", { name: "Love Letter", exact: true }).click();
-  await expect.poll(() => ["card", "0", "9"].every(card => loaded.has(`/games/love-letter/${card}.png`))).toBe(true);
+  await expect.poll(() => ["card", "0", "9"].every(card => loaded.has(`/games/love-letter/${card}.webp`))).toBe(true);
   const choices = page.getByRole("group", { name: "Arte das cartas" });
   await expect(choices.getByRole("button")).toHaveText(["Neutras", "Love Letter", "Solo"]);
   await expect(scene).toHaveAttribute("data-artwork-mode", "love-letter");

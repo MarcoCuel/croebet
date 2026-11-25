@@ -1,0 +1,90 @@
+name: Validation
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: croebet_test
+          POSTGRES_USER: croebet
+          POSTGRES_PASSWORD: croebet_test_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U croebet -d croebet_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      APP_ENV: test
+      API_HOST: 127.0.0.1
+      API_PORT: 3001
+      WEB_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgresql://croebet:croebet_test_pw@127.0.0.1:5432/croebet_test
+      TEST_DATABASE_URL: postgresql://croebet:croebet_test_pw@127.0.0.1:5432/croebet_test
+      CSRF_SECRET: croebet-ci-secret-at-least-32-characters
+      AVATAR_STORAGE: local
+      AVATAR_LOCAL_DIR: .data/avatars
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @croebet/shared build
+      - run: pnpm --filter @croebet/api build
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:integration
+      - run: pnpm build
+
+  e2e:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.21.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @croebet/shared build
+      - run: pnpm --filter @croebet/api build
+      - run: pnpm --filter @croebet/web exec playwright install --with-deps chrome
+      - run: pnpm test:e2e
+      - run: pnpm --filter @croebet/web test:e2e:pages
+      - run: pnpm --filter @croebet/web test:e2e:session
+      - run: pnpm --filter @croebet/web test:e2e:achievements
+      - run: pnpm --filter @croebet/web test:e2e:games

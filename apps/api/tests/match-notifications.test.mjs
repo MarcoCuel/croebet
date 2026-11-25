@@ -128,3 +128,23 @@ test("resumo da conta identifica decisões pendentes de Flip 7 e turno de Love L
   const bots=(await listPersonalMatches(pool,actor)).items[0];
   assert.deepEqual(bots.participants.map(p=>[p.seat,p.userId,p.bot]),[[0,null,true],[1,null,true],[2,null,true]]);
  });
+
+test("resumo de lobby associa nome e avatar ao assento, mesmo com lacunas",async()=>{
+  const {listPersonalMatches}=await import("../dist/modules/matches/service.js");
+  const {randomUUID}=await import("node:crypto");
+  const actor=randomUUID(),id=randomUUID();
+  const row={id,code:"ABCDEF654321",game_slug:"flip7",game_name:"Flip 7",status:"lobby",development:true,bots:1,only_bots:false,state:null};
+  const client={release(){},async query(sql){
+    if(sql.includes("select m.*,g.name"))return {rows:[row]};
+    if(sql.includes("u.avatar_key"))return {rows:[
+      {match_id:id,user_id:actor,seat:0,username:"ana",display_name:"Ana",avatar_key:null},
+      {match_id:id,user_id:randomUUID(),seat:2,username:"carla",display_name:"Carla",avatar_key:null},
+      {match_id:id,user_id:randomUUID(),seat:1,username:"dora",display_name:"Dora",avatar_key:null},
+    ]};
+    return {rows:[]};
+  }};
+  const item=(await listPersonalMatches({connect:async()=>client},actor)).items[0];
+  assert.deepEqual(item.participants.map(p=>[p.seat,p.displayName,p.bot]),[
+    [0,"Ana",false],[1,"Dora",false],[2,"Carla",false],[3,"Bot 1",true],
+  ]);
+ });

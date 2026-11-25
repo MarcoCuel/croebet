@@ -302,6 +302,13 @@
       "when": 1795476585138,
       "tag": "0042_slow_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795649161189,
+      "tag": "0043_mute_stephen_strange",
+      "breakpoints": true
     }
   ]
 }
