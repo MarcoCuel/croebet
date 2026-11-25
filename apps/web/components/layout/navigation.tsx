@@ -245,7 +245,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
             id="page-content"
             tabIndex={-1}
             className={cn(
-              "flex min-h-dvh min-w-0 flex-col",
+              "flex min-h-dvh min-w-0 flex-col outline-none",
               "pl-(--sidebar-width) pt-(--header-height)",
               "transition-[padding-left] duration-300 ease-in-out",
               "motion-reduce:transition-none",
