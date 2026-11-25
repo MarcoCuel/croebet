@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { confirmEntrySchema, createMatchSchema, invitePlayerSchema, kickMatchSchema, lobbyCommandSchema, matchAbandonSchema, matchCodeSchema, gameCommandSchema, updateLobbySchema } from "./matches.js";
+import { confirmEntrySchema, createMatchSchema, invitePlayerSchema, kickMatchSchema, lobbyCommandSchema, lobbyInvitationsSchema, matchAbandonSchema, matchCodeSchema, gameCommandSchema, updateLobbySchema } from "./matches.js";
 
 const code = { code: matchCodeSchema };
 export const matchWatchSchema = z.object({ code: matchCodeSchema.optional(), active: z.boolean().default(true), directory: z.boolean().default(true), afterVersion: z.number().int().nonnegative().default(0) }).strict();
@@ -22,3 +22,6 @@ export const realtimeReplySchema = z.discriminatedUnion("ok", [
 ]);
 export type RealtimeRequest = z.infer<typeof realtimeRequestSchema>;
 export type RealtimeReply = z.infer<typeof realtimeReplySchema>;
+export const onlineCountSchema = z.number().int().nonnegative();
+export const presenceSnapshotSchema = lobbyInvitationsSchema.extend({ onlineCount: onlineCountSchema }).strict();
+export type PresenceSnapshot = z.infer<typeof presenceSnapshotSchema>;

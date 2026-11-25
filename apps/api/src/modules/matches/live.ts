@@ -6,7 +6,7 @@ import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import { matchWatchSchema, realtimeRequestSchema, type RealtimeReply } from "@croebet/shared";
 import { tokenHash, validCsrf } from "../auth/security.ts";
-import { getRoomSync, listPersonalMatches, listMatches, listLobbies, MatchError, readLobbyInvitations } from "./service.ts";
+import { getRoomSync, listPersonalMatches, listMatches, listLobbies, MatchError, readLobbyInvitations, readOnlineCount } from "./service.ts";
 import { matchNotificationSchema, notificationRefresh, type Refresh } from "./notifications.ts";
 import { applyRealtimeRequest } from "./realtime-actions.ts";
 import { createWatchLimit } from "./watch-limit.ts";
@@ -28,6 +28,18 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
   let listening: Promise<void> | undefined;
   let stopping = false;
   let maintenance: Promise<void> | undefined;
+  let onlineCount: number | undefined;
+
+  function publishOnlineCount(count: number) {
+    if (onlineCount === count) return;
+    onlineCount = count;
+    io.emit("online-count", count);
+  }
+  async function sendOnlineCount(socket: LiveSocket) {
+    const count = await readOnlineCount(pool);
+    if (onlineCount === count) socket.emit("online-count", count);
+    else publishOnlineCount(count);
+  }
 
   async function authorize(c: Connection) {
     if (!c.actor) return;
@@ -170,6 +182,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     const socket = raw as LiveSocket;
     if (socket.data.actor) void socket.join(`user:${socket.data.actor}`);
     schedule(socket, { invitations: true, presence: true, personal: true });
+    enqueue(socket, async () => { await sendOnlineCount(socket); });
     socket.on("watch", (value: unknown, ack: (reply: RealtimeReply) => void) => {
       if (typeof ack !== "function") return;
       enqueue(socket, async () => {
@@ -201,6 +214,7 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
           if (!await options.limit(`matches:${socket.data.actor}`, 1200)) throw new MatchError("RATE_LIMIT", 429, "Muitas ações. Aguarde e tente novamente.");
           if (request.type === "invite" && !await options.limit(`invitations:${socket.data.actor}`, 30)) throw new MatchError("RATE_LIMIT", 429, "Muitos convites. Aguarde antes de enviar outros.");
           const data = await applyRealtimeRequest(pool, socket.data.actor, socket.data.session, request);
+          if (request.type === "presence" && "onlineCount" in data) publishOnlineCount(data.onlineCount);
           // Every player, including the sender, receives committed frames here.
           // The acknowledgement is a receipt; it is not a second presentation path.
           let flags: Refresh = { room: true, directory: true, matches: true, presence: true, personal: true };
@@ -219,8 +233,10 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     maintenance = (async () => {
       await pool.query("update match_presence set expires_at=clock_timestamp()+interval '30 seconds' where id=any($1::uuid[])", [[...io.sockets.sockets.values()].flatMap(s => [...(s as LiveSocket).data.presence.values()])]);
       await pool.query("delete from match_presence where expires_at<=clock_timestamp()");
+      await pool.query("delete from user_presence where expires_at<=clock_timestamp()");
       await pool.query("delete from game_match_invitations where expires_at<=clock_timestamp()");
       await maintainLobbies(pool);
+      publishOnlineCount(await readOnlineCount(pool));
       // Lease/invitation deletions notify affected subscribers; expiry only reauthorizes.
       for (const socket of io.sockets.sockets.values()) schedule(socket as LiveSocket, { auth: true });
     })().catch(error => { app.log.error(error); for (const socket of io.sockets.sockets.values()) socket.conn.close(); }).finally(() => { maintenance = undefined; });

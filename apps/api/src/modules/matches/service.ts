@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { lobbyPlayersSchema, lobbyInvitationsSchema, lobbySchema, lobbyListSchema, lobbyActionResultSchema, updateLobbySchema, gameExecutionResultSchema, matchListSchema,  type CreateMatch, type GameCommand, type GameView, type GameEngineAction, type GameId, type GameRoom, type MatchParticipant, type Room, type UpdateLobby, type KickMatch } from "@croebet/shared";
 import { gameDriver } from "../games/registry.ts";
-import { cancellationProposalSchema, createMatchSchema, gameRoomSchema, gameRoomSyncSchema, gameMatchResultSchema, personalMatchesSchema, gameDefinitions } from "@croebet/shared";
+import { cancellationProposalSchema, createMatchSchema, gameRoomSchema, gameRoomSyncSchema, gameMatchResultSchema, personalMatchesSchema, presenceSnapshotSchema, gameDefinitions } from "@croebet/shared";
 
 import { avatarUrl } from "../avatars/storage.ts";
 import { refundCollectiveMatch, fundMatch, settleMatch, readMatchEconomy, MatchEconomyError } from "./economy.ts";
@@ -428,12 +428,20 @@ export async function commandMatch(pool: Pool, actor: string, sessionHash: strin
 }
 
 
+export async function readOnlineCount(client: Client) {
+  const result = await client.query<{ count: number }>(`select count(*)::int as count from user_presence p
+    join users u on u.id=p.user_id
+    where p.expires_at>clock_timestamp() and u.status='active'`);
+  return result.rows[0]?.count ?? 0;
+}
+
 /** A visible authenticated page renews a lease; an open login session alone is not online. */
 export async function refreshPresence(pool: Pool, actor: string, sessionHash: string) {
   return transaction(pool, actor, sessionHash, async client => {
     await client.query(`insert into user_presence(user_id,expires_at) values($1,clock_timestamp()+interval '75 seconds')
       on conflict(user_id) do update set expires_at=excluded.expires_at`, [actor]);
-    return readLobbyInvitations(client, actor);
+    const invitations = await readLobbyInvitations(client, actor);
+    return presenceSnapshotSchema.parse({ ...invitations, onlineCount: await readOnlineCount(client) });
   });
 }
 export async function readLobbyInvitations(client: Client, actor: string) {

@@ -1,13 +1,30 @@
+import { Server } from "socket.io";
 import { startPublicApi } from "../public-api-fixture";
 import { expect, test, type Page } from "@playwright/test";
 
 let closeApi: (() => Promise<void>) | undefined;
-test.beforeAll(async () => { closeApi = await startPublicApi(() => account); });
+let sockets: Server;
+let onlineCount = 8;
+test.beforeAll(async () => {
+  closeApi = await startPublicApi(() => account, undefined, server => {
+    sockets = new Server(server, { path: "/api/v1/realtime", addTrailingSlash: false, transports: ["websocket"] });
+    sockets.on("connection", socket => {
+      socket.emit("personal-matches", { items: [] });
+      socket.emit("invitations", { items: [] });
+      socket.emit("online-count", onlineCount);
+      socket.on("request", (_value: unknown, ack: (reply: unknown) => void) => {
+        ack({ ok: true, data: { items: [], onlineCount } });
+      });
+    });
+    return () => { sockets.disconnectSockets(true); sockets.engine.close(); };
+  });
+});
 test.afterAll(async () => { await closeApi?.(); });
 
 let account: { id: string; username: string; displayName: string; role: string } | null = null;
 test.beforeEach(async ({ page }) => {
   account = null;
+  onlineCount = 8;
   await page.route("**/api/v1/**", route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -79,6 +96,57 @@ test("sidebar oculta apenas na partida e reaparece no lobby", async ({ page }, t
   await page.goForward();
   await expect(page).toHaveURL(/\/jogos\/flip7\?teste=1$/);
   await expect(sidebar).toBeVisible();
+});
+
+test("Topbar mostra usuários online somente na Home e no desktop", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const counter = page.getByRole("status", { name: "Usuários online" });
+  if (testInfo.project.name !== "desktop") {
+    await expect(counter).toBeHidden();
+    await expect.poll(() => sockets.sockets.sockets.size).toBe(0);
+    return;
+  }
+  await expect(counter).toBeVisible();
+  await expect(counter).toHaveText("8 online");
+  await expect(counter.locator("[aria-hidden='true']")).toHaveClass(/bg-tertiary/);
+  await expect.poll(() => sockets.sockets.sockets.size).toBe(1);
+  onlineCount = 9;
+  sockets.emit("online-count", onlineCount);
+  await expect(counter).toHaveText("9 online");
+  await page.getByRole("link", { name: "Jogos", exact: true }).first().click();
+  await expect(counter).toHaveCount(0);
+  await expect.poll(() => sockets.sockets.sockets.size).toBe(0);
+  await page.getByRole("link", { name: "Croebet, início", exact: true }).click();
+  await expect(counter).toHaveText("9 online");
+});
+
+test("Topbar acompanha a contagem quando a conexão autenticada já está aberta", async ({ page }, testInfo) => {
+  await page.goto("/jogos");
+  await signIn(page);
+  const counter = page.getByRole("status", { name: "Usuários online" });
+  await expect.poll(() => sockets.sockets.sockets.size).toBe(1);
+  const connectionId = [...sockets.sockets.sockets.keys()][0];
+
+  onlineCount = 10;
+  sockets.emit("online-count", onlineCount);
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+    await page.getByRole("dialog").getByRole("link", { name: "Início", exact: true }).click();
+    await page.setViewportSize({ width: 1280, height: 720 });
+  } else {
+    await page.getByRole("link", { name: "Croebet, início", exact: true }).click();
+  }
+  await expect(counter).toBeVisible();
+  await expect(counter).toHaveText("10 online");
+
+  await page.getByRole("link", { name: "Jogos", exact: true }).first().click();
+  await expect(counter).toHaveCount(0);
+  expect([...sockets.sockets.sockets.keys()]).toEqual([connectionId]);
+  onlineCount = 11;
+  sockets.emit("online-count", onlineCount);
+  await page.getByRole("link", { name: "Croebet, início", exact: true }).click();
+  await expect(counter).toHaveText("11 online");
+  expect([...sockets.sockets.sockets.keys()]).toEqual([connectionId]);
 });
 
 test("modal de autenticação alterna modo, fecha por Escape e devolve o foco", async ({

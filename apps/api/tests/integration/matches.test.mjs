@@ -402,6 +402,50 @@ test("Socket.IO: duas APIs propagam commits, recuperam reconexão, deduplicam co
  await wait(()=>!sender.connected);
 });
 
+test("PostgreSQL: presença global conta contas únicas e ignora lease vencido",async t=>{
+ const {refreshPresence,readOnlineCount}=await import("../../dist/modules/matches/service.js");
+ const {pool,actors,sessions}=await environment(t),initial=await readOnlineCount(pool);
+ assert.equal((await refreshPresence(pool,actors[0],sessions[0])).onlineCount,initial+1);
+ assert.equal((await refreshPresence(pool,actors[0],sessions[0])).onlineCount,initial+1);
+ assert.equal((await refreshPresence(pool,actors[1],sessions[1])).onlineCount,initial+2);
+ await pool.query("update user_presence set expires_at=now()-interval '1 second' where user_id=$1",[actors[0]]);
+ assert.equal(await readOnlineCount(pool),initial+1);
+ await pool.query("update users set status='suspended' where id=$1",[actors[1]]);
+ assert.equal(await readOnlineCount(pool),initial);
+});
+
+test("Socket.IO: contagem online é única por conta e chega a visitantes",async t=>{
+ const {pool,tokens,cleanup}=await environment(t);
+ const {readOnlineCount}=await import("../../dist/modules/matches/service.js");
+ const config={APP_ENV:"test",WEB_ORIGIN:"http://localhost:3000",DEV_WEB_ORIGINS:"http://192.168.1.2:3000",CSRF_SECRET:"test-secret-multiplayer-32-characters"};
+ const app=createApp(async()=>{}),sockets=[];
+ cleanup.push(async()=>{for(const socket of sockets)socket.disconnect();await app.close();});
+ await app.register(authRoutes,{pool,config});
+ const origin=await app.listen({host:"127.0.0.1",port:0});
+ const wait=async check=>{const end=Date.now()+5000;while(Date.now()<end){const value=check();if(value)return value;await delay(10);}throw Error("Socket.IO event timeout");};
+ const connect=async index=>{
+  const nonce=newToken(),authenticated=index!==null;
+  const socket=io(origin,{path:"/api/v1/realtime",addTrailingSlash:false,transports:["websocket"],reconnection:false,autoConnect:false,
+   extraHeaders:{origin:config.WEB_ORIGIN,cookie:authenticated?`croebet-session=${tokens[index]}; croebet-csrf=${nonce}`:""},
+   auth:authenticated?{csrf:csrfToken(config.CSRF_SECRET,nonce,tokens[index])}:{}});
+  const counts=[];socket.on("online-count",value=>counts.push(value));sockets.push(socket);
+  await new Promise((resolve,reject)=>{socket.once("connect",resolve);socket.once("connect_error",reject);socket.connect();});
+  return {socket,counts};
+ };
+ const request=async(socket,value)=>{const reply=await socket.timeout(5000).emitWithAck("request",value);assert.equal(reply.ok,true,JSON.stringify(reply));return reply.data;};
+ const initial=await readOnlineCount(pool),guest=await connect(null);
+ await wait(()=>guest.counts.at(-1)===initial);
+ const first=await connect(0),second=await connect(0);
+ assert.equal((await request(first.socket,{type:"presence"})).onlineCount,initial+1);
+ await wait(()=>guest.counts.at(-1)===initial+1);
+ const events=guest.counts.length;
+ assert.equal((await request(second.socket,{type:"presence"})).onlineCount,initial+1);
+ await delay(50);assert.equal(guest.counts.length,events);
+ const peer=await connect(1);
+ assert.equal((await request(peer.socket,{type:"presence"})).onlineCount,initial+2);
+ await wait(()=>guest.counts.at(-1)===initial+2);
+});
+
 test("PostgreSQL: convites autorizados, presença, repetição e reserva de vaga, recusa e entrada",async t=>{
   const {refreshPresence,listLobbyPlayers,inviteLobbyPlayer}=await import("../../dist/modules/matches/service.js");
   const {pool,actors,sessions,create,lobby}=await environment(t),room=await create(2);

@@ -5,7 +5,7 @@ import { randomUUID } from "@/lib/uuid";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { commandResultSchema, lobbyInvitationsSchema, type LobbyInvitations } from "@croebet/shared";
+import { commandResultSchema, lobbyInvitationsSchema, presenceSnapshotSchema, type LobbyInvitations } from "@croebet/shared";
 import { changeLobby } from "./match-api";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
@@ -37,7 +37,7 @@ export function useLobbyInvitations() {
     }
     async function refresh(){
       if(document.visibilityState!=="visible" || !socket.connected)return;
-      try{receive(await realtimeRequest({type:"presence"},lobbyInvitationsSchema));}
+      try{const data=await realtimeRequest({type:"presence"},presenceSnapshotSchema);receive({items:data.items});}
       catch{/* Keep the last confirmed inbox while reconnecting. */}
     }
     socket.on("invitations",receive).on("connect",refresh);
