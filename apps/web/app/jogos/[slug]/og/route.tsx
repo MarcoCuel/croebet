@@ -67,17 +67,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const cover = await coverSource(game.imageUrl);
 
   return new ImageResponse(
-    <div style={{ display: "flex", width: "100%", height: "100%", background: "#fff", padding: 60, alignItems: "center", justifyContent: "space-between", fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", flexDirection: "column", width: 510, paddingRight: 40, gap: 24 }}>
-        <div style={{ color: "#AD158F", fontSize: 30, fontWeight: 700 }}>{settings.siteName}</div>
-        <div style={{ display: "flex", color: "#101010", fontSize: game.name.length > 28 ? 50 : 68, lineHeight: 1.08, fontWeight: 700, overflowWrap: "anywhere" }}>Jogar {game.name}</div>
+    <div style={{ display: "flex", width: "100%", height: "100%", background: "#010101", padding: 60, alignItems: "center", justifyContent: "space-between", fontFamily: "sans-serif" }}>
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: 510, paddingRight: 40, gap: 24 }}>
+        <div style={{ color: "#ffffff", fontSize: 60, fontWeight: 700 }}>{settings.siteName}</div>
+        <div style={{ display: "flex", color: "#ffffff", fontSize: game.name.length > 28 ? 60 : 80, lineHeight: 1.1, fontWeight: 500, overflowWrap: "anywhere" }}>Jogar {game.name}</div>
       </div>
       <div style={{ display: "flex", width: 510, height: 510, flexShrink: 0, overflow: "hidden", borderRadius: 40, background: "#f2f2f2", alignItems: "center", justifyContent: "center" }}>
-        {/* ImageResponse renders an image, not a browser page; next/image cannot be used here. */}
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={cover} alt="" width={510} height={510} style={{ objectFit: "cover" }} />
-        ) : <div style={{ display: "flex", color: "#AD158F", fontSize: 120, fontWeight: 700 }}>{game.name.charAt(0).toUpperCase()}</div>}
+        ) : <div style={{ display: "flex", color: "#ffffff", fontSize: 120, fontWeight: 700 }}>{game.name.charAt(0).toUpperCase()}</div>}
       </div>
     </div>,
     { width: 1200, height: 630, headers: { "Cache-Control": "no-store" } },
