@@ -84,14 +84,14 @@ export function WalletHistory({ initial, direction, now }: {
   if (owner !== username) return <p role="status" className="text-sm text-muted">Atualizando carteira…</p>;
 
   return (
-    <div className="grid gap-8">
-      <Card className="grid gap-2">
+    <div className="grid gap-8 max-w-3xl mx-auto">
+      <Card className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted">Saldo disponível</p>
           <div className="md:hidden"><RedeemButton /></div>
         </div>
-        <p className="flex flex-wrap items-center gap-2 text-3xl font-semibold tabular-nums sm:text-4xl">
-          <Balance key={username} value={walletReady ? balance : initial.balance} /> <span aria-hidden="true" className="text-lg font-normal text-muted">Croins</span>
+        <p className="flex flex-wrap items-center gap-24 text-3xl font-semibold tabular-nums sm:text-4xl">
+          <Balance key={username} value={walletReady ? balance : initial.balance} /> <span aria-hidden="true" className="text-xl font-normal text-muted">Croins</span>
         </p>
       </Card>
       <section aria-labelledby="transactions-title">
