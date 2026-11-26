@@ -718,7 +718,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                 </div>
               </div>; })}
           </div>
-          <div className={cn("grid auto-rows-fr items-stretch gap-4", displayGame.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-3")}>
+          <div className={cn("grid auto-rows-fr items-stretch gap-4", displayGame.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]")}>
             {playerSeats.map(i => {
               const player = previewPlayers[i];
               const visiblePlayer = visibleGame.players[i];
