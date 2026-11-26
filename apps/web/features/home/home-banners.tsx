@@ -60,8 +60,9 @@ export function HomeBanners() {
       </Banner>
       <Banner className="bg-radial-[at_20%_-150%] from-secondary to-surface to-80%">
         <Heading variant="banner">Pegue seu <br/>bônus diário</Heading>
+        {countdown}
         <Button className="mt-5 bg-secondary text-white" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
-          {coolingDown ? `Próximo resgate em ${countdown}` : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar"}
+          {coolingDown ? "Só amanhã" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar"}
         </Button>
       </Banner>
     </section>

@@ -18,6 +18,7 @@ import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
 import { gameUrl } from "@/features/games/game-url";
+import { GameCover } from "@/features/games/game-cover";
 import { useGameLinks } from "@/features/games/game-links";
 import {
   MatchNavbarControls,
@@ -85,6 +86,8 @@ export function Topbar({
     };
   }, [pathname, sessionReady, userId]);
 
+  const game = games.find((item) => pathname === `/jogos/${item.slug}`);
+
   const pageTitle =
     (pathname.startsWith("/admin/") && permissions.canManageSite
       ? pathname.startsWith("/admin/conquistas/")
@@ -120,7 +123,7 @@ export function Topbar({
             )[pathname]
       : undefined) ??
     pages.find((page) => pathname === `/${page.slug}`)?.title ??
-    games.find((game) => pathname === `/jogos/${game.slug}`)?.name ??
+    game?.name ??
     (
       {
         "/admin": permissions.canManageSite ? "Admin" : "Página não encontrada",
@@ -225,6 +228,15 @@ export function Topbar({
 
         {isInternalPage && (
           <>
+            {game && (
+              <GameCover
+                imageUrl={game.imageUrl}
+                name={game.name}
+                className="size-11 shrink-0 rounded-md mr-2"
+                iconClassName="size-4"
+              />
+            )}
+
             <span
               className={cn(
                 "truncate text-sm font-medium md:text-base",

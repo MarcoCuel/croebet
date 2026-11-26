@@ -230,6 +230,22 @@ for (const slug of ["flip7", "love-letter", "solo"] as const) test(`hero ${slug}
   expect(observedOrders.size).toBeGreaterThan(1);
 });
 
+test("topbar exibe a capa do jogo ao lado do título na interna e na partida", async ({ page }) => {
+  game = { ...game, imageUrl: "/cover-fixture.svg" };
+  await page.route("**/cover-fixture.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="purple"/></svg>' }));
+  await page.goto("/jogos/flip7");
+  const topbar = page.getByRole("banner");
+  const cover = topbar.getByRole("img", { name: "Capa de Flip 7" });
+  const title = topbar.getByText("Flip 7", { exact: true });
+  await expect(cover).toBeVisible();
+  await expect(title).toBeVisible();
+  const [coverBox, titleBox] = await Promise.all([cover.boundingBox(), title.boundingBox()]);
+  expect(coverBox!.x + coverBox!.width).toBeLessThanOrEqual(titleBox!.x);
+  await page.evaluate(() => window.history.pushState(null, "", "/jogos/flip7?partida=ABCDEF123456"));
+  await expect(cover).toBeVisible();
+  await expect(title).toBeVisible();
+});
+
 test("lista administrativa edita o catálogo persistente e pausa sua publicação", async ({ page, browser }) => {
   await page.goto("/admin/jogos");
   const list = page.getByRole("list", { name: "Jogos", exact: true });

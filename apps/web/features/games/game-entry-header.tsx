@@ -17,7 +17,7 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
   const durationMinutes = game.averageDurationSeconds == null ? null : Math.max(1, Math.round(game.averageDurationSeconds / 60));
   return <Card aria-label="Apresentação do jogo" className="relative isolate overflow-hidden">
     {definition && <GameHeroCards gameId={game.moduleId ?? game.slug} />}
-    <div className="flex flex-col items-start gap-4 p-6 relative">
+    <div className="flex flex-col items-start gap-4 md:p-8 relative">
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="grid gap-3">
           {(definition || durationMinutes !== null) && <div className="flex flex-wrap gap-2" aria-label="Informações do jogo">
