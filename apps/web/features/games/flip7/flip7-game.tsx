@@ -18,7 +18,7 @@ import { useGameAudio } from "../use-game-audio";
 import { notifyTurn } from "../game-notifications";
 import { randomUUID } from "@/lib/uuid";
 
-import { useCallback, useMemo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useMemo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import gsap from "gsap";
 import { usePathname, useRouter } from "next/navigation";
 import { matchReplaySchema } from "@croebet/shared";
@@ -585,6 +585,19 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const automaticZero = game.mode === "vengeance" && current.cards.some(card => card.type === "zero");
   const playable = !sceneAnimating && !resolvingCardFinished && !automaticZero && !flight && !movingCards && game.phase === "playing" && !game.pending && !game.forced && game.bonusChoice == null && human && current.hasDrawn;
   const validTargets = targets(game);
+  const canChooseSeat = (seat: number) => !resolvingCardFinished && !flight && !movingCards && human
+    && (game.bonusChoice != null || (game.phase === "playing" && !!game.pending && validTargets.includes(seat)));
+  const chooseSeat = (seat: number) => {
+    if (game.bonusChoice != null && human) void send({ type: "bonus", target: game.bonusChoice === seat ? null : seat });
+    else if (human && validTargets.includes(seat)) void send({ type: "target", target: seat });
+  };
+  const seatActionLabel = (seat: number) => {
+    const name = displayGame.players[seat].name;
+    return game.bonusChoice != null ? (game.bonusChoice === seat ? `Ganhar 15 pontos para ${name}` : `Tirar 15 pontos de ${name}`)
+      : game.pending?.card.type === "steal" ? `${name} vai roubar`
+      : game.pending?.card.type === "remove" ? `${name} escolhe a carta para descartar`
+      : `Escolher ${name}`;
+  };
   const maxScore = Math.max(...displayGame.players.map(player => player.total));
   const winners = displayGame.players.filter(player => player.total === maxScore);
   const actionLabel = game.pending ? cardLabel(game.pending.card) : "";
@@ -694,11 +707,13 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
           {tableView.view === "3d" ? <FlipScene header={tableHeader} actions={actionBar} key={replay?.epoch ?? "live"} game={displayGame} summaryGame={sceneAnimating ? presentationBefore ?? game : game} localPlayer={!spectator} participants={tableParticipants} viewer={ownSeat ?? 0}
             interactive={!sceneAnimating && human} eligible={!resolvingCardFinished && !replay && ownSeat === game.pending?.source && actor.kind === "human" ? [...new Set(eligibleCards)] : []} targetSeats={!resolvingCardFinished && human ? validTargets : []} selected={selectedCards}
             onCard={id => { if (game.pending?.card.type === "swap") setSelectedCards(ids => ids.includes(id) ? [] : ids.length >= 2 ? [id] : [...ids, id]); else void send({ type: "cards", cards: [id] }); }}
-            onSeat={seat => { if (game.bonusChoice != null && human) void send({ type: "bonus", target: game.bonusChoice === seat ? null : seat }); else if (human && validTargets.includes(seat)) void send({ type: "target", target: seat }); }}
+            onSeat={chooseSeat}
             canDraw={playable && !exitOpen && !leaving} onDraw={() => void send({ type: "draw" })} status="" onAnimating={setSceneAnimating} animate={!!presentationBefore} held={resolvingCard} paused={replay?.paused} timeScale={replay ? 1000 / replay.delay : 1}>
           </FlipScene> : <>
           <div className="mb-6 flex w-full min-w-0 flex-wrap items-center justify-around gap-x-6 gap-y-4" aria-label="Usuários da partida">
-              {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
+              {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} data-player-seat={i}
+                {...(canChooseSeat(i) ? { onClick: () => chooseSeat(i) } : {})}
+                className={cn("flex min-w-0 max-w-full shrink-0 items-center gap-3 rounded-panel transition-shadow duration-300 ease-in-out motion-reduce:transition-none", canChooseSeat(i) && "cursor-pointer hover:shadow-[0_0_0_2px_var(--color-brand)] focus-within:shadow-[0_0_0_2px_var(--color-brand)]")}>
                 <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
                   <AvatarImage src={tableParticipants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
                   <AvatarFallback className="text-sm">
@@ -707,10 +722,24 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                 </Avatar>
                 <div className="min-w-0 space-y-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand")}>{player.name}</p>
+                    <p
+                      {...(canChooseSeat(i) ? {
+                        role: "button" as const,
+                        tabIndex: 0,
+                        title: seatActionLabel(i),
+                        "aria-label": `${seatActionLabel(i)} na lista de jogadores`,
+                        onClick: (event: ReactMouseEvent<HTMLParagraphElement>) => { event.stopPropagation(); chooseSeat(i); },
+                        onKeyDown: (event: KeyboardEvent<HTMLParagraphElement>) => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          chooseSeat(i);
+                        },
+                      } : {})}
+                      className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand", canChooseSeat(i) && "focus-visible:text-brand focus-visible:underline focus-visible:outline-none")}
+                    >{player.name}</p>
                     <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
                     {player.kind!=="human" && <Badge variant="secondary">Bot</Badge>}
-                    {!replay && matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/>}
+                    {!replay && matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <span onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/></span>}
                   </div>
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
                     <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
@@ -782,8 +811,8 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                   {modifiers.length > 0 && <div className={rowClass}>{modifiers.map(renderCard)}</div>}
                   <div className={rowClass}>{numeric.map(renderCard)}</div>
                 </div>
-                {!resolvingCardFinished && !flight && !movingCards && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={game.pending.card.type === "steal" ? `${player.name} vai roubar` : game.pending.card.type === "remove" ? `${player.name} escolhe a carta para descartar` : `Escolher ${player.name}`} title={game.pending.card.type === "steal" ? `${player.name} receberá a carta roubada` : game.pending.card.type === "remove" ? `${player.name} poderá escolher uma carta de qualquer mão` : `Escolher ${player.name}`} className="backdrop-blur-none absolute inset-0 size-full rounded-panel border border-field-border hover:border-brand hover:bg-brand/10" onClick={() => send({ type: "target", target: i })}>{game.pending.card.type === "steal" ? <span>{player.name} vai roubar</span> : game.pending.card.type === "remove" ? <span>{player.name} escolhe o descarte</span> : <span className="sr-only">Escolher {player.name}</span>}</Button>}
-                {!resolvingCardFinished && !flight && !movingCards && game.bonusChoice != null && human && <Button variant="ghost" aria-label={game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`} className="backdrop-blur-none absolute inset-0 size-full rounded-panel border border-field-border hover:border-brand hover:bg-brand/10" onClick={() => send({ type: "bonus", target: game.bonusChoice === i ? null : i })}><span className="sr-only">{game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`}</span></Button>}
+                {!resolvingCardFinished && !flight && !movingCards && game.phase === "playing" && game.pending && human && validTargets.includes(i) && <Button variant="ghost" aria-label={game.pending.card.type === "steal" ? `${player.name} vai roubar` : game.pending.card.type === "remove" ? `${player.name} escolhe a carta para descartar` : `Escolher ${player.name}`} title={game.pending.card.type === "steal" ? `${player.name} receberá a carta roubada` : game.pending.card.type === "remove" ? `${player.name} poderá escolher uma carta de qualquer mão` : `Escolher ${player.name}`} className="backdrop-blur-none absolute inset-0 size-full rounded-panel border border-field-border hover:border-brand hover:bg-brand/10" onClick={() => chooseSeat(i)}>{game.pending.card.type === "steal" ? <span>{player.name} vai roubar</span> : game.pending.card.type === "remove" ? <span>{player.name} escolhe o descarte</span> : <span className="sr-only">Escolher {player.name}</span>}</Button>}
+                {!resolvingCardFinished && !flight && !movingCards && game.bonusChoice != null && human && <Button variant="ghost" aria-label={game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`} className="backdrop-blur-none absolute inset-0 size-full rounded-panel border border-field-border hover:border-brand hover:bg-brand/10" onClick={() => chooseSeat(i)}><span className="sr-only">{game.bonusChoice === i ? `Ganhar 15 pontos para ${player.name}` : `Tirar 15 pontos de ${player.name}`}</span></Button>}
               </section>;
             })}
           </div>

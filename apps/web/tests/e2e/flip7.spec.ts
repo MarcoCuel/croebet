@@ -422,6 +422,36 @@ test("reconexões durante escolha pendente preservam alvo e enviam uma única de
   }finally{await peer.context.close();}
 });
 
+test("card da lista de jogadores escolhe a pessoa na ação pendente",async({page,browser})=>{
+  const peer=await second(browser);
+  try{
+    const code="ABCDEF112234";
+    const state=createGame(matchUsers.map(user=>({name:user.username,kind:"human" as const})),42,{mode:"classic",brutal:false});
+    const deck=createDeck("classic");
+    const take=(type:string,value?:number)=>deck.splice(deck.findIndex(card=>card.type===type && (value===undefined || card.value===value)),1)[0];
+    state.players[0].cards=[take("number",1)];state.players[1].cards=[take("number",2)];
+    state.players.forEach(player=>{player.hasDrawn=true;});
+    state.pending={source:1,card:take("freeze")};state.deck=deck;state.discard=[];state.turn=1;
+    flip7Driver.parse(state);
+    const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,game:"flip7",rulesVersion:1,version:1,status:"playing",state:flip7Driver.project(state),hostId:matchUsers[0].id,capacity:2,options:{mode:"classic",brutal:false},participants:matchUsers.map((user,seat)=>({userId:user.id,username:user.username,displayName:user.displayName,avatarUrl:null,seat}))});
+    fixture.states.set(code,{room,privateState:state,frames:[]});
+    await page.goto(`/jogos/flip7?partida=${code}`);await peer.page.goto(page.url());
+    const byName=peer.page.getByRole("button",{name:"Escolher Marco na lista de jogadores",exact:true});
+    const byPanel=peer.page.getByRole("button",{name:"Escolher Marco",exact:true});
+    const card=peer.page.locator('[data-player-seat="0"]');
+    await expect(byName).toBeEnabled();
+    await expect(byPanel).toBeEnabled();
+    await expect(card).toHaveCSS("cursor","pointer");
+    await card.hover();
+    await expect.poll(()=>card.evaluate(element=>getComputedStyle(element).boxShadow)).not.toBe("none");
+    await card.click();
+    await expect.poll(()=>fixture.commands.length).toBe(1);
+    const saved=fixture.states.get(code)!.room;
+    if(saved.status==="lobby")throw Error("Partida não iniciada");
+    expect(saved.state.players[0].status).toBe("frozen");
+  }finally{await peer.context.close();}
+});
+
 test("saída do host transfere a sala para o outro participante",async({page,browser})=>{
   await lobby(page);const peer=await second(browser);
   try{
