@@ -1049,6 +1049,42 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
   } finally { await peer.context.close(); }
 });
 
+test("som de vez toca quando a mesa entrega o controle, não na confirmação", async ({ page, browser }) => {
+  const code = "ABCDEF123456";
+  // Beto encerra a vez dele; a primeira carta de Marco é comprada automaticamente
+  // e a mesa só libera comprar/parar depois que ela chega.
+  const game = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
+  const deck = createDeck("classic");
+  const take = (value: number) => deck.splice(deck.findIndex(card => card.type === "number" && card.value === value), 1)[0];
+  const drawn = take(5);
+  game.players[0].cards = [];
+  game.players[1].cards = [take(3)];
+  game.players[1].hasDrawn = true;
+  game.deck = [...deck, drawn];
+  game.turn = 1;
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state: flip7Driver.project(game), hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  fixture.states.set(code, { room, privateState: game, frames: [] });
+  await recordTurnCue(page);
+  const peer = await second(browser);
+  try {
+    await page.goto(`/jogos/flip7?partida=${code}`);
+    const board = page.getByRole("region", { name: "Mesa de Flip7", exact: true });
+    await expect(board).toBeVisible();
+    // Libera e decodifica o áudio da mesa antes de a vez chegar.
+    await board.click({ position: { x: 5, y: 5 } });
+    await expect(page.locator("html")).toHaveAttribute("data-turn-audio", "ready");
+    await page.waitForTimeout(500);
+    await peer.page.goto(`/jogos/flip7?partida=${code}`);
+    await peer.page.getByRole("button", { name: "Parar", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Comprar", exact: true })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { turnCues: unknown[] }).turnCues.length)).toBe(1);
+    const [cue] = await page.evaluate(() => (window as unknown as { turnCues: { deckEnabled: boolean; flying: boolean }[] }).turnCues);
+    // O aviso acompanha a apresentação: nada em voo e comprar/parar já liberados.
+    expect(cue.flying).toBe(false);
+    expect(cue.deckEnabled).toBe(true);
+  } finally { await peer.context.close(); }
+});
+
 test("permite abandonar durante a animação da jogada de outra pessoa", async ({ page, browser }) => {
   const peer = await start(page, browser);
   try {
@@ -1084,6 +1120,40 @@ async function instrumentAudio(page: Page) {
       state.playedEffects++;
       state.cueEvents.push({ time: performance.now(), offset: args[1] ?? 0, duration: args[2] ?? 0, fileDuration: this.buffer?.duration ?? 0 });
       return original.apply(this, args);
+    };
+  });
+}
+
+// The turn cue belongs to the table: record when notification.mp3 starts and
+// whether the deck was already actionable at that instant.
+async function recordTurnCue(page: Page) {
+  await page.addInitScript(() => {
+    const state = window as unknown as { turnCues: { time: number; deckEnabled: boolean; flying: boolean }[] };
+    state.turnCues = [];
+    const data = new WeakSet<ArrayBuffer>();
+    const buffers = new WeakSet<AudioBuffer>();
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      if (String(args[0]).endsWith("/audio/notification.mp3")) {
+        const read = response.arrayBuffer.bind(response);
+        response.arrayBuffer = async () => { const bytes = await read(); data.add(bytes); return bytes; };
+      }
+      return response;
+    };
+    const decode = AudioContext.prototype.decodeAudioData;
+    AudioContext.prototype.decodeAudioData = async function (bytes) {
+      const buffer = await decode.call(this, bytes);
+      if (data.has(bytes)) { buffers.add(buffer); document.documentElement.dataset.turnAudio = "ready"; }
+      return buffer;
+    };
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
+      if (this.buffer && buffers.has(this.buffer)) {
+        const deck = document.querySelector<HTMLButtonElement>('[aria-label="Comprar carta do baralho"]');
+        state.turnCues.push({ time: performance.now(), deckEnabled: !!deck && !deck.disabled, flying: !!document.querySelector("[data-flying-card]") });
+      }
+      return start.apply(this, args);
     };
   });
 }

@@ -17,7 +17,7 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
   const durationMinutes = game.averageDurationSeconds == null ? null : Math.max(1, Math.round(game.averageDurationSeconds / 60));
   return <Card aria-label="Apresentação do jogo" className="relative isolate overflow-hidden">
     {definition && <GameHeroCards gameId={game.moduleId ?? game.slug} />}
-    <div className="flex flex-col items-start gap-4 md:p-8 relative">
+    <div className="flex flex-col items-start gap-4 relative">
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="grid gap-3">
           {(definition || durationMinutes !== null) && <div className="flex flex-wrap gap-2" aria-label="Informações do jogo">
@@ -25,7 +25,7 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
             {durationMinutes !== null && <Badge variant="secondary" className="gap-2"><Clock3 className="size-4" aria-hidden="true" />{durationMinutes} min.</Badge>}
             {development && <Badge>Desenvolvimento</Badge>}
           </div>}
-          <div className="flex flex-wrap items-center gap-3"><Heading variant="display">{game.name}</Heading></div>
+          <div className="flex flex-wrap items-center gap-3 mt-10"><Heading variant="display">{game.name}</Heading></div>
         </div>
         <GameModeSwitch moduleId={game.moduleId} slug={game.slug} development={development}/>
       </div>

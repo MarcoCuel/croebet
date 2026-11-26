@@ -36,7 +36,7 @@ export function HomeBanners() {
     .map(value => String(value).padStart(2, "0")).join(":");
   return (
     <section
-      className="grid gap-4 sm:grid-cols-2"
+      className="grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]"
       aria-label="Destaques da Croebet"
     >
       <Banner className="bg-brand">
@@ -49,21 +49,23 @@ export function HomeBanners() {
         </Heading>
         {username ? (
           <div className="flex flex-wrap gap-3">
-            <Button asChild className="bg-white text-brand">
+            <Button asChild className="bg-white/20 text-white">
               <Link href="/jogos">Ver jogos</Link>
             </Button>
           </div>
         ) : (
-          <Button aria-haspopup="dialog" onClick={openRegister} className="bg-white text-brand">
+          <Button aria-haspopup="dialog" onClick={openRegister} className="bg-white/20 text-white">
             Criar conta
           </Button>
         )}
       </Banner>
-      <Banner className="bg-surface">
-        <CroinBanner className="absolute inset-y-0 right-0 -z-10 flex w-[38%] items-center justify-center @[28rem]:w-[44%]" />
-        <Heading variant="banner">Pegue seu <br/>bônus diário</Heading>
+      <Banner className="bg-secondary">
+        <CroinBanner className="absolute -top-10 -right-24 -z-10 flex w-[80%] items-center justify-center xl:w-[60%]" />
+        <Heading variant="banner" className="text-white">
+          Pegue seu <br />bônus diário
+        </Heading>
         {countdown}
-        <Button className="mt-5 bg-secondary text-white" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
+        <Button className="mt-5 bg-white/30" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>
           {coolingDown ? "Só amanhã" : username && (!daily || !economy) ? "Tentar novamente" : "Resgatar"}
         </Button>
       </Banner>

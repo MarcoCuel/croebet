@@ -37,7 +37,7 @@ const clientSnapshot=()=>true;
 const serverSnapshot=()=>false;
 
 function SeatOutline() {
-  return <svg className="pointer-events-none absolute inset-0 size-full text-field-border" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
+  return <svg className="pointer-events-none absolute inset-0 size-full text-contrast/20" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
     <circle cx="32" cy="32" r="31.5" stroke="currentColor" strokeWidth="1" strokeDasharray="3 5" vectorEffect="non-scaling-stroke"/>
   </svg>;
 }

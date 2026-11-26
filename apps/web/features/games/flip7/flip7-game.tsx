@@ -562,15 +562,21 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const turnOwner = matchInfo?.participants.find(person => person.seat === turnSeat)?.userId;
   const ownsTurn = !replay && game?.phase === "playing" && turnOwner === userId && userId != null && game.players[turnSeat]?.kind === "human";
   const turnKey = ownsTurn ? `${game.round}:${turnSeat}` : null;
+  // The cue belongs to the table, not to the confirmed frame: the turn is
+  // announced when the player really receives control, after the previous action
+  // and the automatic first draw finish presenting. A hidden tab applies the
+  // snapshot directly, so it still hears the cue on arrival. Connection, busy
+  // and animation changes of the same turn never repeat the announcement.
+  const turnReady = ownsTurn && connected && !busy && !commandError && !frames.length && !sceneAnimating && !resolvingCardFinished && !flight && !movingCards
+    && (game.bonusChoice != null || !!game.pending || (!game.forced && game.players[game.turn].hasDrawn
+      && !(game.mode === "vengeance" && game.players[game.turn].cards.some(card => card.type === "zero"))));
   useEffect(() => {
     if (!ownsTurn) { notifiedTurn.current = null; return; }
-    // The turn is announced as soon as the confirmed decision belongs to the
-    // player. Presentation, connection or busy state never delay or repeat it.
-    if (!turnKey || notifiedTurn.current === turnKey) return;
+    if (!turnReady || notifiedTurn.current === turnKey) return;
     notifiedTurn.current = turnKey;
     playSound("turn");
     notifyTurn("Flip 7", matchInfo?.code ?? "", window.location.href);
-  }, [ownsTurn, turnKey, playSound, matchInfo?.code]);
+  }, [ownsTurn, turnReady, turnKey, playSound, matchInfo?.code]);
 
   const tableParticipants = useMemo(() => replay?.metadata.participants ?? matchInfo?.participants ?? initial.match?.participants ?? [], [replay?.metadata.participants, matchInfo?.participants, initial.match?.participants]);
   const displayGame = useMemo(() => game ? gameWithPlayerNames(game, tableParticipants) : null, [game, tableParticipants]);
