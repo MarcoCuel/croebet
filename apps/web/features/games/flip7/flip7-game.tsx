@@ -664,11 +664,12 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             {initial.match?.development && <Badge>Desenvolvimento</Badge>}
             {replay?.active && <><Badge variant="outline">Replay</Badge><Button size="sm" variant="ghost" className="ml-auto" onClick={() => router.push(gameUrl(gameSlug))}>Sair da reprodução</Button></>}
             {spectator && <Badge variant="outline">Espectador</Badge>}
-            </>, controls: <GameControls historyDisabled={!!flight || !!movingCards || sceneAnimating} audio={audio} developmentControls={testControls}>
-            <TableViewToggle view={tableView.view} disabled={!!flight || !!movingCards || sceneAnimating || busy} onChange={next => { stopSounds(); setPresentationBefore(null); setSelectedCards([]); setSwapPreview(null); tableView.setView(next); }} />
+            </>, controls: <GameControls historyDisabled={!!flight || !!movingCards || sceneAnimating} audio={audio} developmentControls={testControls} exit={<>
             {exitControl}
             {!exitControl && spectator && <Button size="icon" variant="ghost" title="Sair da visualização" aria-label="Sair da visualização" onClick={()=>router.push(gameUrl(gameSlug,{development:initial.match?.development && permissions.canManageSite}))}><LogOut className="size-4" aria-hidden="true"/></Button>}
             {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
+            </>}>
+            <TableViewToggle view={tableView.view} disabled={!!flight || !!movingCards || sceneAnimating || busy} onChange={next => { stopSounds(); setPresentationBefore(null); setSelectedCards([]); setSwapPreview(null); tableView.setView(next); }} />
             </GameControls> };
 
   const resultActions = <GameResultActions leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null || (matchInfo?.development && matchInfo.hostId === userId && permissions.canManageSite) ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />;

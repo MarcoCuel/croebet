@@ -6,23 +6,22 @@ import { startPublicApi } from "../public-api-fixture";
 import { matchesFixture, fixtureUser, matchUsers } from "../matches-api-fixture";
 
 async function openMatchOptions(page: Page) {
-  if ((page.viewportSize()?.width ?? 0) >= 1280) return;
   const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
   if (!await menu.isVisible()) await page.getByRole("button", { name: "Opções da partida", exact: true }).click();
   await expect(menu).toBeVisible();
 }
+function matchOptions(page: Page) {
+  return page.getByRole("menu", { name: "Opções da partida", exact: true });
+}
 async function closeMatchOptions(page: Page) {
-  const mobile = (page.viewportSize()?.width ?? 0) < 1280;
   const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
   const trigger = page.getByRole("button", { name: "Opções da partida", exact: true });
   if (await menu.isVisible()) {
     await trigger.click();
     if (await menu.isVisible()) await page.keyboard.press("Escape");
   }
-  if (mobile) {
-    await expect(menu).toBeHidden();
-    await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  }
+  await expect(menu).toBeHidden();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
 }
 
 let fixture:ReturnType<typeof matchesFixture>;
@@ -972,30 +971,18 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
   try {
     await openMatchOptions(page);
     const controls = page.getByLabel("Controles da partida", { exact: true });
+    const options = matchOptions(page);
     const exit = controls.getByRole("button", { name: "Abandonar partida", exact: true });
     await expect(exit).toHaveText("");
     await expect(controls.getByRole("button", { name: "Ajustar volume", exact: true })).toHaveCount(0);
-    const sound = controls.getByRole("button", { name: "Silenciar som", exact: true });
-    const volumeGroup = controls.getByRole("group", { name: "Volume", exact: true });
-    const volume = controls.getByRole("slider", { name: "Volume dos efeitos" });
-    await expect(volume).not.toBeVisible();
-    if (testInfo.project.name === "desktop") {
-      await sound.hover();
-      await expect(volume).toBeVisible();
-      await volume.hover();
-      await expect(volume).toBeVisible();
-      await exit.hover();
-      await expect(volume).not.toBeVisible();
-    }
+    const sound = options.getByRole("button", { name: "Silenciar som", exact: true });
+    const volumeGroup = options.getByRole("group", { name: "Volume", exact: true });
+    const volume = options.getByRole("slider", { name: "Volume dos efeitos" });
+    await expect(volume).toBeVisible();
     await sound.focus();
     await expect(volume).toBeVisible();
-    if (testInfo.project.name === "desktop") {
-      await page.keyboard.press("Tab");
-      await expect(volume).toBeFocused();
-    } else {
-      await volume.focus();
-      await expect(volume).toBeFocused();
-    }
+    await volume.focus();
+    await expect(volume).toBeFocused();
     await volume.press("Home");
     for (let step = 0; step < 6; step++) await volume.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
@@ -1003,17 +990,18 @@ test("controles da mesa persistem som e volume e sincronizam efeitos com cartas"
     await volume.press("ArrowLeft");
     await expect(volume).toHaveAttribute("aria-valuetext", "30%");
     await expect(volumeGroup.getByRole("button")).toHaveCount(1);
-    await controls.getByRole("button", { name: "Silenciar som", exact: true }).click();
-    await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toHaveAttribute("aria-pressed", "false");
+    await options.getByRole("button", { name: "Silenciar som", exact: true }).click();
+    await expect(options.getByRole("button", { name: "Ativar som", exact: true })).toHaveAttribute("aria-pressed", "false");
     await page.reload();
     await openMatchOptions(page);
-    await expect(controls.getByRole("button", { name: "Ativar som", exact: true })).toBeVisible();
+    await expect(options.getByRole("button", { name: "Ativar som", exact: true })).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { playedEffects: number }).playedEffects)).toBe(0);
-    await controls.getByRole("button", { name: "Ativar som", exact: true }).focus();
+    await options.getByRole("button", { name: "Ativar som", exact: true }).focus();
     await expect(volume).toHaveValue("30");
     await expect.poll(() => page.evaluate(() => (window as unknown as { decodedEffects: number }).decodedEffects)).toBe(14);
-    await controls.getByRole("button", { name: "Ativar som", exact: true }).click();
-    await expect(controls.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await options.getByRole("button", { name: "Ativar som", exact: true }).click();
+    await expect(options.getByRole("button", { name: "Silenciar som", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await closeMatchOptions(page);
     if (testInfo.project.name === "desktop") {
       const fullscreen = controls.getByRole("button", { name: "Tela cheia", exact: true });
       await fullscreen.click();
@@ -1073,8 +1061,9 @@ async function instrumentAudio(page: Page) {
 async function checkControlsDuringFlight(page: Page) {
   await openMatchOptions(page);
   const controls = page.getByLabel("Controles da partida", { exact: true });
-  const history = controls.getByRole("button", { name: "Esconder histórico", exact: true });
-  const views = controls.getByRole("group", { name: "Interface da mesa", exact: true }).getByRole("button");
+  const options = matchOptions(page);
+  const history = options.getByRole("button", { name: "Esconder histórico", exact: true });
+  const views = options.getByRole("group", { name: "Interface da mesa", exact: true }).getByRole("button");
   await expect(page.locator("[data-flying-card]")).toBeVisible();
   // Layout changes stay locked during the flight without dimming every move.
   for (const button of [history, ...await views.all()]) {
@@ -1085,7 +1074,7 @@ async function checkControlsDuringFlight(page: Page) {
     await expect(exit).toBeEnabled();
     await expect(exit).toHaveCSS("opacity", "1");
   }
-  await expect(controls.getByRole("button", { name: /^(Ativar som|Silenciar som)$/ })).toBeEnabled();
+  await expect(options.getByRole("button", { name: /^(Ativar som|Silenciar som)$/ })).toBeEnabled();
   await expect(page.locator("[data-flying-card]")).toHaveCount(0);
   await expect(history).toBeEnabled();
   for (const button of await views.all()) await expect(button).toBeEnabled();
@@ -1155,7 +1144,7 @@ test("replay anima e toca cartas, pausa sem avançar e centraliza o reprodutor",
 });
 
 
-test("mesa de teste leva badges e controles para a navbar e preserva suas ações",async({page},testInfo)=>{
+test("mesa de teste leva badges e controles para a navbar e preserva suas ações",async({page})=>{
  const code="ABCDEF991122";
  const state=flip7Driver.project(createGame(matchUsers.map(u=>({name:u.username,kind:"human" as const})),42,{mode:"vengeance",brutal:true}));
  const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,development:true,game:"flip7",rulesVersion:1,version:1,status:"playing",state,hostId:matchUsers[0].id,capacity:2,options:{mode:"vengeance",brutal:true},participants:matchUsers.map((u,seat)=>({userId:u.id,username:u.username,displayName:u.displayName,avatarUrl:null,seat}))});
@@ -1170,24 +1159,23 @@ test("mesa de teste leva badges e controles para a navbar e preserva suas açõe
  const table = page.getByRole("region",{name:"Mesa de Flip7"});
  await expect(table.getByText("Desenvolvimento",{exact:true})).toHaveCount(0);
  await expect(table.getByLabel("Controles da partida")).toHaveCount(0);
- const options = navbar.getByRole("button",{name:"Opções da partida",exact:true});
- if (testInfo.project.name === "mobile") await options.click();
  const controls = page.getByLabel("Controles da partida");
- await controls.getByRole("button",{name:"Silenciar som",exact:true}).click();
- await expect(controls.getByRole("button",{name:"Ativar som",exact:true})).toBeVisible();
- await controls.getByRole("button",{name:"Esconder histórico",exact:true}).click();
+ await expect(controls.getByRole("button",{name:"Sair da partida",exact:true})).toBeVisible();
+ const options = navbar.getByRole("button",{name:"Opções da partida",exact:true});
+ await options.click();
+ const menu = matchOptions(page);
+ await menu.getByRole("button",{name:"Silenciar som",exact:true}).click();
+ await expect(menu.getByRole("button",{name:"Ativar som",exact:true})).toBeVisible();
+ await menu.getByRole("button",{name:"Esconder histórico",exact:true}).click();
  await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeHidden();
- await controls.getByRole("button",{name:"Mostrar histórico",exact:true}).click();
+ await menu.getByRole("button",{name:"Mostrar histórico",exact:true}).click();
  await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeVisible();
- if (testInfo.project.name === "desktop") {
-   await expect(navbar.getByLabel("Controles da partida")).toBeVisible();
-   const before = await controls.boundingBox();
-   const bonus = navbar.getByRole("button",{name:"Bônus diário",exact:true});
-   if (await bonus.count()) expect(before!.x + before!.width).toBeLessThanOrEqual((await bonus.boundingBox())!.x);
- } else {
-   await page.keyboard.press("Escape");
-   await expect(options).toBeFocused();
- }
+ await expect(navbar.getByLabel("Controles da partida")).toBeVisible();
+ const before = await controls.boundingBox();
+ const bonus = navbar.getByRole("button",{name:"Bônus diário",exact:true});
+ if (await bonus.count()) expect(before!.x + before!.width).toBeLessThanOrEqual((await bonus.boundingBox())!.x);
+ await page.keyboard.press("Escape");
+ await expect(options).toBeFocused();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.goto("/jogos/flip7");
  await expect(navbar.locator("[data-match-identity]")).toHaveCount(0);
@@ -1474,8 +1462,7 @@ for (const view of ["classic", "3d"] as const) {
       await page.setViewportSize({ width, height: 560 });
       await verify();
     }
-    const matchOptions = page.getByRole("button", { name: "Opções da partida", exact: true });
-    if (await matchOptions.isVisible()) await matchOptions.click();
+    await openMatchOptions(page);
     await page.getByRole("button", { name: "Esconder histórico", exact: true }).click();
     await expect(history).toBeHidden();
     await page.getByRole("button", { name: "Mostrar histórico", exact: true }).click();

@@ -6,20 +6,26 @@ import { expect, test, type Page, type Locator } from "@playwright/test";
 import type { GameRecord, LoveView } from "@croebet/shared";
 
 async function openMatchOptions(page: Page) {
- if ((page.viewportSize()?.width ?? 0) >= 1280) return;
  const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
  if (!await menu.isVisible()) await page.getByRole("button", {name:"Opções da partida", exact:true}).click();
  await expect(menu).toBeVisible();
+}
+async function closeMatchOptions(page: Page) {
+ const menu = page.locator('[data-slot="dropdown-menu-content"][data-state="open"]');
+ const trigger = page.getByRole("button", {name:"Opções da partida", exact:true});
+ if (await menu.isVisible()) await trigger.click();
+ await expect(menu).toBeHidden();
+ await expect(trigger).toHaveAttribute("aria-expanded", "false");
 }
 
 async function checkTableControls(page: Page, table: Locator, desktop: boolean) {
  await openMatchOptions(page);
  const controls = page.getByLabel("Controles da partida", {exact:true});
+ const options = page.getByRole("menu", {name:"Opções da partida", exact:true});
  const fullscreen = controls.getByRole("button", {name:"Tela cheia", exact:true});
- const toggle = controls.getByRole("button", {name:"Esconder histórico", exact:true});
+ const toggle = options.getByRole("button", {name:"Esconder histórico", exact:true});
  await expect(fullscreen).toBeVisible();
  await expect(toggle).toHaveAttribute("aria-expanded", "true");
- expect(await toggle.evaluate(el => el.previousElementSibling?.getAttribute("aria-label"))).toBe("Tela cheia");
  const panel = page.getByRole("complementary", {name:"Histórico da partida"});
  await expect(toggle).toHaveAttribute("aria-controls", await panel.getAttribute("id") ?? "");
  if (desktop) {
@@ -28,14 +34,17 @@ async function checkTableControls(page: Page, table: Locator, desktop: boolean) 
   expect(panelBox!.width).toBeCloseTo(224, 0);
   expect(panelBox!.x).toBeGreaterThan(tableBox!.x + tableBox!.width);
  }
+ await closeMatchOptions(page);
  await fullscreen.click();
  await expect(controls.getByRole("button", {name:"Sair da tela cheia", exact:true})).toBeVisible();
  await expect(panel).toBeVisible();
  await controls.getByRole("button", {name:"Sair da tela cheia", exact:true}).click();
- await toggle.click();
+ await openMatchOptions(page);
+ await options.getByRole("button", {name:"Esconder histórico", exact:true}).click();
  await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toHaveCount(0);
  await page.getByRole("button",{name:"Mostrar histórico",exact:true}).click();
  await expect(page.getByRole("complementary",{name:"Histórico da partida"})).toBeVisible();
+ await closeMatchOptions(page);
 }
 
 const id = "93089d02-0b34-4b78-9d3e-f2679c190b5c";
@@ -1073,7 +1082,6 @@ test("resultado de teste Love Letter mostra tempo ativo e reproduz na barra comp
  await expect(page.getByText("Última jogada do teste.",{exact:true})).toBeVisible();
  await expect(controls.getByRole("button",{name:"Pausar",exact:true})).toHaveCount(0);
  expect(gameCommands).toEqual([]);
- await openMatchOptions(page);
  await page.getByRole("button",{name:"Voltar ao resultado"}).click();
  await expect(result).toBeVisible();
 });

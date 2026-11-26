@@ -228,7 +228,7 @@ export function Topbar({
             <span
               className={cn(
                 "truncate text-sm font-medium md:text-base",
-                compactMatch && "shrink-0",
+                compactMatch && "md:shrink-0",
               )}
             >
               {pageTitle}
