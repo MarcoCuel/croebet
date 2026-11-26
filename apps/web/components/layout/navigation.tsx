@@ -27,7 +27,7 @@ import { MatchNavbarProvider } from "./match-navbar";
 import { Topbar } from "./topbar";
 import { MenuLinks } from "./navigation-links";
 import { AppInstall } from "./app-install";
-import { FooterLinks } from "./footer";
+import { Footer } from "./footer";
 import { cn } from "@/lib/utils";
 import { brandLinkClass, Wordmark } from "./brand";
 
@@ -194,13 +194,8 @@ function NavigationLayout({ children }: { children: ReactNode }) {
 
                 <div className="mt-auto space-y-3 pb-[env(safe-area-inset-bottom)]">
                   {username && (
-                    <div
-                      className="space-y-3 border-t border-contrast/6 pt-4"
-                      aria-label="Atalhos da conta"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <DailyBonusButton />
-                      </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <DailyBonusButton />
                     </div>
                   )}
 
@@ -230,10 +225,7 @@ function NavigationLayout({ children }: { children: ReactNode }) {
                     </div>
                   )}
 
-                  <FooterLinks
-                    onNavigate={() => setMobileMenuOpen(false)}
-                    className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted"
-                  />
+                  <Footer></Footer>
                 </div>
               </div>
             </DialogContent>

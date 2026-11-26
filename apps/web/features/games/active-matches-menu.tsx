@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Bot, ChevronRight, Play } from "lucide-react";
+import { Bot, ChevronRight, Play, PlayingCardsFan } from "lucide-react";
 import { toast } from "sonner";
 import { getGameDefinition, personalMatchesSchema, type PersonalMatches } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
@@ -72,7 +72,7 @@ export function ActiveMatchesMenu() {
   const items = confirmed?.userId === userId ? confirmed.items : [];
   useLobbyExpiration(items);
   if (!items.length) return null;
-  const icon = <><Play className="size-4" aria-hidden="true" />{items.some(item => item.yourTurn) && <span className="absolute -right-1 -top-1 size-4 rounded-full bg-foreground" />}</>;
+  const icon = <><PlayingCardsFan className="size-5" aria-hidden="true" />{items.some(item => item.yourTurn) && <span className="absolute -right-0.5 -top-0.5 size-3 rounded-full bg-foreground" />}</>;
   if (items.length === 1) return <Button asChild variant="default" size="icon" className="relative bg-brand">
     <Link href={destination(items[0])} prefetch={false} aria-label={`Voltar à partida de ${items[0].gameName}`}>{icon}</Link>
   </Button>;
