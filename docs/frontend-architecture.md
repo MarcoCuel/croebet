@@ -135,6 +135,8 @@ Durante partidas de desenvolvimento, o cabeçalho de entrada e o switch não sã
 - `SceneCanvas` usa `frameloop="demand"`, DPR limitado, Suspense e fallback WebGL/erro. `useFrame` somente com animação real; animar refs, sem setState por frame, invalidando quando necessário. Ownership/descarte de modelos e materiais deve ser claro.
 - Materiais leem `--color-brand`. `CroinPreview` permanece como visualização interativa opcional; falha 3D não bloqueia o cadastro.
 
+- O banner de bônus da Home reutiliza `CroinModel` numa decoração sem controles: `three/scenes/croin-banner.tsx` carrega a cena por `next/dynamic` depois que a página fica ociosa, oculta a moeda de leitores de tela e não recebe ponteiros. A oscilação é lenta, pausa fora da tela e para em `prefers-reduced-motion`; texto, contagem e resgate do banner não dependem do 3D e permanecem inalterados se a cena falhar.
+
 O Solo usa `features/games/solo`, com apresentação na mesma mesa 3D, descarte central permanente, mãos adversárias ocultas e seleção de cor/alvo no topo. Recebe snapshots por destinatário para manter intervenções válidas durante os movimentos. A confirmação continua autoritativa na API; o cliente não transforma animações em regras de autorização.
 
 ### Laboratório de jogos

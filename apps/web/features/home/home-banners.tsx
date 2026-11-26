@@ -5,6 +5,7 @@ import { useEffect, useState, type ComponentProps } from "react";
 import { useSession } from "@/features/auth/session-context";
 import { Button } from "@/components/ui/button";
 import { Heading } from "@/components/shared/heading";
+import { CroinBanner } from "@/three/scenes/croin-banner";
 import { cn } from "@/lib/utils";
 
 function Banner({ className, ...props }: ComponentProps<"div">) {
@@ -48,17 +49,18 @@ export function HomeBanners() {
         </Heading>
         {username ? (
           <div className="flex flex-wrap gap-3">
-            <Button asChild>
+            <Button asChild className="bg-white text-brand">
               <Link href="/jogos">Ver jogos</Link>
             </Button>
           </div>
         ) : (
-          <Button aria-haspopup="dialog" onClick={openRegister}>
+          <Button aria-haspopup="dialog" onClick={openRegister} className="bg-white text-brand">
             Criar conta
           </Button>
         )}
       </Banner>
-      <Banner className="bg-radial-[at_20%_-150%] from-secondary to-surface to-80%">
+      <Banner className="bg-surface">
+        <CroinBanner className="absolute inset-y-0 right-0 -z-10 flex w-[38%] items-center justify-center @[28rem]:w-[44%]" />
         <Heading variant="banner">Pegue seu <br/>bônus diário</Heading>
         {countdown}
         <Button className="mt-5 bg-secondary text-white" onClick={username && (!daily || !economy) ? refreshWallet : claimDaily} disabled={coolingDown} loading={claimingDaily}>

@@ -186,6 +186,16 @@ test("modal de autenticação alterna modo, fecha por Escape e devolve o foco", 
   await expect(dialog).not.toBeVisible();
 });
 
+test("bônus diário mantém o Croin 3D decorativo fora do conteúdo e do clique", async ({ page }) => {
+  await page.goto("/");
+  const highlights = page.getByRole("region", { name: "Destaques da Croebet", exact: true });
+  const croin = highlights.getByTestId("croin-banner");
+  await expect(croin).toHaveAttribute("aria-hidden", "true");
+  await expect(croin.locator("canvas")).toBeVisible({ timeout: 15000 });
+  await highlights.getByRole("button", { name: "Resgatar", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("heading")).toHaveText("Entrar na Croebet");
+});
+
 test("tema persiste e System acompanha a preferência do sistema", async ({
   page,
 }) => {
