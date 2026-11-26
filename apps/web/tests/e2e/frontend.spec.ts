@@ -5,13 +5,16 @@ import { expect, test, type Page } from "@playwright/test";
 let closeApi: (() => Promise<void>) | undefined;
 let sockets: Server;
 let onlineCount = 8;
+let onlineCountDelay = 0;
 test.beforeAll(async () => {
   closeApi = await startPublicApi(() => account, undefined, server => {
     sockets = new Server(server, { path: "/api/v1/realtime", addTrailingSlash: false, transports: ["websocket"] });
     sockets.on("connection", socket => {
       socket.emit("personal-matches", { items: [] });
       socket.emit("invitations", { items: [] });
-      socket.emit("online-count", onlineCount);
+      const sendOnlineCount = () => socket.emit("online-count", onlineCount);
+      if (onlineCountDelay) setTimeout(sendOnlineCount, onlineCountDelay);
+      else sendOnlineCount();
       socket.on("request", (_value: unknown, ack: (reply: unknown) => void) => {
         ack({ ok: true, data: { items: [], onlineCount } });
       });
@@ -25,6 +28,7 @@ let account: { id: string; username: string; displayName: string; role: string }
 test.beforeEach(async ({ page }) => {
   account = null;
   onlineCount = 8;
+  onlineCountDelay = 0;
   await page.route("**/api/v1/**", route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -118,6 +122,19 @@ test("Topbar mostra usuários online somente na Home e no desktop", async ({ pag
   await expect.poll(() => sockets.sockets.sockets.size).toBe(0);
   await page.getByRole("link", { name: "Croebet, início", exact: true }).click();
   await expect(counter).toHaveText("9 online");
+});
+
+test("Topbar mantém notificações na Home enquanto a contagem de online carrega", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Contador é exclusivo do desktop");
+  onlineCountDelay = 2500;
+  await page.goto("/");
+  const counter = page.getByRole("status", { name: "Usuários online" });
+  const notifications = page.getByRole("button", { name: "Notificações", exact: true });
+  await expect(counter.locator("[data-slot='skeleton']")).toBeVisible();
+  await expect(counter).not.toHaveText(/online/);
+  await expect(notifications).toBeVisible();
+  await expect(counter).toHaveText("8 online", { timeout: 10000 });
+  await expect(notifications).toBeVisible();
 });
 
 test("Topbar acompanha a contagem quando a conexão autenticada já está aberta", async ({ page }, testInfo) => {

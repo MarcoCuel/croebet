@@ -25,7 +25,7 @@ export function NotificationsMenu({ invitations }: { invitations: LobbyInvitatio
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="end"
+        align="start"
         aria-label="Notificações"
         className="w-[26rem] max-h-[calc(100dvh-6rem)] overflow-y-auto p-1.5"
       >

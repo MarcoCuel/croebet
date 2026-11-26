@@ -11,6 +11,7 @@ import { Balance } from "@/features/wallet/balance";
 import { RedeemButton } from "@/features/wallet/redeem-button";
 import { DailyBonusButton } from "@/features/wallet/daily-bonus-button";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ActiveMatchesMenu } from "@/features/games/active-matches-menu";
 import { GeneralChat } from "@/features/chat/general-chat";
 import { NotificationsMenu } from "@/components/layout/notifications-menu";
@@ -189,17 +190,27 @@ export function Topbar({
           <Wordmark />
         </Link>
 
-        {!isInternalPage && onlineCount !== null && (
-          <div
-            role="status"
-            aria-label="Usuários online"
-            className="hidden items-center gap-2 whitespace-nowrap text-sm text-muted md:flex"
-          >
-            <span
-              className="size-2 shrink-0 rounded-full bg-tertiary"
-              aria-hidden="true"
-            />
-            <span className="tabular-nums">{onlineCount} online</span>
+        {!isInternalPage && (
+          <div className="hidden items-center gap-2 whitespace-nowrap text-sm text-muted md:flex">
+            <NotificationsMenu invitations={invitations} />
+
+            <div
+              role="status"
+              aria-label="Usuários online"
+              className="hidden items-center gap-2 whitespace-nowrap text-sm text-muted md:flex"
+            >
+              {onlineCount === null ? (
+                <Skeleton className="h-4 w-16" />
+              ) : (
+                <>
+                  <span
+                    className="size-2 shrink-0 rounded-full bg-tertiary"
+                    aria-hidden="true"
+                  />
+                  <span className="tabular-nums">{onlineCount} online</span>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -265,10 +276,6 @@ export function Topbar({
             <Suspense>
               <ActiveMatchesMenu />
             </Suspense>
-
-            <div className="hidden md:contents">
-              <NotificationsMenu invitations={invitations} />
-            </div>
 
             <div className="hidden lg:contents">
               <GeneralChat />
