@@ -14,6 +14,7 @@ import { realtimeSocket, retainRealtimeSocket } from "@/lib/realtime";
 import { gameUrl } from "./game-url";
 import { useLobbyExpiration } from "./lobby-expiration";
 import { useGameAudio } from "./use-game-audio";
+import { notifyTurn } from "./game-notifications";
 
 type Item = PersonalMatches["items"][number];
 const destination = (item: Item) => gameUrl(item.game, { code: item.code });
@@ -50,8 +51,11 @@ export function ActiveMatchesMenu() {
               Sua vez em {item.gameName}
             </Link>, { id: toastId(item.code), duration: 6000, closeButton: true });
           }
-          // Flip 7 announces the turn after its card animations finish.
-          if (location.current !== item.code || !getGameDefinition(item.game)?.tableTurnSound) play("notification");
+          // Flip 7 announces the turn itself; other games rely on this global alert.
+          if (location.current !== item.code || !getGameDefinition(item.game)?.media.turn) {
+            play("turn");
+            notifyTurn(item.gameName, item.code, destination(item));
+          }
         }
         turns.set(item.code, key);
       }

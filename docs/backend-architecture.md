@@ -229,9 +229,9 @@ Jogos com intervenções podem implementar `authorize(state, seat, action)` no d
 
 ### Adicionar um jogo
 
-1. Criar schemas de opções, ações e projeção pública em `packages/shared/src/<jogo>.ts`; exportar pelo índice. Registrar a definição e os schemas nas uniões de `game-registry.ts`. Definir valores iniciais, campos `select`/`switch`, dependências entre campos, limites por configuração e capacidades. A definição não contém segredos.
+1. Criar schemas de opções, ações e projeção pública em `packages/shared/src/<jogo>.ts`; exportar pelo índice. Registrar a definição e os schemas nas uniões de `game-registry.ts`. Definir valores iniciais, campos `select`/`switch`, dependências entre campos, limites por configuração e capacidades. Declarar `media` com `card` e `turn` habilitados; o padrão do registro exige som de carta e de vez, e desligar um slot só é válido com motivo declarado, coberto por teste. A definição não contém segredos.
 2. Implementar motor e driver em `apps/api/src/modules/games/<jogo>/` e registrar em `games/registry.ts`. Usar os drivers existentes como exemplos, sem copiar autenticação, SQL, lobby ou economia. `decision` informa vaga/chave de notificação; `projectFor` recebe somente a vaga ainda controlada pelo destinatário ou `null` para espectador. `outcome` informa vencedores e vagas humanas; o livro de Croins continua transacional na plataforma.
-3. Implementar a apresentação em `apps/web/features/games/<jogo>/module.tsx`, seguindo `game-module.ts`, e registrar em `registry.tsx` e `server-registry.ts`. `Table` recebe estado confirmado, controles e função de comando; `Entry` compõe a entrada oficial quando suportada. O lobby lê os campos declarados, sem condições por jogo. Usar os componentes existentes de cartas/mesa apenas quando a apresentação e o comportamento forem comuns.
+3. Implementar a apresentação em `apps/web/features/games/<jogo>/module.tsx`, seguindo `game-module.ts`, e registrar em `registry.tsx` e `server-registry.ts`. `Table` recebe estado confirmado, controles e função de comando; `Entry` compõe a entrada oficial quando suportada. O lobby lê os campos declarados, sem condições por jogo. Usar os componentes existentes de cartas/mesa e o runtime padrão de áudio/efeitos apenas quando a apresentação e o comportamento forem comuns; não criar catálogo paralelo de sons.
 4. Validar o contrato: automação até decisão humana/fim, ações ilegais, autorização da vaga, duplicação, versões obsoletas, projeções por destinatário, abandono, reconexão e proteção dos eventos. Adicionar integração em banco exclusivo de teste e E2E da apresentação. Cadastrar o jogo no admin após registrar o código; liberar modo oficial/Croins/replay somente quando os respectivos fluxos estiverem implementados e revisados.
 
 Para informação oculta, `snapshotOnly` recupera sempre a projeção atual por destinatário, sem reproduzir frames públicos como se fossem privados. `eventAction` deve remover escolhas sigilosas; os frames persistidos usam sempre a projeção de espectador. No Love Letter, ações nos eventos são marcadas como `step`, sem cartas privadas do Chanceler; recibos devolvem apenas confirmação. O Flip 7 mantém seus frames de apresentação e replay. Reconectar não executa motores nem reproduz ações no banco.
@@ -298,6 +298,17 @@ Priorizar a estabilização dos fluxos existentes antes de ampliar funcionalidad
 3. Ensaiar a restauração de backup em destino isolado, conferindo contas, saldos, históricos e imagens, e manter cópia externa protegida. Procedimentos e limites de rollback em [Produção independente no Mac](#produção-independente-no-mac).
 4. Para novas contribuições de jogos, seguir [Adicionar um jogo](#adicionar-um-jogo) e validar capacidades, privacidade, histórico e apresentação de replay antes de liberar cada recurso. O executor compartilhado já existe; SDK público e instalação de código pelo site continuam pendentes.
 5. Quando as apostas públicas forem retomadas, integrar palpite/débito/pote, apuração e pagamento separados. Preservar [regras aprovadas](../CROEBET.md#42-apostas), pagamentos idempotentes e devoluções atômicas; não importar palpites locais. Recuperação sem e-mail continua em aberto. Conquistas e rankings usam os registros existentes; critérios específicos de ações dos jogos continuam futuros.
+
+
+### Notificações push (pendente)
+
+As decisões de produto estão fechadas; a implementação depende de service worker, chaves VAPID e assinaturas por dispositivo, em migração incremental e sem alterar dados existentes. Regras acordadas:
+
+- O aviso de vez usa primeiro o som da mesa; com a aba oculta e permissão concedida, mostra também a notificação in-page. O push cobre página fechada, congelada ou com áudio suspenso, e é o mecanismo de segundo plano no celular (iOS exige o app instalado).
+- A permissão é solicitada somente em Configurações → Notificações, por gesto do usuário; o som local não depende dela.
+- O servidor decide o push pela mesma `decision` (`seat`/`key`) que alimenta o aviso de turno, com deduplicação por partida/conta/chave. Um heartbeat curto de atenção (visível + áudio utilizável) evita push quando o som local já resolveu o aviso.
+- O payload não carrega estado privado: jogo, código, título e destino. Clique abre a mesa; notificações da mesma partida usam `tag` para substituir, não empilhar.
+- Assinaturas inválidas (`404`/`410`) são removidas; o envio é best-effort e nunca bloqueia a transação da partida.
 
 ## Validação
 

@@ -308,7 +308,7 @@ test("Socket.IO reconecta sem reload e recupera a decisão recebida durante a qu
     expect(sockets.some(url=>new URL(url).pathname==="/api/v1/realtime")).toBe(true);
   }finally{await peer.context.close();}
 });
-test("navegação e aba oculta recuperam snapshot sem repetir ações ou sons",async({page,browser})=>{
+test("aba oculta toca o efeito e o retorno mostra o estado atual sem repetir",async({page,browser})=>{
   await instrumentAudio(page);
   const peer=await start(page,browser);
   try{
@@ -345,9 +345,14 @@ test("navegação e aba oculta recuperam snapshot sem repetir ações ou sons",a
     if(saved.status==="lobby")throw Error("Partida não iniciada");
     // Wait for the remote snapshot to be consumed while the tab is still hidden.
     await expect(page.locator('[data-player-hand="1"] [data-hand-card]')).toHaveCount(saved.state.players[1].cards.length);
+    // The confirmed action is heard even with the tab hidden.
+    await expect.poll(()=>page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects)).toBeGreaterThan(effects);
     await page.evaluate(()=>{Reflect.deleteProperty(document,"hidden");Reflect.deleteProperty(document,"visibilityState");document.dispatchEvent(new Event("visibilitychange"));});
     await expect(page.locator("[data-flying-card]")).toHaveCount(0);
-    expect(await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects)).toBe(effects);
+    const afterReturn=await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects);
+    // Returning shows the current state; it never replays queued animations or cues.
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects)).toBe(afterReturn);
     await page.reload();
     await expect(page.locator('[data-player-hand="1"] [data-hand-card]')).toHaveCount(saved.state.players[1].cards.length);
     expect(await page.evaluate(()=>(window as unknown as {playedEffects:number}).playedEffects)).toBe(0);

@@ -4,7 +4,7 @@ export { PlayingCard } from "./playing-card";
 import dynamic from "next/dynamic";
 import { TableViewToggle, useTableView } from "../table-view";
 import { rememberStart } from "./api";
-import { flip7OptionsSchema, roomSyncSchema } from "@croebet/shared";
+import { flip7OptionsSchema, matchSchema, roomSyncSchema } from "@croebet/shared";
 import { gameUrl } from "../game-url";
 import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
@@ -14,6 +14,7 @@ import { GameTableLayout } from "../game-table-layout";
 import { MatchHeader } from "@/components/layout/match-navbar";
 import { GameControls } from "../game-controls";
 import { useGameAudio } from "../use-game-audio";
+import { notifyTurn } from "../game-notifications";
 import { randomUUID } from "@/lib/uuid";
 
 import { useCallback, useMemo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -116,7 +117,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const router = useRouter();
   const tableView = useTableView("flip7");
   const [sceneAnimating, setSceneAnimating] = useState(false);
-  const audio = useGameAudio();
+  const audio = useGameAudio("game", initial.match?.game ?? null);
   const { play: playSound, stop: stopSounds } = audio;
   const pathname = usePathname();
   const gameSlug = initial.match?.game ?? pathname.slice("/jogos/".length);
@@ -184,6 +185,44 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const [selectedCards, setSelectedCards] = useState<number[]>([]);
   const [swapPreview, setSwapPreview] = useState<number[] | null>(null);
   const [movingCards, setMovingCards] = useState<CardMovement[] | null>(null);
+  // A hidden tab still consumes confirmed events, but never renders a backlog.
+  // Returning applies the newest snapshot, without repeating past cues.
+  const snapToLatest = useCallback(() => {
+    stopSounds();
+    for (const timeline of animationTimelines.current) timeline.kill();
+    animationTimelines.current.clear();
+    let latest = serverMatch.current;
+    const incomingRoom = incoming.current?.room;
+    if (incomingRoom && (!latest || incomingRoom.version > latest.version)) {
+      const parsed = matchSchema.safeParse(incomingRoom);
+      if (parsed.success) latest = parsed.data;
+    }
+    incoming.current = null;
+    locked.current = false;
+    if (latest) {
+      receivedVersion.current = latest.version;
+      presentedVersion.current = latest.version;
+      serverMatch.current = latest;
+      setMatchInfo(latest);
+      gameRef.current = latest.state;
+      setGame(latest.state);
+      setResolvingCard(forcedActionPresentation(latest.state));
+    }
+    setFrames([]);
+    setFlight(null);
+    setMovingCards(null);
+    setPresentationBefore(null);
+    setSwapPreview(null);
+    setSelectedCards([]);
+    setLanded(false);
+    setSceneAnimating(false);
+  }, [stopSounds]);
+  useEffect(() => {
+    if (replay) return;
+    const sync = () => snapToLatest();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, [replay, snapToLatest]);
   useEffect(() => {
     if (replay || game?.phase !== "over" || resolvingCard || flight || movingCards || sceneAnimating) return;
     const timeout = window.setTimeout(() => setResultReady(true), 1500);
@@ -201,7 +240,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
       setSceneAnimating(true);
       const held = forcedActionPresentation(next);
       if (held) setResolvingCard(held);
-      if (action.type === "draw" || action.type === "step" || action.type === "cards" || action.type === "target") playSound("slide");
+      if (action.type === "draw" || action.type === "step" || action.type === "cards" || action.type === "target") playSound("card");
       gameRef.current = next; setGame(next); return;
     }
     const captureHand = (target: number) => {
@@ -396,7 +435,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
         .to(ghost, { x: staging.left - bounds.left, y: staging.top - bounds.top, scale: 1, duration: revealDuration, ease: "power2.out" }, extractionDuration)
         .to(ghost, { x: target.left - bounds.left, y: target.top - bounds.top, scale: target.width / ghost.offsetWidth, duration: reduced || flight.parked ? 0 : drawTiming.delivery, ease: "power2.inOut" }, departure);
     }
-    timeline.call(() => playSound("slide"), [], 0);
+    timeline.call(() => playSound("card"), [], 0);
     timeline.call(() => setLanded(true));
     if (flight.consumedChance) {
       const protection = board.querySelector<HTMLElement>(`[data-flight-card="${flight.consumedChance.id}"]`);
@@ -430,7 +469,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     const board = boardRef.current;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const timeline = gsap.timeline({ onComplete: () => { locked.current = false; setMovingCards(null); } });
-    timeline.call(() => playSound(movingCards.some(card => card.target === null) ? "discard" : "slide"), [], 0);
+    timeline.call(() => playSound(movingCards.some(card => card.target === null) ? "discard" : "card"), [], 0);
     const timelines = animationTimelines.current;
     timelines.add(timeline);
     for (const movement of movingCards) {
@@ -494,8 +533,17 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     // Fill a gap from persisted events. Large gaps reload a confirmed snapshot.
     const fresh=sync.frames.filter(frame=>frame.version>receivedVersion.current);
     const complete=!sync.reset && fresh.length>0 && fresh[0].version===receivedVersion.current+1 && fresh.at(-1)?.version===sync.room.version;
-    if(!complete || fresh.length>12 || document.visibilityState==="hidden"){
+    const hidden=document.visibilityState==="hidden";
+    if(!complete || fresh.length>12 || hidden){
+      // A hidden tab still hears its actions once, at arrival. A gap or an
+      // oversized batch is a snapshot: silence, because it is past playback.
+      const live=hidden && complete && fresh.length>0 && fresh.length<=2;
+      const discarded=!!serverMatch.current && sync.room.state.discard.length>serverMatch.current.state.discard.length;
       stopSounds();
+      if(live){
+        if(fresh.some(frame=>frame.action.type==="draw" || frame.action.type==="step" || frame.action.type==="cards" || frame.action.type==="target")) playSound("card");
+        if(discarded) playSound("discard");
+      }
       // Recover directly to the confirmed snapshot instead of replaying a long
       // animation backlog after a slow connection or a suspended browser tab.
       receivedVersion.current=sync.room.version;serverMatch.current=sync.room;presentedVersion.current=sync.room.version;
@@ -506,23 +554,22 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
     receivedVersion.current=sync.room.version;serverMatch.current=sync.room;
     setMatchInfo(sync.room);
     pendingCommand.current=null;setCommandError("");setFrames(fresh);
-  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet,gameSlug,sceneAnimating]);
+  },[liveRevision,busy,frames,flight,movingCards,resolvingCardFinished,router,stopSounds,refreshWallet,gameSlug,sceneAnimating,playSound]);
 
   const notifiedTurn = useRef<string | null>(null);
   const turnSeat = game ? game.bonusChoice ?? game.pending?.source ?? game.turn : -1;
   const turnOwner = matchInfo?.participants.find(person => person.seat === turnSeat)?.userId;
   const ownsTurn = !replay && game?.phase === "playing" && turnOwner === userId && userId != null && game.players[turnSeat]?.kind === "human";
   const turnKey = ownsTurn ? `${game.round}:${turnSeat}` : null;
-  const turnReady = ownsTurn && connected && !sceneAnimating && !busy && !frames.length && !commandError && !flight && !movingCards && !resolvingCardFinished &&
-    (game.bonusChoice != null || !!game.pending || (!game.forced && game.players[game.turn].hasDrawn && !(game.mode === "vengeance" && game.players[game.turn].cards.some(card => card.type === "zero"))));
   useEffect(() => {
     if (!ownsTurn) { notifiedTurn.current = null; return; }
-    // Busy, animation and connection changes during the same turn must not
-    // announce it again. Wait until the confirmed action is available.
-    if (!turnReady || notifiedTurn.current === turnKey) return;
+    // The turn is announced as soon as the confirmed decision belongs to the
+    // player. Presentation, connection or busy state never delay or repeat it.
+    if (!turnKey || notifiedTurn.current === turnKey) return;
     notifiedTurn.current = turnKey;
-    playSound("notification");
-  }, [ownsTurn, turnReady, turnKey, playSound]);
+    playSound("turn");
+    notifyTurn("Flip 7", matchInfo?.code ?? "", window.location.href);
+  }, [ownsTurn, turnKey, playSound, matchInfo?.code]);
 
   const tableParticipants = useMemo(() => replay?.metadata.participants ?? matchInfo?.participants ?? initial.match?.participants ?? [], [replay?.metadata.participants, matchInfo?.participants, initial.match?.participants]);
   const displayGame = useMemo(() => game ? gameWithPlayerNames(game, tableParticipants) : null, [game, tableParticipants]);

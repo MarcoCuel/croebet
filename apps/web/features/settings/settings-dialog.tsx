@@ -22,10 +22,11 @@ import { useTheme } from "@/features/theme/theme-provider";
 import { authRequest } from "@/features/auth/api";
 import { changePasswordSchema } from "@croebet/shared";
 import { AccountHistoryPanel } from "@/features/settings/account-history";
+import { notificationState, notifyTest, requestNotifications, type NotificationState } from "@/features/games/game-notifications";
 import { BalanceValue } from "@/features/wallet/balance";
 import { cn } from "@/lib/utils";
 
-const sections = ["Geral", "Aparência", "Conta", "Histórico"] as const;
+const sections = ["Geral", "Aparência", "Notificações", "Conta", "Histórico"] as const;
 const themes = [
   { value: "light", label: "Claro", icon: Sun },
   { value: "dark", label: "Escuro", icon: Moon },
@@ -151,6 +152,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+        {section === "Notificações" && <NotificationSettings />}
         {section === "Conta" && (
           <div className="grid gap-6">
             <AvatarSettings />
@@ -166,6 +168,34 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
       </section>
     </>
   );
+}
+
+function NotificationSettings() {
+  const [state, setState] = useState<NotificationState>(() => notificationState());
+  useEffect(() => {
+    const sync = () => setState(notificationState());
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    return () => { window.removeEventListener("focus", sync); document.removeEventListener("visibilitychange", sync); };
+  }, []);
+  const labels: Record<NotificationState, string> = {
+    unsupported: "Não disponível nesta conexão.",
+    default: "Ainda não solicitadas.",
+    granted: "Ativadas neste navegador.",
+    denied: "Bloqueadas. Libere nas configurações do navegador.",
+  };
+  return <div className="grid gap-5">
+    <p className="text-sm text-muted">Avisos de vez aparecem no computador ou celular quando a aba está em segundo plano. O som da partida continua independente desta permissão.</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel bg-contrast/3 px-4 py-3 text-sm">
+      <span>Notificações</span>
+      <span className="text-muted" role="status">{labels[state]}</span>
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <Button size="sm" disabled={state === "unsupported" || state === "granted"} onClick={() => void requestNotifications().then(setState)}>Ativar notificações</Button>
+      <Button size="sm" variant="secondary" disabled={state !== "granted"} onClick={() => { if (!notifyTest()) toast.error("Não foi possível mostrar a notificação."); }}>Enviar teste</Button>
+    </div>
+    <p className="text-xs text-muted">Com o site fechado, o aviso chega pela próxima etapa (push), inclusive no app instalado no celular.</p>
+  </div>;
 }
 
 function AccountIdentity() {

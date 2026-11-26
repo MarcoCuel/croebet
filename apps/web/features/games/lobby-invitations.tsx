@@ -32,7 +32,7 @@ export function useLobbyInvitations() {
       for(const invite of data.items)if(!shown.has(invite.code)){
         const id=toast.custom(()=> <div role="alert" className="min-w-0 flex-1"><Invitation invite={invite} onRespond={()=>toast.dismiss(id)}/></div>,{duration:Infinity});
         shown.set(invite.code,id);
-        play("notification");
+        play("invite");
       }
     }
     async function refresh(){

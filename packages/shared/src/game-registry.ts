@@ -10,10 +10,18 @@ export type SettingField = {
   visibleWhen?: {key:string;value:string};
   reset?: Record<string,boolean>;
 };
+export type GameMedia = {
+  /** Efeito padrão de movimento de carta (compra, troca, roubo). */
+  card: boolean;
+  /** Aviso de que a decisão atual pertence ao jogador. */
+  turn: boolean;
+  /** Obrigatório quando algum slot está desligado; nunca silencia sem justificativa. */
+  reason?: string;
+};
 export type GameDefinition = {
   options: z.ZodType; action: z.ZodType; view: z.ZodType;
   defaults: Record<string,string|boolean>;
-  developmentOnly: boolean; croins: boolean; replay: boolean; kickDuringPlay:boolean; tableTurnSound:boolean;
+  developmentOnly: boolean; croins: boolean; replay: boolean; kickDuringPlay:boolean; media:GameMedia;
   minPlayers: number; maxPlayers: (options:unknown)=>number;
   settings: SettingField[];
 };
@@ -22,7 +30,7 @@ export type GameDefinition = {
 export const gameDefinitions = {
   flip7: {
     options:flip7OptionsSchema, action:flip7ActionSchema, view:flip7ViewSchema,
-    defaults:{mode:"classic",brutal:false}, developmentOnly:false,croins:true,replay:true,kickDuringPlay:true,tableTurnSound:true,
+    defaults:{mode:"classic",brutal:false}, developmentOnly:false,croins:true,replay:true,kickDuringPlay:true,media:{card:true,turn:true},
     minPlayers:2,maxPlayers:()=>12,
     settings:[
       {key:"mode",label:"Modo",ariaLabel:"Modo do Flip7",type:"select",reset:{brutal:false},choices:[{value:"classic",label:"Clássico"},{value:"vengeance",label:"A vingança nunca é plena",shortLabel:"Vingança"}]},
@@ -31,13 +39,13 @@ export const gameDefinitions = {
   },
   "love-letter": {
     options:loveOptionsSchema,action:loveActionSchema,view:loveViewSchema,
-    defaults:{mode:"classic",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,tableTurnSound:false,
+    defaults:{mode:"classic",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,media:{card:false,turn:false,reason:"Sons da mesa pendentes; o aviso global de vez cobre o turno."},
     minPlayers:2,maxPlayers:(options:unknown)=>loveOptionsSchema.parse(options).mode==="classic"?4:6,
     settings:[{key:"mode",label:"Modo",ariaLabel:"Modo do Love Letter",type:"select",choices:[{value:"classic",label:"Clássico"},{value:"modern",label:"Moderno"}]}],
   },
   solo: {
     options:soloOptionsSchema,action:soloActionSchema,view:soloViewSchema,
-    defaults:{mode:"single",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,tableTurnSound:true,
+    defaults:{mode:"single",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,media:{card:false,turn:false,reason:"Sons da mesa pendentes; o aviso global de vez cobre o turno."},
     minPlayers:2,maxPlayers:()=>10,
     settings:[{key:"mode",label:"Duração",type:"select",choices:[{value:"single",label:"Uma rodada"},{value:"rounds3",label:"3 rodadas"},{value:"rounds4",label:"4 rodadas"},{value:"points100",label:"100 pontos"},{value:"points250",label:"250 pontos"},{value:"points500",label:"500 pontos"}]}],
   },
@@ -54,6 +62,11 @@ export const gameEventActionSchema=z.union([flip7EventActionSchema,loveActionSch
 export type GameView=z.infer<typeof flip7ViewSchema>|z.infer<typeof loveViewSchema>|z.infer<typeof soloViewSchema>;
 export function getGameDefinition(slug:string):GameDefinition|null {
   return Object.hasOwn(gameDefinitions,slug)?gameDefinitions[slug as GameId]:null;
+}
+/** Standard media applied when a game does not override a slot. */
+export const standardGameMedia:GameMedia = { card:true, turn:true };
+export function gameMedia(slug:string|null|undefined):GameMedia {
+  return (slug ? getGameDefinition(slug)?.media : null) ?? standardGameMedia;
 }
 export function settingValue(options:unknown,key:string):unknown {
   return options && typeof options==="object"?Reflect.get(options,key):undefined;
