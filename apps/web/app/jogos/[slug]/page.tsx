@@ -56,7 +56,7 @@ export default async function Game({ params, searchParams }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-4"><Badge variant="secondary">Em breve</Badge><GameModeSwitch slug={slug}/></div>
       <Heading variant="display" asChild><h1>{game.name}</h1></Heading>
       {game.description && <p className="whitespace-pre-line text-muted">{game.description}</p>}
-      <p className="text-sm text-muted">Este jogo está em desenvolvimento.</p>
+      <p>Ainda em desenvolvimento</p>
     </Card></PageShell>;
   }
   const initial = data ? archivedInitial ?? (loadInitial?await loadInitial(query.partida):null) : null;

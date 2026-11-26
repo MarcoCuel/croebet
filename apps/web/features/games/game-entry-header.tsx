@@ -21,10 +21,11 @@ export function GameEntryHeader({ game, actions, development=false }: { game: Pi
       <div className="flex w-full flex-wrap items-start justify-between gap-4">
         <div className="grid gap-3">
           {(definition || durationMinutes !== null) && <div className="flex flex-wrap gap-2" aria-label="Informações do jogo">
-            {definition && <Badge variant="secondary" className="gap-3"><UsersRound className="size-4" aria-hidden="true" />{definition.minPlayers} / {maxGamePlayers(definition, definition.defaults)}</Badge>}
-            {durationMinutes !== null && <Badge variant="secondary" className="gap-3"><Clock3 className="size-4" aria-hidden="true" />{durationMinutes} min.</Badge>}
+            {definition && <Badge variant="secondary" className="bg-secondary text-white gap-2"><UsersRound className="size-4" aria-hidden="true" />{definition.minPlayers} / {maxGamePlayers(definition, definition.defaults)}</Badge>}
+            {durationMinutes !== null && <Badge variant="secondary" className="gap-2"><Clock3 className="size-4" aria-hidden="true" />{durationMinutes} min.</Badge>}
+            {development && <Badge>Desenvolvimento</Badge>}
           </div>}
-          <div className="flex flex-wrap items-center gap-3"><Heading variant="display">{game.name}</Heading>{development && <Badge>Desenvolvimento</Badge>}</div>
+          <div className="flex flex-wrap items-center gap-3"><Heading variant="display">{game.name}</Heading></div>
         </div>
         <GameModeSwitch moduleId={game.moduleId} slug={game.slug} development={development}/>
       </div>
