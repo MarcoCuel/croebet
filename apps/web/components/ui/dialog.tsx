@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,13 @@ export function DialogContent({
   children,
   variant,
   showCloseButton = true,
+  footer,
   ...props
 }: ComponentProps<typeof DialogPrimitive.Content> &
-  VariantProps<typeof contentVariants> & { showCloseButton?: boolean }) {
+  VariantProps<typeof contentVariants> & {
+    showCloseButton?: boolean;
+    footer?: ReactNode;
+  }) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
@@ -43,17 +47,39 @@ export function DialogContent({
       />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        className={cn(contentVariants({ variant }), className)}
+        className={cn(
+          contentVariants({ variant }),
+          footer != null && "flex flex-col overflow-hidden p-0",
+          className,
+        )}
         data-lenis-prevent
         {...props}
       >
-        {children}
+        {footer != null ? (
+          <>
+            <div
+              data-slot="dialog-body"
+              className="min-h-0 flex-1 overflow-y-auto p-6"
+              data-lenis-prevent
+            >
+              {children}
+            </div>
+            <div
+              data-slot="dialog-footer"
+              className="shrink-0 border-t border-contrast/6 px-6 py-4"
+            >
+              {footer}
+            </div>
+          </>
+        ) : (
+          children
+        )}
         {showCloseButton && (
           <DialogPrimitive.Close asChild>
             <Button
               variant="secondary"
               size="icon-sm"
-              className="absolute top-3 right-3"
+              className="absolute top-3 right-3 z-10"
               aria-label="Fechar"
             >
               <X className="size-4" aria-hidden="true" />

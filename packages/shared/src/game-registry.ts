@@ -39,13 +39,13 @@ export const gameDefinitions = {
   },
   "love-letter": {
     options:loveOptionsSchema,action:loveActionSchema,view:loveViewSchema,
-    defaults:{mode:"classic",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,media:{card:false,turn:false,reason:"Sons da mesa pendentes; o aviso global de vez cobre o turno."},
+    defaults:{mode:"classic",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,media:{card:true,turn:true},
     minPlayers:2,maxPlayers:(options:unknown)=>loveOptionsSchema.parse(options).mode==="classic"?4:6,
     settings:[{key:"mode",label:"Modo",ariaLabel:"Modo do Love Letter",type:"select",choices:[{value:"classic",label:"Clássico"},{value:"modern",label:"Moderno"}]}],
   },
   solo: {
     options:soloOptionsSchema,action:soloActionSchema,view:soloViewSchema,
-    defaults:{mode:"single",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,media:{card:false,turn:false,reason:"Sons da mesa pendentes; o aviso global de vez cobre o turno."},
+    defaults:{mode:"single",brutal:false},developmentOnly:true,croins:false,replay:true,kickDuringPlay:false,media:{card:true,turn:true},
     minPlayers:2,maxPlayers:()=>10,
     settings:[{key:"mode",label:"Duração",type:"select",choices:[{value:"single",label:"Uma rodada"},{value:"rounds3",label:"3 rodadas"},{value:"rounds4",label:"4 rodadas"},{value:"points100",label:"100 pontos"},{value:"points250",label:"250 pontos"},{value:"points500",label:"500 pontos"}]}],
   },

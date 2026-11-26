@@ -9,6 +9,7 @@ import { gameUrl } from "../game-url";
 import {CancellationNotice,proposeCancellation} from "../match-cancellation";
 import { Flip7ReplayControls, useFlip7Replay, type ResultMetadata } from "./flip7-replay";
 import { Flip7Result } from "./flip7-result";
+import { GameResultActions } from "../game-result";
 import { GameActionBar, GameDrawActions, GameActionShortcuts } from "../game-action-bar";
 import { GameTableLayout } from "../game-table-layout";
 import { MatchHeader } from "@/components/layout/match-navbar";
@@ -647,6 +648,8 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             {!exitControl && !replay && !spectator && game.phase !== "over" && <Button size="icon" variant="ghost" title="Abandonar partida" aria-label="Abandonar partida" disabled={leaving} onClick={event => { exitTriggerRef.current = event.currentTarget; setExitOpen(true); }}><LogOut className="size-4" aria-hidden="true" /></Button>}
             </GameControls> };
 
+  const resultActions = <GameResultActions leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null || (matchInfo?.development && matchInfo.hostId === userId && permissions.canManageSite) ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />;
+
   return (
     <Surface ref={boardRef} className="relative isolate @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
       <GameActionShortcuts onDraw={playable && !exitOpen && !leaving ? () => { void send({ type: "draw" }); } : undefined} onStop={playable && !exitOpen && !leaving && canStay(current, game) ? () => { void send({ type: "stay" }); } : undefined} />
@@ -783,8 +786,8 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
         </div>
       </GameTableLayout>
       <Dialog open={game.phase === "over" && resultReady && !flight && !movingCards && !sceneAnimating && !exitOpen && !resultDismissed} onOpenChange={open => setResultDismissed(!open)}>
-        <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))] overflow-y-auto" data-lenis-prevent onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
-          <Flip7Result game={displayGame} match={replay?.metadata ?? matchInfo} leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null || (matchInfo?.development && matchInfo.hostId === userId && permissions.canManageSite) ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />
+        <DialogContent className="max-h-[85dvh] w-[min(36rem,calc(100%-2rem))]" data-lenis-prevent footer={resultActions} onCloseAutoFocus={event => { event.preventDefault(); resultTriggerRef.current?.focus(); }}>
+          <Flip7Result game={displayGame} match={replay?.metadata ?? matchInfo} />
         </DialogContent>
       </Dialog>
       <Dialog open={exitOpen} onOpenChange={open => { if (!open) setExitOpen(false); }}>

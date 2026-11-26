@@ -2,6 +2,7 @@ import type {ReactNode,ComponentType} from "react";
 import type {GameAction,GameRecord,GameRoom} from "@croebet/shared";
 import type {GameResultSummary} from "./game-result";
 import type {InitialMatches} from "./server-matches";
+import type {useGameAudio} from "./use-game-audio";
 
 export type GameTableProps = {
   game:GameRecord; room:Exclude<GameRoom,{status:"lobby"}>;
@@ -9,6 +10,7 @@ export type GameTableProps = {
   play:(action:GameAction)=>Promise<void>;
   replayControls?:ReactNode;
   onAnimating?:(busy:boolean)=>void;
+  audio?:ReturnType<typeof useGameAudio>;
 };
 export type GamePresentation = {
   managesLive:boolean;

@@ -3,6 +3,7 @@ import { gameImageSchema } from "./games.js";
 import { matchCodeSchema } from "./matches.js";
 export * from "./matches.js";
 export * from "./realtime.js";
+export * from "./push.js";
 export * from "./rich-text.js";
 export * from "./pages.js";
 export * from "./seo.js";

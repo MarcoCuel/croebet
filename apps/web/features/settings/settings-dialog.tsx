@@ -23,6 +23,8 @@ import { authRequest } from "@/features/auth/api";
 import { changePasswordSchema } from "@croebet/shared";
 import { AccountHistoryPanel } from "@/features/settings/account-history";
 import { notificationState, notifyTest, requestNotifications, type NotificationState } from "@/features/games/game-notifications";
+import { disablePush, enablePush, pushState, readPushStatus, sendPushTest, type PushState } from "@/features/push/client";
+import type { PushStatus } from "@croebet/shared";
 import { BalanceValue } from "@/features/wallet/balance";
 import { cn } from "@/lib/utils";
 
@@ -171,30 +173,81 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
 }
 
 function NotificationSettings() {
-  const [state, setState] = useState<NotificationState>(() => notificationState());
+  const [permission, setPermission] = useState<NotificationState>(() => notificationState());
+  const [push, setPush] = useState<PushState>("off");
+  const [server, setServer] = useState<PushStatus | null>(null);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    const sync = () => setState(notificationState());
+    const sync = () => { setPermission(notificationState()); void pushState().then(setPush).catch(() => setPush("off")); };
+    sync();
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
     return () => { window.removeEventListener("focus", sync); document.removeEventListener("visibilitychange", sync); };
   }, []);
-  const labels: Record<NotificationState, string> = {
+  useEffect(() => { void readPushStatus().then(setServer).catch(() => setServer(null)); }, []);
+  const permissionLabels: Record<NotificationState, string> = {
     unsupported: "Não disponível nesta conexão.",
     default: "Ainda não solicitadas.",
     granted: "Ativadas neste navegador.",
     denied: "Bloqueadas. Libere nas configurações do navegador.",
   };
+  const pushLabels: Record<PushState, string> = {
+    unsupported: "Indisponível neste navegador.",
+    blocked: "Bloqueadas nas configurações do navegador.",
+    off: "Inativas neste dispositivo.",
+    on: "Ativas neste dispositivo.",
+  };
+  async function activate() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (server?.enabled) {
+        const result = await enablePush();
+        setPermission(notificationState()); setPush(await pushState());
+        if (result.pushEnabled) toast.success("Push ativado neste dispositivo.");
+        else toast.info("Notificações do navegador ativas; o push do servidor ainda não está configurado.");
+      } else {
+        const next = await requestNotifications();
+        setPermission(next);
+        if (next === "granted") toast.success("Notificações do navegador ativadas neste dispositivo.");
+        else if (next === "denied") toast.error("Permissão bloqueada nas configurações do navegador.");
+      }
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível ativar as notificações."); }
+    finally { setBusy(false); }
+  }
+  async function deactivate() {
+    if (busy) return;
+    setBusy(true);
+    try { await disablePush(); setPush(await pushState()); toast.success("Push desativado neste dispositivo."); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível desativar o push."); }
+    finally { setBusy(false); }
+  }
+  async function test() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (push === "on") {
+        const { sent } = await sendPushTest();
+        toast.success(sent ? `Teste enviado para ${sent} dispositivo(s).` : "Nenhum dispositivo inscrito para este teste.");
+      } else if (notifyTest()) toast.success("Notificação local exibida.");
+      else toast.error("Ative as notificações primeiro.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível enviar o teste."); }
+    finally { setBusy(false); }
+  }
   return <div className="grid gap-5">
-    <p className="text-sm text-muted">Avisos de vez aparecem no computador ou celular quando a aba está em segundo plano. O som da partida continua independente desta permissão.</p>
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel bg-contrast/3 px-4 py-3 text-sm">
-      <span>Notificações</span>
-      <span className="text-muted" role="status">{labels[state]}</span>
-    </div>
+    <p className="text-sm text-muted">Avisos de vez aparecem no computador ou celular quando a aba está em segundo plano, e o push chega mesmo com o site fechado. O som da partida continua independente desta permissão.</p>
+    <dl className="divide-y divide-contrast/6 rounded-panel bg-contrast/3 px-4 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3"><dt>Permissão</dt><dd className="text-muted" role="status">{permissionLabels[permission]}</dd></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3"><dt>Push</dt><dd className="text-muted" role="status">{pushLabels[push]}</dd></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3"><dt>Servidor</dt><dd className="text-muted">{server === null ? "Verificando…" : server.enabled ? "Configurado" : "Não configurado"}</dd></div>
+    </dl>
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" disabled={state === "unsupported" || state === "granted"} onClick={() => void requestNotifications().then(setState)}>Ativar notificações</Button>
-      <Button size="sm" variant="secondary" disabled={state !== "granted"} onClick={() => { if (!notifyTest()) toast.error("Não foi possível mostrar a notificação."); }}>Enviar teste</Button>
+      {push === "on"
+        ? <Button size="sm" variant="secondary" loading={busy} disabled={busy} onClick={() => void deactivate()}>Desativar neste dispositivo</Button>
+        : <Button size="sm" loading={busy} disabled={busy || permission === "denied" || permission === "unsupported"} onClick={() => void activate()}>{server?.enabled ? "Ativar push neste dispositivo" : "Ativar notificações"}</Button>}
+      <Button size="sm" variant="secondary" loading={busy} disabled={busy || (permission !== "granted" && push !== "on")} onClick={() => void test()}>Enviar teste</Button>
     </div>
-    <p className="text-xs text-muted">Com o site fechado, o aviso chega pela próxima etapa (push), inclusive no app instalado no celular.</p>
+    <p className="text-xs text-muted">No iPhone, o push exige o Croebet instalado na tela de início. Com o site aberto em segundo plano, a notificação local já aparece.</p>
   </div>;
 }
 

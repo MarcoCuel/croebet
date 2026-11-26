@@ -11,8 +11,9 @@ import { matchNotificationSchema, notificationRefresh, type Refresh } from "./no
 import { applyRealtimeRequest } from "./realtime-actions.ts";
 import { createWatchLimit } from "./watch-limit.ts";
 import { clientAddress } from "../../client-address.ts";
+import type { PushService } from "../push/service.ts";
 
-type Options = { sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean> };
+type Options = { sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; csrfName: string; csrfSecret: string; environment: string; origins?: readonly string[]; limit: (key: string, maximum: number) => Promise<boolean>; push?: PushService };
 type Connection = { actor: string | null; address: string; session: string; code?: string; version: number; signature: string; directory: string; invitations: string; matches: string; personal: string; personalCodes: Set<string>; watching: boolean; directoryWatching: boolean; pending: Refresh; refreshQueued: boolean; tail: Promise<void>; presence: Map<string,string> };
 type LiveSocket = Omit<Socket, "data"> & { data: Connection };
 const errorReply = (error: unknown): RealtimeReply => ({ ok: false, error: error instanceof MatchError ? { code: error.code, message: error.message } : error instanceof z.ZodError ? { code: "INVALID_INPUT", message: "Dados inválidos." } : { code: "UNAVAILABLE", message: "Não foi possível conectar. Tente novamente." } });
@@ -132,6 +133,12 @@ export function matchLive(app: FastifyInstance, pool: Pool, options: Options) {
     for (const socket of io.sockets.sockets.values()) {
       const live = socket as LiveSocket;
       schedule(live, notificationRefresh(event.data, live.data));
+    }
+    // Offline accounts receive a push; anyone with an open page already gets
+    // the in-app cue and never a duplicate OS notification.
+    if (event.data.kind === "room" && options.push) {
+      const online = (userId: string) => [...io.sockets.sockets.values()].some(socket => (socket as LiveSocket).data.actor === userId);
+      void options.push.dispatchTurn(event.data.code, online).catch(error => app.log.error(error));
     }
   }
   // LISTEN is a wake-up signal, never a source of game state or secret cards.

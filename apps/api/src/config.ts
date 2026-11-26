@@ -20,6 +20,9 @@ const configSchema = z.object({
   S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   S3_FORCE_PATH_STYLE: z.enum(["true", "false"]).default("false").transform(value => value === "true"),
   REALTIME_MAX_CONNECTIONS: z.coerce.number().int().min(1).max(100000).default(200),
+  VAPID_PUBLIC_KEY: z.string().regex(/^[A-Za-z0-9_-]{40,200}$/).optional(),
+  VAPID_PRIVATE_KEY: z.string().regex(/^[A-Za-z0-9_-]{20,100}$/).optional(),
+  VAPID_SUBJECT: z.string().max(300).optional(),
   TRUST_CLOUDFLARE_PROXY: z.enum(["true", "false"]).default("false").transform(value => value === "true"),
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
@@ -32,6 +35,8 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
   const result = configSchema.safeParse(env);
   if (!result.success) throw new Error(`Configuração inválida: ${result.error.issues.map(i => i.path.join(".")).join(", ")}`);
   if (result.data.APP_ENV === "production" && result.data.DEV_WEB_ORIGINS.trim()) throw new Error("DEV_WEB_ORIGINS é exclusivo de development/test.");
+  if (!!result.data.VAPID_PUBLIC_KEY !== !!result.data.VAPID_PRIVATE_KEY) throw new Error("VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY devem ser configuradas juntas.");
+  if (result.data.VAPID_SUBJECT && !/^(mailto:|https:\/\/)/i.test(result.data.VAPID_SUBJECT)) throw new Error("VAPID_SUBJECT deve começar com mailto: ou https://.");
   if (result.data.TRUST_CLOUDFLARE_PROXY && (result.data.APP_ENV !== "production" || result.data.API_HOST !== "127.0.0.1")) throw new Error("Proxy Cloudflare confiável exige produção com API em loopback.");
   for (const value of allowedWebOrigins(result.data)) {
     const origin = new URL(value);
@@ -43,3 +48,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env) {
   return result.data;
 }
 
+/** Push is optional: without both VAPID keys the API keeps the in-app alerts only. */
+export function pushConfig(config: ReturnType<typeof readConfig>) {
+  if (!config.VAPID_PUBLIC_KEY || !config.VAPID_PRIVATE_KEY) return null;
+  const origin = new URL(config.WEB_ORIGIN);
+  return { publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT ?? (origin.protocol === "https:" ? origin.origin : "mailto:push@croebet.local"), webOrigin: config.WEB_ORIGIN };
+}

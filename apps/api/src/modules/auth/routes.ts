@@ -19,7 +19,7 @@ import cookie from "@fastify/cookie";
 import { hash, verify, argon2id } from "argon2";
 import type { Pool, PoolClient } from "pg";
 import { registerSchema, deleteAccountSchema, changeUsernameSchema, loginSchema, profileSchema, publicProfileSchema, publicUserSchema, sessionSchema, usernameSchema } from "@croebet/shared";
-import { allowedWebOrigins, type readConfig } from "../../config.ts";
+import { allowedWebOrigins, pushConfig, type readConfig } from "../../config.ts";
 import { newToken, tokenHash, csrfToken, validCsrf } from "./security.ts";
 import { readProfileActivity } from "./profile-activity.ts";
 import { readOwnMatchReplay } from "../admin/match-history.ts";
@@ -28,6 +28,7 @@ import { readAccountHistory } from "./account-history.ts";
 import { accountHistoryQuerySchema, changePasswordSchema } from "@croebet/shared";
 import { updateOwnProfile } from "./profile-onboarding.ts";
 import { clientAddress } from "../../client-address.ts";
+import { createPushService } from "../push/service.ts";
 
 type UserRow = { id: string; username: string; display_name: string; role: "user" | "admin"; status: string; password_hash: string; username_changed_at: Date | null; avatar_key: string | null; profile_name_provided: boolean; onboarding_remind_at: Date | null };
 const publicUser = (row: UserRow) => publicUserSchema.parse({ id: row.id, username: row.username, displayName: row.display_name, avatarUrl: avatarUrl(row.avatar_key), usernameChangeAvailableAt: row.username_changed_at ? new Date(row.username_changed_at.getTime() + 30 * 86400000).toISOString() : null, role: row.role, onboarding: { nameProvided: row.profile_name_provided ?? row.display_name !== row.username, remindAt: row.onboarding_remind_at?.toISOString() ?? null } });
@@ -86,7 +87,9 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
   });
   await chatRoutes(app, { pool, current, sessionName, limit });
   await managementRoutes(app, { pool, current, sessionName, limit, mediaStorage });
-  await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, trustCloudflareProxy: config.TRUST_CLOUDFLARE_PROXY, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV });
+  const pushSettings = pushConfig(config);
+  const push = createPushService(pool, pushSettings ? { ...pushSettings, log: app.log } : null);
+  await matchRoutes(app, { pool, current, sessionName, maxConnections: config.REALTIME_MAX_CONNECTIONS, trustCloudflareProxy: config.TRUST_CLOUDFLARE_PROXY, limit, origins, csrfName, csrfSecret: config.CSRF_SECRET, environment: config.APP_ENV, push });
 
   if (avatarStorage || mediaStorage) app.addContentTypeParser(avatarContentTypes, { parseAs: "buffer", bodyLimit: avatarMaxBytes }, (_request, body, done) => done(null, body));
   if (avatarStorage) {

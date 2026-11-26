@@ -17,12 +17,16 @@ import {useGamePlayback} from "./use-game-playback";
 import {sendGameCommand,abandonGame} from "./match-api";
 import {TestReplay} from "./test-replay";
 import {MatchResult} from "./match-result";
+import {useGameAudio} from "./use-game-audio";
+import {notifyTurn} from "./game-notifications";
+import {standardDecision} from "./standard-decision";
 
 type Room=ReturnType<typeof gameRoomSchema.parse>;
 export function TestGame({game,initialRoom=null}:{game:GameRecord;initialRoom?:Room|null}){
  const {userId,permissions}=useSession(),query=useSearchParams();
  const code=query.get("partida") ?? "";
- const playback=useGamePlayback(userId ?? undefined,initialRoom);
+ const audio=useGameAudio("game",game.moduleId ?? game.slug);
+ const playback=useGamePlayback(userId ?? undefined,initialRoom,()=>audio.play("card"));
  const {receive,clear}=playback;
  const loadedRoom=playback.room;
  const setRoom=useCallback((next:Room|null)=>{if(next)receive({room:next,frames:[],reset:true});else clear();},[receive,clear]);
@@ -32,6 +36,16 @@ export function TestGame({game,initialRoom=null}:{game:GameRecord;initialRoom?:R
  const [running,setRunning]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const presentation=gamePresentations[gameIdSchema.parse(game.moduleId ?? game.slug)],Table=presentation.Table;
  const admin=permissions.canManageSite;
+ const decision=room?.status==="playing"?standardDecision(room.state):null;
+ const ownSeat=room?.participants.find(person=>person.userId===userId)?.seat;
+ const notifiedTurn=useRef<string|null>(null);
+ useEffect(()=>{
+  if(replaying || !room || room.status==="lobby" || ownSeat==null || decision?.seat!==ownSeat){notifiedTurn.current=null;return;}
+  if(notifiedTurn.current===decision.key)return;
+  notifiedTurn.current=decision.key;
+  audio.play("turn");
+  notifyTurn(game.name,room.code,gameUrl(game.slug,{code:room.code}));
+ },[replaying,room,ownSeat,decision?.seat,decision?.key,audio,game.name,game.slug]);
  useEffect(()=>{if(!code)return;let active=true;void managementRequest(`/matches/${code}`,gameRoomSchema).then(next=>{if(active)setRoom(next);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[code,setRoom]);
  const watchedCode=!replaying && userId && room?.status!=="lobby" && !presentation.managesLive?room?.code:undefined;
  const connected=useRoomLive(watchedCode,room?.version ?? 0,!!watchedCode,sync=>playback.receive(sync),()=>{},message=>{setRunning(false);setError(message);},undefined,()=>setError(""));
@@ -60,7 +74,7 @@ export function TestGame({game,initialRoom=null}:{game:GameRecord;initialRoom?:R
  return <div className="space-y-4">
  {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={setRoom} onTestStarted={openTest}/>}
  {room?.status==="abandoned" && <p role="status">Teste encerrado.</p>}
- {room && room.status!=="lobby" && <Table game={game} room={room} viewerId={userId} busy={busy || playback.animating || (!presentation.managesLive && !connected)} controls={controls} exit={exit} play={play} onAnimating={playback.setPresentationBusy}/>}
+ {room && room.status!=="lobby" && <Table game={game} room={room} viewerId={userId} busy={busy || playback.animating || (!presentation.managesLive && !connected)} controls={controls} exit={exit} play={play} onAnimating={playback.setPresentationBusy} audio={audio}/>}
  {room && room.status!=="lobby" && !presentation.managesLive && <MatchResult onReplay={()=>setReplaying(true)} key={room.code} room={room} result={presentation.result(room)}/>}
  {error && <p role="alert" className="text-sm text-danger">{error}</p>}
  </div>;

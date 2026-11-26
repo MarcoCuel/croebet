@@ -24,7 +24,7 @@ export function resultDuration(seconds: number | null | undefined) {
   return `${remaining} s`;
 }
 
-export function GameResult({ result, match, leaving, onPlayAgain, onReplay, replayLoading = false }: { result: GameResultSummary; match: ResultMetadata | null; leaving: boolean; onPlayAgain: () => void; onReplay?: () => void; replayLoading?: boolean }) {
+export function GameResult({ result, match }: { result: GameResultSummary; match: ResultMetadata | null }) {
   const standings = [...result.players].sort((a, b) => b.score - a.score);
   const winners = standings.filter(player => player.winner);
   function playerAvatar(player: typeof standings[number], prominent = false) {
@@ -57,10 +57,13 @@ export function GameResult({ result, match, leaving, onPlayAgain, onReplay, repl
         </li>;
       })}
     </ol>
-    <div className={cn("mt-6 grid gap-2", onReplay ? "grid-cols-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]")}>
-      <Button disabled={leaving} onClick={onPlayAgain} className={cn("bg-tertiary text-white", onReplay && "col-span-2 sm:col-span-1")}>Jogar novamente</Button>
-      {onReplay && <Button variant="secondary" loading={replayLoading} onClick={onReplay}><RotateCcw className="size-4" aria-hidden="true" />Replay</Button>}
-      <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
-    </div>
   </>;
+}
+
+export function GameResultActions({ leaving, onPlayAgain, onReplay, replayLoading = false }: { leaving: boolean; onPlayAgain: () => void; onReplay?: () => void; replayLoading?: boolean }) {
+  return <div className={cn("grid gap-2", onReplay ? "grid-cols-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]")}>
+    <Button disabled={leaving} onClick={onPlayAgain} className={cn("bg-tertiary text-white", onReplay && "col-span-2 sm:col-span-1")}>Jogar novamente</Button>
+    {onReplay && <Button variant="secondary" loading={replayLoading} onClick={onReplay}><RotateCcw className="size-4" aria-hidden="true" />Replay</Button>}
+    <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+  </div>;
 }

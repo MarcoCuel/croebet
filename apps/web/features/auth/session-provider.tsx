@@ -12,6 +12,7 @@ import { ProfileOnboarding } from "@/features/auth/profile-onboarding";
 import { loadEconomy, loadDailyStatus, requestDailyClaim } from "@/features/wallet/economy-api";
 import { authRequest } from "@/features/auth/api";
 import { subscribeRealtimeFailure } from "@/lib/realtime";
+import { disablePush } from "@/features/push/client";
 
 // Account identity now comes exclusively from the API; local wallets are never loaded.
 export function SessionProvider({ children, initialSession }: { children: ReactNode; initialSession: InitialSession }) {
@@ -95,11 +96,12 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
     openLogin: () => openAuth("login"), openRegister: () => openAuth("register"),
     signOut: async () => {
       ++revision.current;
-      try { await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); setWallet(null); router.refresh(); }
+      try { await disablePush().catch(() => {}); await authRequest("/auth/logout", "POST"); ++revision.current; setUser(null); setWallet(null); router.refresh(); }
       catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível sair."); }
     },
     deleteAccount: async password => {
       ++revision.current;
+      await disablePush().catch(() => {});
       await authRequest("/me", "DELETE", { password });
       ++revision.current; setUser(null); setWallet(null); router.refresh();
     },

@@ -324,3 +324,18 @@ export const chatEvents = pgTable("chat_events", {
   mutedUntil: timestamp("muted_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [check("chat_event_kind", sql`${table.kind} in ('message','delete','mute')`)]);
+
+// Device endpoints are capability URLs: never expose them in public projections.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  failures: integer("failures").notNull().default(0),
+}, table => [uniqueIndex("push_subscription_endpoint_unique").on(table.endpoint),
+  index("push_subscription_user_idx").on(table.userId),
+  check("push_subscription_failures", sql`${table.failures} >= 0`)]);

@@ -891,6 +891,52 @@ test("resultado apresenta vencedor, duração, rodadas, prêmio e placar com ava
   await expect(dialog.getByText("12 min 34 s",{exact:true})).toBeVisible();
 });
 
+test("resultado mantém o fechar e as ações fixos enquanto o placar rola", async ({ page }) => {
+  const code="ABCDEF123456";
+  const names=["Marco",...Array.from({length:7},(_,index)=>`Bot ${index+1}`)];
+  const state=flip7Driver.project(createGame(names.map(name=>({name,kind:"human" as const})),42,{mode:"classic",brutal:false}));
+  state.phase="over";state.round=10;
+  state.players.forEach((player,seat)=>{player.total=210-seat*4;});
+  const participants=names.map((name,seat)=>({userId:seat===0?matchUsers[0].id:`93089d02-0b34-4b78-9d3e-f2679c190c0${seat}`,username:name,displayName:name,avatarUrl:null,seat}));
+  const room=matchSchema.parse({id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",code,game:"flip7",rulesVersion:1,version:20,status:"finished",state,hostId:matchUsers[0].id,capacity:8,options:{mode:"classic",brutal:false},participants,durationSeconds:26*3600+13*60,entryAmount:0,potTotal:0,payouts:[],settlement:"paid"});
+  fixture.states.set(code,{room,frames:[]});
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const dialog=page.getByRole("dialog",{name:"Resultado da partida"});
+  await expect(dialog).toBeVisible({timeout:10000});
+  await dialog.evaluate(element=>Promise.all(element.getAnimations({subtree:true}).map(animation=>animation.finished)));
+  await page.evaluate(()=>document.fonts.ready);
+  const body=dialog.locator("[data-slot=dialog-body]");
+  await expect(body).toHaveCount(1);
+  const scroll=await body.evaluate(element=>({scrollHeight:element.scrollHeight,clientHeight:element.clientHeight}));
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  const close=dialog.getByRole("button",{name:"Fechar",exact:true}).last();
+  const footer=dialog.locator("[data-slot=dialog-footer]");
+  const playAgain=footer.getByRole("button",{name:"Jogar novamente",exact:true});
+  const footerClose=footer.getByRole("button",{name:"Fechar",exact:true});
+  const replay=footer.getByRole("button",{name:"Replay",exact:true});
+  const dialogBefore=await dialog.boundingBox();
+  const closeBefore=await close.boundingBox();
+  const footerBefore=await footer.boundingBox();
+  expect(closeBefore).not.toBeNull();
+  expect(footerBefore).not.toBeNull();
+  await body.evaluate(element=>{element.scrollTop=element.scrollHeight;});
+  await expect(playAgain).toBeVisible();
+  await expect(footerClose).toBeVisible();
+  await expect(replay).toBeVisible();
+  const dialogAfter=await dialog.boundingBox();
+  const closeAfter=await close.boundingBox();
+  const footerAfter=await footer.boundingBox();
+  expect(closeAfter!.y-dialogAfter!.y).toBeCloseTo(closeBefore!.y-dialogBefore!.y,0);
+  expect(footerAfter!.y-dialogAfter!.y).toBeCloseTo(footerBefore!.y-dialogBefore!.y,0);
+  const viewport=page.viewportSize()!;
+  for(const box of [closeAfter!,footerAfter!]){
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y+box.height).toBeLessThanOrEqual(viewport.height);
+  }
+  await footerClose.click();
+  await expect(dialog).not.toBeVisible();
+});
+
 test("controles da mesa persistem som e volume e sincronizam efeitos com cartas", async ({ page, browser }, testInfo) => {
   await instrumentAudio(page);
   const peer = await start(page, browser);

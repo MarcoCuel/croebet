@@ -1,14 +1,15 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
-import { cancellationVoteSchema, gameCommandSchema, confirmEntrySchema, invitePlayerSchema, lobbyPlayersQuerySchema, createMatchSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema } from "@croebet/shared";
+import { cancellationVoteSchema, gameCommandSchema, confirmEntrySchema, invitePlayerSchema, lobbyPlayersQuerySchema, createMatchSchema, matchAbandonSchema, matchCodeSchema, lobbyCommandSchema, updateLobbySchema, kickMatchSchema, pushSubscriptionSchema, pushUnsubscribeSchema } from "@croebet/shared";
 import { matchLive } from "./live.ts";
 import { tokenHash } from "../auth/security.ts";
+import { PushError, type PushService } from "../push/service.ts";
 import { trackTestPlayback, abandonLove, collectiveCancellation, endTest, stepTest, commandLove, declineInvitation, refreshPresence, listLobbyPlayers, inviteLobbyPlayer, MatchError, listMatches, getMatch, createMatch, commandMatch, listLobbies, lobbyAction, kickMatch } from "./service.ts";
 
-type Options = { pool: Pool; sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; origins?: readonly string[]; current: (token: string | undefined) => Promise<{ id: string } | null>; csrfName: string; csrfSecret: string; environment: string; limit: (key: string, maximum: number) => Promise<boolean> };
+type Options = { pool: Pool; sessionName: string; maxConnections?: number; trustCloudflareProxy?: boolean; origins?: readonly string[]; current: (token: string | undefined) => Promise<{ id: string } | null>; csrfName: string; csrfSecret: string; environment: string; limit: (key: string, maximum: number) => Promise<boolean>; push: PushService };
 export async function matchRoutes(app: FastifyInstance, options: Options) {
-  const { pool, current, sessionName, limit } = options;
+  const { pool, current, sessionName, limit, push } = options;
   // Registered inside authRoutes: the same Origin/CSRF/environment hooks apply.
   async function run<T>(request: FastifyRequest, reply: FastifyReply, action: (id: string, hash: string) => Promise<T>) {
     const token = request.cookies[sessionName];
@@ -17,7 +18,7 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
     if (request.method !== "GET" && !await limit(`matches:${actor.id}`, 1200)) return reply.code(429).send({ error: { code: "RATE_LIMIT", message: "Muitas ações. Aguarde e tente novamente." } });
     try { return await action(actor.id, tokenHash(token)); }
     catch (error) {
-      if (error instanceof MatchError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
+      if (error instanceof MatchError || error instanceof PushError) return reply.code(error.status).send({ error: { code: error.code, message: error.message } });
       if (error instanceof z.ZodError) return reply.code(400).send({ error: { code: "INVALID_INPUT", message: error.issues[0].message } });
       throw error;
     }
@@ -31,6 +32,13 @@ export async function matchRoutes(app: FastifyInstance, options: Options) {
     }
   }
   matchLive(app,pool,options);
+  app.get("/api/v1/me/push",(req,reply)=>run(req,reply,async()=>push.status()));
+  app.post("/api/v1/me/push/subscriptions",(req,reply)=>run(req,reply,(id)=>push.subscribe(id,pushSubscriptionSchema.parse(req.body),req.headers["user-agent"])));
+  app.delete("/api/v1/me/push/subscriptions",(req,reply)=>run(req,reply,(id)=>push.unsubscribe(id,pushUnsubscribeSchema.parse(req.body).endpoint)));
+  app.post("/api/v1/me/push/test",(req,reply)=>run(req,reply,async(id)=>{
+    if(!await limit(`push-test:${id}`,10))return reply.code(429).send({error:{code:"RATE_LIMIT",message:"Muitos testes. Aguarde um pouco."}});
+    return push.test(id);
+  }));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/cancel-proposal",(req,reply)=>run(req,reply,(id,hash)=>collectiveCancellation(pool,id,hash,matchCodeSchema.parse(req.params.code),matchAbandonSchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/cancel-vote",(req,reply)=>run(req,reply,(id,hash)=>collectiveCancellation(pool,id,hash,matchCodeSchema.parse(req.params.code),cancellationVoteSchema.parse(req.body))));
   app.post<{Params:{code:string}}>("/api/v1/matches/:code/love-abandon",(req,reply)=>run(req,reply,(id,hash)=>abandonLove(pool,id,hash,matchCodeSchema.parse(req.params.code),matchAbandonSchema.parse(req.body))));

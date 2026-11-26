@@ -261,6 +261,8 @@ test("configurações alternam seções, aplicam tema e devolvem foco ao fechar"
   await expect(dialog.getByRole("button", { name: "Escuro (Contraste)", exact: true })).toHaveAttribute("aria-pressed", "true");
   await dialog.getByRole("button", { name: "Claro", exact: true }).click();
   await expect(nav.getByRole("button", {name:"Carteira",exact:true})).toHaveCount(0);
+  await nav.getByRole("button", { name: "Notificações", exact: true }).click();
+  await expect(dialog.getByRole("region", { name: "Notificações", exact: true })).toContainText("Push");
   await nav.getByRole("button", {name:"Geral",exact:true}).click();
   await expect(dialog.getByRole("region", {name:"Geral",exact:true})).toContainText("Preferencias");
   expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(

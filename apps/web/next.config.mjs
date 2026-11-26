@@ -24,7 +24,11 @@ const nextConfig = {
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
     ];
     if (process.env.NODE_ENV === "production") security.push({ key: "Strict-Transport-Security", value: "max-age=31536000" });
-    return [{ source: "/:path*", headers: security }];
+    return [
+      { source: "/:path*", headers: security },
+      // The worker must be revalidated so a release can replace it promptly.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }] },
+    ];
   },
   async rewrites() {
     return [{ source: "/api/v1/:path*", destination: `${process.env.API_INTERNAL_URL ?? "http://127.0.0.1:3001"}/api/v1/:path*` }];
