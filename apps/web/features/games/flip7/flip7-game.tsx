@@ -620,7 +620,30 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
   const waitingActions = [game.pending, ...game.queue].filter(action => action !== null);
   const activeSeat = visibleGame.bonusChoice ?? visibleGame.forced?.target ?? visibleGame.pending?.source ?? visibleGame.turn;
 
-  const actionBar = <GameActionBar wide={replay?.active} contained={tableView.view === "3d"}>
+  // O baralho fica logo acima da barra inferior ("Sua vez"), e as cartas
+  // compradas partem daqui. A área de revelação fica fora do fluxo para não
+  // deslocar a centralização do baralho.
+  const deckPanel = (
+    <div className="pointer-events-auto relative flex max-w-full flex-wrap items-center justify-center gap-2" aria-label="Baralho e ações pendentes">
+      <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deckCount} cartas no baralho`}>
+        <div className="absolute inset-x-[12cqi] top-[12cqi] flex items-start justify-between gap-[6cqi]">
+          <span className="text-[16cqi] leading-tight font-medium">Cartas</span>
+        </div>
+        <svg className="absolute inset-0 size-full font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+          <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deckCount > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deckCount}</text>
+        </svg>
+        <Button variant="ghost" disabled={!playable || exitOpen || leaving} aria-label="Comprar carta do baralho" title={playable ? "Comprar carta (Enter)" : "Aguarde sua vez de comprar"} onClick={() => send({ type: "draw" })} className="backdrop-blur-none absolute inset-0 z-30 size-full rounded-2xl p-0 hover:bg-contrast/10 disabled:opacity-100 focus-visible:border-foreground">
+          <span className="sr-only">Comprar carta do baralho</span>
+        </Button>
+      </div>
+      {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${displayGame.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
+        <PlayingCard card={action.card} />
+      </div>)}
+      <div ref={revealRef} data-card-reveal aria-hidden="true" className="absolute top-0 left-full ml-2 h-32 w-20 sm:h-36 sm:w-24" />
+    </div>
+  );
+
+  const actionBar = <GameActionBar wide={replay?.active} contained={tableView.view === "3d"} above={tableView.view === "classic" ? deckPanel : undefined}>
           {replay ? <>{replay.active ? replay.controls : <h2 className="text-sm font-medium">{replay.finished ? status : "Partida encerrada"}</h2>}{!replay.finished && !replay.active && <Button onClick={replay.restart}>Replay</Button>}{game.phase === "over" && !replay.loading && <Button ref={resultTriggerRef} size="sm" variant="secondary" onClick={() => { setResultReady(true); setResultDismissed(false); }}>Ver resultado</Button>}</> : <>
           <h2 className="text-sm font-medium" aria-live="polite">{flight ? `${displayGame.players[flight.target].name} está recebendo uma carta` : (movingCards || sceneAnimating) ? "Movendo cartas" : status}</h2>
           {playable && <GameDrawActions onDraw={() => { void send({ type: "draw" }); }} onStop={() => { void send({ type: "stay" }); }} canStop={canStay(current, game)} />}
@@ -664,7 +687,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
         },
         card: entry.card ? <PlayingCard card={entry.card} compact /> : undefined,
       }))}>
-        <div className={cn("min-w-0", tableView.view !== "3d" && (replay?.active ? "pb-48 sm:pb-40" : "pb-32 sm:pb-24"))}>
+        <div className={cn("min-w-0", tableView.view !== "3d" && "pb-60 sm:pb-64")}>
           {tableView.view === "classic" && <MatchHeader {...tableHeader}><div className="mb-4 flex flex-wrap items-center gap-3">{tableHeader.identity}{tableHeader.controls}</div></MatchHeader>}
           {!replay && matchInfo && <CancellationNotice match={matchInfo}/>}
           {tableView.view === "3d" ? <FlipScene header={tableHeader} actions={actionBar} key={replay?.epoch ?? "live"} game={displayGame} summaryGame={sceneAnimating ? presentationBefore ?? game : game} localPlayer={!spectator} participants={tableParticipants} viewer={ownSeat ?? 0}
@@ -673,25 +696,7 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             onSeat={seat => { if (game.bonusChoice != null && human) void send({ type: "bonus", target: game.bonusChoice === seat ? null : seat }); else if (human && validTargets.includes(seat)) void send({ type: "target", target: seat }); }}
             canDraw={playable && !exitOpen && !leaving} onDraw={() => void send({ type: "draw" })} status="" onAnimating={setSceneAnimating} animate={!!presentationBefore} held={resolvingCard} paused={replay?.paused} timeScale={replay ? 1000 / replay.delay : 1}>
           </FlipScene> : <>
-          <div className="mb-6 flex flex-wrap items-center gap-4 sm:gap-8">
-            <div className="flex max-w-full flex-wrap gap-2" aria-label="Baralho e ações pendentes">
-              <div ref={deckRef} className="relative @container z-10 h-32 w-20 overflow-hidden rounded-2xl bg-flip-card font-sans shadow-md after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:[box-shadow:var(--inset-shadow-flip-card)] sm:h-36 sm:w-24" aria-label={`${game.deckCount} cartas no baralho`}>
-                <div className="absolute inset-x-[12cqi] top-[12cqi] flex items-start justify-between gap-[6cqi]">
-                  <span className="text-[16cqi] leading-tight font-medium">Cartas</span>
-                </div>
-                <svg className="absolute inset-0 size-full font-normal normal-nums" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
-                  <text x="50" y="155" textAnchor="middle" fill="currentColor" fontSize={game.deckCount > 9 ? 80 : 126} letterSpacing="-0.05em">{game.deckCount}</text>
-                </svg>
-                <Button variant="ghost" disabled={!playable || exitOpen || leaving} aria-label="Comprar carta do baralho" title={playable ? "Comprar carta (Enter)" : "Aguarde sua vez de comprar"} onClick={() => send({ type: "draw" })} className="backdrop-blur-none absolute inset-0 z-30 size-full rounded-2xl p-0 hover:bg-contrast/10 disabled:opacity-100 focus-visible:border-foreground">
-                  <span className="sr-only">Comprar carta do baralho</span>
-                </Button>
-              </div>
-              {waitingActions.map(action => <div key={action.card.id} data-flight-card={action.card.id} aria-label={`${cardLabel(action.card)} de ${displayGame.players[action.source].name} aguardando ação`} className={flight?.card.id === action.card.id && !landed ? "invisible" : undefined}>
-                <PlayingCard card={action.card} />
-              </div>)}
-              <div ref={revealRef} data-card-reveal aria-hidden="true" className="h-32 w-20 shrink-0 sm:h-36 sm:w-24" />
-            </div>
-            <div className="flex justify-around w-full min-w-0 flex-wrap gap-x-6 gap-y-4 @[36rem]:w-auto @[36rem]:flex-1" aria-label="Usuários da partida">
+          <div className="mb-6 flex w-full min-w-0 flex-wrap items-center justify-around gap-x-6 gap-y-4" aria-label="Usuários da partida">
               {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} className="flex min-w-0 max-w-full shrink-0 items-center gap-3">
                 <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
                   <AvatarImage src={tableParticipants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
@@ -712,7 +717,6 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
                   </p>
                 </div>
               </div>; })}
-            </div>
           </div>
           <div className={cn("grid auto-rows-fr items-stretch gap-4", displayGame.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-3")}>
             {playerSeats.map(i => {

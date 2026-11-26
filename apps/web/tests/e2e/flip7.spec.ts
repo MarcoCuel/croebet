@@ -219,6 +219,35 @@ test("cartas e camadas de animação permanecem abaixo do navbar", async ({ page
     }
   } finally { await peer.context.close(); }
 });
+test("baralho fica acima da barra inferior e os usuários ocupam a largura da mesa", async ({ page }) => {
+  const code = "ABCDEF123456";
+  const privateState = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
+  const state = flip7Driver.project(privateState);
+  const deck = createDeck("classic");
+  const first = deck.splice(deck.findIndex(card => card.type === "number"), 1)[0];
+  state.players[0].cards = [first];
+  state.players.forEach(player => { player.hasDrawn = true; });
+  const room = matchSchema.parse({ id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", code, game: "flip7", rulesVersion: 1, version: 1, status: "playing", state, hostId: matchUsers[0].id, capacity: 2, options: { mode: "classic", brutal: false }, participants: matchUsers.map((user, seat) => ({ userId: user.id, username: user.username, displayName: user.displayName, avatarUrl: null, seat })) });
+  privateState.players = structuredClone(state.players);
+  privateState.deck = deck;
+  fixture.states.set(code, { room, privateState, frames: [] });
+  await page.goto(`/jogos/flip7?partida=${code}`);
+  const deckElement = page.getByLabel(/cartas no baralho$/);
+  const users = page.getByLabel("Usuários da partida");
+  const content = page.locator("[data-game-table-content]");
+  await expect(deckElement).toBeVisible();
+  const [deckBox, actionBox, usersBox, contentBox] = await Promise.all([
+    deckElement.boundingBox(),
+    page.locator("[data-game-actions] > div").last().boundingBox(),
+    users.boundingBox(),
+    content.boundingBox(),
+  ]);
+  expect(deckBox!.y + deckBox!.height).toBeLessThanOrEqual(actionBox!.y);
+  expect(Math.abs(deckBox!.x + deckBox!.width / 2 - actionBox!.x - actionBox!.width / 2)).toBeLessThan(2);
+  expect(usersBox!.width).toBeGreaterThan(contentBox!.width - 8);
+  await page.getByRole("button", { name: "Comprar carta do baralho", exact: true }).click();
+  await expect(page.locator("[data-flying-card]")).toBeVisible();
+});
 test("vários lobbies aceitam a mesma conta e o primeiro início cancela as outras filas",async({page,browser})=>{
   await lobby(page);const firstCode=new URL(page.url()).searchParams.get("partida")!;
   const peer=await second(browser);
