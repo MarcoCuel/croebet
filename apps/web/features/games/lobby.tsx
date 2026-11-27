@@ -4,10 +4,10 @@ import { MatchExitControl } from "./match-cancellation";
 import { managementRequest } from "@/features/admin/management-api";
 import { randomUUID } from "@/lib/uuid";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Eye, Plus, UserRound } from "lucide-react";
+import { Eye, Plus, UserRound, UsersRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getGameDefinition, gameIdSchema, gameOptionsSchema, visibleSettings, settingValue, gameSettingBadges, commandResultSchema, maxGamePlayers, gameOptionsForPlayers } from "@croebet/shared";
+import { getGameDefinition, gameIdSchema, gameOptionsSchema, gameSettingBadges, commandResultSchema } from "@croebet/shared";
 import type { GameRecord, CreateMatch, Lobby, LobbyList, GameRoomSync, UpdateLobby } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { CroinIcon } from "@/components/shared/croin-icon";
@@ -16,11 +16,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
-import { BetInput } from "@/components/ui/bet-input";
 import { formatBalance } from "@/features/wallet/wallet";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
 type LobbyInitial={lobby:Lobby|null;directory:LobbyList;items:import("@croebet/shared").MatchSummary[];error:string;revision?:string;match?:unknown;unavailable?:boolean};
@@ -28,7 +24,8 @@ import { createServerMatch, changeLobby, updateServerLobby, confirmServerEntry }
 import { useRoomLive } from "./use-room-live";
 import { InvitePlayers } from "./invite-players";
 import { KickPlayer } from "./kick-player";
-import { GameEntryHeader } from "./game-entry-header";
+import { LobbyAside } from "./lobby-aside";
+import { LobbyCreateDialog } from "./lobby-create";
 import { playerName } from "./player-name";
 import { readGamePreferences, saveGamePreferences } from "./setup-storage";
 
@@ -45,7 +42,7 @@ function SeatOutline() {
 export function LobbyScreen({initial,rules,onStarted,game,development=false,onTestOpen,onTestStarted}:{development?:boolean;onTestOpen?:(lobby:Lobby)=>void;onTestStarted?:(code:string)=>void;initial:LobbyInitial;game:GameRecord;onStarted?:(sync:GameRoomSync)=>void;rules?:(options:Lobby["options"])=>ReactNode}) {
   const router=useRouter();
   const searchParams=useSearchParams();
-  const {permissions,userId,username,displayName,avatar,openLogin,economy}=useSession();
+  const {permissions,userId,username,displayName,openLogin,economy}=useSession();
   const scopeDirectory=(next:LobbyList):LobbyList=>({...next,
     owned:(next.ownedLobbies ?? (next.owned?[next.owned]:[])).find(l=>l.game===(game.moduleId ?? game.slug)) ?? null,
     active:next.active?.game===(game.moduleId ?? game.slug)?next.active:null,
@@ -65,7 +62,9 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const options=chosenOptions ?? preferences.options;
   const [entryAmount,setEntryAmount]=useState(0);
   const [busy,setBusy]=useState(false);
-  const [inviting,setInviting]=useState(searchParams.get("convidar")==="1");
+  const [setup,setSetup]=useState<"create"|"edit"|null>(null);
+  const [editCode,setEditCode]=useState<string|null>(null);
+  const [inviteCode,setInviteCode]=useState<string|null>(null);
   const [error,setError]=useState(initial.error);
   const pendingCreate=useRef<CreateMatch|null>(null);
   const pendingUpdate=useRef<UpdateLobby|null>(null);
@@ -73,9 +72,9 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const navigating=useRef(false);
   const refreshed=useRef<string|null>(null);
   const leaving=useRef(false);
-  const visit=(code:string|null,invite=false)=>{
+  const visit=(code:string|null)=>{
     if(!code)navigating.current=false;
-    window.history.replaceState(null,"",gameUrl(game.slug,{code,development:development && permissions.canManageSite,invite}));
+    window.history.replaceState(null,"",gameUrl(game.slug,{code,development:development && permissions.canManageSite}));
   };
   const openMatch=(code:string)=>{
     if(searchParams.get("partida")===code){
@@ -134,16 +133,11 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const host=room?.hostId===userId;
   const member=!!room?.participants.some(person=>person.userId===userId);
   const settings=gameOptionsSchema.parse(definition.options.parse(room?.options ?? options));
-  const limit=room?.capacity ?? capacity;
-  const entry=development?0:room?.entryAmount ?? entryAmount;
-  const confirmed=!!userId && !!room?.confirmedUserIds.includes(userId);
-  const allConfirmed=!entry || !!room?.participants.every(p=>room.confirmedUserIds.includes(p.userId));
-  const seats=room?[...room.participants,...room.pendingInvitations]:[];
-  const occupied=room?seats.length+room.bots:(onlyBots?0:1)+bots;
-  const allOnline=!!room && room.pendingInvitations.length===0 && room.participants.every(p=>room.onlineUserIds.includes(p.userId));
-  const editableSettings=!!userId && (!development || permissions.canManageSite) && (!room || host);
-  const showSettings=editableSettings || !!room;
-  const canEdit=editableSettings && !busy && (!room || connected);
+  const newSettings=gameOptionsSchema.parse(definition.options.parse(options));
+  // "Jogar" starts the account's own room, even while another card is selected.
+  const editableRoom=development?(room && host?room:null):(directory.owned ?? (room && host?room:null));
+  const startReady=!!editableRoom && editableRoom.participants.length+editableRoom.bots>=2 && editableRoom.pendingInvitations.length===0 && editableRoom.participants.every(p=>editableRoom.onlineUserIds.includes(p.userId)) && (editableRoom.entryAmount===0 || editableRoom.participants.every(p=>editableRoom.confirmedUserIds.includes(p.userId)));
+  const playDisabled=busy || !connected || (editableRoom ? !startReady : creationBlocked);
 
   function rememberChoice(choice:Partial<Lobby["options"] & {count:number}>){
     if(!Object.keys(choice).length)return;
@@ -153,14 +147,14 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     setOptions(nextOptions);
     try{saveGamePreferences(game.moduleId ?? game.slug,chosenCount ?? capacity,nextOptions);}catch{/* Preferences are optional. */}
   }
-  async function configure(nextOptions:Lobby["options"],nextCapacity:number,nextEntry=entry,choice:Partial<Lobby["options"] & {count:number}>={}){
-    if(!canEdit)return;
-    if(!room){setBots(n=>Math.min(n,nextCapacity-(onlyBots?0:1)));setOptions(nextOptions);setCapacity(nextCapacity);setEntryAmount(nextEntry);rememberChoice(choice);return;}
+  async function configure(nextOptions:Lobby["options"],nextCapacity:number,nextEntry:number,choice:Partial<Lobby["options"] & {count:number}>={}){
+    const editRoom=editCode?listedRooms.find((lobby):lobby is Lobby=>lobby.status==="lobby" && lobby.code===editCode) ?? null:null;
+    if(!editRoom || busy || !connected)return;
     setBusy(true);setError("");
-    const payload={capacity:nextCapacity,options:nextOptions,entryAmount:nextEntry,expectedVersion:room.version};
+    const payload={capacity:nextCapacity,options:nextOptions,entryAmount:nextEntry,expectedVersion:editRoom.version};
     if(!pendingUpdate.current || JSON.stringify({...pendingUpdate.current,commandId:undefined})!==JSON.stringify(payload))pendingUpdate.current={...payload,commandId:randomUUID()};
     try{
-      const response=await updateServerLobby(room.code,pendingUpdate.current);
+      const response=await updateServerLobby(editRoom.code,pendingUpdate.current);
       pendingUpdate.current=null;
       if(response.status==="lobby"){
         acceptLobby(response);rememberChoice(choice);
@@ -168,11 +162,19 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível alterar a sala.");}
     finally{setBusy(false);}
   }
-  async function confirmEntry(){
-    if(!room || busy || !entry)return;
+  // Creation settings are always local, even when another room is on screen.
+  function configureNew(nextOptions:Lobby["options"],nextCapacity:number,nextEntry:number,choice:Partial<Lobby["options"] & {count:number}>={}){
+    setBots(n=>Math.min(n,nextCapacity-(onlyBots?0:1)));
+    setOptions(nextOptions);
+    setCapacity(nextCapacity);
+    setEntryAmount(nextEntry);
+    rememberChoice(choice);
+  }
+  async function confirmEntry(lobby:Lobby){
+    if(busy || !lobby.entryAmount)return;
     setBusy(true);setError("");
     try{
-      const response=await confirmServerEntry(room.code,{commandId:randomUUID(),expectedVersion:room.version,entryAmount:entry});
+      const response=await confirmServerEntry(lobby.code,{commandId:randomUUID(),expectedVersion:lobby.version,entryAmount:lobby.entryAmount});
       if(response.status==="lobby")acceptLobby(response);
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível confirmar a entrada.");}
     finally{setBusy(false);}
@@ -191,12 +193,18 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
       pending.current=null;
       if(development && action==="start"){onTestStarted?.(lobby.code);return;}
       if(action==="leave"){
-        setRoom(null);setDirectory(current=>({...current,owned:current.owned?.code===lobby.code?null:current.owned,joined:current.joined.filter(room=>room.code!==lobby.code)}));visit(null);leaving.current=false;
+        const current=room?.code===lobby.code;
+        setRoom(room=>room?.code===lobby.code?null:room);
+        setDirectory(current=>({...current,owned:current.owned?.code===lobby.code?null:current.owned,joined:current.joined.filter(room=>room.code!==lobby.code)}));
+        if(current)visit(null);
+        leaving.current=false;
       }else if(response.status==="lobby"){
         acceptLobby(response);
         if(action==="join")visit(response.code);
       }
-      // The room stream presents the initial deal after the host starts.
+      // The watched room presents the initial deal after the host starts. When
+      // the host starts another own room, navigate directly.
+      if(action==="start" && !development && response.status==="started" && room?.code!==lobby.code){navigating.current=true;openMatch(lobby.code);}
     }catch(e){pending.current=null;leaving.current=false;setError(e instanceof Error?e.message:"Não foi possível atualizar a sala.");}
     finally{setBusy(false);}
   }
@@ -214,130 +222,122 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     try{const current=await managementRequest(`/matches/${code}`,{parse:(v:unknown)=>v as {version:number}});await managementRequest(`/matches/${code}/end-test`,commandResultSchema,"POST",{commandId:randomUUID(),expectedVersion:current.version});if(room?.code===code){setRoom(null);visit(null);}}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível cancelar a partida.");throw e;}finally{setBusy(false);}
   }
-  async function create(invite=false){
+  function openCreate(){
+    if(busy)return;
+    if(!userId){openLogin();return;}
+    if(creationBlocked)return;
+    setError("");
+    setSetup("create");
+  }
+  function openEdit(lobby:Lobby){
+    if(busy || lobby.hostId!==userId)return;
+    setError("");
+    setEditCode(lobby.code);
+    setSetup("edit");
+  }
+  function play(){
+    if(busy)return;
+    if(!userId){openLogin();return;}
+    if(editableRoom){if(startReady)void act(editableRoom,"start");return;}
+    openCreate();
+  }
+  async function create(){
     if(busy || creationBlocked)return;
     if(!userId){openLogin();return;}
     leaving.current=false;
     setBusy(true);setError("");
-    const payload={development,bots,onlyBots,game:gameIdSchema.parse(game.moduleId ?? game.slug),capacity,options,entryAmount:development?0:room?.entryAmount ?? entryAmount};
+    const payload={development,bots,onlyBots,game:gameIdSchema.parse(game.moduleId ?? game.slug),capacity,options,entryAmount:development?0:entryAmount};
     if(!pendingCreate.current || JSON.stringify({...pendingCreate.current,requestId:undefined})!==JSON.stringify(payload))pendingCreate.current={...payload,requestId:randomUUID()};
-    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;acceptLobby(lobby);visit(lobby.code,invite);return lobby;}
+    try{const lobby=await createServerMatch(pendingCreate.current);pendingCreate.current=null;setSetup(null);acceptLobby(lobby);visit(lobby.code);return lobby;}
     catch(e){setError(e instanceof Error?e.message:"Não foi possível criar a sala.");}
     finally{setBusy(false);}
   }
 
-  return <div className="w-full space-y-4">
-    <GameEntryHeader game={game} development={development} actions={!userId?rules?.(settings):undefined}/>
-    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-3">
-    {showSettings && <Card className="min-w-0 space-y-4" aria-label="Configuração e regras">
-      {editableSettings?<fieldset disabled={!canEdit} className="space-y-4">
-        {visibleSettings(definition,settings).map(field=>{
-          const value=settingValue(settings,field.key);
-          const change=(value:string|boolean)=>{
-            const choice={...field.reset,[field.key]:value};
-            const next=gameOptionsSchema.parse(definition.options.parse({...settings,...choice}));
-            void configure(next,Math.min(limit,definition.maxPlayers(next)),entry,{...choice,count:Math.min(limit,definition.maxPlayers(next))});
-          };
-          return <Field key={field.key} className="grid-cols-[auto_minmax(0,max-content)] items-center justify-between gap-4">{field.label}{field.type==="select"?<Select className="max-w-full" aria-label={field.ariaLabel ?? field.label} value={String(value)} onChange={e=>change(e.target.value)}>{field.choices?.map(choice=><option key={choice.value} value={choice.value}>{choice.label}</option>)}</Select>:<Switch aria-label={field.label} checked={value===true} onCheckedChange={change}/>}</Field>;
-        })}
-        {!development && definition.croins && <div className="min-w-0 space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
-          <Field className="grid-cols-[1fr_auto] items-center gap-3">Jogar apostando<Switch aria-label="Jogar apostando" checked={entry>0} disabled={!economy && !entry} onCheckedChange={enabled=>{if(!enabled || economy)void configure(settings,limit,enabled?economy!.defaultBet:0);}}/></Field>
-          {entry>0 && <BetInput label="Entrada por jogador" value={entry} presets={economy?.suggestedBets ?? []} disabled={!canEdit} onValueChange={amount=>void configure(settings,limit,amount)}/>}
-        </div>}
-        {development && !room && <><Field>Bots<Select value={bots} onChange={e=>setBots(Number(e.target.value))}>{Array.from({length:limit+(onlyBots?1:0)},(_,i)=>i).filter(n=>!onlyBots || n>=2).map(n=><option key={n}>{n}</option>)}</Select></Field><Field className="flex items-center justify-between">Somente bots<Switch checked={onlyBots} onCheckedChange={v=>{setOnlyBots(v);setBots(v?limit:0);}}/></Field></>}
-      </fieldset>:<div className="space-y-4 text-sm font-semibold">
-        {visibleSettings(definition,settings).map(field=><div key={field.key} className="flex min-h-11 items-center justify-between gap-4"><span>{field.label}</span><span className="text-right">{field.type==="switch"?(settingValue(settings,field.key)?"Ativado":"Desativado"):field.choices?.find(choice=>choice.value===settingValue(settings,field.key))?.label}</span></div>)}
-        {!development && definition.croins && <div className="space-y-4 rounded-xl bg-contrast/6 p-4" role="group" aria-label="Aposta da partida">
-          <div className="flex items-center justify-between gap-3"><span>Jogar apostando</span><span>{entry>0?"Sim":"Não"}</span></div>
-          {entry>0 && <div className="flex items-center justify-between gap-3"><span>Entrada por jogador</span><span className="flex items-center gap-2"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(entry)} Croins</span></div>}
-        </div>}
-      </div>}
-      {rules?.(settings)}
-    </Card>}
-    {((userId && (!development || permissions.canManageSite)) || room) && <Card className="min-w-0 space-y-4" aria-label="Jogadores e vagas">
-      {editableSettings?<fieldset disabled={!canEdit}>
-        <Field className="grid-cols-[1fr_auto] items-center gap-4">Número de jogadores<Select className="w-20" aria-label="Número de jogadores" value={limit} onChange={e=>{
-          const count=Number(e.target.value),next=gameOptionsForPlayers(definition,settings,count);
-          void configure(next,count,entry,{...next,count});
-        }}>{Array.from({length:maxGamePlayers(definition,settings)-definition.minPlayers+1},(_,i)=>i+definition.minPlayers).map(n=><option key={n} value={n}>{n}</option>)}</Select></Field>
-      </fieldset>:<div className="flex min-h-11 items-center justify-between gap-4 text-sm font-semibold"><span>Número de jogadores</span><span>{limit}</span></div>}
-      {entry>0 && <div className="flex items-center justify-between gap-4 rounded-lg bg-contrast/6 p-3 text-sm mb-8"><span>Prêmio (Pote)</span><span className="flex items-center gap-2 tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(BigInt(entry)*BigInt(room?.participants.length ?? 1))} Croins</span></div>}
-      <ul className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-x-3 gap-y-5" aria-label="Vagas da sala">
-        {Array.from({length:limit},(_,i)=>{
-          const person=seats[i];
-          const waiting=!!person && !!room && (!room.participants.some(p=>p.userId===person.userId) || (person.userId!==userId && !room.onlineUserIds.includes(person.userId)));
-          const preview=!room && !onlyBots && i===0;
-          const botSeat=room?i>=seats.length && i<seats.length+room.bots:i>=(onlyBots?0:1) && i<occupied;
-          const name=person ? playerName(person) : (botSeat?`Bot ${i+1}`:preview?displayName?.trim() || username || "Você":null);
-          const isHost=(person && person.userId===room?.hostId) || preview;
-          const next=i===occupied;
-          const placeholder=<UserRound className="size-6 text-muted" aria-hidden="true"/>;
-          return <li key={person?.userId ?? (preview?userId:undefined) ?? "seat-"+i} className={cn("relative flex min-w-0 flex-col items-center gap-2",waiting && "opacity-40")}>
-            <div className="relative">
-              {name?<Avatar className="size-16"><AvatarImage src={person?.avatarUrl ?? (preview?avatar ?? undefined:undefined)}/><AvatarFallback className="text-lg">{name[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>
-                :next && (!room || host) && !(room?.onlyBots ?? onlyBots)?<Button variant="ghost" size="icon" className="relative size-16 rounded-full! border-0 p-0" aria-label="Convidar jogadores" disabled={busy || (!!userId && !connected)} onClick={async()=>{
-                  if(!userId){openLogin();return;}
-                  if(room){setInviting(true);return;}
-                  const created=await create(true);if(created)setInviting(true);
-                }}><SeatOutline/><Plus className="size-6" aria-hidden="true"/></Button>
-                :<span className="relative flex size-16 items-center justify-center rounded-full"><SeatOutline/>{placeholder}</span>}
-              {isHost && <span className="absolute -top-3 -left-1" title="Host"><Image src="/host.svg" width={25} height={24} className="h-6 w-auto" alt="Host"/></span>}
+  const rooms=<section className="min-w-0 space-y-4" aria-label="Lobbies abertos">
+    <>
+      {development && <p className="text-sm font-medium">Partidas de teste</p>}
+      {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
+      {listedRooms.length===0?connected && <EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4","@min-[34rem]:grid-cols-2 @min-[64rem]:grid-cols-3")}>{listedRooms.map(lobby=>{
+        const active=lobby.status==="playing";
+        const people=[...lobby.participants,...(lobby.status==="lobby"?lobby.pendingInvitations:[]),...Array.from({length:lobby.bots},(_,i)=>({userId:`bot-${i}`,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,seat:lobby.participants.length+i}))];
+        const filled=people.length;
+        const hostName=lobby.participants.some(p=>p.userId===lobby.hostId)?playerName(lobby.participants.find(p=>p.userId===lobby.hostId)):lobby.hostId===userId?(displayName || username || "Você"):"Administrador";
+        const cardHost=lobby.hostId===userId;
+        const member=lobby.participants.some(p=>p.userId===userId);
+        const joined=(development && cardHost) || member;
+        const pending=lobby.status==="lobby"?lobby.pendingInvitations:[];
+        const confirmedIds=lobby.status==="lobby"?lobby.confirmedUserIds:[];
+        const onlineIds=lobby.status==="lobby"?lobby.onlineUserIds:[];
+        const reserved=lobby.status==="lobby" && pending.some(p=>p.userId===userId);
+        const canCancel=development && permissions.canManageSite && cardHost && active;
+        const full=filled>=lobby.capacity;
+        const confirmed=!!userId && confirmedIds.includes(userId);
+        const allConfirmed=lobby.entryAmount===0 || lobby.participants.every(p=>confirmedIds.includes(p.userId));
+        const allOnline=pending.length===0 && lobby.participants.every(p=>onlineIds.includes(p.userId));
+        const nextSeat=filled;
+        return <li key={lobby.code}><Card className={cn("relative isolate flex h-full flex-col gap-4",development && "bg-transparent p-0")}>
+          <div className="min-w-0 space-y-2">
+            <p className="truncate text-lg font-semibold" title={`Sala de ${hostName}`}>Sala de {hostName}</p>
+            <div className="flex flex-wrap items-center gap-2">{active && <Badge variant="secondary">Em andamento</Badge>}{gameSettingBadges(definition,lobby.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}</div>
+          </div>
+          <ul className="flex flex-wrap gap-2" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
+            const person=people[i];
+            const pending=!!person && lobby.status==="lobby" && !lobby.participants.some(p=>p.userId===person.userId);
+            const offline=!!person && lobby.status==="lobby" && lobby.participants.some(p=>p.userId===person.userId) && person.userId!==userId && !lobby.onlineUserIds.includes(person.userId);
+            const dim=!!person && !person.userId.startsWith("bot-") && (pending || offline);
+            const seatLabel=person ? `${playerName(person)}, vaga ${i+1}` : `Disponível, vaga ${i+1}`;
+            return <li key={person?.userId ?? i} aria-label={seatLabel} title={person ? playerName(person) : "Disponível"} className={cn("relative shrink-0",dim && "opacity-40")}>
+              {person?<span className="relative block size-11"><Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{playerName(person)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>{person.userId===lobby.hostId && <span className="absolute -top-2 -left-1" title="Host"><Image src="/host.svg" width={21} height={20} className="h-5 w-auto" alt="Host"/></span>}{cardHost && member && !active && person.userId!==userId && !person.userId.startsWith("bot-") && <KickPlayer code={lobby.code} version={lobby.version} userId={person.userId} name={playerName(person)} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}</span>
+                :active?<span className="relative flex size-11 items-center justify-center rounded-full"><SeatOutline/><UserRound className="size-4 text-muted"/></span>
+                :joined?cardHost && i===nextSeat?<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label="Convidar jogadores" disabled={busy || !connected} onClick={()=>setInviteCode(lobby.code)}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>:<span className="relative flex size-11 items-center justify-center rounded-full"><SeatOutline/><UserRound className="size-4 text-muted"/></span>
+                :<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${hostName}, vaga ${i+1}`} disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>void act(lobby,"join")}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
+            </li>;
+          })}</ul>
+          {joined && !active && cardHost && (lobby.participants.length+lobby.bots<2 || !allOnline || !allConfirmed) && <p className="text-xs text-muted">{lobby.participants.length+lobby.bots<2?"Aguardando mais jogadores.":!allOnline?"Aguardando convidados entrarem na sala.":"Aguardando todos confirmarem a entrada."}</p>}
+          <div className="relative z-20 mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-contrast/6 px-3 py-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold tabular-nums" aria-label={`${filled} de ${lobby.capacity} lugares ocupados`}><UsersRound className="size-4 text-muted" aria-hidden="true"/>{filled} / {lobby.capacity}</span>
+            {lobby.entryAmount>0 && <span className="flex items-center gap-1.5 text-xs font-semibold tabular-nums"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</span>}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}
+              {canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/abandon`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
+              {!active && !joined && reserved && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>void act(lobby,"join")}>Aceitar convite</Button>}
+              {!active && !joined && !reserved && <Button size="sm" className="bg-tertiary text-white" disabled={busy || !connected || full || (!development && !!directory.active)} onClick={()=>void act(lobby,"join")}>Entrar</Button>}
+              {!active && joined && cardHost && <>
+                <Button size="sm" variant="secondary" disabled={busy || !connected} onClick={()=>openEdit(lobby)}>Editar</Button>
+                <Button size="sm" variant="secondary" disabled={busy || !connected} onClick={()=>void act(lobby,"leave")}>Cancelar</Button>
+              </>}
+              {!active && joined && !cardHost && <>
+                {lobby.entryAmount>0 && !confirmed
+                  ? <Button size="sm" className="bg-tertiary text-white" disabled={busy || !connected} onClick={()=>void confirmEntry(lobby)}>Confirmar entrada de {formatBalance.format(lobby.entryAmount)} Croins</Button>
+                  : <Button size="sm" variant="secondary" disabled>Aguardando o host</Button>}
+                <Button size="sm" variant="secondary" disabled={busy || !connected} onClick={()=>void act(lobby,"leave")}>Cancelar</Button>
+              </>}
             </div>
-            <span className={cn("w-full truncate text-center text-xs font-medium",isHost?"text-brand":!name && "text-muted")} title={waiting?`${name} · Aguardando entrada`:name ?? undefined}>{name ?? "Disponível"}</span>
-            {entry>0 && person && room?.participants.some(p=>p.userId===person.userId) && <span className="text-center text-xs text-muted">{room.confirmedUserIds.includes(person.userId)?"Confirmado":"A confirmar"}</span>}
-            {room && host && person && person.userId!==userId && <KickPlayer code={room.code} version={room.version} userId={person.userId} name={playerName(person)} compact disabled={busy || !connected} onSuccess={response=>{if(response.status==="lobby")acceptLobby(response);}}/>}
-          </li>;
-        })}
-      </ul>
-      {room && host && <InvitePlayers key={room.code} gameSlug={game.slug} code={room.code} open={inviting} onOpenChange={open=>{setInviting(open);if(!open && searchParams.has("convidar"))visit(room.code);}}/>}
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <div className="space-y-3">
-        {room && member && entry>0 && !confirmed && <Button className="w-full" variant="secondary" loading={busy} disabled={busy || !connected} onClick={()=>void confirmEntry()}>Confirmar entrada de {formatBalance.format(entry)} Croins</Button>}
-        {!room?<Button className="w-full bg-tertiary text-white" loading={busy} disabled={creationBlocked || (!!userId && !connected)} onClick={()=>void create()}>{userId?"Jogar":"Entrar para jogar"}</Button>
-          :!member && !host?<Button className="w-full" loading={busy} disabled={busy || !connected || occupied>=room.capacity && !room.pendingInvitations.some(p=>p.userId===userId) || (!development && !!directory.active)} onClick={()=>void act(room,"join")}>Entrar na sala</Button>
-          :<div className="flex items-center gap-3">
-            <Button className="min-w-0 flex-1 bg-tertiary text-white" loading={busy} disabled={busy || !connected || !host || room.participants.length+room.bots<2 || !allOnline || !allConfirmed} onClick={()=>void act(room,"start")}>{host?"Jogar":"Aguardando o host"}</Button>
-            <Button className="shrink-0" variant="secondary" disabled={busy || !connected} onClick={()=>void act(room,"leave")}>Cancelar</Button>
-          </div>}
-        {room && host && entry>0 && !allConfirmed && <p className="text-sm text-muted" role="status">Aguardando todos confirmarem o valor da entrada.</p>}
-        {room && host && connected && !allOnline && <p className="text-sm text-muted" role="status">Aguardando todos os convidados entrarem na sala.</p>}
-        {room && !connected && <p className="text-sm text-muted" role="status">Reconectando à sala…</p>}
-        {userId && room && !creationBlocked && <Button className="w-full" variant="secondary" disabled={busy || !connected} onClick={()=>void create()}>Criar meu lobby</Button>}
-      </div>
-    </Card>}
-    <section className={cn("min-w-0 space-y-4",development && "rounded-panel bg-surface p-4",!showSettings && (userId || room?"xl:col-span-2":"xl:col-span-3"))} aria-label="Lobbies abertos">
-      <>
-        {development && <p className="text-sm font-medium">Partidas de teste</p>}
-        {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-        {listedRooms.length===0?connected && <EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className="grid gap-4">{listedRooms.map(lobby=>{
-          const active=lobby.status==="playing";
-          const people=[...lobby.participants,...(lobby.status==="lobby"?lobby.pendingInvitations:[]),...Array.from({length:lobby.bots},(_,i)=>({userId:`bot-${i}`,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,seat:lobby.participants.length+i}))];
-          const hostName=lobby.participants.some(p=>p.userId===lobby.hostId)?playerName(lobby.participants.find(p=>p.userId===lobby.hostId)):lobby.hostId===userId?(displayName || username || "Você"):"Administrador";
-          const joined=(development && lobby.hostId===userId) || lobby.participants.some(p=>p.userId===userId);
-          const reserved=lobby.status==="lobby" && lobby.pendingInvitations.some(p=>p.userId===userId);
-          const canCancel=development && permissions.canManageSite && lobby.hostId===userId;
-          return <li key={lobby.code}><Card className={cn("relative isolate h-full space-y-4",development && "bg-transparent p-0")}>
-            <div className="flex flex-wrap items-center gap-2"><p className="min-w-0 truncate text-sm font-semibold">Sala de {hostName}</p>{active && <Badge variant="secondary">Em andamento</Badge>}{gameSettingBadges(definition,lobby.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}{lobby.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(lobby.entryAmount)} Croins</Badge>}</div>
-            <ul className="flex flex-wrap gap-x-3 gap-y-4" aria-label="Vagas do lobby">{Array.from({length:lobby.capacity},(_,i)=>{
-              const person=people[i];
-              return <li key={person?.userId ?? i} className={cn("flex w-14 min-w-0 flex-col items-center gap-2",lobby.status==="lobby" && person && !person.userId.startsWith("bot-") && (!lobby.participants.some(p=>p.userId===person.userId) || !lobby.onlineUserIds.includes(person.userId)) && "opacity-40")}>
-                {person?<span className="relative size-11 shrink-0"><Avatar className="size-11"><AvatarImage src={person.avatarUrl ?? undefined}/><AvatarFallback>{playerName(person)[0]?.toLocaleUpperCase("pt-BR")}</AvatarFallback></Avatar>{person.userId===lobby.hostId && <span className="absolute -top-2 -left-1" title="Host"><Image src="/host.svg" width={21} height={20} className="h-5 w-auto" alt="Host"/></span>}</span>:active?<span className="relative flex size-11 items-center justify-center rounded-full"><SeatOutline/><UserRound className="size-4 text-muted"/></span>:<Button variant="ghost" size="icon" className="relative size-11 rounded-full! border-0 p-0" aria-label={`Entrar na sala de ${hostName}, vaga ${i+1}`} disabled={busy || !connected || joined || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}><SeatOutline/><Plus className="size-4" aria-hidden="true"/></Button>}
-                <span title={person ? playerName(person) : undefined} className={cn("w-full truncate text-center text-xs",person?.userId===lobby.hostId?"text-brand":!person && "text-muted")}>{person ? playerName(person) : "Disponível"}</span>
-              </li>;
-            })}</ul>
-            {(active || canCancel || (reserved && !joined)) && <div className="relative z-20 flex flex-wrap gap-2">{active && <Button size="sm" variant="secondary" onClick={()=>onTestStarted?.(lobby.code)}><Eye className="size-4" aria-hidden="true"/>Visualizar</Button>}{canCancel && <MatchExitControl label="Cancelar" match={lobby} onIndividual={active && !lobby.onlyBots?async()=>{await managementRequest(`/matches/${lobby.code}/abandon`,{parse:(v:unknown)=>v},"POST",{commandId:randomUUID(),expectedVersion:lobby.version});}:undefined} onEndTest={()=>cancelTest(lobby.code)}/>}
-            {reserved && !joined && <Button size="sm" variant="secondary" disabled={busy || !connected || (!development && !!directory.active)} onClick={()=>{if(lobby.status==="lobby")void act(lobby,"join");}}>Aceitar convite</Button>}</div>}
+          </div>
+        </Card></li>;
+      })}</ul>}
+    </>
+  </section>;
+  const matchesSection=listedMatches.length>0?<section className="min-w-0 space-y-4" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">{listedMatches.map(match=>{
+    const playing=!!userId && match.controllerIds.includes(userId);
+    return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-lg font-semibold">Sala de {playerName(match.participants.find(p=>p.userId===match.hostId))}</p>{gameSettingBadges(definition,match.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
+  })}</ul></section>:null;
 
-            {joined && lobby.status==="lobby" && <Button variant="ghost" className="backdrop-blur-none absolute inset-0 z-10 size-full rounded-panel m-0! p-0" aria-label={`Abrir sala de ${hostName}`} disabled={busy} onClick={()=>{acceptLobby(lobby);visit(lobby.code);}}/>}
-          </Card></li>;
-        })}</ul>}
-      </>
-    </section>
-    {listedMatches.length>0 && <section className="min-w-0 space-y-4 xl:col-span-3" aria-label="Partidas em andamento"><Heading variant="section">Partidas em andamento</Heading><ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{listedMatches.map(match=>{
-      const playing=!!userId && match.controllerIds.includes(userId);
-      return <li key={match.code}><Card className="space-y-4"><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold">Sala de {playerName(match.participants.find(p=>p.userId===match.hostId))}</p>{gameSettingBadges(definition,match.options).map(badge=><Badge key={badge.label} variant={badge.variant}>{badge.label}</Badge>)}{match.entryAmount>0 && <Badge variant="secondary" className="gap-1.5"><CroinIcon className="size-4 text-[0.625rem]"/>{formatBalance.format(match.entryAmount)} Croins</Badge>}</div><p className="text-xs text-muted">Rodada {match.round} · {match.participants.length} jogadores</p><Button size="sm" variant="secondary" onClick={()=>openMatch(match.code)}><Eye className="size-4" aria-hidden="true"/>{playing?"Continuar partida":"Visualizar"}</Button></Card></li>;
-    })}</ul></section>}
+  const editRoom=editCode?listedRooms.find((lobby):lobby is Lobby=>lobby.status==="lobby" && lobby.code===editCode) ?? null:null;
+  const setupEditing=setup==="edit" && !!editRoom;
+  const editSettings=editRoom?gameOptionsSchema.parse(definition.options.parse(editRoom.options)):newSettings;
+  const editCapacity=editRoom?.capacity ?? capacity;
+  const editEntry=editRoom?.entryAmount ?? entryAmount;
+  return <div className="w-full space-y-4">
+    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[21rem_minmax(0,1fr)] xl:gap-6">
+      <LobbyAside game={game} definition={definition} development={development} settings={settings} userId={userId} connected={connected} busy={busy} creationBlocked={creationBlocked} playDisabled={playDisabled} playLoading={busy} showCreate={development && !!editableRoom} rules={rules} onLogin={openLogin} onPlay={play} onCreate={openCreate}/>
+      <div className="@container min-w-0 space-y-6">
+        {rooms}
+        {matchesSection}
+      </div>
     </div>
-    {!userId && !room && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    <LobbyCreateDialog open={setup!==null && (setup!=="edit" || !!editRoom)} onOpenChange={open=>{if(!open){setSetup(null);setEditCode(null);}}} definition={definition} settings={setupEditing?editSettings:newSettings} capacity={setupEditing?editCapacity:capacity} entry={setupEditing?editEntry:entryAmount} bots={bots} onlyBots={onlyBots} development={development} economy={economy} busy={busy} connected={connected} error={setup!==null?error:""} editing={setupEditing} onChange={setupEditing?(options,capacity,entry,choice)=>{void configure(options,capacity,entry,choice);}:configureNew} onBots={setBots} onOnlyBots={setOnlyBots} onCreate={()=>void create()}/>
+    {inviteCode && <InvitePlayers key={inviteCode} gameSlug={game.slug} code={inviteCode} open onOpenChange={open=>{if(!open)setInviteCode(null);}}/>}
+    {setup===null && error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </div>;
 }

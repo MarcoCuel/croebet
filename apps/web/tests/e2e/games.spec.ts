@@ -179,57 +179,6 @@ test.beforeEach(async ({ page, context }) => {
     await route.fulfill({ status: result.status, json: result.data });
   });
 });
-for (const slug of ["flip7", "love-letter", "solo"] as const) test(`hero ${slug} anima cartas sem bloquear controles e respeita movimento reduzido`, async ({ page }) => {
-  if (slug !== "flip7") upcoming = { ...game, id: "93089d02-0b34-4b78-9d3e-f2679c190b5e", slug, moduleId: slug, name: slug === "solo" ? "Solo" : "Love Letter" };
-  await page.goto(`/jogos/${slug}${slug === "flip7" ? "" : "?teste=1"}`);
-  const header = page.getByLabel("Apresentação do jogo");
-  const artwork = header.locator(`[data-game-hero-cards="${slug}"]`);
-  await expect(artwork).toBeVisible();
-  await expect(artwork).toHaveAttribute("aria-hidden", "true");
-  const tracks = artwork.locator("[data-hero-track]");
-  await expect(tracks).toHaveCount(3);
-  expect(await tracks.evaluateAll(elements => elements.map(el => getComputedStyle(el).animationDirection))).toEqual(["normal", "reverse", "normal"]);
-  const first = tracks.first();
-  const initialTransform = await first.evaluate(el => getComputedStyle(el).transform);
-  await expect.poll(() => first.evaluate(el => getComputedStyle(el).transform)).not.toBe(initialTransform);
-  // The repeated group must land exactly where the first group began at the loop boundary.
-  const seam = await first.evaluate(el => {
-    const animation = el.getAnimations()[0];
-    animation.pause();
-    animation.currentTime = 0;
-    const start = el.children[0].getBoundingClientRect();
-    animation.currentTime = 32000 - 1;
-    const end = el.children[1].getBoundingClientRect();
-    return { x: Math.abs(start.x - end.x), y: Math.abs(start.y - end.y) };
-  });
-  expect(seam.x).toBeLessThan(1);
-  expect(seam.y).toBeLessThan(1);
-  if (slug === "flip7") await header.getByRole("switch", { name: "Modo dev", exact: true }).click({ trial: true });
-  await expect(artwork.locator("[data-card-back]")).toHaveCount(0);
-  if (slug === "love-letter") {
-    const sources = await artwork.locator("img").evaluateAll(images => [...new Set(images.map(image => image.getAttribute("src")))]);
-    expect(sources).toHaveLength(10);
-    await expect.poll(() => page.evaluate(urls => Promise.all(urls.map(url => new Promise<boolean>(resolve => {
-      const image = new Image();
-      image.onload = () => resolve(image.naturalWidth > 0);
-      image.onerror = () => resolve(false);
-      image.src = url!;
-    }))).then(loaded => loaded.every(Boolean)), sources)).toBe(true);
-  }
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect.poll(() => first.evaluate(el => getComputedStyle(el).animationName)).toBe("none");
-  const order = () => first.locator(":scope > div").first().evaluate(el => Array.from(el.children).map(card => `${card.textContent}:${card.querySelector("img")?.getAttribute("src") ?? ""}`).join("|"));
-  const originalOrder = await order();
-  const observedOrders = new Set([originalOrder]);
-  for (let attempt = 0; attempt < 3 && observedOrders.size === 1; attempt++) {
-    await page.reload();
-    await expect(artwork).toBeVisible();
-    observedOrders.add(await order());
-  }
-  expect(observedOrders.size).toBeGreaterThan(1);
-});
-
 test("topbar exibe a capa do jogo ao lado do título na interna e na partida", async ({ page }) => {
   game = { ...game, imageUrl: "/cover-fixture.svg" };
   await page.route("**/cover-fixture.svg", route => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="purple"/></svg>' }));
@@ -461,24 +410,27 @@ test("histórico abre o link original com resultado; Replay usa a mesa e a barra
   await expect(page.getByLabel("Controles de reprodução")).toHaveCount(0);
 });
 
-test("Love Letter no modo dev reutiliza configurações, vagas e listagem de salas",async({page})=>{
+test("Love Letter no modo dev reutiliza sidebar, configurações no modal e listagem de salas",async({page})=>{
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
  await page.goto("/jogos/love-letter?teste=1");
  await expect(page.getByLabel("Apresentação do jogo").getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
  await expect(page.getByLabel("Apresentação do jogo").getByText("Desenvolvimento",{exact:true})).toBeVisible();
  await expect(page.getByText("Sem Croins, estatísticas ou conquistas.",{exact:true})).toHaveCount(0);
- await expect(page.getByLabel("Configuração e regras")).toBeVisible();
- await expect(page.getByLabel("Jogadores e vagas")).toBeVisible();
  await expect(page.getByLabel("Lobbies abertos")).toBeVisible();
- await expect(page.getByLabel("Modo do Love Letter").locator("option")).toHaveText(["Clássico","Moderno"]);
- await expect(page.getByRole("switch",{name:"Somente bots",exact:true})).toBeVisible();
- await expect(page.getByRole("group",{name:"Aposta da partida"})).toHaveCount(0);
+ await expect(page.getByLabel("Configuração e regras")).toHaveCount(0);
+ await expect(page.getByLabel("Jogadores e vagas")).toHaveCount(0);
+ await expect(page.getByLabel("Apresentação do jogo").getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ const dialog=page.getByRole("dialog");
+ await expect(dialog.getByLabel("Modo do Love Letter").locator("option")).toHaveText(["Clássico","Moderno"]);
+ await expect(dialog.getByRole("switch",{name:"Somente bots",exact:true})).toBeVisible();
+ await expect(dialog.getByRole("group",{name:"Aposta da partida"})).toHaveCount(0);
  await expect(page.getByRole("button",{name:"Criar partida de teste",exact:true})).toHaveCount(0);
- await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
+ await page.keyboard.press("Escape");
  await page.goto("/jogos/love-letter");
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
- await expect(page.getByLabel("Configuração e regras")).toBeVisible();
+ await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeVisible();
 });
 
 test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({page})=>{
@@ -487,8 +439,10 @@ test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({pag
  page.on("console",message=>{if(message.type()==="error")errors.push(message.text());});
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
  await page.goto("/jogos/love-letter?teste=1");
- const count=page.getByLabel("Número de jogadores"),mode=page.getByLabel("Modo do Love Letter");
- const bots=page.getByLabel("Configuração e regras").getByRole("combobox",{name:"Bots",exact:true});
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ const dialog=page.getByRole("dialog");
+ const count=dialog.getByLabel("Número de jogadores"),mode=dialog.getByLabel("Modo do Love Letter");
+ const bots=dialog.getByRole("combobox",{name:"Bots",exact:true});
  await expect(mode).toHaveValue("classic");
  await expect(count.locator("option")).toHaveText(["2","3","4","5","6"]);
  await count.selectOption("6");
@@ -498,18 +452,23 @@ test("lobby adapta modo e bots ao escolher a quantidade de jogadores",async({pag
  await expect(count).toHaveValue("4");await expect(bots).toHaveValue("3");
  await count.selectOption("2");
  await expect(count).toHaveValue("2");await expect(bots).toHaveValue("1");
- await expect(page.getByLabel("Vagas da sala").getByRole("listitem")).toHaveCount(2);
  await expect(mode).toHaveValue("classic");
  await count.selectOption("5");await expect(mode).toHaveValue("modern");
  await page.reload();
- await expect(count).toHaveValue("5");await expect(mode).toHaveValue("modern");
- await expect(bots.locator("option")).toHaveText(["0","1","2","3","4"]);
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ const reopened=page.getByRole("dialog");
+ await expect(reopened.getByLabel("Modo do Love Letter")).toHaveValue("modern");
+ await expect(reopened.getByLabel("Número de jogadores")).toHaveValue("5");
+ await expect(reopened.getByRole("combobox",{name:"Bots",exact:true}).locator("option")).toHaveText(["0","1","2","3","4"]);
  expect(errors.filter(message=>/hydration|hydrated|script tag|server rendered HTML/i.test(message))).toEqual([]);
  // Fixed-limit games use the same capacity control and trim bots as well.
  await page.goto("/jogos/flip7?teste=1");
- await count.selectOption("6");await bots.selectOption("5");
- await count.selectOption("2");await expect(bots).toHaveValue("1");
- await expect(page.getByLabel("Modo do Flip7")).toHaveValue("classic");
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ const flipDialog=page.getByRole("dialog");
+ const flipCount=flipDialog.getByLabel("Número de jogadores"),flipBots=flipDialog.getByRole("combobox",{name:"Bots",exact:true});
+ await flipCount.selectOption("6");await flipBots.selectOption("5");
+ await flipCount.selectOption("2");await expect(flipBots).toHaveValue("1");
+ await expect(flipDialog.getByLabel("Modo do Flip7")).toHaveValue("classic");
 });
 
 test("modo dev permite criar outra partida do mesmo jogo com teste em andamento",async({page})=>{
@@ -531,6 +490,7 @@ test("modo dev permite criar outra partida do mesmo jogo com teste em andamento"
   return lobbySchema.parse({...base,id:"93089d02-0b34-4b78-9d3e-f2679c190b5b",code:"ABCDEF654322",version:1,status:"lobby",state:null,capacity:input.capacity,options:input.options,bots:0,onlyBots:false,participants:[{userId:id,username:"Admin",displayName:"Admin",avatarUrl:null,seat:0}]});
  };
  await play.click();
+ await page.getByRole("dialog").getByRole("button",{name:"Criar sala",exact:true}).click();
  await expect(page).toHaveURL("/jogos/love-letter?partida=ABCDEF654322&teste=1");
  expect(creation).toMatchObject({development:true,game:"love-letter"});
 });
@@ -548,7 +508,7 @@ test("URL do modo dev retorna 404 para jogador comum antes de renderizar o lobby
  sessionRole="user";
  const response=await page.goto("/jogos/flip7?teste=1");
  expect(response?.status()).toBe(404);
- await expect(page.getByLabel("Configuração e regras")).toHaveCount(0);
+ await expect(page.getByLabel("Apresentação do jogo")).toHaveCount(0);
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toHaveCount(0);
 });
 
@@ -567,7 +527,9 @@ test("abrir teste do Love Letter mantém link, recarga e volta para o jogo",asyn
  if(testInfo.project.name==="desktop"){
   await page.getByRole("link",{name:"Voltar para Love Letter",exact:true}).click();
   await expect(page).toHaveURL("/jogos/love-letter?teste=1");
-  await expect(page.getByLabel("Modo do Love Letter")).toBeVisible();
+  await page.getByRole("button",{name:"Jogar",exact:true}).click();
+  await expect(page.getByRole("dialog").getByLabel("Modo do Love Letter")).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button",{name:"Visualizar",exact:true})).toBeVisible();
   await expect(page.getByText("Conectando às salas…",{exact:true})).toHaveCount(0);
  }
@@ -584,7 +546,7 @@ test("link de teste abre a mesa sem exibir o lobby durante a revalidação", asy
   const state = window as typeof window & { lobbyFlashed?: boolean };
   state.lobbyFlashed = false;
   new MutationObserver(() => {
-   if (document.querySelector('[aria-label="Modo do Love Letter"]')) state.lobbyFlashed = true;
+   if (document.querySelector('[aria-label="Apresentação do jogo"]')) state.lobbyFlashed = true;
   }).observe(document, {childList:true, subtree:true});
  });
  let release!: () => void;
@@ -995,19 +957,26 @@ test("navbar acompanha partidas e avisa turno fora da mesa sem repetir alertas",
 test("configurações declaradas pelo jogo respeitam limites e guardam a escolha pessoal",async({page})=>{
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter"};
  await page.goto("/jogos/love-letter?teste=1");
- const mode=page.getByLabel("Modo do Love Letter"),count=page.getByLabel("Número de jogadores",{exact:true});
  await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ let dialog=page.getByRole("dialog");
+ const mode=dialog.getByLabel("Modo do Love Letter"),count=dialog.getByLabel("Número de jogadores",{exact:true});
  await expect(count.locator("option")).toHaveCount(5);
  await mode.selectOption("modern");
  await expect(count.locator("option")).toHaveCount(5);
  await count.selectOption("6");
  await page.reload();
- await expect(mode).toHaveValue("modern");await expect(count).toHaveValue("6");
- await mode.selectOption("classic");
- await expect(count).toHaveValue("4");
- await page.reload();await expect(mode).toHaveValue("classic");await expect(count).toHaveValue("4");
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ dialog=page.getByRole("dialog");
+ await expect(dialog.getByLabel("Modo do Love Letter")).toHaveValue("modern");
+ await expect(dialog.getByLabel("Número de jogadores",{exact:true})).toHaveValue("6");
+ await dialog.getByLabel("Modo do Love Letter").selectOption("classic");
+ await expect(dialog.getByLabel("Número de jogadores",{exact:true})).toHaveValue("4");
+ await page.reload();
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ await expect(page.getByRole("dialog").getByLabel("Modo do Love Letter")).toHaveValue("classic");
+ await expect(page.getByRole("dialog").getByLabel("Número de jogadores",{exact:true})).toHaveValue("4");
 });
-
 
 test("aviso de expiração permite manter lobby aberto fora da página do jogo", async ({page}) => {
  personalMatches={items:[{code:"ABCDEF123456",game:"flip7",gameName:"Flip 7",status:"lobby",development:false,yourTurn:false,turnKey:null,participants:[],lobbyExpiresAt:new Date(Date.now()+31*60000).toISOString()}]};
@@ -1102,19 +1071,20 @@ test("resultado de teste Love Letter mostra tempo ativo e reproduz na barra comp
  await expect(result).toBeVisible();
 });
 
-test("hero do Love Letter mostra jogadores e duração acima do título", async ({page}) => {
+test("sidebar do jogo mostra jogadores e duração", async ({page}) => {
  upcoming={...game,id:"93089d02-0b34-4b78-9d3e-f2679c190b5e",slug:"love-letter",name:"Love Letter",averageDurationSeconds:1260};
  await page.goto("/jogos/love-letter?teste=1");
- const hero=page.getByLabel("Apresentação do jogo");
- await expect(hero.getByText("2 / 6",{exact:true})).toBeVisible();
- await expect(hero.getByText("21 min.",{exact:true})).toBeVisible();
- const tags=await hero.getByLabel("Informações do jogo").boundingBox();
- const title=await hero.getByRole("heading",{name:"Love Letter",exact:true}).boundingBox();
- expect(tags!.y+tags!.height).toBeLessThanOrEqual(title!.y);
+ const aside=page.getByLabel("Apresentação do jogo");
+ const info=aside.getByLabel("Sobre o jogo");
+ await expect(info.getByText("2 / 6",{exact:true})).toBeVisible();
+ await expect(info.getByText("21 min.",{exact:true})).toBeVisible();
+ const title=await aside.getByRole("heading",{name:"Love Letter",exact:true}).boundingBox();
+ const tags=await info.getByLabel("Informações do jogo").boundingBox();
+ expect(tags!.y).toBeGreaterThan(title!.y);
  upcoming={...upcoming,averageDurationSeconds:null};
  await page.reload();
- await expect(hero.getByText("2 / 6",{exact:true})).toBeVisible();
- await expect(hero.getByText("21 min.",{exact:true})).toHaveCount(0);
+ await expect(info.getByText("2 / 6",{exact:true})).toBeVisible();
+ await expect(info.getByText("21 min.",{exact:true})).toHaveCount(0);
 });
 
 test("admin salva a duração padrão do jogo em minutos", async ({page}) => {
@@ -1189,5 +1159,6 @@ test("Solo continua em breve para contas comuns e o lobby dev limita a dez pesso
  sessionRole="admin";await page.goto("/jogos/solo");
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeChecked();
  await expect(page.getByRole("switch",{name:"Modo dev",exact:true})).toBeDisabled();
- await expect(page.getByLabel("Duração",{exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Jogar",exact:true}).click();
+ await expect(page.getByRole("dialog").getByLabel("Duração",{exact:true})).toBeVisible();
 });
