@@ -30,12 +30,18 @@ export function useGameHistory() {
 export function GameTableLayout({
   children,
   history,
+  aside,
 }: {
   children: ReactNode;
   history: GameHistoryEntry[];
+  aside?: ReactNode;
 }) {
   const id = useId();
   const [visible, setVisible] = useState(true);
+  // O conteúdo do aside (por exemplo, participantes) permanece visível quando
+  // apenas o histórico é escondido. Sem conteúdo próprio, o aside inteiro
+  // acompanha o histórico e libera a largura da mesa.
+  const showAside = visible || !!aside;
 
   return (
     <HistoryContext.Provider
@@ -50,7 +56,7 @@ export function GameTableLayout({
           className={cn(
             "grid grid-cols-[minmax(0,1fr)] items-start",
             "[--history-width:clamp(8rem,25cqi,14rem)]",
-            visible &&
+            showAside &&
               "gap-4 @3xl:grid-cols-[minmax(0,1fr)_var(--history-width)] @3xl:gap-6"
           )}
         >
@@ -61,30 +67,41 @@ export function GameTableLayout({
             {children}
           </div>
 
-          <aside
-            id={id}
-            inert={!visible}
-            aria-hidden={!visible}
-            aria-label="Histórico da partida"
+          <div
+            data-game-table-aside
+            inert={!showAside}
+            aria-hidden={!showAside}
             className={cn(
-              "min-w-0",
+              "flex min-w-0 flex-col gap-3",
+              // Em telas estreitas o aside fica abaixo da mesa e precisa
+              // reservar a área da barra inferior fixa, como o conteúdo.
+              "pb-60 sm:pb-64 @3xl:pb-0",
               "@3xl:sticky @3xl:top-[calc(var(--header-height))]",
-              !visible && "hidden"
+              "@3xl:max-h-[calc(100dvh-var(--header-height)-1rem)]",
+              !showAside && "hidden"
             )}
           >
+            {aside}
+
             <div
+              id={id}
+              role="complementary"
+              aria-label="Histórico da partida"
+              inert={!visible}
+              aria-hidden={!visible}
               className={cn(
-                "max-h-[calc(100dvh-var(--header-height)-1rem)]",
-                "@3xl:h-[calc(100dvh-var(--header-height)-1rem)]",
-                "overflow-y-auto overscroll-contain",
+                "min-h-0 overflow-y-auto overscroll-contain",
                 "rounded-panel bg-surface p-4",
-                "text-xs leading-relaxed text-muted"
+                "text-xs leading-relaxed text-muted",
+                "max-h-[calc(100dvh-var(--header-height)-1rem)]",
+                "@3xl:max-h-none @3xl:flex-1",
+                !visible && "hidden"
               )}
               data-lenis-prevent
             >
               <GameHistory entries={history} />
             </div>
-          </aside>
+          </div>
         </div>
       </div>
     </HistoryContext.Provider>

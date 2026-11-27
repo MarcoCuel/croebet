@@ -218,7 +218,7 @@ test("cartas e camadas de animação permanecem abaixo do navbar", async ({ page
     }
   } finally { await peer.context.close(); }
 });
-test("baralho fica acima da barra inferior e os usuários ocupam a largura da mesa", async ({ page }) => {
+test("baralho fica acima da barra inferior e os jogadores ficam no aside, acima do histórico", async ({ page }) => {
   const code = "ABCDEF123456";
   const privateState = createGame(matchUsers.map(user => ({ name: user.username, kind: "human" as const })), 42, { mode: "classic", brutal: false });
   const state = flip7Driver.project(privateState);
@@ -234,16 +234,31 @@ test("baralho fica acima da barra inferior e os usuários ocupam a largura da me
   const deckElement = page.getByLabel(/cartas no baralho$/);
   const users = page.getByLabel("Usuários da partida");
   const content = page.locator("[data-game-table-content]");
+  const layout = page.locator("[data-game-table-layout]");
+  const aside = page.locator("[data-game-table-aside]");
+  const history = page.getByRole("complementary", { name: "Histórico da partida", exact: true });
   await expect(deckElement).toBeVisible();
-  const [deckBox, actionBox, usersBox, contentBox] = await Promise.all([
+  await expect(users).toBeVisible();
+  const [deckBox, actionBox, usersBox, contentBox, historyBox, asideBox, layoutBox] = await Promise.all([
     deckElement.boundingBox(),
     page.locator("[data-game-actions] > div").last().boundingBox(),
     users.boundingBox(),
     content.boundingBox(),
+    history.boundingBox(),
+    aside.boundingBox(),
+    layout.boundingBox(),
   ]);
   expect(deckBox!.y + deckBox!.height).toBeLessThanOrEqual(actionBox!.y);
   expect(Math.abs(deckBox!.x + deckBox!.width / 2 - actionBox!.x - actionBox!.width / 2)).toBeLessThan(2);
-  expect(usersBox!.width).toBeGreaterThan(contentBox!.width - 8);
+  // Os participantes saíram da mesa e passaram a ocupar o topo do aside,
+  // imediatamente antes do histórico.
+  expect(usersBox!.y + usersBox!.height).toBeLessThanOrEqual(historyBox!.y);
+  if (layoutBox!.width < 768) {
+    expect(usersBox!.y).toBeGreaterThanOrEqual(contentBox!.y + contentBox!.height);
+  } else {
+    expect(usersBox!.x).toBeGreaterThanOrEqual(contentBox!.x + contentBox!.width);
+    expect(usersBox!.width).toBeLessThanOrEqual(asideBox!.width);
+  }
   await page.getByRole("button", { name: "Comprar carta do baralho", exact: true }).click();
   await expect(page.locator("[data-flying-card]")).toBeVisible();
 });
@@ -1527,26 +1542,35 @@ for (const view of ["classic", "3d"] as const) {
     }
     const layout = page.locator("[data-game-table-layout]");
     const table = layout.locator("[data-game-table-content]");
+    const aside = layout.locator("[data-game-table-aside]");
+    const users = page.getByLabel("Usuários da partida");
     const history = page.getByRole("complementary", { name: "Histórico da partida", exact: true });
     const verify = async () => {
       await expect(history).toBeVisible();
       const stacked = (await layout.boundingBox())!.width < 768;
       await expect.poll(async () => {
-        const left = (await table.boundingBox())!, right = (await history.boundingBox())!;
+        const left = (await table.boundingBox())!, right = (await aside.boundingBox())!;
         return stacked
           ? Math.max(Math.abs(left.x - right.x), Math.abs(left.width - right.width))
-          : Math.max(Math.abs(left.y - right.y), Math.abs(left.height - right.height));
+          : Math.abs(left.y - right.y);
       }).toBeLessThanOrEqual(1);
-      const left = (await table.boundingBox())!, right = (await history.boundingBox())!;
+      const left = (await table.boundingBox())!, right = (await aside.boundingBox())!;
       if (stacked) {
         expect(right.y).toBeGreaterThanOrEqual(left.y + left.height);
       } else {
         expect(right.x).toBeGreaterThanOrEqual(left.x + left.width);
         expect(right.y + right.height).toBeLessThanOrEqual(page.viewportSize()!.height);
       }
-      expect(await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
-      await history.locator("[data-lenis-prevent]").evaluate(element => { element.scrollTop = 150; });
-      expect(await history.locator("[data-lenis-prevent]").evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+      if (view === "classic") {
+        // Participantes no topo do aside, imediatamente antes do histórico.
+        const players = (await users.boundingBox())!, panel = (await history.boundingBox())!;
+        expect(players.y + players.height).toBeLessThanOrEqual(panel.y);
+      }
+      // O histórico mantém rolagem própria na coluna; a página conserva a
+      // rolagem que a interface do jogo já tinha.
+      expect(await history.evaluate(element => element.scrollHeight)).toBeGreaterThan(await history.evaluate(element => element.clientHeight));
+      await history.evaluate(element => { element.scrollTop = 150; });
+      expect(await history.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
       expect(await table.evaluate(element => element.scrollTop)).toBe(0);
       expect(await table.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
       if (view === "classic") {
@@ -1565,6 +1589,7 @@ for (const view of ["classic", "3d"] as const) {
     await openMatchOptions(page);
     await page.getByRole("button", { name: "Esconder histórico", exact: true }).click();
     await expect(history).toBeHidden();
+    if (view === "classic") await expect(users).toBeVisible();
     await page.getByRole("button", { name: "Mostrar histórico", exact: true }).click();
     await verify();
   });

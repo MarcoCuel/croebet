@@ -693,13 +693,62 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
 
   const resultActions = <GameResultActions leaving={leaving} onPlayAgain={() => matchUrl(null)} replayLoading={replayPending} onReplay={replay || ownSeat != null || (matchInfo?.development && matchInfo.hostId === userId && permissions.canManageSite) ? () => { if (replay) { setResultDismissed(true); replay.restart(); } else void onRequestReplay?.(); } : undefined} />;
 
+  // Participantes acompanham o histórico no aside da mesa: o placar ainda
+  // pertence à partida, mas deixa de disputar a largura das mãos.
+  const playersPanel = (
+    <div role="group" aria-label="Usuários da partida" className="min-w-0 shrink-0 rounded-panel bg-surface p-3">
+      <ul className="min-w-0 space-y-2" data-lenis-prevent>
+        {playerSeats.map(i => {
+          const player = visibleGame.players[i];
+          const live = player.total + (visibleGame.phase === "playing" ? score(player, visibleGame) : 0);
+          return <li key={i} data-player-seat={i}
+            {...(canChooseSeat(i) ? { onClick: () => chooseSeat(i) } : {})}
+            className={cn("flex min-w-0 items-center gap-2 rounded-panel px-1 py-1 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", canChooseSeat(i) && "cursor-pointer hover:shadow-[0_0_0_2px_var(--color-brand)] focus-within:shadow-[0_0_0_2px_var(--color-brand)]")}>
+            <Avatar className={cn("size-10 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
+              <AvatarImage src={tableParticipants.find(person => person.seat === i)?.avatarUrl ?? undefined} />
+              <AvatarFallback className="text-xs">
+                {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <p
+                  {...(canChooseSeat(i) ? {
+                    role: "button" as const,
+                    tabIndex: 0,
+                    title: seatActionLabel(i),
+                    "aria-label": `${seatActionLabel(i)} na lista de jogadores`,
+                    onClick: (event: ReactMouseEvent<HTMLParagraphElement>) => { event.stopPropagation(); chooseSeat(i); },
+                    onKeyDown: (event: KeyboardEvent<HTMLParagraphElement>) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      chooseSeat(i);
+                    },
+                  } : {})}
+                  className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand", canChooseSeat(i) && "focus-visible:text-brand focus-visible:underline focus-visible:outline-none")}
+                >{player.name}</p>
+                <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 text-[0.625rem] font-medium">{playerStatus[player.status]}</Badge>
+                {player.kind !== "human" && <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[0.625rem]">Bot</Badge>}
+                {!replay && matchInfo?.hostId === userId && i !== ownSeat && player.kind === "human" && game.phase === "playing" && <span className="min-w-0 shrink-0" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person => person.seat === i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length > 0 || !!flight || !!movingCards}/></span>}
+              </div>
+              <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-xs text-muted">
+                <span className="text-lg font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
+                <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-brand">{live}</span> ao vivo</span>
+              </p>
+            </div>
+          </li>;
+        })}
+      </ul>
+    </div>
+  );
+
   return (
     <Surface ref={boardRef} className="relative isolate @container bg-transparent p-0 sm:p-0" role="region" aria-label="Mesa de Flip7">
       <GameActionShortcuts onDraw={playable && !exitOpen && !leaving ? () => { void send({ type: "draw" }); } : undefined} onStop={playable && !exitOpen && !leaving && canStay(current, game) ? () => { void send({ type: "stay" }); } : undefined} />
       {tableView.view === "classic" && actionBar}
       {!replay && !connected && <p role="status" className="text-sm text-muted">Reconectando à partida…</p>}
           {commandError && <div role="alert" className="mb-4 flex flex-wrap items-center gap-4 text-sm"><p>{commandError}</p><Button variant="secondary" onClick={() => { const action = pendingCommand.current?.action; if (action) void send(action); }}>Tentar novamente</Button><Button variant="secondary" onClick={() => router.refresh()}>Recarregar partida</Button></div>}
-      <GameTableLayout history={visibleGame.log.map(entry => ({
+      <GameTableLayout aside={tableView.view === "classic" ? playersPanel : undefined} history={visibleGame.log.map(entry => ({
         message: entry.message,
         player: entry.player === undefined ? undefined : {
           name: visibleGame.players[entry.player].name,
@@ -716,44 +765,6 @@ function Flip7Table({ initial, replay, testControls, exitControl, onRequestRepla
             onSeat={chooseSeat}
             canDraw={playable && !exitOpen && !leaving} onDraw={() => void send({ type: "draw" })} status="" onAnimating={setSceneAnimating} animate={!!presentationBefore} held={resolvingCard} paused={replay?.paused} timeScale={replay ? 1000 / replay.delay : 1}>
           </FlipScene> : <>
-          <div className="mb-6 flex w-full min-w-0 flex-wrap items-center justify-around gap-x-6 gap-y-4" aria-label="Usuários da partida">
-              {playerSeats.map(i => { const player = visibleGame.players[i]; return <div key={i} data-player-seat={i}
-                {...(canChooseSeat(i) ? { onClick: () => chooseSeat(i) } : {})}
-                className={cn("flex min-w-0 max-w-full shrink-0 items-center gap-3 rounded-panel transition-shadow duration-300 ease-in-out motion-reduce:transition-none", canChooseSeat(i) && "cursor-pointer hover:shadow-[0_0_0_2px_var(--color-brand)] focus-within:shadow-[0_0_0_2px_var(--color-brand)]")}>
-                <Avatar className={cn("size-14 transition-shadow duration-300 ease-in-out motion-reduce:transition-none", visibleGame.phase === "playing" && activeSeat === i && "shadow-[0_0_0_2px_var(--color-brand)]")} aria-hidden="true">
-                  <AvatarImage src={tableParticipants.find(person=>person.seat===i)?.avatarUrl ?? undefined} />
-                  <AvatarFallback className="text-sm">
-                    {Array.from(player.name)[0]?.toLocaleUpperCase("pt-BR")}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 space-y-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <p
-                      {...(canChooseSeat(i) ? {
-                        role: "button" as const,
-                        tabIndex: 0,
-                        title: seatActionLabel(i),
-                        "aria-label": `${seatActionLabel(i)} na lista de jogadores`,
-                        onClick: (event: ReactMouseEvent<HTMLParagraphElement>) => { event.stopPropagation(); chooseSeat(i); },
-                        onKeyDown: (event: KeyboardEvent<HTMLParagraphElement>) => {
-                          if (event.key !== "Enter" && event.key !== " ") return;
-                          event.preventDefault();
-                          chooseSeat(i);
-                        },
-                      } : {})}
-                      className={cn("truncate text-sm font-medium", visibleGame.phase === "playing" && activeSeat === i && "text-brand", canChooseSeat(i) && "focus-visible:text-brand focus-visible:underline focus-visible:outline-none")}
-                    >{player.name}</p>
-                    <Badge variant={player.status === "playing" ? "default" : "secondary"} className="shrink-0 px-2 py-0.5 font-medium">{playerStatus[player.status]}</Badge>
-                    {player.kind!=="human" && <Badge variant="secondary">Bot</Badge>}
-                    {!replay && matchInfo?.hostId===userId && i!==ownSeat && player.kind==="human" && game.phase==="playing" && <span onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><KickPlayer code={matchInfo.code} version={matchInfo.version} userId={matchInfo.participants.find(person=>person.seat===i)!.userId} name={player.name} duringGame withCroins={!!matchInfo.entryAmount} disabled={!connected || busy || frames.length>0 || !!flight || !!movingCards}/></span>}
-                  </div>
-                  <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted">
-                    <span className="text-xl font-semibold text-foreground tabular-nums" title="Pontos garantidos">{player.total}</span>
-                    <span className="tabular-nums" title="Total incluindo a rodada em andamento"><span className="font-medium text-brand">{player.total + (visibleGame.phase === "playing" ? score(player, visibleGame) : 0)}</span> ao vivo</span>
-                  </p>
-                </div>
-              </div>; })}
-          </div>
           <div className={cn("grid auto-rows-fr items-stretch gap-4", displayGame.players.length === 2 ? "@[40rem]:grid-cols-2" : "@[44rem]:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]")}>
             {playerSeats.map(i => {
               const player = previewPlayers[i];
