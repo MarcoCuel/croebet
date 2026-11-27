@@ -25,7 +25,7 @@ A crítica não é necessariamente aos jogos de azar em si: o ponto principal é
 ## 3. Público e acesso
 
 - Público principal: quem acompanha ou participa das lives da Croezinha.
-- O cadastro não é fechado: qualquer pessoa pode participar. Solicita apenas nome de usuário e senha, sem e-mail. Depois, o onboarding pede Nome e foto; enquanto faltar um deles, volta a aparecer. “Agora não” ou fechar adia por 12 horas, com prazo persistido na conta.
+- O cadastro não é fechado: qualquer pessoa pode participar. Solicita apenas nome de usuário e senha, sem e-mail. Depois, o onboarding pede Nome e foto; nome e foto podem ser salvos separadamente e, enquanto faltar um deles, a etapa volta a aparecer. “Agora não” ou fechar adia por 48 horas, com prazo persistido na conta.
 - Nome de exibição e nome de usuário são distintos: o nome aparece publicamente e pode se repetir; o usuário é único, identifica a conta no login e nos endereços de perfil. O usuário mantém as letras maiúsculas e minúsculas escolhidas no cadastro, mas o login e a disponibilidade do usuário não distinguem essa diferença: `Tonho`, `tonho` e `TONHO` identificam a mesma conta.
 - A primeira alteração de usuário é livre; após cada alteração bem-sucedida, a próxima fica disponível 30 dias depois. Trocar somente maiúsculas e minúsculas também conta. O nome de exibição continua independente desse prazo.
 - Exclusão pelo admin inativa a conta imediatamente e agenda a remoção permanente para 30 dias depois. Reativar pelo status nesse período cancela a exclusão. Históricos de partidas, movimentações e auditoria permanecem preservados. O último administrador ativo não pode ser excluído.

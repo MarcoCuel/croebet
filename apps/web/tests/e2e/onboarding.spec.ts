@@ -28,7 +28,7 @@ async function setup(page: Page, completed = false, remindAt: string | null = nu
     if (path === "/api/v1/me/onboarding/defer") {
       deferWrites++;
       expect(request.method()).toBe("POST");
-      user = { ...user!, onboarding: { ...user!.onboarding, remindAt: new Date(Date.now() + 12 * 3600000).toISOString() } };
+      user = { ...user!, onboarding: { ...user!.onboarding, remindAt: new Date(Date.now() + 48 * 3600000).toISOString() } };
       return route.fulfill({ json: { user } });
     }
     if (path === "/api/v1/me/profile") {
@@ -67,7 +67,7 @@ test("cadastro permite escolher nome e avatar com prévia e mantém o perfil ap�
   const state = await setup(page);
   await authenticate(page);
   const dialog = page.getByRole("dialog", { name: "Como você quer aparecer?" });
-  await expect(dialog.getByLabel("Nome", { exact: true })).toHaveValue("");
+  await expect(dialog.getByLabel("Nome", { exact: true })).toHaveValue("Tonho");
   await dialog.getByLabel("Nome", { exact: true }).fill("  Tonho da comunidade  ");
   await dialog.getByLabel("Escolher avatar").setInputFiles({ name: "avatar.png", mimeType: "image/png", buffer: png });
   await expect(dialog.getByAltText("Seu avatar")).toHaveAttribute("src", /^blob:/);
@@ -94,7 +94,7 @@ test("onboarding pode ser pulado sem alterar o perfil e não reaparece ao recarr
   expect(state.deferWrites()).toBe(1);
 });
 
-test("perfil incompleto volta a pedir nome e foto depois de 12 horas", async ({ page }) => {
+test("perfil incompleto volta a pedir nome e foto depois de 48 horas", async ({ page }) => {
   await page.clock.install();
   await setup(page);
   await authenticate(page, false);
@@ -102,15 +102,15 @@ test("perfil incompleto volta a pedir nome e foto depois de 12 horas", async ({ 
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Agora não" }).click();
   await expect(dialog).toHaveCount(0);
-  await page.clock.fastForward(12 * 3600000 - 60000);
+  await page.clock.fastForward(48 * 3600000 - 60000);
   await expect(dialog).toHaveCount(0);
   await page.clock.fastForward(120000);
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByLabel("Nome", { exact: true })).toHaveValue("");
+  await expect(dialog.getByLabel("Nome", { exact: true })).toHaveValue("Tonho");
 });
 
 for (const closeWith of ["Fechar", "Escape"]) {
-  test(`fechar com ${closeWith} também adia por 12 horas`, async ({ page }) => {
+  test(`fechar com ${closeWith} também adia por 48 horas`, async ({ page }) => {
     const state = await setup(page);
     await authenticate(page, false);
     const dialog = page.getByRole("dialog", { name: "Como você quer aparecer?" });
@@ -125,18 +125,42 @@ for (const closeWith of ["Fechar", "Escape"]) {
   });
 }
 
-test("exige foto para concluir e permite remover a seleção antes de enviar", async ({ page }) => {
+test("permite salvar apenas o nome e mantém a foto para o próximo lembrete", async ({ page }) => {
+  const state = await setup(page);
+  await authenticate(page);
+  const dialog = page.getByRole("dialog", { name: "Como você quer aparecer?" });
+  await dialog.getByLabel("Nome", { exact: true }).fill("Tonho Público");
+  await dialog.getByRole("button", { name: "Salvar e continuar" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Conta de Tonho Público" }).first()).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Conta de Tonho Público" }).first()).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+  expect(state.counts()).toEqual({ registrations: 1, profileWrites: 1, avatarWrites: 0 });
+  expect(state.deferWrites()).toBe(1);
+});
+
+test("permite salvar apenas a foto mantendo o nome exibido", async ({ page }) => {
+  const state = await setup(page);
+  await authenticate(page);
+  const dialog = page.getByRole("dialog", { name: "Como você quer aparecer?" });
+  await expect(dialog.getByLabel("Nome", { exact: true })).toHaveValue("Tonho");
+  await dialog.getByLabel("Escolher avatar").setInputFiles({ name: "avatar.png", mimeType: "image/png", buffer: png });
+  await dialog.getByRole("button", { name: "Salvar e continuar" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.counts()).toEqual({ registrations: 1, profileWrites: 1, avatarWrites: 1 });
+});
+
+test("remover a foto antes de enviar não envia avatar", async ({ page }) => {
   const state = await setup(page);
   await authenticate(page);
   const dialog = page.getByRole("dialog", { name: "Como você quer aparecer?" });
   await dialog.getByLabel("Escolher avatar").setInputFiles({ name: "avatar.png", mimeType: "image/png", buffer: png });
   await dialog.getByRole("button", { name: "Remover foto" }).click();
   await expect(dialog.getByAltText("Seu avatar")).toHaveCount(0);
-  await dialog.getByLabel("Nome", { exact: true }).fill("Tonho Público");
   await dialog.getByRole("button", { name: "Salvar e continuar" }).click();
-  await expect(page.getByText("Adicione uma foto para completar seu perfil.", { exact: true })).toBeVisible();
-  await expect(dialog).toBeVisible();
-  expect(state.counts()).toEqual({ registrations: 1, profileWrites: 0, avatarWrites: 0 });
+  await expect(dialog).toHaveCount(0);
+  expect(state.counts()).toEqual({ registrations: 1, profileWrites: 1, avatarWrites: 0 });
 });
 
 test("login de conta completa não abre o onboarding", async ({ page }) => {

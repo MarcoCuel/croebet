@@ -228,14 +228,14 @@ export function Topbar({
 
         {isInternalPage && (
           <>
-            {game && (
+            {/* {game && (
               <GameCover
                 imageUrl={game.imageUrl}
                 name={game.name}
                 className="size-11 shrink-0 rounded-md mr-2"
                 iconClassName="size-4"
               />
-            )}
+            )} */}
 
             <span
               className={cn(

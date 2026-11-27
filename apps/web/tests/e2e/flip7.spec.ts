@@ -58,7 +58,7 @@ test("sidebar, criação em modal e card da sala preservam configuração e aç�
   await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeDisabled();
   await expect(page.getByRole("button",{name:"Cancelar",exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"Editar",exact:true})).toBeVisible();
-  await expect(page.getByRole("button",{name:"Jogar",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Criar sala",exact:true})).toHaveCount(0);
   await expect(page.getByLabel("Configuração e regras")).toHaveCount(0);
   await expect(page.getByLabel("Jogadores e vagas")).toHaveCount(0);
   await page.getByRole("button",{name:"Editar",exact:true}).click();
@@ -178,7 +178,7 @@ test("lobby e mesa exibem nome da pessoa quando diferente do usuário", async ({
   const peer = await second(browser);
   try {
     await page.goto("/jogos/flip7");
-    await page.getByRole("button", { name: "Criar sala", exact: true }).click();
+    await page.getByRole("button", { name: "Jogar", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Criar sala", exact: true }).click();
     await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
     const list=page.getByLabel("Lobbies abertos");

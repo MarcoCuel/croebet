@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { useSession } from "@/features/auth/session-context";
 
 export function ProfileOnboarding({ remindAt, onDefer, onComplete }: { remindAt: string | null; onDefer: () => Promise<void>; onComplete: () => void }) {
-  const { username, avatar, updateDisplayName, updateAvatar } = useSession();
-  const [name, setName] = useState("");
+  const { username, displayName, avatar, updateDisplayName, updateAvatar } = useSession();
+  const [name, setName] = useState(displayName ?? "");
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -57,15 +57,14 @@ export function ProfileOnboarding({ remindAt, onDefer, onComplete }: { remindAt:
             toast.error("Digite um nome de 1 a 40 caracteres válidos.");
             return;
           }
-          if (!photo && !avatar) {
-            toast.error("Adicione uma foto para completar seu perfil.");
-            return;
-          }
           pending.current = true;
           setSaving(true);
           try {
             await updateDisplayName(parsed.data.displayName);
             if (photo) await updateAvatar(photo.file);
+            // Saving only one of the two fields completes this step and keeps
+            // the profile reminder on the confirmed 48-hour deadline.
+            if (!photo && !avatar) await onDefer();
             onComplete();
           } catch (error) {
             toast.error(error instanceof Error ? error.message : "Não foi possível salvar seu perfil.");

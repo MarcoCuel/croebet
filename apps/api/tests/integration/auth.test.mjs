@@ -43,8 +43,8 @@ test("PostgreSQL e HTTP reais: conta, cookies, senha, CSRF, suspensão e logout"
  const postponed = await request("/api/v1/me/onboarding/defer", "POST");
  assert.equal(postponed.statusCode, 200);
  const remindAt = postponed.json().user.onboarding.remindAt;
- assert.ok(Date.parse(remindAt) >= beforeDefer + 12 * 3600000);
- assert.ok(Date.parse(remindAt) <= Date.now() + 12 * 3600000);
+ assert.ok(Date.parse(remindAt) >= beforeDefer + 48 * 3600000);
+ assert.ok(Date.parse(remindAt) <= Date.now() + 48 * 3600000);
  assert.equal((await request("/api/v1/me")).json().user.onboarding.remindAt, remindAt);
  const stored = await pool.query("select username, display_name from users where id=$1", [registered.json().user.id]);
  assert.equal(stored.rows[0].username, username);

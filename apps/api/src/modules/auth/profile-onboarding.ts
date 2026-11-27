@@ -11,7 +11,7 @@ export async function updateOwnProfile(pool: Pool, sessionHash: string, change: 
     if (!locked.rows[0]) { await client.query("rollback"); return null; }
     const result = change.kind === "name"
       ? await client.query("update users set display_name = $1, profile_name_provided = true where id = $2 returning *", [change.displayName, locked.rows[0].id])
-      : await client.query("update users set onboarding_remind_at = clock_timestamp() + interval '12 hours' where id = $1 returning *", [locked.rows[0].id]);
+      : await client.query("update users set onboarding_remind_at = clock_timestamp() + interval '48 hours' where id = $1 returning *", [locked.rows[0].id]);
     await client.query("commit");
     return result.rows[0];
   } catch (error) {

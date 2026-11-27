@@ -3,9 +3,6 @@
 import { PanelLeft } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "@/features/auth/session-context";
-import { AccountMenu } from "@/features/auth/account-menu";
-import { Balance } from "@/features/wallet/balance";
-import { RedeemButton } from "@/features/wallet/redeem-button";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -24,7 +21,7 @@ export function Sidebar({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const { username, balance, walletReady, sessionReady } = useSession();
+  const { sessionReady } = useSession();
   return (
     <>
       <aside
