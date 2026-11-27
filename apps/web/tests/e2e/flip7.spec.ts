@@ -725,6 +725,7 @@ for(const mode of ["login","register"] as const)test(`visitante escolhe uma vaga
     if(mode==="register")await dialog.getByRole("button",{name:"Cadastre-se",exact:true}).click();
     await dialog.getByLabel("Nome de usuário").fill("Beto");
     await dialog.getByLabel("Senha",{exact:true}).fill("senha-teste-123");
+    if(mode==="register")await dialog.getByLabel("Confirmar senha",{exact:true}).fill("senha-teste-123");
     await dialog.getByRole("button",{name:mode==="register"?"Criar conta":"Entrar",exact:true}).click();
     await expect(dialog).toHaveCount(0);
     await expect(view).toHaveURL(page.url());

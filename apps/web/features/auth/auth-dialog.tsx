@@ -52,7 +52,20 @@ export function AuthDialog({
               return;
             }
             if (pending) return;
-            const password = String(new FormData(event.currentTarget).get("password") ?? "");
+            const form = event.currentTarget;
+            const data = new FormData(form);
+            const password = String(data.get("password") ?? "");
+            if (isRegistering) {
+              const confirmation = form.elements.namedItem(
+                "confirmPassword",
+              ) as HTMLInputElement;
+              if (String(data.get("confirmPassword") ?? "") !== password) {
+                confirmation.setCustomValidity("As senhas não coincidem.");
+                confirmation.reportValidity();
+                return;
+              }
+              confirmation.setCustomValidity("");
+            }
             setPending(true);
             try { await onSignIn(name, password); }
             catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível entrar."); }
@@ -73,8 +86,38 @@ export function AuthDialog({
           </Field>
           <div className="grid gap-1.5">
             <Field htmlFor="auth-password">Senha</Field>
-            <PasswordInput id="auth-password" name="password" autoComplete={isRegistering ? "new-password" : "current-password"} minLength={isRegistering ? 8 : 1} maxLength={128} disabled={pending} required />
+            <PasswordInput
+              id="auth-password"
+              name="password"
+              autoComplete={isRegistering ? "new-password" : "current-password"}
+              minLength={isRegistering ? 8 : 1}
+              maxLength={128}
+              disabled={pending}
+              required
+              onInput={(event) => {
+                // Ajustar a senha invalida a comparação anterior com a confirmação.
+                const confirmation = event.currentTarget.form?.elements.namedItem(
+                  "confirmPassword",
+                ) as HTMLInputElement | null;
+                confirmation?.setCustomValidity("");
+              }}
+            />
           </div>
+          {isRegistering && (
+            <div className="grid gap-1.5">
+              <Field htmlFor="auth-password-confirmation">Confirmar senha</Field>
+              <PasswordInput
+                id="auth-password-confirmation"
+                name="confirmPassword"
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                disabled={pending}
+                required
+                onInput={(event) => event.currentTarget.setCustomValidity("")}
+              />
+            </div>
+          )}
           <Button className="mt-1" type="submit" loading={pending}>
             {isRegistering ? "Criar conta" : "Entrar"}
           </Button>

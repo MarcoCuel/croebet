@@ -60,8 +60,29 @@ async function authenticate(page: Page, register = true) {
   if (register) await dialog.getByRole("button", { name: "Cadastre-se", exact: true }).click();
   await dialog.getByLabel("Nome de usuário", { exact: true }).fill("Tonho");
   await dialog.getByLabel("Senha", { exact: true }).fill("senha-segura");
+  if (register) await dialog.getByLabel("Confirmar senha", { exact: true }).fill("senha-segura");
   await dialog.getByRole("button", { name: register ? "Criar conta" : "Entrar", exact: true }).click();
 }
+
+test("cadastro exige confirmação de senha idêntica antes de criar a conta", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Entrar", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Cadastre-se", exact: true }).click();
+  await dialog.getByLabel("Nome de usuário", { exact: true }).fill("Tonho");
+  await dialog.getByLabel("Senha", { exact: true }).fill("senha-segura");
+  const confirmation = dialog.getByLabel("Confirmar senha", { exact: true });
+  await confirmation.fill("senha-segur");
+  await dialog.getByRole("button", { name: "Criar conta", exact: true }).click();
+  await expect.poll(() => confirmation.evaluate(element => (element as HTMLInputElement).validationMessage)).toBe("As senhas não coincidem.");
+  expect(state.counts().registrations).toBe(0);
+  await confirmation.fill("senha-segura");
+  await dialog.getByRole("button", { name: "Criar conta", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Como você quer aparecer?" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Criar conta", exact: true })).toHaveCount(0);
+  expect(state.counts().registrations).toBe(1);
+});
 
 test("cadastro permite escolher nome e avatar com prévia e mantém o perfil após recarregar", async ({ page }) => {
   const state = await setup(page);
