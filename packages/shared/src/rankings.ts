@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { gameSlugSchema } from "./games.js";
 
 export const rankingQuerySchema = z.object({
   category: z.enum(["wins", "richest", "losers"]).default("wins"),
   period: z.enum(["month", "all"]).default("month"),
   page: z.coerce.number().int().min(1).max(10000).default(1),
+  game: gameSlugSchema.optional(),
 });
 export const rankingEntrySchema = z.object({
   userId: z.uuid(), username: z.string(), displayName: z.string(), avatarUrl: z.string().nullable(),

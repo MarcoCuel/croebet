@@ -107,9 +107,8 @@ test("criar sala preserva escolhas próprias ao entrar em outra sala",async({pag
     await expect(dialog.getByLabel("Modo do Flip7")).toHaveValue("vengeance");
     await expect(dialog.getByRole("switch",{name:"Modo Brutal",exact:true})).toBeChecked();
     await dialog.getByRole("button",{name:"Criar sala",exact:true}).click();
-    await expect(page).toHaveURL(/partida=[A-F0-9]{12}/);
+    await expect.poll(() => new URL(page.url()).searchParams.get("partida")).not.toBe(foreignCode);
     const ownCode=new URL(page.url()).searchParams.get("partida")!;
-    expect(ownCode).not.toBe(foreignCode);
     expect(fixture.states.get(ownCode)!.room.capacity).toBe(5);
     expect(fixture.states.get(ownCode)!.room.options).toEqual({mode:"vengeance",brutal:true});
     await page.getByRole("button",{name:"Editar",exact:true}).click();

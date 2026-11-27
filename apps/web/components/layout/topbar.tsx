@@ -18,7 +18,6 @@ import { NotificationsMenu } from "@/components/layout/notifications-menu";
 import { brandLinkClass, Wordmark } from "./brand";
 import { adminRoutes } from "@/features/admin/routes";
 import { gameUrl } from "@/features/games/game-url";
-import { GameCover } from "@/features/games/game-cover";
 import { useGameLinks } from "@/features/games/game-links";
 import {
   MatchNavbarControls,

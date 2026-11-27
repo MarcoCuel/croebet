@@ -80,9 +80,10 @@ export const authRoutes: FastifyPluginAsync<{ pool: Pool; config: ReturnType<typ
     reply.header("Cache-Control", "no-store");
     const input = rankingQuerySchema.safeParse(request.query);
     if (!input.success) return reply.code(400).send({ error: { code: "INVALID_REQUEST", message: "Filtros de ranking inválidos." } });
+    if (input.data.game && input.data.category === "richest") return reply.code(400).send({ error: { code: "INVALID_REQUEST", message: "O ranking de saldo não é filtrado por jogo." } });
     const user = await current(request.cookies[sessionName]);
     if (user) return readRanking(pool, input.data, user.id);
-    const key = `${input.data.category}:${input.data.period}:${input.data.page}`;
+    const key = `${input.data.category}:${input.data.period}:${input.data.page}:${input.data.game ?? ""}`;
     return publicRanking(key, () => readRanking(pool, input.data, null));
   });
   await chatRoutes(app, { pool, current, sessionName, limit });

@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {useSearchParams} from "next/navigation";
-import {gameRoomSchema,gameIdSchema,commandResultSchema,type GameRecord,type GameAction} from "@croebet/shared";
+import {gameRoomSchema,gameIdSchema,commandResultSchema,type GameRecord,type GameAction,type Ranking} from "@croebet/shared";
 import {randomUUID} from "@/lib/uuid";
 import {useSession} from "@/features/auth/session-context";
 import {managementRequest} from "@/features/admin/management-api";
@@ -22,7 +22,7 @@ import {notifyTurn} from "./game-notifications";
 import {standardDecision} from "./standard-decision";
 
 type Room=ReturnType<typeof gameRoomSchema.parse>;
-export function TestGame({game,initialRoom=null}:{game:GameRecord;initialRoom?:Room|null}){
+export function TestGame({game,initialRoom=null,ranking=null}:{game:GameRecord;initialRoom?:Room|null;ranking?:Ranking|null}){
  const {userId,permissions}=useSession(),query=useSearchParams();
  const code=query.get("partida") ?? "";
  const audio=useGameAudio("game",game.moduleId ?? game.slug);
@@ -72,7 +72,7 @@ export function TestGame({game,initialRoom=null}:{game:GameRecord;initialRoom?:R
  if(code && !room)return error?<div role="alert" className="space-y-4"><p>{error}</p><Button variant="secondary" onClick={()=>{setError("");void refresh().catch(e=>setError(e instanceof Error?e.message:"Não foi possível abrir a partida."));}}>Tentar novamente</Button></div>:<Skeleton className="min-h-96 w-full" aria-label="Carregando partida"/>;
  if(replaying && room && room.status!=="lobby")return <TestReplay game={game} room={room} onClose={()=>setReplaying(false)}/>;
  return <div className="space-y-4">
- {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={setRoom} onTestStarted={openTest}/>}
+ {(!room || room.status==="lobby") && <LobbyScreen key={room?.id ?? "new"} development game={game} ranking={ranking} initial={{revision:code,match:null,lobby:room?.status==="lobby"?room:null,directory:{items:[],joined:[],owned:null,active:null},items:[],error:"",unavailable:false}} onTestOpen={setRoom} onTestStarted={openTest}/>}
  {room?.status==="abandoned" && <p role="status">Teste encerrado.</p>}
  {room && room.status!=="lobby" && <Table game={game} room={room} viewerId={userId} busy={busy || playback.animating || (!presentation.managesLive && !connected)} controls={controls} exit={exit} play={play} onAnimating={playback.setPresentationBusy} audio={audio}/>}
  {room && room.status!=="lobby" && !presentation.managesLive && <MatchResult onReplay={()=>setReplaying(true)} key={room.code} room={room} result={presentation.result(room)}/>}

@@ -13,7 +13,7 @@ export function KickPlayer({code,version,userId,name,duringGame=false,withCroins
   const [busy,setBusy]=useState(false);
   const pending=useRef<KickMatch|null>(null);
   return <Dialog open={open} onOpenChange={value=>{if(!busy){setOpen(value);pending.current=null;}}}>
-    <DialogTrigger asChild><Button size={compact?"icon-sm":"sm"} variant="ghost" className={compact?"absolute -top-2 right-0 rounded-full":undefined} disabled={disabled} aria-label={`Expulsar ${name}`}>{compact?<X className="size-3" aria-hidden="true"/>:"Expulsar"}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button size={compact?"icon-sm":"sm"} variant="ghost" className={compact?"absolute -top-2 -right-2 rounded-full":undefined} disabled={disabled} aria-label={`Expulsar ${name}`}>{compact?<X className="size-3" aria-hidden="true"/>:"Expulsar"}</Button></DialogTrigger>
     <DialogContent>
       <DialogTitle>Expulsar {name}?</DialogTitle>
       <DialogDescription className="mt-3 text-sm text-muted">{duringGame?"Um bot assumirá as cartas e os pontos desta pessoa. A partida continuará para os demais.":"Esta pessoa será removida do lobby."}{duringGame && withCroins && " A entrada não será devolvida. Se a vaga vencer, o prêmio irá para a casa."}</DialogDescription>

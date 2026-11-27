@@ -13,6 +13,7 @@ import { GameScreen } from "@/features/games/game-screen";
 import { PageShell } from "@/components/layout/page-shell";
 import { getInitialMatches, getInitialTestRoom } from "@/features/games/server-matches";
 import { getPublicGames } from "@/features/games/server-games";
+import { getRanking } from "@/features/rankings/server-rankings";
 import { ManagementUnavailable } from "@/features/admin/management-shared";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ partida?: string; teste?: string }> };
@@ -24,10 +25,13 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 }
 async function renderTestGame(game: GameRecord, code?: string) {
   if (code && !matchCodeSchema.safeParse(code).success) notFound();
-  const room = code ? await getInitialTestRoom(code) : null;
+  const [room, ranking] = await Promise.all([
+    code ? getInitialTestRoom(code) : null,
+    getRanking({ category: "wins", period: "all", page: 1, game: game.slug }),
+  ]);
   if (code && !room) return <PageShell><ManagementUnavailable /></PageShell>;
   if (room && room.game !== (game.moduleId ?? game.slug)) notFound();
-  return <PageShell><TestGame key={code ?? "new"} game={game} initialRoom={room}/></PageShell>;
+  return <PageShell><TestGame key={code ?? "new"} game={game} initialRoom={room} ranking={ranking}/></PageShell>;
 }
 
 export default async function Game({ params, searchParams }: Props) {
@@ -60,5 +64,8 @@ export default async function Game({ params, searchParams }: Props) {
     </Card></PageShell>;
   }
   const initial = data ? archivedInitial ?? (loadInitial?await loadInitial(query.partida):null) : null;
-  return <PageShell>{data ? <><h1 className="sr-only">{data.items[0].name}</h1><GameScreen slug={slug} game={data.items[0]} initial={initial!} /></> : <ManagementUnavailable />}</PageShell>;
+  const ranking = data && initial && !initial.match && !initial.replay && !initial.unavailable
+    ? await getRanking({ category: "wins", period: "all", page: 1, game: data.items[0].slug })
+    : null;
+  return <PageShell>{data ? <><h1 className="sr-only">{data.items[0].name}</h1><GameScreen slug={slug} game={data.items[0]} initial={initial!} ranking={ranking} /></> : <ManagementUnavailable />}</PageShell>;
 }

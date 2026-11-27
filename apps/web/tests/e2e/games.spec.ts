@@ -118,6 +118,10 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   }
   if (path === "/api/v1/games") return { status: 200, data: { items: [...(game.enabled ? [game] : []), ...(upcoming?.enabled ? [upcoming] : [])] } };
   if ((path === `/api/v1/games/${game.slug}` || path === "/api/v1/games/flip7") && game.enabled) return { status: 200, data: game };
+  if (path === "/api/v1/rankings") return { status: 200, data: { category: url.searchParams.get("category") ?? "wins", period: url.searchParams.get("period") ?? "month", page: Number(url.searchParams.get("page") ?? 1), hasMore: false, own: null, items: [
+    { userId: id, username: "Admin", displayName: "Admin", avatarUrl: null, position: 1, value: 3, games: 4 },
+    { userId: matchId, username: "Beto", displayName: "Beto", avatarUrl: null, position: 2, value: 1, games: 2 },
+  ] } };
   return { status: 404, data: {} };
 }
 test.beforeAll(async () => {
@@ -1069,6 +1073,26 @@ test("resultado de teste Love Letter mostra tempo ativo e reproduz na barra comp
  expect(gameCommands).toEqual([]);
  await page.getByRole("button",{name:"Voltar ao resultado"}).click();
  await expect(result).toBeVisible();
+});
+
+test("hero do jogo usa a capa quadrada e o ranking por jogo fica abaixo das informações", async ({page}) => {
+ await page.route("**/cover-fixture.svg",route=>route.fulfill({contentType:"image/svg+xml",body:'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="purple"/></svg>'}));
+ game={...game,imageUrl:"/cover-fixture.svg"};
+ await page.goto("/jogos/flip7");
+ const aside=page.getByLabel("Apresentação do jogo");
+ const hero=aside.locator('[data-slot="card"]').first();
+ const cover=aside.getByRole("img",{name:"Capa de Flip 7"});
+ await expect(cover).toBeVisible();
+ const [heroBox,coverBox]=await Promise.all([hero.boundingBox(),cover.boundingBox()]);
+ expect(Math.abs(heroBox!.width-heroBox!.height)).toBeLessThan(2);
+ expect(coverBox!.width).toBeCloseTo(heroBox!.width,0);
+ expect(coverBox!.height).toBeCloseTo(heroBox!.height,0);
+ const ranking=aside.getByRole("region",{name:"Mais vitoriosos",exact:true});
+ await expect(ranking).toBeVisible();
+ await expect(ranking.getByText("Flip 7 · Geral",{exact:true})).toBeVisible();
+ await expect(ranking.getByRole("list",{name:"Ranking de vitórias em Flip 7"}).getByRole("listitem")).toHaveCount(2);
+ await expect(ranking.getByText("3vitórias",{exact:true})).toBeVisible();
+ await expect(ranking.getByRole("link",{name:"Admin",exact:true})).toHaveAttribute("href","/perfil/Admin");
 });
 
 test("sidebar do jogo mostra jogadores e duração", async ({page}) => {

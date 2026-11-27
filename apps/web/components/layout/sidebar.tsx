@@ -31,7 +31,7 @@ export function Sidebar({
         aria-hidden={!expanded}
         aria-label="Menu lateral"
       >
-        <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-5 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
+        <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-4 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
           <Link
             className={brandLinkClass}
             href="/"

@@ -8,7 +8,7 @@ import { Eye, Plus, UserRound, UsersRound } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getGameDefinition, gameIdSchema, gameOptionsSchema, gameSettingBadges, commandResultSchema } from "@croebet/shared";
-import type { GameRecord, CreateMatch, Lobby, LobbyList, GameRoomSync, UpdateLobby } from "@croebet/shared";
+import type { GameRecord, CreateMatch, Lobby, LobbyList, GameRoomSync, UpdateLobby, Ranking } from "@croebet/shared";
 import { useSession } from "@/features/auth/session-context";
 import { CroinIcon } from "@/components/shared/croin-icon";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -39,7 +39,7 @@ function SeatOutline() {
   </svg>;
 }
 
-export function LobbyScreen({initial,rules,onStarted,game,development=false,onTestOpen,onTestStarted}:{development?:boolean;onTestOpen?:(lobby:Lobby)=>void;onTestStarted?:(code:string)=>void;initial:LobbyInitial;game:GameRecord;onStarted?:(sync:GameRoomSync)=>void;rules?:(options:Lobby["options"])=>ReactNode}) {
+export function LobbyScreen({initial,rules,onStarted,game,development=false,onTestOpen,onTestStarted,ranking=null}:{development?:boolean;onTestOpen?:(lobby:Lobby)=>void;onTestStarted?:(code:string)=>void;initial:LobbyInitial;game:GameRecord;onStarted?:(sync:GameRoomSync)=>void;rules?:(options:Lobby["options"])=>ReactNode;ranking?:Ranking|null}) {
   const router=useRouter();
   const searchParams=useSearchParams();
   const {permissions,userId,username,displayName,openLogin,economy}=useSession();
@@ -255,7 +255,6 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
 
   const rooms=<section className="min-w-0 space-y-4" aria-label="Lobbies abertos">
     <>
-      {development && <p className="text-sm font-medium">Partidas de teste</p>}
       {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
       {listedRooms.length===0?connected && <EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4","@min-[34rem]:grid-cols-2 @min-[64rem]:grid-cols-3")}>{listedRooms.map(lobby=>{
         const active=lobby.status==="playing";
@@ -330,7 +329,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const editEntry=editRoom?.entryAmount ?? entryAmount;
   return <div className="w-full space-y-4">
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[21rem_minmax(0,1fr)] xl:gap-6">
-      <LobbyAside game={game} definition={definition} development={development} settings={settings} userId={userId} connected={connected} busy={busy} creationBlocked={creationBlocked} playDisabled={playDisabled} playLoading={busy} showCreate={development && !!editableRoom} rules={rules} onLogin={openLogin} onPlay={play} onCreate={openCreate}/>
+      <LobbyAside game={game} definition={definition} development={development} settings={settings} ranking={ranking} userId={userId} connected={connected} busy={busy} creationBlocked={creationBlocked} playDisabled={playDisabled} playLoading={busy} showCreate={development && !!editableRoom} rules={rules} onLogin={openLogin} onPlay={play} onCreate={openCreate}/>
       <div className="@container min-w-0 space-y-6">
         {rooms}
         {matchesSection}

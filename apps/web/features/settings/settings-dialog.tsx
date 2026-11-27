@@ -107,7 +107,7 @@ function SettingsContent({ onClose }: { onClose: () => void }) {
       <section
         id={panelId}
         aria-label={section}
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-10 sm:py-12"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-10 sm:py-12"
         data-lenis-prevent
       >
         {section === "Geral" && (

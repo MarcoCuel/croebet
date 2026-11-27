@@ -22,7 +22,7 @@ import { useCallback, useMemo, useEffect, useLayoutEffect, useRef, useState, typ
 import gsap from "gsap";
 import { usePathname, useRouter } from "next/navigation";
 import { matchReplaySchema } from "@croebet/shared";
-import type { GameRecord, MatchFrame, MatchCommand, RoomSync } from "@croebet/shared";
+import type { GameRecord, MatchFrame, MatchCommand, Ranking, RoomSync } from "@croebet/shared";
 import type { InitialMatches } from "./server-matches";
 import { sendMatchCommand, abandonServerMatch, createdPresentation, clearCreatedPresentation } from "./api";
 import { toast } from "sonner";
@@ -84,7 +84,7 @@ const playerStatus = { playing: "Ativo", stayed: "Parou", frozen: "Congelado", b
 
 type CardMovement = { card: Card; target: number | null; origin: { left: number; top: number; width: number } };
 
-export default function Flip7Game({ initial, game, testControls, exitControl }: { initial: InitialMatches; game: GameRecord | null; testControls?:ReactNode;exitControl?:ReactNode }) {
+export default function Flip7Game({ initial, game, ranking, testControls, exitControl }: { initial: InitialMatches; game: GameRecord | null; ranking?: Ranking | null; testControls?:ReactNode;exitControl?:ReactNode }) {
   const router = useRouter();
   const [requestedReplay, setRequestedReplay] = useState<ReturnType<typeof matchReplaySchema.parse> | null>(null);
   const [preparingReplay, setPreparingReplay] = useState(false);
@@ -102,7 +102,7 @@ export default function Flip7Game({ initial, game, testControls, exitControl }: 
   if (requestedReplay && requestedReplay.match.code === initial.match?.code) return <Flip7Playback key={`replay:${initial.revision}`} initial={{ ...initial, replay: requestedReplay }} startPlaying />;
   if (initial.replay) return <Flip7Playback key={initial.revision} initial={initial} />;
   if (!game) return null;
-  if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} onStarted={sync=>{const parsed=roomSyncSchema.safeParse(sync);if(parsed.success)rememberStart(parsed.data);}} rules={options=><Rules options={flip7OptionsSchema.parse(options)}/>}/>;
+  if (!initial.match) return <LobbyScreen key={initial.revision} game={game} initial={initial} ranking={ranking} onStarted={sync=>{const parsed=roomSyncSchema.safeParse(sync);if(parsed.success)rememberStart(parsed.data);}} rules={options=><Rules options={flip7OptionsSchema.parse(options)}/>}/>;
   return <Flip7Table key={initial.revision} initial={initial} testControls={testControls} exitControl={exitControl} onRequestReplay={openReplay} replayPending={preparingReplay} />;
 }
 

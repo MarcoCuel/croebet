@@ -12,7 +12,7 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description, icon = <Inbox className="size-6" />, action, className }: EmptyStateProps) {
   return (
-    <div data-slot="empty-state" className={cn("flex min-w-0 flex-col items-center gap-4 px-5 py-12 text-center", className)}>
+    <div data-slot="empty-state" className={cn("flex min-w-0 flex-col items-center gap-4 px-4 py-12 text-center", className)}>
       {icon && <div aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full bg-contrast/6 text-muted">{icon}</div>}
       <div className="max-w-sm space-y-1">
         <p className="text-sm font-medium text-foreground">{title}</p>

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { rankingQuerySchema } from '@croebet/shared';
 import { readRanking } from '../dist/modules/rankings/service.js';
 
-test('ranking valida categorias, períodos e paginação pública limitada', () => {
+test('ranking valida categorias, períodos, paginação e jogo do catálogo', () => {
   assert.deepEqual(rankingQuerySchema.parse({}),{category:'wins',period:'month',page:1});
-  for (const input of [{category:'sql'},{period:'week'},{page:-1},{page:10001},{page:1.5}]) assert.equal(rankingQuerySchema.safeParse(input).success,false);
+  assert.equal(rankingQuerySchema.parse({game:'flip7'}).game,'flip7');
+  for (const input of [{category:'sql'},{period:'week'},{page:-1},{page:10001},{page:1.5},{game:'Flip 7'},{game:''},{game:'a/b'}]) assert.equal(rankingQuerySchema.safeParse(input).success,false);
 });
 test('ranking mantém a própria posição fora da página e não confunde falha com vazio', async () => {
   const id='93089d02-0b34-4b78-9d3e-f2679c190b5b';

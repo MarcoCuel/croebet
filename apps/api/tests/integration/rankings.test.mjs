@@ -13,20 +13,23 @@ test('PostgreSQL: rankings agregam empates, bots, saldo e derrotas sem depender 
     await client.query('begin');
     await client.query(`create temporary table users (id uuid,username text,display_name text,avatar_key text,status text,deletion_scheduled_at timestamptz) on commit drop;
       create temporary table wallet_accounts (user_id uuid,kind text,balance bigint) on commit drop;
-      create temporary table game_match_archives (status text,ended_at timestamptz,participants jsonb,state jsonb) on commit drop;
+      create temporary table games (id uuid,slug text) on commit drop;
+      create temporary table game_match_archives (game_id uuid,status text,ended_at timestamptz,participants jsonb,state jsonb) on commit drop;
       create temporary table game_match_stakes (entry_amount bigint,payouts jsonb,contributions jsonb,status text,settled_at timestamptz) on commit drop;`);
     const ids = Array.from({length:13},(_,i)=>`93089d02-0b34-4b78-9d3e-f2679c190b${String(i).padStart(2,'0')}`);
+    const flip7Game='93089d02-0b34-4b78-9d3e-f2679c190b70',loveGame='93089d02-0b34-4b78-9d3e-f2679c190b71';
+    await client.query("insert into games values($1,'flip7'),($2,'love-letter')",[flip7Game,loveGame]);
     for (let i=0;i<ids.length;i++) {
       await client.query("insert into users values($1,$2,$2,null,$3,null)",[ids[i],`Player${String(i).padStart(2,'0')}`,i===12?'suspended':'active']);
       await client.query("insert into wallet_accounts values($1,'user',$2)",[ids[i],100-i]);
     }
     const people = ids.slice(0,3).map((userId,seat)=>({userId,seat}));
-    const archive = async (players,status='finished',old=false) => client.query(`insert into game_match_archives values($1,case when $4 then date_trunc('month',now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo' - interval '1 second' else now() end,$2,$3)`,[status,JSON.stringify(people),JSON.stringify(Array.isArray(players)?{phase:'over',players}:players),old]);
+    const archive = async (gameId,players,status='finished',old=false) => client.query(`insert into game_match_archives values($1,$2,case when $5 then date_trunc('month',now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo' - interval '1 second' else now() end,$3,$4)`,[gameId,status,JSON.stringify(people),JSON.stringify(Array.isArray(players)?{phase:'over',players}:players),old]);
     const tied = [{kind:'human',total:200},{kind:'human',total:200},{kind:'human',total:100}];
-    await archive(tied);
-    await archive([{kind:'bot',total:250},{kind:'human',total:200},{kind:'human',total:100}]);
-    await archive(tied,'abandoned');
-    await archive(tied,'finished',true);
+    await archive(flip7Game,tied);
+    await archive(flip7Game,[{kind:'bot',total:250},{kind:'human',total:200},{kind:'human',total:100}]);
+    await archive(flip7Game,tied,'abandoned');
+    await archive(flip7Game,tied,'finished',true);
     let result = await readRanking(client,{category:'wins',period:'month',page:1},ids[2]);
     assert.deepEqual(result.items.map(x=>[x.userId,x.value,x.position]),[[ids[0],1,1],[ids[1],1,1]]);
     assert.equal(result.own,null);
@@ -39,10 +42,16 @@ test('PostgreSQL: rankings agregam empates, bots, saldo e derrotas sem depender 
     result=await readRanking(client,{category:'losers',period:'all',page:1});
     assert.equal(result.items[0].value,3);
     // Love Letter uses final winner seats, including shared victories.
-    await archive({phase:'over',winners:[0,1],players:people.map(()=>({kind:'human',tokens:4}))});
-    await archive({phase:'over',winners:[2],players:[{kind:'bot',tokens:0},{kind:'human',tokens:0},{kind:'human',tokens:4}]});
-    await archive(tied,'playing');
-    await archive({phase:'playing',players:tied});
+    await archive(loveGame,{phase:'over',winners:[0,1],players:people.map(()=>({kind:'human',tokens:4}))});
+    await archive(loveGame,{phase:'over',winners:[2],players:[{kind:'bot',tokens:0},{kind:'human',tokens:0},{kind:'human',tokens:4}]});
+    await archive(flip7Game,tied,'playing');
+    await archive(flip7Game,{phase:'playing',players:tied});
+    // O filtro por jogo separa vitórias arquivadas pelo slug do catálogo.
+    result=await readRanking(client,{category:'wins',period:'all',page:1,game:'flip7'});
+    assert.deepEqual(result.items.map(x=>[x.userId,x.value]),[[ids[0],2],[ids[1],2]]);
+    result=await readRanking(client,{category:'wins',period:'all',page:1,game:'love-letter'});
+    assert.deepEqual(result.items.map(x=>[x.userId,x.value,x.position]),[[ids[0],1,1],[ids[1],1,1],[ids[2],1,1]]);
+    assert.deepEqual((await readRanking(client,{category:'wins',period:'all',page:1,game:'inexistente'})).items,[]);
     const stake = async (entry,payouts,status='paid') => client.query('insert into game_match_stakes values($1,$2,$3,$4,now())',[entry,JSON.stringify(payouts),JSON.stringify(people),status]);
     await stake(10,[{seat:0,amount:30,house:false}]);
     await stake(5,[{seat:1,amount:15,house:false}]);
