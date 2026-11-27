@@ -53,8 +53,8 @@ export function AdminExtras({ initial }: { initial: BonusWindowSettings }) {
           <h2 className="font-semibold">Horário bugado</h2>
           <p className="mt-1 max-w-prose text-sm text-muted">
             Durante as janelas ligadas, o limite do bônus diário sobe para dois resgates no mesmo dia.
-            O segundo resgate fica registrado no extrato como horário bugado. Fora das janelas, continua um resgate por dia.
-            Horários de São Paulo.
+            O segundo resgate aparece no extrato como um resgate diário comum, sem aviso na interface.
+            Fora das janelas, continua um resgate por dia. Horários de São Paulo.
           </p>
         </div>
         <label className="flex items-center gap-2 text-sm font-semibold">

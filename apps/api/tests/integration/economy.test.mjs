@@ -12,11 +12,15 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   const users = [];
   t.after(async () => {
     try {
+      // A window left enabled would leak the extra claim into later runs.
+      await pool.query('delete from bonus_window_settings where id=1').catch(() => {});
       await pool.query('delete from sessions where user_id=any($1::uuid[])', [users]);
       await pool.query('delete from users where id=any($1::uuid[])', [users]);
     } finally { await pool.end(); }
   });
   assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
+  // Start from the approved one-claim rule even if a previous interrupted run left a window behind.
+  await pool.query('delete from bonus_window_settings where id=1');
   // Exercise the production SQL calendar boundary directly, including UTC/local date differences.
   for (const [claimed, expected] of [
     [null, null],
@@ -102,7 +106,6 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   const data = { enabled: true, windows: [{ start: formatClock(Math.max(0, localMinute - 2)), end: formatClock(Math.min(1439, localMinute + 2)) }] };
   await pool.query("insert into bonus_window_settings (id,data,version) values (1,$1,1) on conflict (id) do update set data=excluded.data,version=excluded.version",
     [JSON.stringify({ ...data, version: 1 })]);
-  t.after(async () => { await pool.query('delete from bonus_window_settings where id=1').catch(() => {}); });
   const thirdSession = 'c'.repeat(64);
   const thirdName = `Economy_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
   const third = (await pool.query('insert into users (username, display_name, password_hash) values ($1,$1,$1) returning id', [thirdName])).rows[0].id;
@@ -127,7 +130,10 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   const claimed = (await pool.query('select kind from daily_claims where account_id=$1 order by claimed_at', [thirdAccount])).rows;
   assert.deepEqual(claimed.map(row => row.kind), ['window', 'window']);
   const thirdEntries = (await readTransactions(pool, third, 20, 0)).items;
-  assert.equal(thirdEntries.filter(entry => entry.description === 'Resgate diário (horário bugado)').length, 2);
+  // Both window credits use the standard statement text; origin stays only in the internal claim kind.
+  assert.equal(thirdEntries.filter(entry => entry.description === 'Resgate diário').length, 2);
+  assert.equal(thirdEntries.filter(entry => entry.reference === 'Resgate diário').length, 2);
+  assert.equal(thirdEntries.filter(entry => /bugado/i.test(entry.description) || /bugado/i.test(entry.reference ?? '')).length, 0);
   const winnerClaim = windowRequests[windowRace.findIndex(result => result.status === 'fulfilled')];
   assert.equal((await claimDailyReward(pool, third, thirdSession, winnerClaim)).balance, 50);
   assert.equal((await readTransactions(pool, third, 20, 0)).items.length, 3);

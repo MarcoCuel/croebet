@@ -142,7 +142,7 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
         if (revision.current === version) {
           setWallet({ userId: accountId, daily: next });
           claimRequest.current = null;
-          toast.success(next.windowActive && next.eligible ? "Horário bugado: resgate de novo!" : "Croins resgatados."); router.refresh();
+          toast.success("Croins resgatados."); router.refresh();
         }
       } catch (error) {
         if (revision.current === version) {

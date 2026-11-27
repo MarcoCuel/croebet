@@ -79,12 +79,11 @@ export async function claimDailyReward(pool: Pool, userId: string, sessionHash: 
     const status = await readDailyStatus(client, userId);
     if (replay.rows.length) { await client.query("commit"); return status; }
     if (!status.eligible) throw new RewardError("DAILY_COOLDOWN");
-    // A window claim is still one auditable ledger operation; the reason keeps it distinguishable.
+    // The window claim is deliberately indistinguishable in the statement; kind keeps the origin internal.
     const receipt = await transferCroinsInTransaction(client, {
       scope: `daily:${account.id}`, idempotencyKey: requestId, from: issuanceAccountId, to: account.id,
       actorAccountId: account.id, amount: economy.dailyReward,
-      reason: status.windowActive ? "Resgate diário (horário bugado)" : "Resgate diário",
-      reference: status.windowActive ? "Horário bugado" : "Resgate diário",
+      reason: "Resgate diário", reference: "Resgate diário",
     });
     // Record the effective credit time; the next local midnight starts a new claim day.
     await client.query("insert into daily_claims (account_id, request_id, operation_id, claimed_at, kind) values ($1,$2,$3,clock_timestamp(),$4)",

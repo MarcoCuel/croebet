@@ -7,6 +7,7 @@ const initial = (): DailyStatus => ({ balance: 30, eligible: true, lastClaimAt: 
 let daily = initial();
 let unavailable = false;
 let claims = 0;
+let bugWindow = false;
 let closeApi: (() => Promise<void>) | undefined;
 
 test.beforeAll(async () => {
@@ -26,7 +27,7 @@ test.beforeAll(async () => {
     if (unavailable) { response.statusCode = 503; response.end("{}"); return true; }
     if (path === "/api/v1/rewards/daily/claim") {
       claims++;
-      daily = daily.windowActive && claims === 1
+      daily = bugWindow && claims === 1
         ? { ...daily, balance: 40, eligible: true, lastClaimAt: daily.serverNow, nextClaimAt: null }
         : { ...daily, balance: 30 + claims * 10, eligible: false, lastClaimAt: daily.serverNow, nextClaimAt: "2026-11-21T12:00:00.000Z" };
     }
@@ -36,7 +37,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await closeApi?.(); });
 test.beforeEach(async ({ context }) => {
-  daily = initial(); unavailable = false; claims = 0;
+  daily = initial(); unavailable = false; claims = 0; bugWindow = false;
   await context.addCookies([{ name: "croebet-session", value: "bonus-test", url: "http://127.0.0.1:3100" }]);
 });
 
@@ -56,13 +57,15 @@ test("presente permite resgatar uma vez e desaparece após confirmação", async
   await expect(gift).toHaveCount(0);
 });
 
-test("horário bugado libera o segundo resgate e some depois do limite", async ({ page, isMobile }) => {
-  daily = { ...initial(), windowActive: true, nextWindowAt: "2026-11-21T18:00:00.000Z" };
+test("horário bugado libera o segundo resgate sem avisar na interface", async ({ page, isMobile }) => {
+  bugWindow = true;
+  daily = { ...initial(), nextWindowAt: "2026-11-21T18:00:00.000Z" };
   await page.goto("/");
   if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
   const header = isMobile ? page.getByRole("dialog", { name: "Menu da Croebet" }) : page.locator("header");
-  const gift = header.getByRole("button", { name: "Resgatar bônus do horário bugado", exact: true });
-  await expect(gift).toHaveText("Bônus bugado");
+  const gift = header.getByRole("button", { name: "Resgatar bônus diário", exact: true });
+  await expect(gift).toHaveText("Bônus diário");
+  await expect(page.getByText(/bugado/i)).toHaveCount(0);
   await gift.click();
   await expect(gift).toBeVisible();
   await expect(header.getByRole("link", { name: "Ver carteira" }).filter({ visible: true })).toContainText("40");
