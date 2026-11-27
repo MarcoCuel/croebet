@@ -6,6 +6,7 @@ import { dailyStatus, grantInitialBalance, claimDailyReward } from '../dist/modu
 import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
 import { couponAmountSchema, dailyClaimSchema } from '@croebet/shared';
+import { publicTransactionText } from '../dist/modules/wallet/service.js';
 
 test('rotas da API carregam diretamente em TypeScript no modo de desenvolvimento do Node', () => {
   execFileSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e',
@@ -23,7 +24,7 @@ test('economia aprovada é centralizada; cupons aceitam valores livres inteiros 
 test('resgate libera à meia-noite de São Paulo, sem qualquer teto de saldo', () => {
   const claimed = new Date('2026-11-19T01:00:00.000Z'); // 22h de 18/11 em São Paulo
   const next = new Date('2026-11-19T03:00:00.000Z'); // meia-noite de 19/11
-  const status = (balance, lastClaimAt, now, nextClaimAt) => dailyStatus({ balance, lastClaimAt, now, nextClaimAt, windowActive: false, nextWindowAt: null });
+  const status = (balance, lastClaimAt, now, nextClaimAt) => dailyStatus({ balance, lastClaimAt, now, nextClaimAt });
   for (const balance of [0, 29, 30, 39, 100000]) {
     assert.equal(status(balance, null, claimed, null).eligible, true);
     assert.equal(status(balance, claimed, new Date('2026-11-19T02:00:00Z'), next).eligible, false);
@@ -73,4 +74,13 @@ test('HTTP expõe configuração, protege resgate por sessão/CSRF e recusa valo
     cookies: { 'croebet-session': session, ...Object.fromEntries(csrf.cookies.map(c => [c.name, c.value])) },
     headers: { origin: 'http://localhost:3000', 'x-csrf-token': csrf.json().token }, payload: { requestId: '00000000-0000-4000-8000-000000000001', amount: 1000 } });
   assert.equal(response.statusCode, 400);
+});
+
+test('extrato do jogador não diferencia o resgate extra, inclusive em lançamentos antigos', () => {
+  assert.deepEqual(publicTransactionText('Resgate diário (horário bugado)', 'Horário bugado'),
+    { description: 'Resgate diário', reference: 'Resgate diário' });
+  assert.deepEqual(publicTransactionText('Resgate diário', 'Resgate diário'),
+    { description: 'Resgate diário', reference: 'Resgate diário' });
+  assert.deepEqual(publicTransactionText('Cupom resgatado', 'CROE_7'),
+    { description: 'Cupom resgatado', reference: 'CROE_7' });
 });

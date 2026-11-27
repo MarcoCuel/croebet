@@ -70,11 +70,18 @@ export async function readWallet(pool: Pool, userId: string) {
   if (!result.rows[0]) throw new WalletError("ACCOUNT_UNAVAILABLE");
   return walletSchema.parse({ balance: Number(result.rows[0].balance) });
 }
+// Older extra-claim rows stored an event label; the player always sees the standard daily text.
+export function publicTransactionText(reason: string, reference: string) {
+  return reason === "Resgate diário (horário bugado)"
+    ? { description: "Resgate diário", reference: "Resgate diário" }
+    : { description: reason, reference };
+}
 export async function readTransactions(pool: Pool, userId: string, limit: number, offset: number, direction: "all" | "income" | "expense" = "all") {
   const result = await pool.query(`select e.id, o.created_at, o.reason, o.reference, e.amount, e.balance from wallet_entries e
     join wallet_accounts a on a.id=e.account_id join wallet_operations o on o.id=e.operation_id
     where a.user_id=$1 and ($4 = 'all' or ($4 = 'income' and e.amount > 0) or ($4 = 'expense' and e.amount < 0)) order by e.sequence desc limit $2 offset $3`, [userId, limit + 1, offset, direction]);
-  return transactionsSchema.parse({ items: result.rows.slice(0, limit).map(row => ({
-    id: row.id, createdAt: row.created_at.toISOString(), description: row.reason, reference: row.reference, amount: Number(row.amount), balance: Number(row.balance),
-  })), hasMore: result.rows.length > limit });
+  return transactionsSchema.parse({ items: result.rows.slice(0, limit).map(row => {
+    const text = publicTransactionText(row.reason, row.reference);
+    return { id: row.id, createdAt: row.created_at.toISOString(), description: text.description, reference: text.reference, amount: Number(row.amount), balance: Number(row.balance) };
+  }), hasMore: result.rows.length > limit });
 }

@@ -3,7 +3,7 @@ import { fixedMenuPages, type DailyStatus } from "@croebet/shared";
 import { startPublicApi } from "../public-api-fixture";
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role: "user", avatarUrl: null, usernameChangeAvailableAt: null };
-const initial = (): DailyStatus => ({ balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: "2026-11-20T12:00:00.000Z", windowActive: false, nextWindowAt: null });
+const initial = (): DailyStatus => ({ balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: "2026-11-20T12:00:00.000Z" });
 let daily = initial();
 let unavailable = false;
 let claims = 0;
@@ -59,7 +59,7 @@ test("presente permite resgatar uma vez e desaparece após confirmação", async
 
 test("horário bugado libera o segundo resgate sem avisar na interface", async ({ page, isMobile }) => {
   bugWindow = true;
-  daily = { ...initial(), nextWindowAt: "2026-11-21T18:00:00.000Z" };
+  daily = initial();
   await page.goto("/");
   if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
   const header = isMobile ? page.getByRole("dialog", { name: "Menu da Croebet" }) : page.locator("header");

@@ -23,7 +23,7 @@ function respond(url: string) {
   const parsed = new URL(url, "http://api");
   if (parsed.pathname === "/api/v1/me") return { user: { id, username: "Marco", displayName: "Marco", role } };
   if (parsed.pathname === "/api/v1/economy") return { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1,5,10,50], defaultBet: 5 };
-  if (parsed.pathname === "/api/v1/rewards/daily") return { balance: 37, lastClaimAt: null, nextClaimAt: null, eligible: true, serverNow: "2026-11-19T15:00:00.000Z", windowActive: false, nextWindowAt: null };
+  if (parsed.pathname === "/api/v1/rewards/daily") return { balance: 37, lastClaimAt: null, nextClaimAt: null, eligible: true, serverNow: "2026-11-19T15:00:00.000Z" };
   if (parsed.pathname === "/api/v1/admin/overview") return overview(Number(parsed.searchParams.get("days") ?? 7) as 1 | 7 | 30);
   if (parsed.pathname === "/api/v1/admin/users") return { items: [], total: 0, hasMore: false, counts: { all: 0, active: 0, suspended: 0 } };
   if (parsed.pathname === "/api/v1/admin/coupons") return { items: [], total: 0, hasMore: false, counts: { Todos: 0, Ativo: 0, Agendado: 0, Pausado: 0, Expirado: 0, Esgotado: 0 } };

@@ -13,7 +13,7 @@ let balance = 30;
 let unavailable = false;
 let adminRole = "admin";
 let coupon: { id: string; code: string; amount: number; limit: number | null; startsAt: string | null; endsAt: string | null; paused: boolean; version: number; redeemed: number; distributed: number; status: string } | null = null;
-let transactions: { id: string; description: string; amount: number; balance: number; createdAt: string; reference?: string }[] = [];
+let transactions: { id: string; description: string; amount: number; balance: number; createdAt: string; reference?: string; claimOrder: number | null }[] = [];
 let audit: { id: string; actorId: string; actorUsername: string; action: string; reason: string; createdAt: string; details: Record<string, unknown> }[] = [];
 let lastBody: Record<string, unknown> = {};
 let api: Server;
@@ -27,7 +27,7 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
   if (path === "/api/v1/auth/csrf") return { token: "fixture" };
   if (path === "/api/v1/rewards/daily" || path === "/api/v1/coupons/redeem") {
     if (method === "POST") { balance += coupon?.amount ?? 0; lastBody = body; }
-    return { balance, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString(), windowActive: false, nextWindowAt: null };
+    return { balance, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() };
   }
   if (path === "/api/v1/admin/users") {
     const query = new URL(url, "http://api").searchParams;
@@ -56,7 +56,7 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
   }
   if (path === `/api/v1/admin/users/${userId}/adjustments`) {
     lastBody = body; const amount = Number(body.amount) * (body.direction === "add" ? 1 : -1); user.balance += amount;
-    transactions.unshift({ id: opId, description: "Ajuste administrativo · Crédito", amount, balance: user.balance, createdAt: new Date().toISOString(), reference: String(body.reason) });
+    transactions.unshift({ id: opId, description: "Ajuste administrativo · Crédito", amount, balance: user.balance, createdAt: new Date().toISOString(), reference: String(body.reason), claimOrder: null });
     return { ok: true };
   }
   if (path === `/api/v1/admin/users/${userId}`) return { user, transactions: { items: transactions, hasMore: false }, audit: { items: audit, hasMore: false } };
@@ -227,6 +227,16 @@ test("linhas editáveis alteram nome e usuário pelo admin", async ({page}) => {
   expect(lastBody.role).toBe("user");expect(lastBody.status).toBe("suspended");
 });
 
+test("admin identifica o primeiro resgate e o segundo do horário bugado", async ({ page }) => {
+  transactions = [
+    { id: opId, description: "Resgate diário", amount: 10, balance: 40, createdAt: new Date().toISOString(), reference: "Resgate diário", claimOrder: 1 },
+    { id: randomUUID(), description: "Resgate diário", amount: 10, balance: 50, createdAt: new Date().toISOString(), reference: "Resgate diário", claimOrder: 2 },
+  ];
+  await page.goto(`/admin/usuarios/${userId}`);
+  await expect(page.getByText("Resgate diário", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("1º resgate", { exact: true })).toBeVisible();
+  await expect(page.getByText("2º resgate · horário bugado", { exact: true })).toBeVisible();
+});
 test("cadastro é fixo; exclusão exige confirmação e reativação cancela o prazo", async ({ page }) => {
   await page.goto(`/admin/usuarios/${userId}`);
   await expect(page.getByRole("button", { name: "Editar cadastro" })).toHaveCount(0);

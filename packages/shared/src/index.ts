@@ -71,6 +71,10 @@ export const transactionsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(1000000).default(0),
 }).strict();
 export const transactionsSchema = z.object({ items: z.array(transactionSchema), hasMore: z.boolean() }).strict();
+// Admin-only projection: claimOrder 1 is the day's regular claim, 2+ are the extra window claims.
+export const adminTransactionSchema = transactionSchema.extend({ claimOrder: z.number().int().positive().nullable() }).strict();
+export const adminTransactionsSchema = z.object({ items: z.array(adminTransactionSchema), hasMore: z.boolean() }).strict();
+export type AdminTransaction = z.infer<typeof adminTransactionSchema>;
 
 // Shapes only: economic values are owned and served by Fastify.
 export const economySchema = z.object({
@@ -87,10 +91,6 @@ export const dailyStatusSchema = z.object({
   nextClaimAt: z.iso.datetime().nullable(),
   eligible: z.boolean(),
   serverNow: z.iso.datetime(),
-  // True while a configured "horário bugado" window is open, when a second claim is allowed.
-  windowActive: z.boolean(),
-  // Next window start, so the client can refresh itself when the extra claim becomes available.
-  nextWindowAt: z.iso.datetime().nullable(),
 }).strict();
 export type DailyStatus = z.infer<typeof dailyStatusSchema>;
 export const dailyClaimSchema = z.object({ requestId: z.uuid() }).strict();
@@ -123,7 +123,7 @@ export const adminUserCountsSchema = z.object({ all: z.number().int().nonnegativ
 export const adminUsersSchema = z.object({ items: z.array(adminUserSchema), hasMore: z.boolean(), total: z.number().int().nonnegative(), counts: adminUserCountsSchema }).strict();
 export const auditSchema = z.object({ id: z.uuid(), actorId: z.uuid(), actorUsername: z.string().nullable(), action: z.string(), reason: z.string(), createdAt: z.iso.datetime(), details: z.record(z.string(), z.unknown()) }).strict();
 export const auditPageSchema = z.object({ items: z.array(auditSchema), hasMore: z.boolean() }).strict();
-export const adminUserDetailSchema = z.object({ user: adminUserSchema, transactions: transactionsSchema, audit: auditPageSchema }).strict();
+export const adminUserDetailSchema = z.object({ user: adminUserSchema, transactions: adminTransactionsSchema, audit: auditPageSchema }).strict();
 export const couponCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,32}$/, "Use de 3 a 32 letras, números, hífen ou sublinhado.");
 export const couponWriteSchema = z.object({
   code: couponCodeSchema, amount: couponAmountSchema, limit: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),

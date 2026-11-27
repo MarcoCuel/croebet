@@ -5,6 +5,7 @@ import { createDatabase } from '../../dist/db/client.js';
 import { grantInitialBalance, claimDailyReward, readDailyStatus } from '../../dist/modules/economy/service.js';
 import { readTransactions, readWallet, transferCroinsInTransaction } from '../../dist/modules/wallet/service.js';
 import { issuanceAccountId } from '../../dist/modules/economy/config.js';
+import { readAdminTransactions } from '../../dist/modules/admin/service.js';
 
 test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollback econômico', async t => {
   if (!process.env.TEST_DATABASE_URL) throw new Error('Configure TEST_DATABASE_URL com banco isolado migrado e identificado como test.');
@@ -118,9 +119,7 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
     await thirdSetup.query('commit');
   } catch (error) { await thirdSetup.query('rollback'); throw error; } finally { thirdSetup.release(); }
   const status = await readDailyStatus(pool, third);
-  assert.equal(status.windowActive, true);
   assert.equal(status.eligible, true);
-  assert.ok(status.nextWindowAt);
   const windowRequests = [randomUUID(), randomUUID(), randomUUID()];
   const windowRace = await Promise.allSettled(windowRequests.map(id => claimDailyReward(pool, third, thirdSession, id)));
   assert.equal(windowRace.filter(result => result.status === 'fulfilled').length, 2);
@@ -128,13 +127,40 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   assert.deepEqual(await readWallet(pool, third), { balance: 50 });
   const thirdAccount = (await pool.query('select id from wallet_accounts where user_id=$1', [third])).rows[0].id;
   const claimed = (await pool.query('select kind from daily_claims where account_id=$1 order by claimed_at', [thirdAccount])).rows;
-  assert.deepEqual(claimed.map(row => row.kind), ['window', 'window']);
+  assert.deepEqual(claimed.map(row => row.kind), ['daily', 'window']);
   const thirdEntries = (await readTransactions(pool, third, 20, 0)).items;
   // Both window credits use the standard statement text; origin stays only in the internal claim kind.
   assert.equal(thirdEntries.filter(entry => entry.description === 'Resgate diário').length, 2);
   assert.equal(thirdEntries.filter(entry => entry.reference === 'Resgate diário').length, 2);
   assert.equal(thirdEntries.filter(entry => /bugado/i.test(entry.description) || /bugado/i.test(entry.reference ?? '')).length, 0);
+  assert.equal(thirdEntries.some(entry => 'claimOrder' in entry), false);
+  // The admin view identifies the day's first claim and the extra one.
+  const adminView = await readAdminTransactions(pool, third, 20, 0);
+  assert.deepEqual(adminView.items.filter(entry => entry.claimOrder !== null).map(entry => entry.claimOrder).sort(), [1, 2]);
+  assert.equal(adminView.items.filter(entry => entry.claimOrder === 2)[0].description, 'Resgate diário');
   const winnerClaim = windowRequests[windowRace.findIndex(result => result.status === 'fulfilled')];
   assert.equal((await claimDailyReward(pool, third, thirdSession, winnerClaim)).balance, 50);
   assert.equal((await readTransactions(pool, third, 20, 0)).items.length, 3);
+
+  // A claim made before the window consumes the day and must not open the extra when the window starts.
+  const outsideMinute = localMinute >= 60 ? localMinute - 60 : localMinute + 60;
+  const fourthSession = 'd'.repeat(64);
+  const fourthName = `Economy_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const fourth = (await pool.query('insert into users (username, display_name, password_hash) values ($1,$1,$1) returning id', [fourthName])).rows[0].id;
+  users.push(fourth);
+  const fourthSetup = await pool.connect();
+  try {
+    await fourthSetup.query('begin');
+    await grantInitialBalance(fourthSetup, fourth);
+    const fourthAccount = (await fourthSetup.query('select id from wallet_accounts where user_id=$1', [fourth])).rows[0].id;
+    const receipt = await transferCroinsInTransaction(fourthSetup, { scope: 'fixture-outside-window', idempotencyKey: fourth, from: issuanceAccountId, to: fourthAccount, actorAccountId: fourthAccount, amount: 10, reason: 'Resgate diário', reference: 'Fixture' });
+    await fourthSetup.query(`insert into daily_claims (account_id,request_id,operation_id,claimed_at,kind)
+      values ($1,$2,$3, ((clock_timestamp() at time zone 'America/Sao_Paulo')::date::timestamp + make_interval(hours => $4::int, mins => $5::int)) at time zone 'America/Sao_Paulo', 'daily')`,
+      [fourthAccount, randomUUID(), receipt.operationId, Math.floor(outsideMinute / 60), outsideMinute % 60]);
+    await fourthSetup.query("insert into sessions (token_hash,user_id,expires_at,idle_expires_at) values ($1,$2,now()+interval '1 day',now()+interval '1 day')", [fourthSession, fourth]);
+    await fourthSetup.query('commit');
+  } catch (error) { await fourthSetup.query('rollback'); throw error; } finally { fourthSetup.release(); }
+  assert.equal((await readDailyStatus(pool, fourth)).eligible, false);
+  await assert.rejects(claimDailyReward(pool, fourth, fourthSession, randomUUID()), { code: 'DAILY_COOLDOWN' });
+  assert.deepEqual(await readWallet(pool, fourth), { balance: 40 });
 });

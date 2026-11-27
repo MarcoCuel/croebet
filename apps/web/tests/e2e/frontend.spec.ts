@@ -38,7 +38,7 @@ test.beforeEach(async ({ page }) => {
       account = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username, displayName: username, role: "user" };
     }
     if (path === "/api/v1/economy") return route.fulfill({ json: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1,5,10,50], defaultBet: 5 } });
-    if (path === "/api/v1/rewards/daily") return route.fulfill({ json: { balance: 30, lastClaimAt: null, nextClaimAt: null, eligible: true, serverNow: new Date().toISOString(), windowActive: false, nextWindowAt: null } });
+    if (path === "/api/v1/rewards/daily") return route.fulfill({ json: { balance: 30, lastClaimAt: null, nextClaimAt: null, eligible: true, serverNow: new Date().toISOString() } });
     return route.fulfill({ json: { user: account }, headers: path === "/api/v1/auth/login" ? { "set-cookie": "croebet-session=ui-fixture; Path=/; HttpOnly; SameSite=Lax" } : {} });
   });
 });

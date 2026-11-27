@@ -2,11 +2,11 @@ import { hash as hashPassword, argon2id } from "argon2";
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { z } from "zod";
-import { adminUserSchema, adminUsersSchema, auditPageSchema, couponSchema, couponsSchema, redemptionsSchema,
+import { adminUserSchema, adminUsersSchema, adminTransactionsSchema, auditPageSchema, couponSchema, couponsSchema, redemptionsSchema,
   type adminUserPasswordSchema, type adminUserIdentitySchema, type adminQuerySchema, type userChangeSchema, type balanceAdjustmentSchema, type couponWriteSchema, type couponsQuerySchema } from "@croebet/shared";
 import { avatarUrl } from "../avatars/storage.ts";
 import { transferCroinsInTransaction } from "../wallet/service.ts";
-import { issuanceAccountId } from "../economy/config.ts";
+import { economy, issuanceAccountId } from "../economy/config.ts";
 
 export class ManagementError extends Error {
   public status: number;
@@ -66,6 +66,24 @@ export async function readAdminUsers(pool: Pool, query: z.infer<typeof adminQuer
   ]);
   const counts = count.rows[0];
   return adminUsersSchema.parse({ items: rows.rows.slice(0, query.limit).map(userData), hasMore: rows.rows.length > query.limit, total: counts[query.status], counts });
+}
+// Admin-only ledger view: the claim order separates the day's regular bonus from the extra window credit.
+export async function readAdminTransactions(pool: Pool, userId: string, limit: number, offset: number) {
+  const result = await pool.query(`select e.id, o.created_at, o.reason, o.reference, e.amount, e.balance, d.claim_order
+    from wallet_entries e
+    join wallet_accounts a on a.id=e.account_id
+    join wallet_operations o on o.id=e.operation_id
+    left join (
+      select c.operation_id,
+        row_number() over (partition by (c.claimed_at at time zone $4)::date order by c.claimed_at, c.id)::int as claim_order
+      from daily_claims c join wallet_accounts ca on ca.id=c.account_id where ca.user_id=$1
+    ) d on d.operation_id=o.id
+    where a.user_id=$1 order by e.sequence desc limit $2 offset $3`, [userId, limit + 1, offset, economy.dailyResetTimeZone]);
+  return adminTransactionsSchema.parse({ items: result.rows.slice(0, limit).map(row => ({
+    id: row.id, createdAt: row.created_at.toISOString(), description: row.reason, reference: row.reference,
+    amount: Number(row.amount), balance: Number(row.balance),
+    claimOrder: row.claim_order === null ? null : Number(row.claim_order),
+  })), hasMore: result.rows.length > limit });
 }
 export async function changeUser(pool: Pool, actorId: string, hash: string, targetId: string, input: z.infer<typeof userChangeSchema>) {
   await adminTransaction(pool, actorId, hash, targetId, async (client, target) => {

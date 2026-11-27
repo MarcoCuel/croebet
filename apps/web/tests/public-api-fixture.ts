@@ -26,7 +26,7 @@ export async function startPublicApi(session: (request: IncomingMessage) => unkn
       : path === "/api/v1/navigation" ? { main, footer: [] }
       : path === "/api/v1/pages/sobre" ? about
       : path === "/api/v1/economy" ? { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [5,10,15,25,50], defaultBet: 5 }
-      : path === "/api/v1/rewards/daily" ? { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString(), windowActive: false, nextWindowAt: null }
+      : path === "/api/v1/rewards/daily" ? { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() }
       : path === "/api/v1/pages" ? { items: [{ slug: about.slug, title: about.title, showInMenu: false }] }
       : null;
     if (body === null) response.statusCode = 404;

@@ -16,7 +16,6 @@ export class RewardError extends Error {
 
 export function dailyStatus(input: {
   balance: number; lastClaimAt: Date | null; now: Date; nextClaimAt: Date | null;
-  windowActive: boolean; nextWindowAt: Date | null;
 }): DailyStatus {
   return dailyStatusSchema.parse({
     balance: input.balance,
@@ -24,15 +23,13 @@ export function dailyStatus(input: {
     nextClaimAt: input.nextClaimAt?.toISOString() ?? null,
     eligible: !input.nextClaimAt || input.nextClaimAt <= input.now,
     serverNow: input.now.toISOString(),
-    windowActive: input.windowActive,
-    nextWindowAt: input.nextWindowAt?.toISOString() ?? null,
   });
 }
 
-export async function readDailyStatus(client: Pick<Pool, "query"> | Pick<PoolClient, "query">, userId: string) {
+async function readDailyState(client: Pick<Pool, "query"> | Pick<PoolClient, "query">, userId: string) {
   // PostgreSQL resolves calendar boundaries in the product timezone, independently of host/browser timezone.
   // The window limit only applies to claims made on the current local day.
-  const result = await client.query(`select a.balance, c.last_claim_at, c.claims_today,
+  const result = await client.query(`select a.balance, a.id as account_id, c.last_claim_at, c.claims_today,
     (((c.last_claim_at at time zone $2)::date + 1)::timestamp at time zone $2) as next_claim_at,
     clock_timestamp() as now from wallet_accounts a
     cross join lateral (select max(d.claimed_at) as last_claim_at,
@@ -44,12 +41,29 @@ export async function readDailyStatus(client: Pick<Pool, "query"> | Pick<PoolCli
   const settings = await readBonusWindowSettings(client);
   const now = row.now as Date;
   const window = bonusWindowState(settings, now, economy.dailyResetTimeZone);
-  const eligible = Number(row.claims_today) < dailyClaimLimit(window);
-  return dailyStatus({
-    balance: Number(row.balance), lastClaimAt: row.last_claim_at, now,
-    nextClaimAt: eligible ? null : row.next_claim_at,
-    windowActive: window.active, nextWindowAt: window.nextStartAt,
-  });
+  const claimsToday = Number(row.claims_today);
+  // The extra only opens when the day's first claim also happened inside the active window.
+  let claimsInWindow = 0;
+  if (claimsToday > 0 && window.window) {
+    const inside = await client.query(`select count(*)::int as total from daily_claims d where d.account_id=$1
+      and (d.claimed_at at time zone $2)::date = (clock_timestamp() at time zone $2)::date
+      and (d.claimed_at at time zone $2)::time >= $3::time
+      and (d.claimed_at at time zone $2)::time < $4::time`,
+      [row.account_id, economy.dailyResetTimeZone, window.window.start, window.window.end]);
+    claimsInWindow = Number(inside.rows[0].total);
+  }
+  const eligible = claimsToday < dailyClaimLimit(window) && claimsInWindow === claimsToday;
+  return {
+    claimsToday,
+    status: dailyStatus({
+      balance: Number(row.balance), lastClaimAt: row.last_claim_at, now,
+      nextClaimAt: eligible ? null : row.next_claim_at,
+    }),
+  };
+}
+
+export async function readDailyStatus(client: Pick<Pool, "query"> | Pick<PoolClient, "query">, userId: string) {
+  return (await readDailyState(client, userId)).status;
 }
 
 // Called inside the registration transaction; failure rolls back user, session and credit.
@@ -76,10 +90,11 @@ export async function claimDailyReward(pool: Pool, userId: string, sessionHash: 
     const account = accounts.rows.find(row => row.kind === "user");
     if (!account || accounts.rows.length !== 2) throw new WalletError("ACCOUNT_UNAVAILABLE");
     const replay = await client.query("select operation_id from daily_claims where account_id=$1 and request_id=$2", [account.id, requestId]);
-    const status = await readDailyStatus(client, userId);
+    const state = await readDailyState(client, userId);
+    const status = state.status;
     if (replay.rows.length) { await client.query("commit"); return status; }
     if (!status.eligible) throw new RewardError("DAILY_COOLDOWN");
-    // The window claim is deliberately indistinguishable in the statement; kind keeps the origin internal.
+    // The extra claim is indistinguishable in the statement; kind records that it came after the day's first one.
     const receipt = await transferCroinsInTransaction(client, {
       scope: `daily:${account.id}`, idempotencyKey: requestId, from: issuanceAccountId, to: account.id,
       actorAccountId: account.id, amount: economy.dailyReward,
@@ -87,7 +102,7 @@ export async function claimDailyReward(pool: Pool, userId: string, sessionHash: 
     });
     // Record the effective credit time; the next local midnight starts a new claim day.
     await client.query("insert into daily_claims (account_id, request_id, operation_id, claimed_at, kind) values ($1,$2,$3,clock_timestamp(),$4)",
-      [account.id, requestId, receipt.operationId, status.windowActive ? "window" : "daily"]);
+      [account.id, requestId, receipt.operationId, state.claimsToday > 0 ? "window" : "daily"]);
     const next = await readDailyStatus(client, userId);
     await client.query("commit");
     return next;

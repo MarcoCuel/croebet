@@ -5,7 +5,7 @@ import { createApp } from '../dist/app.js';
 import { authRoutes } from '../dist/modules/auth/routes.js';
 import { changeUserIdentity, readAdminUsers, readCoupons, protectLastAdmin, adminTransaction, changeUser, saveCoupon, couponAvailability, adjustBalance } from '../dist/modules/admin/service.js';
 import { redeemCoupon } from '../dist/modules/admin/redeem.js';
-import { adminUserIdentitySchema, couponWriteSchema, redeemCouponSchema, balanceAdjustmentSchema, userChangeSchema, adminUserSchema } from '@croebet/shared';
+import { adminUserIdentitySchema, couponWriteSchema, redeemCouponSchema, balanceAdjustmentSchema, userChangeSchema, adminUserSchema, adminTransactionSchema, adminTransactionsSchema, transactionsSchema } from '@croebet/shared';
 
 const actor = '00000000-0000-4000-8000-000000000010';
 const target = '00000000-0000-4000-8000-000000000020';
@@ -29,6 +29,15 @@ test('contratos administrativos rejeitam campos privados, valores inválidos e d
   assert.equal(balanceAdjustmentSchema.safeParse({ requestId, amount: 0, direction: 'remove', reason: 'Teste' }).success, false);
   assert.equal(userChangeSchema.safeParse({ role: 'superadmin', status: 'active', reason: 'Teste' }).success, false);
   assert.equal(adminUserSchema.safeParse({ passwordHash: 'secret' }).success, false);
+});
+test('extrato administrativo expõe a ordem do resgate; extrato do jogador não', () => {
+  const entry = { id: target, createdAt: '2026-11-19T12:00:00.000Z', description: 'Resgate diário', reference: 'Resgate diário', amount: 10, balance: 40 };
+  assert.equal(adminTransactionSchema.safeParse({ ...entry, claimOrder: 1 }).success, true);
+  assert.equal(adminTransactionSchema.safeParse({ ...entry, claimOrder: null }).success, true);
+  assert.equal(adminTransactionSchema.safeParse(entry).success, false);
+  assert.equal(adminTransactionSchema.safeParse({ ...entry, claimOrder: 0 }).success, false);
+  assert.equal(adminTransactionsSchema.safeParse({ items: [{ ...entry, claimOrder: 2 }], hasMore: false }).success, true);
+  assert.equal(transactionsSchema.safeParse({ items: [{ ...entry, claimOrder: 2 }], hasMore: false }).success, false);
 });
 test('validade usa instante do servidor, início inclusivo, término exclusivo e limite global', () => {
   const now = new Date('2026-11-19T12:00:00Z');

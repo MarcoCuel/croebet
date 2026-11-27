@@ -22,8 +22,8 @@ import { adminQuerySchema, userChangeSchema, balanceAdjustmentSchema, couponWrit
 import { readBonusWindowSettings } from "../economy/settings.ts";
 import { saveBonusWindowSettings } from "./bonus-windows.ts";
 import { tokenHash } from "../auth/security.ts";
-import { readTransactions, WalletError } from "../wallet/service.ts";
-import { ManagementError, readAdminUser, readAdminUsers, readAudit, changeUser, adjustBalance, readCoupon, readCoupons, readRedemptions, saveCoupon } from "./service.ts";
+import { WalletError } from "../wallet/service.ts";
+import { ManagementError, readAdminUser, readAdminUsers, readAdminTransactions, readAudit, changeUser, adjustBalance, readCoupon, readCoupons, readRedemptions, saveCoupon } from "./service.ts";
 import { redeemCoupon } from "./redeem.ts";
 import { pageSlugSchema, pageWriteSchema, pageDeleteSchema } from "@croebet/shared";
 import { readPageLinks, readPage, readPages, savePage, deletePage, readPageAuthors } from "../pages/service.ts";
@@ -149,11 +149,11 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
   app.get("/api/v1/admin/users", (request, reply) => run(request, reply, true, async () => readAdminUsers(pool, adminQuerySchema.parse(request.query))));
   app.get("/api/v1/admin/users/:id", (request, reply) => run(request, reply, true, async () => {
     const userId = id(request);
-    const [user, transactions, audit] = await Promise.all([readAdminUser(pool, userId), readTransactions(pool, userId, 20, 0), readAudit(pool, userId)]);
+    const [user, transactions, audit] = await Promise.all([readAdminUser(pool, userId), readAdminTransactions(pool, userId, 20, 0), readAudit(pool, userId)]);
     return adminUserDetailSchema.parse({ user, transactions, audit });
   }));
   app.get("/api/v1/admin/users/:id/transactions", (request, reply) => run(request, reply, true, async () => {
-    const query = adminQuerySchema.parse(request.query); return readTransactions(pool, id(request), query.limit, query.offset);
+    const query = adminQuerySchema.parse(request.query); return readAdminTransactions(pool, id(request), query.limit, query.offset);
   }));
   app.get("/api/v1/admin/audit/:id", (request, reply) => run(request, reply, true, async () => {
     const query = adminQuerySchema.parse(request.query); return readAudit(pool, id(request), query.offset, query.limit);
