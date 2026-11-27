@@ -960,8 +960,7 @@ export function LobbyScreen({
               <li key={lobby.code}>
                 <Card
                   className={cn(
-                    "relative isolate flex h-full flex-col gap-4",
-                    development && "bg-transparent p-0"
+                    "relative isolate flex h-full flex-col gap-4"
                   )}
                 >
                   <div className="min-w-0 space-y-2">
