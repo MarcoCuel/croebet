@@ -18,7 +18,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { adminQuerySchema, userChangeSchema, balanceAdjustmentSchema, couponWriteSchema, couponsQuerySchema,
-  redeemCouponSchema, adminUserDetailSchema, couponDetailSchema } from "@croebet/shared";
+  redeemCouponSchema, adminUserDetailSchema, couponDetailSchema, bonusWindowSettingsSchema } from "@croebet/shared";
+import { readBonusWindowSettings } from "../economy/settings.ts";
+import { saveBonusWindowSettings } from "./bonus-windows.ts";
 import { tokenHash } from "../auth/security.ts";
 import { readTransactions, WalletError } from "../wallet/service.ts";
 import { ManagementError, readAdminUser, readAdminUsers, readAudit, changeUser, adjustBalance, readCoupon, readCoupons, readRedemptions, saveCoupon } from "./service.ts";
@@ -95,6 +97,9 @@ export async function managementRoutes(app: FastifyInstance, options: Options) {
   });
   app.get("/api/v1/admin/seo", (request, reply) => run(request, reply, true, async () => readSeo(pool)));
   app.patch("/api/v1/admin/seo", (request, reply) => run(request, reply, true, async (actor, hash) => saveSeo(pool, actor.id, hash, seoSettingsSchema.parse(request.body))));
+  app.get("/api/v1/admin/bonus-windows", (request, reply) => run(request, reply, true, async () => readBonusWindowSettings(pool)));
+  app.patch("/api/v1/admin/bonus-windows", (request, reply) => run(request, reply, true, async (actor, hash) =>
+    saveBonusWindowSettings(pool, actor.id, hash, bonusWindowSettingsSchema.parse(request.body))));
   app.get("/api/v1/admin/overview", (request, reply) => run(request, reply, true, async () => readOverview(pool, overviewQuerySchema.parse(request.query).days)));
   app.get("/api/v1/games", async () => readGames(pool));
   app.get("/api/v1/games/:slug", async (request, reply) => {

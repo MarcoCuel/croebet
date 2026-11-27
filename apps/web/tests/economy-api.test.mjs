@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { loadEconomy, loadDailyStatus } from '../features/wallet/economy-api.ts';
 
 const economy = { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 50], defaultBet: 5 };
-const status = { balance: 40, lastClaimAt: '2026-11-19T02:59:00.000Z', nextClaimAt: '2026-11-20T02:59:00.000Z', eligible: false, serverNow: '2026-11-19T03:00:00.000Z' };
+const status = { balance: 40, lastClaimAt: '2026-11-19T02:59:00.000Z', nextClaimAt: '2026-11-20T02:59:00.000Z', eligible: false, serverNow: '2026-11-19T03:00:00.000Z', windowActive: false, nextWindowAt: null };
 test('economia vem da API e dados privados iniciais encaminham cookie sem cache', async () => {
   assert.deepEqual(await loadEconomy('http://api', async (url, options) => {
     assert.equal(url, 'http://api/api/v1/economy'); assert.equal(options.cache, 'no-store');

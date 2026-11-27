@@ -15,6 +15,7 @@ import {
   Tickets,
   Users,
   ListTree,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/session-context";
@@ -29,6 +30,7 @@ const sections = [
   { id: "pages", label: "Páginas", Icon: FileText },
   { id: "menus", label: "Menus", Icon: ListTree },
   { id: "media", label: "Mídia", Icon: ImageIcon },
+  { id: "extras", label: "Extras", Icon: Sparkles },
   { id: "seo", label: "Configurações", Icon: Settings },
 ] as const;
 

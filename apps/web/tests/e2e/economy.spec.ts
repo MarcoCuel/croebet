@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role: "user" };
 const economy = { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: 'America/Sao_Paulo', suggestedBets: [1, 5, 10, 50], defaultBet: 5 };
-const initial = () => ({ balance: 30, lastClaimAt: null as string | null, nextClaimAt: null as string | null, eligible: true, serverNow: new Date().toISOString() });
+const initial = () => ({ balance: 30, lastClaimAt: null as string | null, nextClaimAt: null as string | null, eligible: true, serverNow: new Date().toISOString(), windowActive: false, nextWindowAt: null as string | null });
 let daily = initial();
 let api: Server;
 const game = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5c", slug: "flip7", name: "Flip 7", enabled: true, imageUrl: null, version: 1 };
@@ -61,7 +61,7 @@ test("resgate com saldo 30 credita 10 e persiste o intervalo após reload", asyn
     claims++;
     expect(route.request().postDataJSON()).toEqual({ requestId: expect.any(String) });
     const now = new Date('2026-11-19T01:00:00Z'); // 22h em São Paulo
-    daily = { balance: 40, eligible: false, lastClaimAt: now.toISOString(), nextClaimAt: '2026-11-19T03:00:00.000Z', serverNow: now.toISOString() };
+    daily = { balance: 40, eligible: false, lastClaimAt: now.toISOString(), nextClaimAt: '2026-11-19T03:00:00.000Z', serverNow: now.toISOString(), windowActive: false, nextWindowAt: null };
     await route.fulfill({ json: daily });
   });
   await page.goto("/");
@@ -86,7 +86,7 @@ test("Flip 7 usa valor padrão e sugestões da API sem debitar saldo local", asy
 
 test("contador libera o botão na meia-noite de São Paulo", async ({ page }) => {
   await page.clock.install({ time: new Date('2026-11-19T02:59:58Z') });
-  daily = { balance: 40, eligible: false, lastClaimAt: '2026-11-19T01:00:00.000Z', nextClaimAt: '2026-11-19T03:00:00.000Z', serverNow: '2026-11-19T02:59:58.000Z' };
+  daily = { balance: 40, eligible: false, lastClaimAt: '2026-11-19T01:00:00.000Z', nextClaimAt: '2026-11-19T03:00:00.000Z', serverNow: '2026-11-19T02:59:58.000Z', windowActive: false, nextWindowAt: null };
   await page.goto('/');
   await expect(page.getByRole('button', { name: /^Próximo resgate em/ })).toBeDisabled();
   await page.clock.runFor(3000);

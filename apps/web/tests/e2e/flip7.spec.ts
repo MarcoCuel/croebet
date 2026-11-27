@@ -37,7 +37,7 @@ test("sidebar, criação em modal e card da sala preservam configuração e aç�
   await expect(aside.getByRole("heading",{name:"Flip da comunidade",exact:true})).toBeVisible();
   await expect(aside.getByText("2 / 12",{exact:true})).toBeVisible();
   await expect(aside.getByRole("button",{name:"Regras",exact:true})).toBeVisible();
-  await expect(list.locator('[data-slot="empty-state"]')).toHaveText("Nenhum lobby aberto por enquanto.");
+  await expect(list.locator('[data-slot="empty-state"]')).toContainText("Nenhuma sala aberta");
   if(testInfo.project.name==="desktop"){
     const asideBox=await aside.boundingBox(),listBox=await list.boundingBox();
     expect(asideBox!.x+asideBox!.width).toBeLessThan(listBox!.x);
@@ -75,7 +75,7 @@ test("sidebar, criação em modal e card da sala preservam configuração e aç�
   expect(fixture.states.size).toBe(1);
   await page.getByRole("button",{name:"Cancelar",exact:true}).click();
   await expect(page.getByRole("button",{name:"Jogar",exact:true})).toBeEnabled();
-  await expect(list.getByText("Nenhum lobby aberto por enquanto.")).toBeVisible();
+  await expect(list.getByText("Nenhuma sala aberta",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"Jogar",exact:true}).click();
   await page.getByRole("dialog").getByRole("button",{name:"Criar sala",exact:true}).click();
   await expect(page.getByRole("button",{name:"Cancelar",exact:true})).toBeVisible();

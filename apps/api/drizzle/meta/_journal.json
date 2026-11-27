@@ -316,6 +316,13 @@
       "when": 1795653287312,
       "tag": "0044_legal_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795808858553,
+      "tag": "0045_chubby_black_tom",
+      "breakpoints": true
     }
   ]
 }

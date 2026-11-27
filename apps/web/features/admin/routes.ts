@@ -9,5 +9,6 @@ export const adminRoutes = {
   pages: "/admin/paginas",
   media: "/admin/midia",
   menus: "/admin/menus",
+  extras: "/admin/extras",
 } as const;
 export type AdminSection = keyof typeof adminRoutes;

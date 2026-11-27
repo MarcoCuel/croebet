@@ -285,7 +285,7 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
           }}
         />
       )
-    ) : <ul className={cn("grid gap-4", "grid-cols-[repeat(auto-fill,minmax(28rem,1fr))]")}>
+    ) : <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(28rem,100%),1fr))] gap-4">
       {listedRooms.map(lobby => {
         const active = lobby.status === "playing";
         const people = [

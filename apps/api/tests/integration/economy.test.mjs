@@ -17,7 +17,7 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
     } finally { await pool.end(); }
   });
   assert.equal((await pool.query('select environment from application_environment where id=1')).rows[0]?.environment, 'test');
-  // Exercise the production SQL with synthetic claims, including UTC/local date differences.
+  // Exercise the production SQL calendar boundary directly, including UTC/local date differences.
   for (const [claimed, expected] of [
     [null, null],
     ['2026-11-19T01:00:00Z', '2026-11-19T03:00:00.000Z'],
@@ -25,8 +25,9 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
     ['2026-12-31T23:00:00-03:00', '2027-01-01T03:00:00.000Z'],
     ['2026-02-28T22:00:00-03:00', '2026-03-01T03:00:00.000Z'],
   ]) {
-    const adapter = { query: (sql, params) => pool.query(`with wallet_accounts as (select 'account'::text id, 'user'::text user_id, 30 balance), daily_claims as (select 'account'::text account_id, $3::timestamptz claimed_at) ${sql}`, [...params, claimed]) };
-    assert.equal((await readDailyStatus(adapter, 'user')).nextClaimAt, expected);
+    const row = (await pool.query(`select (((($1::timestamptz) at time zone $2)::date + 1)::timestamp at time zone $2) as next_claim_at`,
+      [claimed, 'America/Sao_Paulo'])).rows[0];
+    assert.equal(row.next_claim_at?.toISOString() ?? null, expected);
   }
   const session = randomUUID().replaceAll('-', '').repeat(2);
   const client = await pool.connect();
@@ -90,4 +91,44 @@ test('PostgreSQL: cadastro, resgate sem teto, corrida, retry, cooldown e rollbac
   assert.equal((await readTransactions(pool, other, 20, 0)).items.length, 2);
   assert.equal((await claimDailyReward(pool, other, 'b'.repeat(64), retryId)).balance, 50);
   assert.equal((await readTransactions(pool, other, 20, 0)).items.length, 3);
+
+  // The configured "horário bugado" window raises the daily limit to two claims, even under clicks racing.
+  const clockRow = (await pool.query(`select extract(hour from (clock_timestamp() at time zone 'America/Sao_Paulo'))::int as hour,
+    extract(minute from (clock_timestamp() at time zone 'America/Sao_Paulo'))::int as minute`)).rows[0];
+  const localMinute = clockRow.hour * 60 + clockRow.minute;
+  // A window always ends before 23:59, so the last minute of the day cannot be covered.
+  if (localMinute >= 1439) return;
+  const formatClock = minute => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+  const data = { enabled: true, windows: [{ start: formatClock(Math.max(0, localMinute - 2)), end: formatClock(Math.min(1439, localMinute + 2)) }] };
+  await pool.query("insert into bonus_window_settings (id,data,version) values (1,$1,1) on conflict (id) do update set data=excluded.data,version=excluded.version",
+    [JSON.stringify({ ...data, version: 1 })]);
+  t.after(async () => { await pool.query('delete from bonus_window_settings where id=1').catch(() => {}); });
+  const thirdSession = 'c'.repeat(64);
+  const thirdName = `Economy_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const third = (await pool.query('insert into users (username, display_name, password_hash) values ($1,$1,$1) returning id', [thirdName])).rows[0].id;
+  users.push(third);
+  const thirdSetup = await pool.connect();
+  try {
+    await thirdSetup.query('begin');
+    await grantInitialBalance(thirdSetup, third);
+    await thirdSetup.query("insert into sessions (token_hash,user_id,expires_at,idle_expires_at) values ($1,$2,now()+interval '1 day',now()+interval '1 day')", [thirdSession, third]);
+    await thirdSetup.query('commit');
+  } catch (error) { await thirdSetup.query('rollback'); throw error; } finally { thirdSetup.release(); }
+  const status = await readDailyStatus(pool, third);
+  assert.equal(status.windowActive, true);
+  assert.equal(status.eligible, true);
+  assert.ok(status.nextWindowAt);
+  const windowRequests = [randomUUID(), randomUUID(), randomUUID()];
+  const windowRace = await Promise.allSettled(windowRequests.map(id => claimDailyReward(pool, third, thirdSession, id)));
+  assert.equal(windowRace.filter(result => result.status === 'fulfilled').length, 2);
+  assert.equal(windowRace.find(result => result.status === 'rejected').reason.code, 'DAILY_COOLDOWN');
+  assert.deepEqual(await readWallet(pool, third), { balance: 50 });
+  const thirdAccount = (await pool.query('select id from wallet_accounts where user_id=$1', [third])).rows[0].id;
+  const claimed = (await pool.query('select kind from daily_claims where account_id=$1 order by claimed_at', [thirdAccount])).rows;
+  assert.deepEqual(claimed.map(row => row.kind), ['window', 'window']);
+  const thirdEntries = (await readTransactions(pool, third, 20, 0)).items;
+  assert.equal(thirdEntries.filter(entry => entry.description === 'Resgate diário (horário bugado)').length, 2);
+  const winnerClaim = windowRequests[windowRace.findIndex(result => result.status === 'fulfilled')];
+  assert.equal((await claimDailyReward(pool, third, thirdSession, winnerClaim)).balance, 50);
+  assert.equal((await readTransactions(pool, third, 20, 0)).items.length, 3);
 });

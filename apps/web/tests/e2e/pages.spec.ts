@@ -23,7 +23,7 @@ function respond(path: string, method: string, body: Record<string, unknown> = {
   if (path === "/api/v1/me") return { status: 200, data: { user: authenticated ? user : null } };
   if (path === "/api/v1/auth/csrf") return { status: 200, data: { token: "fixture" } };
   if (path === "/api/v1/economy") return { status: 200, data: { initialBalance: 30, dailyReward: 10, dailyResetTimeZone: "America/Sao_Paulo", suggestedBets: [1, 5, 10, 50], defaultBet: 5 } };
-  if (path === "/api/v1/rewards/daily") return { status: 200, data: { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() } };
+  if (path === "/api/v1/rewards/daily") return { status: 200, data: { balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString(), windowActive: false, nextWindowAt: null } };
   if (path.startsWith("/api/v1/admin/") && !authenticated) return { status: 404, data: {} };
   if (failure) return { status: 503, data: {} };
   if (path === "/api/v1/navigation") {

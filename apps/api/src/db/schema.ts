@@ -6,6 +6,9 @@ export const tableVisualSettings = pgTable("table_visual_settings", {
 export const seoSettings = pgTable("seo_settings", {
   id: integer("id").primaryKey(), data: jsonb("data").notNull(), version: integer("version").notNull().default(1),
 }, table => [check("seo_singleton", sql`${table.id} = 1`), check("seo_version_positive", sql`${table.version} > 0`)]);
+export const bonusWindowSettings = pgTable("bonus_window_settings", {
+  id: integer("id").primaryKey(), data: jsonb("data").notNull(), version: integer("version").notNull().default(1),
+}, table => [check("bonus_window_singleton", sql`${table.id} = 1`), check("bonus_window_version_positive", sql`${table.version} > 0`)]);
 export const navigationMenus = pgTable("navigation_menus", {
   location: text("location").primaryKey(),
   items: jsonb("items").notNull(),
@@ -103,9 +106,11 @@ export const dailyClaims = pgTable("daily_claims", {
   accountId: uuid("account_id").notNull().references(() => walletAccounts.id),
   requestId: uuid("request_id").notNull(),
   operationId: uuid("operation_id").notNull().unique().references(() => walletOperations.id),
+  kind: text("kind").notNull().default("daily"),
   claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("daily_claim_request").on(table.accountId, table.requestId),
-  index("daily_claim_account_time").on(table.accountId, table.claimedAt)]);
+  index("daily_claim_account_time").on(table.accountId, table.claimedAt),
+  check("daily_claim_kind_valid", sql`${table.kind} in ('daily','window')`)]);
 
 
 export const coupons = pgTable("coupons", {

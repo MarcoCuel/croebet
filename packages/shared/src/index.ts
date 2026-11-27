@@ -10,6 +10,7 @@ export * from "./seo.js";
 export * from "./menus.js";
 export * from "./icons.js";
 export * from "./slug.js";
+export * from "./bonus-windows.js";
 
 export const healthSchema = z.object({ status: z.literal("ok"), service: z.literal("croebet-api") }).strict();
 export const readinessSchema = z.object({ status: z.enum(["ready", "unavailable"]) }).strict();
@@ -86,6 +87,10 @@ export const dailyStatusSchema = z.object({
   nextClaimAt: z.iso.datetime().nullable(),
   eligible: z.boolean(),
   serverNow: z.iso.datetime(),
+  // True while a configured "horário bugado" window is open, when a second claim is allowed.
+  windowActive: z.boolean(),
+  // Next window start, so the client can refresh itself when the extra claim becomes available.
+  nextWindowAt: z.iso.datetime().nullable(),
 }).strict();
 export type DailyStatus = z.infer<typeof dailyStatusSchema>;
 export const dailyClaimSchema = z.object({ requestId: z.uuid() }).strict();

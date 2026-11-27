@@ -1,6 +1,8 @@
 import type { Pool, PoolClient } from "pg";
 import { dailyStatusSchema, type DailyStatus } from "@croebet/shared";
 import { economy, issuanceAccountId } from "./config.ts";
+import { readBonusWindowSettings } from "./settings.ts";
+import { dailyClaimLimit, bonusWindowState } from "./window.ts";
 import { transferCroinsInTransaction, WalletError } from "../wallet/service.ts";
 
 export class RewardError extends Error {
@@ -12,21 +14,42 @@ export class RewardError extends Error {
   }
 }
 
-export function dailyStatus(balance: number, lastClaimAt: Date | null, now: Date, nextClaimAt: Date | null): DailyStatus {
-  return dailyStatusSchema.parse({ balance, lastClaimAt: lastClaimAt?.toISOString() ?? null,
-    nextClaimAt: nextClaimAt?.toISOString() ?? null, eligible: !nextClaimAt || nextClaimAt <= now, serverNow: now.toISOString() });
+export function dailyStatus(input: {
+  balance: number; lastClaimAt: Date | null; now: Date; nextClaimAt: Date | null;
+  windowActive: boolean; nextWindowAt: Date | null;
+}): DailyStatus {
+  return dailyStatusSchema.parse({
+    balance: input.balance,
+    lastClaimAt: input.lastClaimAt?.toISOString() ?? null,
+    nextClaimAt: input.nextClaimAt?.toISOString() ?? null,
+    eligible: !input.nextClaimAt || input.nextClaimAt <= input.now,
+    serverNow: input.now.toISOString(),
+    windowActive: input.windowActive,
+    nextWindowAt: input.nextWindowAt?.toISOString() ?? null,
+  });
 }
 
 export async function readDailyStatus(client: Pick<Pool, "query"> | Pick<PoolClient, "query">, userId: string) {
   // PostgreSQL resolves calendar boundaries in the product timezone, independently of host/browser timezone.
-  const result = await client.query(`select a.balance, c.last_claim_at,
+  // The window limit only applies to claims made on the current local day.
+  const result = await client.query(`select a.balance, c.last_claim_at, c.claims_today,
     (((c.last_claim_at at time zone $2)::date + 1)::timestamp at time zone $2) as next_claim_at,
     clock_timestamp() as now from wallet_accounts a
-    cross join lateral (select max(claimed_at) as last_claim_at from daily_claims where account_id=a.id) c
+    cross join lateral (select max(d.claimed_at) as last_claim_at,
+      count(*) filter (where (d.claimed_at at time zone $2)::date = (clock_timestamp() at time zone $2)::date) as claims_today
+      from daily_claims d where d.account_id=a.id) c
     where a.user_id=$1`, [userId, economy.dailyResetTimeZone]);
   const row = result.rows[0];
   if (!row) throw new WalletError("ACCOUNT_UNAVAILABLE");
-  return dailyStatus(Number(row.balance), row.last_claim_at, row.now, row.next_claim_at);
+  const settings = await readBonusWindowSettings(client);
+  const now = row.now as Date;
+  const window = bonusWindowState(settings, now, economy.dailyResetTimeZone);
+  const eligible = Number(row.claims_today) < dailyClaimLimit(window);
+  return dailyStatus({
+    balance: Number(row.balance), lastClaimAt: row.last_claim_at, now,
+    nextClaimAt: eligible ? null : row.next_claim_at,
+    windowActive: window.active, nextWindowAt: window.nextStartAt,
+  });
 }
 
 // Called inside the registration transaction; failure rolls back user, session and credit.
@@ -56,12 +79,16 @@ export async function claimDailyReward(pool: Pool, userId: string, sessionHash: 
     const status = await readDailyStatus(client, userId);
     if (replay.rows.length) { await client.query("commit"); return status; }
     if (!status.eligible) throw new RewardError("DAILY_COOLDOWN");
+    // A window claim is still one auditable ledger operation; the reason keeps it distinguishable.
     const receipt = await transferCroinsInTransaction(client, {
       scope: `daily:${account.id}`, idempotencyKey: requestId, from: issuanceAccountId, to: account.id,
-      actorAccountId: account.id, amount: economy.dailyReward, reason: "Resgate diário", reference: "Resgate diário",
+      actorAccountId: account.id, amount: economy.dailyReward,
+      reason: status.windowActive ? "Resgate diário (horário bugado)" : "Resgate diário",
+      reference: status.windowActive ? "Horário bugado" : "Resgate diário",
     });
     // Record the effective credit time; the next local midnight starts a new claim day.
-    await client.query("insert into daily_claims (account_id, request_id, operation_id, claimed_at) values ($1,$2,$3,clock_timestamp())", [account.id, requestId, receipt.operationId]);
+    await client.query("insert into daily_claims (account_id, request_id, operation_id, claimed_at, kind) values ($1,$2,$3,clock_timestamp(),$4)",
+      [account.id, requestId, receipt.operationId, status.windowActive ? "window" : "daily"]);
     const next = await readDailyStatus(client, userId);
     await client.query("commit");
     return next;

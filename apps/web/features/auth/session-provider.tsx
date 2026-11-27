@@ -58,6 +58,20 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
       }).catch(() => {});
     }
   }), []);
+  // The "horário bugado" window can open while the tab stays open; refresh the status when it starts.
+  useEffect(() => {
+    if (!user || !daily?.nextWindowAt) return;
+    // Server instants avoid depending on the browser clock.
+    const remaining = Math.max(0, Date.parse(daily.nextWindowAt) - Date.parse(daily.serverNow));
+    if (remaining <= 0) return;
+    const accountId = user.id;
+    const timer = window.setTimeout(() => {
+      void loadDailyStatus().then(next => {
+        if (next) setWallet(current => current?.userId === accountId ? { userId: accountId, daily: next } : current);
+      });
+    }, remaining + 500);
+    return () => window.clearTimeout(timer);
+  }, [user, daily?.nextWindowAt, daily?.serverNow]);
   function openAuth(mode: "login" | "register") {
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setAuthMode(mode);
@@ -128,7 +142,7 @@ export function SessionProvider({ children, initialSession }: { children: ReactN
         if (revision.current === version) {
           setWallet({ userId: accountId, daily: next });
           claimRequest.current = null;
-          toast.success("Croins resgatados."); router.refresh();
+          toast.success(next.windowActive && next.eligible ? "Horário bugado: resgate de novo!" : "Croins resgatados."); router.refresh();
         }
       } catch (error) {
         if (revision.current === version) {

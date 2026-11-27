@@ -46,11 +46,11 @@ export function InvitePlayers({gameSlug,code,open,onOpenChange}:{gameSlug:string
     <DialogContent aria-describedby={undefined}>
       <DialogTitle>Convidar jogadores</DialogTitle>
       <div className="mt-5 space-y-4">
-        <Button variant="secondary" className="w-full" onClick={async()=>{
+        <Button className="w-full" onClick={async()=>{
           try{await navigator.clipboard.writeText(`${window.location.origin}${gameUrl(gameSlug,{code})}`);toast.success("Link de convite copiado.");}
           catch{toast.error("Não foi possível copiar o link.");}
         }}><Copy className="size-4" aria-hidden="true"/>Copiar link de convite</Button>
-        <SearchInput aria-label="Encontrar jogadores" placeholder="Encontre jogadores…" value={query} maxLength={80} onChange={e=>setQuery(e.target.value)}/>
+        <SearchInput aria-label="Encontrar jogadores" placeholder="Pesquisar…" value={query} maxLength={80} onChange={e=>setQuery(e.target.value)}/>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {!players && !error && <p role="status" className="text-sm text-muted">Buscando jogadores…</p>}
         {players && <div aria-busy={loading} className="max-h-80 space-y-4 overflow-y-auto" data-lenis-prevent>

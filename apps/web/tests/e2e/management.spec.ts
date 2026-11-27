@@ -27,7 +27,7 @@ function respond(method: string, url: string, body: Record<string, unknown> = {}
   if (path === "/api/v1/auth/csrf") return { token: "fixture" };
   if (path === "/api/v1/rewards/daily" || path === "/api/v1/coupons/redeem") {
     if (method === "POST") { balance += coupon?.amount ?? 0; lastBody = body; }
-    return { balance, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString() };
+    return { balance, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: new Date().toISOString(), windowActive: false, nextWindowAt: null };
   }
   if (path === "/api/v1/admin/users") {
     const query = new URL(url, "http://api").searchParams;

@@ -20,6 +20,8 @@ import { adminRoutes } from "@/features/admin/routes";
 
 import { seoSettingsSchema } from "@croebet/shared";
 import { AdminSeo } from "@/features/admin/admin-seo";
+import { bonusWindowSettingsSchema } from "@croebet/shared";
+import { AdminExtras } from "@/features/admin/admin-extras";
 
 const titles = {
   seo: "Configurações",
@@ -32,6 +34,7 @@ const titles = {
   pages: "Páginas",
   menus: "Menus",
   media: "Biblioteca de mídia",
+  extras: "Extras",
 } as const;
 
 export async function generateMetadata({
@@ -62,6 +65,10 @@ export default async function AdminSectionPage({
   if (section === "configuracoes") {
     const data = await getManagement("/admin/seo", seoSettingsSchema);
     return <AdminAccess section="seo" content={data ? <AdminSeo initial={data} /> : <ManagementUnavailable />} />;
+  }
+  if (section === "extras") {
+    const data = await getManagement("/admin/bonus-windows", bonusWindowSettingsSchema);
+    return <AdminAccess section="extras" content={data ? <AdminExtras initial={data} /> : <ManagementUnavailable />} />;
   }
   if (section === "apostas") {
     const data = await getManagement("/admin/markets", catalogMarketsSchema);

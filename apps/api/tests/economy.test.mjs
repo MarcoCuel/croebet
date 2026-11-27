@@ -23,13 +23,14 @@ test('economia aprovada é centralizada; cupons aceitam valores livres inteiros 
 test('resgate libera à meia-noite de São Paulo, sem qualquer teto de saldo', () => {
   const claimed = new Date('2026-11-19T01:00:00.000Z'); // 22h de 18/11 em São Paulo
   const next = new Date('2026-11-19T03:00:00.000Z'); // meia-noite de 19/11
+  const status = (balance, lastClaimAt, now, nextClaimAt) => dailyStatus({ balance, lastClaimAt, now, nextClaimAt, windowActive: false, nextWindowAt: null });
   for (const balance of [0, 29, 30, 39, 100000]) {
-    assert.equal(dailyStatus(balance, null, claimed, null).eligible, true);
-    assert.equal(dailyStatus(balance, claimed, new Date('2026-11-19T02:00:00Z'), next).eligible, false);
-    assert.equal(dailyStatus(balance, claimed, new Date(next.getTime() - 1), next).eligible, false);
-    assert.equal(dailyStatus(balance, claimed, next, next).eligible, true);
-    assert.equal(dailyStatus(balance, claimed, new Date('2026-11-19T04:00:00Z'), next).eligible, true); // 1h do dia seguinte
-    assert.equal(dailyStatus(balance, claimed, next, next).nextClaimAt, next.toISOString());
+    assert.equal(status(balance, null, claimed, null).eligible, true);
+    assert.equal(status(balance, claimed, new Date('2026-11-19T02:00:00Z'), next).eligible, false);
+    assert.equal(status(balance, claimed, new Date(next.getTime() - 1), next).eligible, false);
+    assert.equal(status(balance, claimed, next, next).eligible, true);
+    assert.equal(status(balance, claimed, new Date('2026-11-19T04:00:00Z'), next).eligible, true); // 1h do dia seguinte
+    assert.equal(status(balance, claimed, next, next).nextClaimAt, next.toISOString());
   }
 });
 test('cadastro concede crédito auditável na transação do chamador', async () => {

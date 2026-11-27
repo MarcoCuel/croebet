@@ -3,7 +3,7 @@ import { fixedMenuPages, type DailyStatus } from "@croebet/shared";
 import { startPublicApi } from "../public-api-fixture";
 
 const user = { id: "93089d02-0b34-4b78-9d3e-f2679c190b5b", username: "Tonho", displayName: "Tonho", role: "user", avatarUrl: null, usernameChangeAvailableAt: null };
-const initial = (): DailyStatus => ({ balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: "2026-11-20T12:00:00.000Z" });
+const initial = (): DailyStatus => ({ balance: 30, eligible: true, lastClaimAt: null, nextClaimAt: null, serverNow: "2026-11-20T12:00:00.000Z", windowActive: false, nextWindowAt: null });
 let daily = initial();
 let unavailable = false;
 let claims = 0;
@@ -26,7 +26,9 @@ test.beforeAll(async () => {
     if (unavailable) { response.statusCode = 503; response.end("{}"); return true; }
     if (path === "/api/v1/rewards/daily/claim") {
       claims++;
-      daily = { balance: 40, eligible: false, lastClaimAt: daily.serverNow, nextClaimAt: "2026-11-21T12:00:00.000Z", serverNow: daily.serverNow };
+      daily = daily.windowActive && claims === 1
+        ? { ...daily, balance: 40, eligible: true, lastClaimAt: daily.serverNow, nextClaimAt: null }
+        : { ...daily, balance: 30 + claims * 10, eligible: false, lastClaimAt: daily.serverNow, nextClaimAt: "2026-11-21T12:00:00.000Z" };
     }
     response.end(JSON.stringify(daily));
     return true;
@@ -52,6 +54,21 @@ test("presente permite resgatar uma vez e desaparece após confirmação", async
   expect(claims).toBe(1);
   await page.reload();
   await expect(gift).toHaveCount(0);
+});
+
+test("horário bugado libera o segundo resgate e some depois do limite", async ({ page, isMobile }) => {
+  daily = { ...initial(), windowActive: true, nextWindowAt: "2026-11-21T18:00:00.000Z" };
+  await page.goto("/");
+  if (isMobile) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+  const header = isMobile ? page.getByRole("dialog", { name: "Menu da Croebet" }) : page.locator("header");
+  const gift = header.getByRole("button", { name: "Resgatar bônus do horário bugado", exact: true });
+  await expect(gift).toHaveText("Bônus bugado");
+  await gift.click();
+  await expect(gift).toBeVisible();
+  await expect(header.getByRole("link", { name: "Ver carteira" }).filter({ visible: true })).toContainText("40");
+  await gift.click();
+  await expect(gift).toHaveCount(0);
+  expect(claims).toBe(2);
 });
 
 test("presente aparece quando o intervalo acaba sem recarregar", async ({ page, isMobile }) => {

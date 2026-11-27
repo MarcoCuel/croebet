@@ -19,18 +19,19 @@ export function DailyBonusButton() {
 
   if (!username || !daily || (!daily.eligible && availableSnapshot !== daily)) return null;
 
+  const windowActive = daily.windowActive;
   return (
     <Button
       variant="default"
       className="bg-secondary text-white"
-      aria-label="Resgatar bônus diário"
-      title="Resgatar bônus diário"
+      aria-label={windowActive ? "Resgatar bônus do horário bugado" : "Resgatar bônus diário"}
+      title={windowActive ? "Resgatar bônus do horário bugado" : "Resgatar bônus diário"}
       disabled={claimingDaily}
       aria-busy={claimingDaily || undefined}
       onClick={claimDaily}
     >
       <Gift className="size-4" aria-hidden="true" />
-      Bônus diário
+      {windowActive ? "Bônus bugado" : "Bônus diário"}
     </Button>
   );
 }

@@ -110,6 +110,7 @@ export function Topbar({
           : (
               {
                 [adminRoutes.seo]: "Configurações",
+                [adminRoutes.extras]: "Extras",
                 "/admin/cupons": "Cupons",
                 [adminRoutes.achievements]: "Conquistas",
                 "/admin/jogos": "Jogos",
