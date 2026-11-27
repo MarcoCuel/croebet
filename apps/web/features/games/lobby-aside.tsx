@@ -2,14 +2,13 @@
 
 import type { ReactNode } from "react";
 import { Clock3, UsersRound } from "lucide-react";
-import { maxGamePlayers, type GameDefinition, type GameRecord, type Lobby, type Ranking } from "@croebet/shared";
+import { maxGamePlayers, type GameDefinition, type GameRecord, type Lobby } from "@croebet/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/shared/heading";
 import { cn } from "@/lib/utils";
 import { GameCover } from "./game-cover";
-import { GameRanking } from "./game-ranking";
 import { GameModeSwitch } from "./mode-switch";
 
 export function LobbyAside({
@@ -25,7 +24,6 @@ export function LobbyAside({
   playDisabled,
   playLoading = false,
   rules,
-  ranking,
   onLogin,
   onPlay,
   onCreate,
@@ -42,14 +40,13 @@ export function LobbyAside({
   playDisabled: boolean;
   playLoading?: boolean;
   rules?: (options: Lobby["options"]) => ReactNode;
-  ranking?: Ranking | null;
   onLogin: () => void;
   onPlay: () => void;
   onCreate: () => void;
 }) {
   const durationMinutes = game.averageDurationSeconds == null ? null : Math.max(1, Math.round(game.averageDurationSeconds / 60));
-  return <aside aria-label="Apresentação do jogo" className="min-w-0 space-y-4 xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
-    <Card className="relative isolate aspect-square overflow-hidden p-0">
+  return <aside aria-label="Apresentação do jogo" className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-(--header-height) xl:min-h-[var(--column-height)]">
+    <Card className="relative isolate aspect-square shrink-0 overflow-hidden p-0">
       <GameCover imageUrl={game.imageUrl} name={game.name} />
       {game.imageUrl && <span className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent" aria-hidden="true" />}
       <div className={cn("absolute inset-0 flex flex-col justify-between gap-10 p-4", game.imageUrl && "text-white")}>
@@ -64,14 +61,13 @@ export function LobbyAside({
       <Button className="w-full bg-tertiary text-white" loading={playLoading} disabled={playDisabled} onClick={onPlay}>Jogar</Button>
       {showCreate && <Button className="w-full" variant="secondary" disabled={creationBlocked || busy || !connected} onClick={onCreate}>Criar sala</Button>}
     </>}
-    <Card className="space-y-4" aria-label="Sobre o jogo">
+    <Card className="flex flex-1 flex-col gap-4" aria-label="Sobre o jogo">
       <div className="flex flex-wrap gap-2" aria-label="Informações do jogo">
         <Badge variant="secondary" className="gap-2"><UsersRound className="size-4" aria-hidden="true" />{definition.minPlayers} / {maxGamePlayers(definition, definition.defaults)}</Badge>
         {durationMinutes !== null && <Badge variant="secondary" className="gap-2"><Clock3 className="size-4" aria-hidden="true" />{durationMinutes} min.</Badge>}
       </div>
-      {game.description && <p className="whitespace-pre-line text-sm leading-relaxed text-muted">{game.description}</p>}
+      {game.description && <p className="whitespace-pre-line text-sm leading-relaxed text-muted my-auto">{game.description}</p>}
       {rules?.(settings)}
     </Card>
-    <GameRanking gameName={game.name} data={ranking ?? null} />
   </aside>;
 }

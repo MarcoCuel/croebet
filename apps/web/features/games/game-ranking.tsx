@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Trophy } from "lucide-react";
 import type { Ranking } from "@croebet/shared";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/shared/empty-state";
 
 const format = new Intl.NumberFormat("pt-BR");
 
@@ -13,20 +14,16 @@ function wins(value: number) {
 }
 
 /** Compact all-time wins ranking for one catalog game. */
-export function GameRanking({ gameName, data }: { gameName: string; data: Ranking | null }) {
+export function GameRanking({ gameName, data, className }: { gameName: string; data: Ranking | null; className?: string }) {
   const shown = data?.items.slice(0, 5) ?? [];
   const own = data?.own ?? null;
   const ownOutside = own && !shown.some(item => item.userId === own.userId) ? own : null;
-  return <Card asChild className="space-y-3">
-    <section aria-labelledby="game-ranking-title">
+  return <Card asChild className={cn("space-y-3", className)}>
+    <section aria-labelledby="game-ranking-title" data-lenis-prevent>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="game-ranking-title" className="text-lg font-semibold leading-tight">Mais vitoriosos</h2>
-          <p className="truncate text-sm text-muted">{gameName} · Geral</p>
-        </div>
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-contrast/6 text-muted" aria-hidden="true"><Trophy className="size-4" /></span>
+        <h2 id="game-ranking-title" className="text-lg font-semibold leading-tight">Mais vitoriosos</h2>
       </div>
-      {!data ? <p className="text-sm text-muted">Ranking indisponível agora.</p> : !shown.length ? <p className="text-sm text-muted">Ninguém venceu ainda. A primeira vitória pode ser sua.</p> : <>
+      {!data ? <p className="text-sm text-muted">Ranking indisponível agora.</p> : !shown.length ? <EmptyState title="Ninguém venceu ainda" description="A primeira vitória pode ser sua." /> : <>
         <ol aria-label={`Ranking de vitórias em ${gameName}`} className="space-y-1">
           {shown.map(item => <li key={item.userId} className="flex items-center gap-3 px-1 py-1.5">
             <span className="w-4 shrink-0 text-center text-xs font-semibold text-muted tabular-nums" aria-hidden="true">{item.position}</span>

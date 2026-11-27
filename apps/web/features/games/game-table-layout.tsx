@@ -57,7 +57,7 @@ export function GameTableLayout({
             "grid grid-cols-[minmax(0,1fr)] items-start",
             "[--history-width:clamp(8rem,25cqi,14rem)]",
             showAside &&
-              "gap-4 @3xl:grid-cols-[minmax(0,1fr)_var(--history-width)] @3xl:gap-6"
+              "gap-4 @3xl:grid-cols-[minmax(0,1fr)_var(--history-width)]"
           )}
         >
           <div

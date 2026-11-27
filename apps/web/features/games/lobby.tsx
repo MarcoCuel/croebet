@@ -28,10 +28,15 @@ import { LobbyAside } from "./lobby-aside";
 import { LobbyCreateDialog } from "./lobby-create";
 import { playerName } from "./player-name";
 import { readGamePreferences, saveGamePreferences } from "./setup-storage";
+import { GameRanking } from "./game-ranking";
 
 const subscribeToHydration=()=>()=>{};
 const clientSnapshot=()=>true;
 const serverSnapshot=()=>false;
+// Visible area below the navbar and above PageShell's bottom padding. The lobby
+// list scrolls with the page; the game sidebar keeps this as a minimum height
+// and the ranking fills it, scrolling inside its own card.
+const columnHeight="[--column-height:calc(100dvh_-_var(--header-height)_-1rem)]";
 
 function SeatOutline() {
   return <svg className="pointer-events-none absolute inset-0 size-full text-contrast/20" viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
@@ -253,16 +258,55 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
     finally{setBusy(false);}
   }
 
-  const rooms=<section className="min-w-0 space-y-4" aria-label="Lobbies abertos">
-    <>
-      {!connected && <p role="status" className="text-sm text-muted">Conectando às salas…</p>}
-      {listedRooms.length===0?connected && <EmptyState title="Nenhum lobby aberto por enquanto." icon={<UserRound className="size-6" />} className="rounded-panel bg-surface" />:<ul className={cn("grid gap-4","@min-[34rem]:grid-cols-2 @min-[64rem]:grid-cols-3")}>{listedRooms.map(lobby=>{
-        const active=lobby.status==="playing";
-        const people=[...lobby.participants,...(lobby.status==="lobby"?lobby.pendingInvitations:[]),...Array.from({length:lobby.bots},(_,i)=>({userId:`bot-${i}`,username:`Bot ${i+1}`,displayName:`Bot ${i+1}`,avatarUrl:null,seat:lobby.participants.length+i}))];
-        const filled=people.length;
-        const hostName=lobby.participants.some(p=>p.userId===lobby.hostId)?playerName(lobby.participants.find(p=>p.userId===lobby.hostId)):lobby.hostId===userId?(displayName || username || "Você"):"Administrador";
-        const cardHost=lobby.hostId===userId;
-        const member=lobby.participants.some(p=>p.userId===userId);
+  const rooms = <section className={cn("min-w-0 space-y-4", listedRooms.length===0 && "flex flex-1 flex-col")} aria-label="Lobbies abertos">
+  <>
+    {!connected && (
+      <p role="status" className="text-sm text-muted text-center bg-contrast/6 p-4 rounded-2xl">
+        Conectando às salas…
+      </p>
+    )}
+
+    {listedRooms.length === 0 ? (
+      connected && (
+        <EmptyState
+          title="Nenhuma sala aberta"
+          description="Crie uma sala para começar a jogar."
+          icon={<UserRound className="size-6" />}
+          className="flex-1 justify-center rounded-panel bg-surface"
+          button={{
+            disabled: busy || !connected || creationBlocked,
+            onClick: openCreate,
+            children: (
+              <>
+                <Plus className="size-4" />
+                Criar sala
+              </>
+            ),
+          }}
+        />
+      )
+    ) : <ul className={cn("grid gap-4", "grid-cols-[repeat(auto-fill,minmax(28rem,1fr))]")}>
+      {listedRooms.map(lobby => {
+        const active = lobby.status === "playing";
+        const people = [
+          ...lobby.participants,
+          ...(lobby.status === "lobby" ? lobby.pendingInvitations : []),
+          ...Array.from({ length: lobby.bots }, (_, i) => ({
+            userId: `bot-${i}`,
+            username: `Bot ${i + 1}`,
+            displayName: `Bot ${i + 1}`,
+            avatarUrl: null,
+            seat: lobby.participants.length + i,
+          })),
+        ];
+        const filled = people.length;
+        const hostName = lobby.participants.some(p => p.userId === lobby.hostId)
+          ? playerName(lobby.participants.find(p => p.userId === lobby.hostId))
+          : lobby.hostId === userId
+            ? (displayName || username || "Você")
+            : "Administrador";
+        const cardHost = lobby.hostId === userId;
+        const member = lobby.participants.some(p => p.userId === userId);
         const joined=(development && cardHost) || member;
         const pending=lobby.status==="lobby"?lobby.pendingInvitations:[];
         const confirmedIds=lobby.status==="lobby"?lobby.confirmedUserIds:[];
@@ -328,12 +372,13 @@ export function LobbyScreen({initial,rules,onStarted,game,development=false,onTe
   const editCapacity=editRoom?.capacity ?? capacity;
   const editEntry=editRoom?.entryAmount ?? entryAmount;
   return <div className="w-full space-y-4">
-    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[21rem_minmax(0,1fr)] xl:gap-6">
-      <LobbyAside game={game} definition={definition} development={development} settings={settings} ranking={ranking} userId={userId} connected={connected} busy={busy} creationBlocked={creationBlocked} playDisabled={playDisabled} playLoading={busy} showCreate={development && !!editableRoom} rules={rules} onLogin={openLogin} onPlay={play} onCreate={openCreate}/>
-      <div className="@container min-w-0 space-y-6">
+    <div className={cn("grid min-w-0 items-start gap-4 xl:grid-cols-[21rem_minmax(0,1fr)_21rem]",columnHeight)}>
+      <LobbyAside game={game} definition={definition} development={development} settings={settings} userId={userId} connected={connected} busy={busy} creationBlocked={creationBlocked} playDisabled={playDisabled} playLoading={busy} showCreate={development && !!editableRoom} rules={rules} onLogin={openLogin} onPlay={play} onCreate={openCreate}/>
+      <div className="@container flex min-w-0 flex-col space-y-6 xl:self-stretch">
         {rooms}
         {matchesSection}
       </div>
+      <GameRanking gameName={game.name} data={ranking ?? null} className="xl:sticky xl:top-(--header-height) xl:h-[var(--column-height)] xl:overflow-y-auto"/>
     </div>
     <LobbyCreateDialog open={setup!==null && (setup!=="edit" || !!editRoom)} onOpenChange={open=>{if(!open){setSetup(null);setEditCode(null);}}} definition={definition} settings={setupEditing?editSettings:newSettings} capacity={setupEditing?editCapacity:capacity} entry={setupEditing?editEntry:entryAmount} bots={bots} onlyBots={onlyBots} development={development} economy={economy} busy={busy} connected={connected} error={setup!==null?error:""} editing={setupEditing} onChange={setupEditing?(options,capacity,entry,choice)=>{void configure(options,capacity,entry,choice);}:configureNew} onBots={setBots} onOnlyBots={setOnlyBots} onCreate={()=>void create()}/>
     {inviteCode && <InvitePlayers key={inviteCode} gameSlug={game.slug} code={inviteCode} open onOpenChange={open=>{if(!open)setInviteCode(null);}}/>}
