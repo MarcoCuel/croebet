@@ -54,41 +54,31 @@ export function ActivityHeatmap({ activity }: { activity: ProfileActivity }) {
   return (
     <Card className="mt-10 w-full min-w-0 text-left">
       <div ref={scroll} className="overflow-x-auto" tabIndex={0} role="region" aria-label="Calendário de atividades" data-lenis-prevent>
-        <div className="flex w-max min-w-full gap-1.5">
-          <div className="flex shrink-0 flex-col gap-1 pt-6 pr-1 text-[0.625rem] leading-3.5 text-muted" aria-hidden="true">
-            {["", "Seg", "", "Qua", "", "Sex", ""].map((label, index) => <span key={index} className="h-3.5">{label}</span>)}
-          </div>
-          <div className="flex flex-1 justify-between gap-0.75">
-            {weeks.map((week, weekIndex) => {
-              const monthDay = week.find(({ day }) => day?.date.endsWith("-01"))?.day ?? (weekIndex === 0 ? week.find(({ day }) => day)?.day : undefined);
-              return (
-                <div key={weekIndex} className="flex w-3.5 shrink-0 flex-col gap-1">
-                  <span className="h-5 overflow-visible whitespace-nowrap text-[0.625rem] text-muted" aria-hidden="true">{monthDay ? monthFormat.format(asDate(monthDay.date)).replace(".", "") : ""}</span>
-                  {week.map(({ day, index }, weekday) => day ? (
-                    <Tooltip key={day.date} open={selectedDate === day.date} onOpenChange={open => setSelectedDate(current => open ? day.date : current === day.date ? null : current)}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          ref={element => { if (element) buttons.current.set(index, element); else buttons.current.delete(index); }}
-                          variant="ghost" size="icon-sm"
-                          className={cn("size-3.5 min-h-0 rounded-xs p-0 hover:brightness-125 focus-visible:border-foreground", levels[Math.min(4, count(day))], hoverLevels[Math.min(4, count(day))])}
-                          aria-label={description(day)} aria-pressed={selected?.date === day.date}
-                          tabIndex={focused === index ? 0 : -1}
-                          onFocus={() => setFocused(index)} onClick={() => setSelectedDate(day.date)} onKeyDown={event => navigate(event, index)}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent>{description(day)}</TooltipContent>
-                    </Tooltip>
-                  ) : <span key={weekday} className="size-3.5" aria-hidden="true" />)}
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex flex-1 justify-between gap-0.5">
+          {weeks.map((week, weekIndex) => {
+            const monthDay = week.find(({ day }) => day?.date.endsWith("-01"))?.day ?? (weekIndex === 0 ? week.find(({ day }) => day)?.day : undefined);
+            return (
+              <div key={weekIndex} className="flex w-3.5 shrink-0 flex-col gap-1">
+                {week.map(({ day, index }, weekday) => day ? (
+                  <Tooltip key={day.date} open={selectedDate === day.date} onOpenChange={open => setSelectedDate(current => open ? day.date : current === day.date ? null : current)}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        ref={element => { if (element) buttons.current.set(index, element); else buttons.current.delete(index); }}
+                        variant="ghost" size="icon-sm"
+                        className={cn("backdrop-blur-none size-3.5 min-h-0 rounded-xs p-0 hover:brightness-125 focus-visible:border-foreground", levels[Math.min(4, count(day))], hoverLevels[Math.min(4, count(day))])}
+                        aria-label={description(day)} aria-pressed={selected?.date === day.date}
+                        tabIndex={focused === index ? 0 : -1}
+                        onFocus={() => setFocused(index)} onClick={() => setSelectedDate(day.date)} onKeyDown={event => navigate(event, index)}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>{description(day)}</TooltipContent>
+                  </Tooltip>
+                ) : <span key={weekday} className="size-3.5" aria-hidden="true" />)}
+                <span className="overflow-visible whitespace-nowrap text-xs text-muted" aria-hidden="true">{monthDay ? monthFormat.format(asDate(monthDay.date)).replace(".", "") : ""}</span>
+              </div>
+            );
+          })}
         </div>
-      </div>
-      <div className="mt-3 flex items-center justify-end gap-1.5 text-xs text-muted" aria-label="Intensidade: de zero a quatro ou mais atividades por dia">
-        <span className="mr-1">Menos</span>
-        {levels.map(level => <span key={level} className={cn("size-3.5 rounded-xs", level)} aria-hidden="true" />)}
-        <span className="ml-1">Mais</span>
       </div>
     </Card>
   );
