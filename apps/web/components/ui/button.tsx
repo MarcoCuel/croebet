@@ -16,6 +16,7 @@ export const buttonVariants = cva(
           "border-field-border bg-transparent text-foreground hover:bg-contrast/10",
         ghost:
           "bg-transparent text-muted hover:bg-contrast/10 hover:text-foreground backdrop-blur-2xl",
+        flat: "bg-transparent text-muted hover:bg-contrast/10 hover:text-foreground",
         destructive: "bg-destructive text-white hover:bg-destructive-hover",
         link: "h-auto rounded-sm bg-transparent p-0 text-brand underline-offset-4 hover:underline",
       },

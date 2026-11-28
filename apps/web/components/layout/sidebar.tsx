@@ -31,7 +31,7 @@ export function Sidebar({
         aria-hidden={!expanded}
         aria-label="Menu lateral"
       >
-        <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-4 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
+        <div className="flex min-h-(--header-height) items-center justify-between gap-2 px-6 @max-[8rem]/sidebar:flex-col @max-[8rem]/sidebar:justify-center @max-[8rem]/sidebar:gap-1 @max-[8rem]/sidebar:py-2">
           <Link
             className={brandLinkClass}
             href="/"
@@ -61,7 +61,7 @@ export function Sidebar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="fixed top-[calc((var(--header-height)-2.25rem)/2)] left-[max(1.25rem,calc(var(--sidebar-width)-3.5rem))] z-40 hidden transition-[left,background-color,color,border-color] duration-300 ease-in-out motion-reduce:transition-none md:inline-flex"
+            className="fixed top-4.25 left-[max(1.25rem,calc(var(--sidebar-width)-3rem))] z-40 hidden transition-[left,background-color,color,border-color] duration-300 ease-in-out motion-reduce:transition-none md:inline-flex"
             aria-label={
               expanded ? "Ocultar menu lateral" : "Mostrar menu lateral"
             }
