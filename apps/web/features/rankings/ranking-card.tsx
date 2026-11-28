@@ -31,7 +31,7 @@ export function RankingCard({ data, category, page, previous, next, retry, perio
     <div className="px-4">
       {!data ? <EmptyState title="O placar ficou indisponível." description="Tente novamente para consultar a classificação." action={<Button asChild variant="secondary"><Link href={retry}>Tentar novamente</Link></Button>} /> : <>
         {!data.items.length ? <EmptyState title={page > 1 ? "Você chegou ao fim do ranking." : empty[category][0]} description={page > 1 ? "Os outros colocados ficaram nas páginas anteriores." : empty[category][1]} icon={category === "losers" ? <TrendingDown className="size-6" /> : <Trophy className="size-6" />} /> : <>
-          {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="-mx-2 grid grid-cols-3 gap-4 items-end py-4 px-2">
+          {page === 1 && <ol role="list" aria-label={`Pódio de ${title}`} className="-mx-2 grid grid-cols-3 gap-1 items-end py-4 px-2">
             {data.items.slice(0,3).map((item,index) => <li key={item.userId} value={item.position} className={cn("min-w-0 text-center", index === 0 ? "col-start-2 row-start-1" : index === 1 ? "col-start-1 row-start-1" : "col-start-3 row-start-1")}>
               <Link href={`/perfil/${encodeURIComponent(item.username)}`} aria-label={`Posição ${item.position} ${item.displayName}`} aria-describedby={`ranking-value-${category}-${item.userId}`} className="flex min-w-0 flex-col items-center gap-4 hover:text-brand">
                 <span className="relative shrink-0">
@@ -42,7 +42,7 @@ export function RankingCard({ data, category, page, previous, next, retry, perio
                   <span className="block truncate font-medium" title={item.displayName}>{item.displayName}{item.userId===data.own?.userId && <span className="ml-1 text-xs text-brand">Você</span>}</span>
                   <span id={`ranking-value-${category}-${item.userId}`} className="mt-2 block text-muted tabular-nums"><Amount item={item} category={category} /></span>
                 </div>
-                <span aria-hidden="true" className={cn("grid w-full place-items-center rounded-xl border border-white/6 font-medium leading-none text-white tabular-nums inset-shadow-primary-button",index === 0 ? "h-18 bg-secondary" : index === 1 ? "h-12 bg-tertiary" : "h-[2.1875rem] bg-quaternary")}>{item.position} lugar</span>
+                <span aria-hidden="true" className={cn("grid w-full place-items-center rounded-xl border border-white/6 font-medium leading-none text-white tabular-nums inset-shadow-primary-button",index === 0 ? "h-20 bg-brand" : index === 1 ? "h-14 bg-contrast/16" : "h-[2.5rem] bg-contrast/10")}>{item.position} lugar</span>
               </Link>
             </li>)}
           </ol>}

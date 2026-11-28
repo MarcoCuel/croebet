@@ -128,12 +128,12 @@ export function AccountMenu({
                 }}
               >
                 <DropdownMenuRadioItem value="light">
-                  Light
+                  Claro
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">Escuro</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark-contrast">Escuro (Contraste)</DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="system">
-                  System
+                  Sistema
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
