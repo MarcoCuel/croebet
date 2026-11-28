@@ -993,7 +993,7 @@ export function LobbyScreen({
                   </div>
 
                   <ul
-                    className="flex flex-wrap gap-2"
+                    className="flex flex-wrap gap-2 mt-2"
                     aria-label="Vagas do lobby"
                   >
                     {Array.from(
